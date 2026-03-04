@@ -1,0 +1,190 @@
+package com.finance.core.service;
+
+import com.finance.core.domain.Watchlist;
+import com.finance.core.domain.WatchlistItem;
+import com.finance.core.repository.WatchlistItemRepository;
+import com.finance.core.repository.WatchlistRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class WatchlistServiceTest {
+
+    @Mock
+    private WatchlistRepository watchlistRepository;
+    @Mock
+    private WatchlistItemRepository watchlistItemRepository;
+    @Mock
+    private BinanceService binanceService;
+
+    @InjectMocks
+    private WatchlistService watchlistService;
+
+    private UUID userId;
+    private UUID watchlistId;
+    private Watchlist watchlist;
+
+    @BeforeEach
+    void setUp() {
+        userId = UUID.randomUUID();
+        watchlistId = UUID.randomUUID();
+        watchlist = Watchlist.builder()
+                .id(watchlistId)
+                .userId(userId)
+                .name("My Watch")
+                .items(new ArrayList<>())
+                .build();
+    }
+
+    @Nested
+    class CreateWatchlist {
+
+        @Test
+        void createsWithCustomName() {
+            when(watchlistRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            Watchlist result = watchlistService.createWatchlist(userId, "Crypto Watch");
+
+            assertEquals("Crypto Watch", result.getName());
+            assertEquals(userId, result.getUserId());
+        }
+
+        @Test
+        void createsWithDefaultName_whenNullProvided() {
+            when(watchlistRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            Watchlist result = watchlistService.createWatchlist(userId, null);
+
+            assertEquals("My Watchlist", result.getName());
+        }
+    }
+
+    @Nested
+    class DeleteWatchlist {
+
+        @Test
+        void deletesOwnWatchlist() {
+            when(watchlistRepository.findByIdAndUserId(watchlistId, userId)).thenReturn(Optional.of(watchlist));
+
+            watchlistService.deleteWatchlist(watchlistId, userId);
+
+            verify(watchlistRepository).delete(watchlist);
+        }
+
+        @Test
+        void throwsForNonOwnedWatchlist() {
+            UUID otherUserId = UUID.randomUUID();
+            when(watchlistRepository.findByIdAndUserId(watchlistId, otherUserId)).thenReturn(Optional.empty());
+
+            assertThrows(RuntimeException.class, () -> watchlistService.deleteWatchlist(watchlistId, otherUserId));
+        }
+    }
+
+    @Nested
+    class AddItem {
+
+        @Test
+        void addsItemWithAlerts() {
+            when(watchlistRepository.findByIdAndUserId(watchlistId, userId)).thenReturn(Optional.of(watchlist));
+            when(watchlistItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            WatchlistItem item = watchlistService.addItem(
+                    watchlistId, userId,
+                    "btcusdt", // should be uppercased
+                    new BigDecimal("60000"), // alert above
+                    new BigDecimal("40000"), // alert below
+                    "Support zone");
+
+            assertEquals("BTCUSDT", item.getSymbol());
+            assertEquals(0, new BigDecimal("60000").compareTo(item.getAlertPriceAbove()));
+            assertEquals(0, new BigDecimal("40000").compareTo(item.getAlertPriceBelow()));
+            assertEquals("Support zone", item.getNotes());
+            assertFalse(item.getAlertAboveTriggered());
+            assertFalse(item.getAlertBelowTriggered());
+        }
+
+        @Test
+        void throwsForNonOwnedWatchlist() {
+            UUID otherUserId = UUID.randomUUID();
+            when(watchlistRepository.findByIdAndUserId(watchlistId, otherUserId)).thenReturn(Optional.empty());
+
+            assertThrows(RuntimeException.class,
+                    () -> watchlistService.addItem(watchlistId, otherUserId, "BTCUSDT", null, null, null));
+        }
+    }
+
+    @Nested
+    class UpdateAlerts {
+
+        @Test
+        void updatesAlertsAndResetsTriggeredFlags() {
+            WatchlistItem item = WatchlistItem.builder()
+                    .id(UUID.randomUUID())
+                    .symbol("BTCUSDT")
+                    .alertPriceAbove(new BigDecimal("50000"))
+                    .alertAboveTriggered(true) // was triggered
+                    .alertBelowTriggered(true)
+                    .build();
+
+            when(watchlistItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+            when(watchlistItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            WatchlistItem updated = watchlistService.updateAlerts(
+                    item.getId(),
+                    new BigDecimal("70000"),
+                    new BigDecimal("30000"));
+
+            assertEquals(0, new BigDecimal("70000").compareTo(updated.getAlertPriceAbove()));
+            assertEquals(0, new BigDecimal("30000").compareTo(updated.getAlertPriceBelow()));
+            // Flags should be reset
+            assertFalse(updated.getAlertAboveTriggered());
+            assertFalse(updated.getAlertBelowTriggered());
+        }
+    }
+
+    @Nested
+    class GetEnrichedItems {
+
+        @Test
+        void enrichesWithLivePrices() {
+            WatchlistItem item1 = WatchlistItem.builder()
+                    .id(UUID.randomUUID()).symbol("BTCUSDT")
+                    .alertPriceAbove(new BigDecimal("60000"))
+                    .alertAboveTriggered(false)
+                    .alertBelowTriggered(false)
+                    .build();
+            WatchlistItem item2 = WatchlistItem.builder()
+                    .id(UUID.randomUUID()).symbol("ETHUSDT")
+                    .alertAboveTriggered(false)
+                    .alertBelowTriggered(false)
+                    .build();
+
+            watchlist.setItems(List.of(item1, item2));
+
+            when(watchlistRepository.findByIdAndUserId(watchlistId, userId)).thenReturn(Optional.of(watchlist));
+            when(binanceService.getPrices()).thenReturn(Map.of(
+                    "BTCUSDT", 58000.0,
+                    "ETHUSDT", 3200.0));
+
+            List<Map<String, Object>> result = watchlistService.getEnrichedItems(watchlistId, userId);
+
+            assertEquals(2, result.size());
+            assertEquals("BTCUSDT", result.get(0).get("symbol"));
+            assertEquals(58000.0, result.get(0).get("currentPrice"));
+            assertEquals("ETHUSDT", result.get(1).get("symbol"));
+            assertEquals(3200.0, result.get(1).get("currentPrice"));
+        }
+    }
+}

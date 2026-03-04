@@ -1,0 +1,18 @@
+spring:
+  task:
+    scheduling:
+      enabled: false
+  cache:
+    type: redis
+
+app:
+  scheduling:
+    enabled: false
+  market:
+    ws:
+      enabled: false
+  websocket:
+    broker-mode: SIMPLE
+    legacy-user-topic-broadcast-enabled: false
+    canary:
+      enabled: false

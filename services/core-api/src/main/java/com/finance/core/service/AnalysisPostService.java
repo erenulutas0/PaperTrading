@@ -1,0 +1,194 @@
+package com.finance.core.service;
+
+import com.finance.core.domain.ActivityEvent;
+import com.finance.core.domain.AnalysisPost;
+import com.finance.core.domain.AppUser;
+import com.finance.core.dto.AnalysisPostRequest;
+import com.finance.core.dto.AnalysisPostResponse;
+import com.finance.core.repository.AnalysisPostRepository;
+import com.finance.core.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class AnalysisPostService {
+
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private AnalysisPostService self;
+
+    private final AnalysisPostRepository postRepository;
+    private final UserRepository userRepository;
+    private final BinanceService binanceService;
+    private final ActivityFeedService activityFeedService;
+
+    /**
+     * Create an immutable analysis post.
+     * - Server timestamp only (no client date accepted)
+     * - Price at creation is snapshotted from live market data
+     * - targetDate is computed from targetDays (prevents backdating)
+     */
+    // @CacheEvict to clear stats when a post is created
+    @org.springframework.cache.annotation.CacheEvict(value = "authorStats", key = "#authorId.toString()")
+    @Transactional
+    public AnalysisPostResponse createPost(UUID authorId, AnalysisPostRequest request) {
+        AppUser author = userRepository.findById(authorId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Validate direction
+        AnalysisPost.Direction direction;
+        try {
+            direction = AnalysisPost.Direction.valueOf(request.getDirection().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid direction. Use: BULLISH, BEARISH, or NEUTRAL");
+        }
+
+        // Snapshot current market price
+        String symbol = request.getInstrumentSymbol().toUpperCase();
+        Map<String, Double> prices = binanceService.getPrices();
+        Double currentPrice = prices.get(symbol);
+        if (currentPrice == null) {
+            throw new RuntimeException("No market data available for " + symbol);
+        }
+
+        // Validate target price direction consistency
+        if (request.getTargetPrice() != null) {
+            BigDecimal target = request.getTargetPrice();
+            BigDecimal current = BigDecimal.valueOf(currentPrice);
+            if (direction == AnalysisPost.Direction.BULLISH && target.compareTo(current) <= 0) {
+                throw new RuntimeException("BULLISH target price must be above current price ("
+                        + current.toPlainString() + ")");
+            }
+            if (direction == AnalysisPost.Direction.BEARISH && target.compareTo(current) >= 0) {
+                throw new RuntimeException("BEARISH target price must be below current price ("
+                        + current.toPlainString() + ")");
+            }
+        }
+
+        // Compute target date from days
+        LocalDateTime targetDate = null;
+        if (request.getTargetDays() != null && request.getTargetDays() > 0) {
+            targetDate = LocalDateTime.now().plusDays(request.getTargetDays());
+        }
+
+        AnalysisPost post = AnalysisPost.builder()
+                .authorId(authorId)
+                .title(request.getTitle())
+                .content(request.getContent())
+                .instrumentSymbol(symbol)
+                .direction(direction)
+                .targetPrice(request.getTargetPrice())
+                .stopPrice(request.getStopPrice())
+                .timeframe(request.getTimeframe())
+                .targetDate(targetDate)
+                .priceAtCreation(BigDecimal.valueOf(currentPrice))
+                .build();
+
+        post = postRepository.save(post);
+        log.info("Analysis post created: {} by user {} for {} ({})",
+                post.getId(), authorId, symbol, direction);
+
+        // Publish post creation event
+        activityFeedService.publish(
+                authorId, author.getUsername(),
+                ActivityEvent.EventType.POST_CREATED,
+                ActivityEvent.TargetType.POST,
+                post.getId(), post.getTitle());
+
+        return toResponse(post, author);
+    }
+
+    /**
+     * Soft-delete a post (tombstone pattern).
+     * The post remains visible as "[Deleted]" to maintain audit trail.
+     * Only the author can delete their own post.
+     */
+    @org.springframework.cache.annotation.CacheEvict(value = "authorStats", key = "#requesterId.toString()")
+    @Transactional
+    public void deletePost(UUID postId, UUID requesterId) {
+        AnalysisPost post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("Post not found"));
+
+        if (!post.getAuthorId().equals(requesterId)) {
+            throw new RuntimeException("Only the author can delete their post");
+        }
+
+        if (post.isDeleted()) {
+            throw new RuntimeException("Post already deleted");
+        }
+
+        post.setDeleted(true);
+        post.setDeletedAt(LocalDateTime.now());
+        postRepository.save(post);
+        log.info("Post {} soft-deleted by author {}", postId, requesterId);
+    }
+
+    /** Get a single post by ID */
+    public AnalysisPostResponse getPost(UUID postId) {
+        AnalysisPost post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("Post not found"));
+        AppUser author = userRepository.findById(post.getAuthorId())
+                .orElseThrow(() -> new RuntimeException("Author not found"));
+        return toResponse(post, author);
+    }
+
+    /** Global feed: all non-deleted posts, newest first */
+    public Page<AnalysisPostResponse> getFeed(Pageable pageable) {
+        return postRepository.findByDeletedFalseOrderByCreatedAtDesc(pageable)
+                .map(post -> {
+                    AppUser author = userRepository.findById(post.getAuthorId()).orElse(null);
+                    return toResponse(post, author);
+                });
+    }
+
+    /** User's analysis posts */
+    public Page<AnalysisPostResponse> getPostsByAuthor(UUID authorId, Pageable pageable) {
+        AppUser author = userRepository.findById(authorId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return postRepository.findByAuthorIdAndDeletedFalseOrderByCreatedAtDesc(authorId, pageable)
+                .map(post -> toResponse(post, author));
+    }
+
+    /** Get author accuracy stats */
+    @org.springframework.cache.annotation.Cacheable(value = "authorStats", key = "#authorId.toString()")
+    public Map<String, Long> getAuthorStats(UUID authorId) {
+        long total = postRepository.countByAuthorIdAndDeletedFalse(authorId);
+        long hits = postRepository.countByAuthorIdAndOutcomeAndDeletedFalse(
+                authorId, AnalysisPost.Outcome.HIT);
+        long misses = postRepository.countByAuthorIdAndOutcomeAndDeletedFalse(
+                authorId, AnalysisPost.Outcome.MISSED);
+        long pending = postRepository.countByAuthorIdAndOutcomeAndDeletedFalse(
+                authorId, AnalysisPost.Outcome.PENDING);
+        java.util.Map<String, Long> stats = new java.util.HashMap<>();
+        stats.put("total", total);
+        stats.put("hits", hits);
+        stats.put("misses", misses);
+        stats.put("pending", pending);
+        return stats;
+    }
+
+    private AnalysisPostResponse toResponse(AnalysisPost post, AppUser author) {
+        Map<String, Long> stats = self.getAuthorStats(post.getAuthorId());
+        int totalPosts = stats.get("total").intValue();
+        int hitCount = stats.get("hits").intValue();
+
+        String username = author != null ? author.getUsername() : "unknown";
+        String displayName = author != null
+                ? (author.getDisplayName() != null ? author.getDisplayName() : author.getUsername())
+                : "Unknown";
+
+        return AnalysisPostResponse.from(post, username, displayName, totalPosts, hitCount);
+    }
+}

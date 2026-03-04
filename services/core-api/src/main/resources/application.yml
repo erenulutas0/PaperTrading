@@ -1,0 +1,172 @@
+spring:
+  application:
+    name: core-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/finance_db}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:50}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      idle-timeout: ${DB_IDLE_TIMEOUT_MS:300000}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:20000}
+      max-lifetime: ${DB_MAX_LIFETIME_MS:1200000}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: ${HIBERNATE_BATCH_SIZE:50}
+        default_batch_fetch_size: ${HIBERNATE_DEFAULT_BATCH_FETCH_SIZE:50}
+        order_inserts: true
+        order_updates: true
+  data:
+    web:
+      pageable:
+        default-page-size: ${APP_PAGE_DEFAULT_SIZE:20}
+        max-page-size: ${APP_PAGE_MAX_SIZE:100}
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+      timeout: ${REDIS_TIMEOUT:2s}
+      repositories:
+        enabled: false
+  cache:
+    type: redis
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    validate-on-migrate: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+resilience4j.retry:
+  instances:
+    binance:
+      maxAttempts: 5
+      waitDuration: 5s
+
+resilience4j.circuitbreaker:
+  instances:
+    binance:
+      slidingWindowSize: 5
+      failureRateThreshold: 50
+      waitDurationInOpenState: 15s
+      permittedNumberOfCallsInHalfOpenState: 3
+
+app:
+  auth:
+    jwt:
+      secret: ${JWT_SECRET:dev-only-change-me-with-at-least-32-bytes-for-hs256}
+      issuer: ${APP_AUTH_JWT_ISSUER:finance-core-api}
+      access-token-ttl: ${APP_AUTH_JWT_ACCESS_TOKEN_TTL:PT12H}
+      refresh-token-ttl: ${APP_AUTH_JWT_REFRESH_TOKEN_TTL:P30D}
+      allow-legacy-user-id-header: ${APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER:true}
+      enforce-header-token-match: ${APP_AUTH_ENFORCE_HEADER_TOKEN_MATCH:true}
+    observability:
+      enabled: ${APP_AUTH_OBSERVABILITY_ENABLED:true}
+      refresh-interval: ${APP_AUTH_OBSERVABILITY_REFRESH_INTERVAL:PT30S}
+      churn-window: ${APP_AUTH_OBSERVABILITY_CHURN_WINDOW:PT10M}
+      min-samples: ${APP_AUTH_OBSERVABILITY_MIN_SAMPLES:20}
+      warning-refresh-count: ${APP_AUTH_OBSERVABILITY_WARNING_REFRESH_COUNT:300}
+      critical-refresh-count: ${APP_AUTH_OBSERVABILITY_CRITICAL_REFRESH_COUNT:800}
+      warning-invalid-count: ${APP_AUTH_OBSERVABILITY_WARNING_INVALID_COUNT:20}
+      critical-invalid-count: ${APP_AUTH_OBSERVABILITY_CRITICAL_INVALID_COUNT:50}
+      warning-invalid-ratio: ${APP_AUTH_OBSERVABILITY_WARNING_INVALID_RATIO:0.10}
+      critical-invalid-ratio: ${APP_AUTH_OBSERVABILITY_CRITICAL_INVALID_RATIO:0.25}
+      alert-on-recovery: ${APP_AUTH_OBSERVABILITY_ALERT_ON_RECOVERY:true}
+  scheduling:
+    enabled: ${APP_SCHEDULING_ENABLED:true}
+  websocket:
+    broker-mode: ${APP_WEBSOCKET_BROKER_MODE:SIMPLE}
+    relay-host: ${APP_WEBSOCKET_RELAY_HOST:localhost}
+    relay-port: ${APP_WEBSOCKET_RELAY_PORT:61613}
+    relay-client-login: ${APP_WEBSOCKET_RELAY_CLIENT_LOGIN:guest}
+    relay-client-passcode: ${APP_WEBSOCKET_RELAY_CLIENT_PASSCODE:guest}
+    relay-system-login: ${APP_WEBSOCKET_RELAY_SYSTEM_LOGIN:guest}
+    relay-system-passcode: ${APP_WEBSOCKET_RELAY_SYSTEM_PASSCODE:guest}
+    relay-virtual-host: ${APP_WEBSOCKET_RELAY_VIRTUAL_HOST:/}
+    allowed-origin-patterns: ${APP_WEBSOCKET_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:3001,http://localhost:3005,http://localhost:3010}
+    server-heartbeat-ms: ${APP_WEBSOCKET_SERVER_HEARTBEAT_MS:10000}
+    client-heartbeat-ms: ${APP_WEBSOCKET_CLIENT_HEARTBEAT_MS:10000}
+    send-time-limit-ms: ${APP_WEBSOCKET_SEND_TIME_LIMIT_MS:15000}
+    send-buffer-size-limit-bytes: ${APP_WEBSOCKET_SEND_BUFFER_SIZE_LIMIT_BYTES:524288}
+    message-size-limit-bytes: ${APP_WEBSOCKET_MESSAGE_SIZE_LIMIT_BYTES:65536}
+    legacy-user-topic-broadcast-enabled: ${APP_WEBSOCKET_LEGACY_USER_TOPIC_BROADCAST_ENABLED:false}
+    observability:
+      enabled: ${APP_WEBSOCKET_OBSERVABILITY_ENABLED:true}
+      reconnect-window: ${APP_WEBSOCKET_OBSERVABILITY_RECONNECT_WINDOW:PT2M}
+    canary:
+      enabled: ${APP_WEBSOCKET_CANARY_ENABLED:true}
+      interval: ${APP_WEBSOCKET_CANARY_INTERVAL:PT2M}
+      connect-timeout: ${APP_WEBSOCKET_CANARY_CONNECT_TIMEOUT:PT8S}
+      message-timeout: ${APP_WEBSOCKET_CANARY_MESSAGE_TIMEOUT:PT8S}
+      warning-consecutive-failure-threshold: ${APP_WEBSOCKET_CANARY_WARNING_CONSECUTIVE_FAILURE_THRESHOLD:2}
+      critical-failure-threshold: ${APP_WEBSOCKET_CANARY_CRITICAL_FAILURE_THRESHOLD:3}
+      window-size: ${APP_WEBSOCKET_CANARY_WINDOW_SIZE:10}
+      min-window-samples: ${APP_WEBSOCKET_CANARY_MIN_WINDOW_SAMPLES:5}
+      warning-failure-ratio-threshold: ${APP_WEBSOCKET_CANARY_WARNING_FAILURE_RATIO_THRESHOLD:0.40}
+      critical-failure-ratio-threshold: ${APP_WEBSOCKET_CANARY_CRITICAL_FAILURE_RATIO_THRESHOLD:0.70}
+      recovery-success-threshold: ${APP_WEBSOCKET_CANARY_RECOVERY_SUCCESS_THRESHOLD:2}
+      alert-on-recovery: ${APP_WEBSOCKET_CANARY_ALERT_ON_RECOVERY:true}
+      base-url: ${APP_WEBSOCKET_CANARY_BASE_URL:http://localhost:${server.port:8080}}
+      ws-url: ${APP_WEBSOCKET_CANARY_WS_URL:}
+      topic-destination: ${APP_WEBSOCKET_CANARY_TOPIC_DESTINATION:/topic/ops/canary}
+      user-queue-destination: ${APP_WEBSOCKET_CANARY_USER_QUEUE_DESTINATION:/queue/ops-canary}
+  alerting:
+    enabled: ${APP_ALERTING_ENABLED:true}
+    cooldown: ${APP_ALERTING_COOLDOWN:PT5M}
+    webhook-url: ${APP_ALERTING_WEBHOOK_URL:}
+    connect-timeout: ${APP_ALERTING_CONNECT_TIMEOUT:2s}
+    read-timeout: ${APP_ALERTING_READ_TIMEOUT:3s}
+  market:
+    ws:
+      enabled: ${APP_MARKET_WS_ENABLED:true}
+  feed:
+    cache:
+      redis-ttl: ${APP_FEED_CACHE_REDIS_TTL:PT15S}
+      local-ttl: ${APP_FEED_CACHE_LOCAL_TTL:PT20S}
+      local-max-entries: ${APP_FEED_CACHE_LOCAL_MAX_ENTRIES:512}
+      local-lock-stripes: ${APP_FEED_CACHE_LOCAL_LOCK_STRIPES:64}
+      follower-invalidation-batch-size: ${APP_FEED_CACHE_FOLLOWER_INVALIDATION_BATCH_SIZE:500}
+      invalidate-global-on-publish: ${APP_FEED_CACHE_INVALIDATE_GLOBAL_ON_PUBLISH:true}
+      invalidate-followers-on-publish: ${APP_FEED_CACHE_INVALIDATE_FOLLOWERS_ON_PUBLISH:false}
+    realtime:
+      broadcast-followers-on-publish: ${APP_FEED_REALTIME_BROADCAST_FOLLOWERS_ON_PUBLISH:false}
+    observability:
+      enabled: ${APP_FEED_OBSERVABILITY_ENABLED:true}
+      refresh-interval: ${APP_FEED_OBSERVABILITY_REFRESH:PT30S}
+      min-samples: ${APP_FEED_OBSERVABILITY_MIN_SAMPLES:100}
+      warning-p95-ms: ${APP_FEED_OBSERVABILITY_WARNING_P95_MS:50}
+      warning-p99-ms: ${APP_FEED_OBSERVABILITY_WARNING_P99_MS:170}
+      critical-p99-ms: ${APP_FEED_OBSERVABILITY_CRITICAL_P99_MS:220}
+      uris:
+        - /api/v1/feed/global
+        - /api/v1/feed
+        - /api/v1/feed/user/{userId}
+  shedlock:
+    observability:
+      enabled: ${APP_SHEDLOCK_OBSERVABILITY_ENABLED:true}
+      refresh-interval: ${APP_SHEDLOCK_OBSERVABILITY_REFRESH:PT30S}
+      stale-lock-age-threshold: ${APP_SHEDLOCK_STALE_LOCK_AGE_THRESHOLD:PT15M}
+      max-report-locks: ${APP_SHEDLOCK_MAX_REPORT_LOCKS:20}
+      alert-stale-lock-count: ${APP_SHEDLOCK_ALERT_STALE_LOCK_COUNT:1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE:health,info,metrics,shedlock,feedlatency,websocket,websocketcanary,authsessions}
+  metrics:
+    distribution:
+      percentiles-histogram:
+        app.redis.command.latency: true
+        http.server.requests: true
+      percentiles:
+        app.redis.command.latency: 0.5, 0.95, 0.99
+        http.server.requests: 0.5, 0.95, 0.99

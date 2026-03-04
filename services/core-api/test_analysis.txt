@@ -1,0 +1,977 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.finance:core-api >------------------------
+[INFO] Building core-api 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ core-api ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ core-api ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ core-api ---
+[INFO] skip non existing resourceDirectory C:\Users\pc\OneDrive\Masa³st³\finance-app\services\core-api\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ core-api ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.2:test (default-test) @ core-api ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest
+04:13:20.574 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest]: AnalysisPostControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+04:13:20.739 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.2)
+
+2026-02-24T04:13:21.252+03:00  INFO 38176 --- [core-api] [           main] .c.AnalysisPostControllerIntegrationTest : Starting AnalysisPostControllerIntegrationTest using Java 22.0.1 with PID 38176 (started by pc in C:\Users\pc\OneDrive\Masa³st³\finance-app\services\core-api)
+2026-02-24T04:13:21.252+03:00  INFO 38176 --- [core-api] [           main] .c.AnalysisPostControllerIntegrationTest : No active profile set, falling back to 1 default profile: "default"
+2026-02-24T04:13:22.005+03:00  INFO 38176 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T04:13:22.006+03:00  INFO 38176 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-02-24T04:13:22.170+03:00  INFO 38176 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 154 ms. Found 11 JPA repository interfaces.
+2026-02-24T04:13:22.191+03:00  INFO 38176 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T04:13:22.192+03:00  INFO 38176 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-02-24T04:13:22.211+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.ActivityEventRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.211+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.AnalysisPostRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.213+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.FollowRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.213+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.InteractionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.213+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.NotificationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.213+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.214+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.214+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.214+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioSnapshotRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.214+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TradeActivityRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.215+03:00  INFO 38176 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T04:13:22.215+03:00  INFO 38176 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 14 ms. Found 0 Redis repository interfaces.
+2026-02-24T04:13:24.009+03:00  INFO 38176 --- [core-api] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-02-24T04:13:24.085+03:00  INFO 38176 --- [core-api] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.5.Final
+2026-02-24T04:13:24.135+03:00  INFO 38176 --- [core-api] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-02-24T04:13:24.304+03:00  INFO 38176 --- [core-api] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-02-24T04:13:24.342+03:00  INFO 38176 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-02-24T04:13:24.487+03:00  INFO 38176 --- [core-api] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@2ce62e27
+2026-02-24T04:13:24.490+03:00  INFO 38176 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-02-24T04:13:24.526+03:00  WARN 38176 --- [core-api] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-02-24T04:13:24.552+03:00  INFO 38176 --- [core-api] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 16.11
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-02-24T04:13:25.573+03:00  INFO 38176 --- [core-api] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-02-24T04:13:25.725+03:00  INFO 38176 --- [core-api] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-02-24T04:13:25.979+03:00  INFO 38176 --- [core-api] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-02-24T04:13:27.077+03:00  WARN 38176 --- [core-api] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-02-24T04:13:27.098+03:00  WARN 38176 --- [core-api] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 436a0dc1-8f61-4aea-aaef-b4f23068d085
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-02-24T04:13:27.126+03:00  INFO 38176 --- [core-api] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-02-24T04:13:27.846+03:00  INFO 38176 --- [core-api] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-02-24T04:13:27.846+03:00  INFO 38176 --- [core-api] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-02-24T04:13:27.848+03:00  INFO 38176 --- [core-api] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 1 ms
+2026-02-24T04:13:27.890+03:00  INFO 38176 --- [core-api] [           main] .c.AnalysisPostControllerIntegrationTest : Started AnalysisPostControllerIntegrationTest in 7.009 seconds (process running for 7.976)
+2026-02-24T04:13:27.910+03:00  INFO 38176 --- [core-api] [           main] c.f.c.s.PerformanceTrackingService       : Migrating existing portfolios to PUBLIC visibility...
+2026-02-24T04:13:27.936+03:00  WARN 38176 --- [core-api] [   scheduling-1] c.f.core.service.LeaderboardService      : Leaderboard Job: Skipping refresh - no market prices available from Binance.
+2026-02-24T04:13:27.940+03:00  INFO 38176 --- [core-api] [   scheduling-1] c.f.c.s.PerformanceTrackingService       : Capturing portfolio snapshots...
+2026-02-24T04:13:28.016+03:00  INFO 38176 --- [core-api] [           main] c.f.c.s.PerformanceTrackingService       : Migration complete. All portfolios are now PUBLIC.
+2026-02-24T04:13:28.016+03:00  WARN 38176 --- [core-api] [   scheduling-1] c.f.c.s.PerformanceTrackingService       : Skipping snapshots: No market prices available.
+2026-02-24T04:13:28.020+03:00  INFO 38176 --- [core-api] [   scheduling-1] c.f.core.service.TrustScoreService       : Computing trust scores for all accounts...
+2026-02-24T04:13:28.097+03:00  INFO 38176 --- [core-api] [   scheduling-1] c.f.core.service.TrustScoreService       : Trust scores computed for 2 users.
+2026-02-24T04:13:28.279+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 7e71ec05-d798-4e22-b9f5-7b548bd23a09 by user 5ecf0941-9370-45a4-ad14-4538350c18b5 for BTCUSDT (BULLISH)
+2026-02-24T04:13:28.280+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_21121 POST_CREATED Full Lifecycle Test (7e71ec05-d798-4e22-b9f5-7b548bd23a09)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"5ecf0941-9370-45a4-ad14-4538350c18b5", Content-Length:"209"]
+             Body = {"title":"Full Lifecycle Test","content":"This post will go through the full lifecycle","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":48000,"timeframe":"1W","targetDays":7}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"7e71ec05-d798-4e22-b9f5-7b548bd23a09","authorId":"5ecf0941-9370-45a4-ad14-4538350c18b5","authorUsername":"analyst_21121","authorDisplayName":"The Analyst","title":"Full Lifecycle Test","content":"This post will go through the full lifecycle","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":48000,"timeframe":"1W","targetDate":"2026-03-03T04:13:28.2784878","priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:28.640824","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/v1/posts/feed
+       Parameters = {}
+          Headers = []
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/feed.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest$CreatePostEndpoint
+2026-02-24T04:13:28.771+03:00  INFO 38176 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest$CreatePostEndpoint]: CreatePostEndpoint does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T04:13:28.775+03:00  INFO 38176 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest$CreatePostEndpoint
+2026-02-24T04:13:28.886+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 57cace45-0765-4b2c-b2ac-a1806a089f70 by user 018038fa-f268-408a-aeeb-fbaf3762e447 for BTCUSDT (BULLISH)
+2026-02-24T04:13:28.886+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_4f812 POST_CREATED BTC to 60k (57cace45-0765-4b2c-b2ac-a1806a089f70)
+2026-02-24T04:13:28.965+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 5ce1aa65-3537-4ebd-872b-b0c026b0c8c2 by user 5cad32c2-f977-46fb-920c-d602fa797f3a for ETHUSDT (BEARISH)
+2026-02-24T04:13:28.965+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_95620 POST_CREATED ETH crash (5ce1aa65-3537-4ebd-872b-b0c026b0c8c2)
+[ERROR] Tests run: 6, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.226 s <<< FAILURE! -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest$CreatePostEndpoint
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest.fullLifecycle_createPostThenVerifyThenDelete -- Time elapsed: 0.725 s <<< FAILURE!
+java.lang.AssertionError: No value at JSON path "$.content[?(@.id == '7e71ec05-d798-4e22-b9f5-7b548bd23a09')]"
+	at org.springframework.test.util.JsonPathExpectationsHelper.evaluateJsonPath(JsonPathExpectationsHelper.java:351)
+	at org.springframework.test.util.JsonPathExpectationsHelper.assertExistsAndReturn(JsonPathExpectationsHelper.java:388)
+	at org.springframework.test.util.JsonPathExpectationsHelper.exists(JsonPathExpectationsHelper.java:239)
+	at org.springframework.test.web.servlet.result.JsonPathResultMatchers.lambda$exists$3(JsonPathResultMatchers.java:124)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest.fullLifecycle_createPostThenVerifyThenDelete(AnalysisPostControllerIntegrationTest.java:332)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+Caused by: java.lang.IllegalArgumentException: json can not be null or empty
+	at com.jayway.jsonpath.internal.Utils.notEmpty(Utils.java:401)
+	at com.jayway.jsonpath.JsonPath.read(JsonPath.java:390)
+	at org.springframework.test.util.JsonPathExpectationsHelper.evaluateJsonPath(JsonPathExpectationsHelper.java:348)
+	... 8 more
+
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint
+2026-02-24T04:13:28.998+03:00  INFO 38176 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint]: DeleteEndpoint does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T04:13:29.001+03:00  INFO 38176 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint
+2026-02-24T04:13:29.026+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: d3b5e270-021d-432b-8207-37e3ffc4fcfe by user 92c68af6-1207-4171-bb47-868174fc59ed for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.026+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_c70c3 POST_CREATED BTC Analysis (d3b5e270-021d-432b-8207-37e3ffc4fcfe)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"92c68af6-1207-4171-bb47-868174fc59ed", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"d3b5e270-021d-432b-8207-37e3ffc4fcfe","authorId":"92c68af6-1207-4171-bb47-868174fc59ed","authorUsername":"analyst_c70c3","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.030529","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = DELETE
+      Request URI = /api/v1/posts/d3b5e270-021d-432b-8207-37e3ffc4fcfe
+       Parameters = {}
+          Headers = [X-User-Id:"92c68af6-1207-4171-bb47-868174fc59ed"]
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/d3b5e270-021d-432b-8207-37e3ffc4fcfe.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+2026-02-24T04:13:29.079+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: a55a07d1-2de4-4ad3-88f4-a2951f01c197 by user 81c127d6-c33e-41fa-b409-abe4167f8c6f for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.080+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_24e78 POST_CREATED BTC Analysis (a55a07d1-2de4-4ad3-88f4-a2951f01c197)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"81c127d6-c33e-41fa-b409-abe4167f8c6f", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"a55a07d1-2de4-4ad3-88f4-a2951f01c197","authorId":"81c127d6-c33e-41fa-b409-abe4167f8c6f","authorUsername":"analyst_24e78","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.083186","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = DELETE
+      Request URI = /api/v1/posts/a55a07d1-2de4-4ad3-88f4-a2951f01c197
+       Parameters = {}
+          Headers = [X-User-Id:"81c127d6-c33e-41fa-b409-abe4167f8c6f"]
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/a55a07d1-2de4-4ad3-88f4-a2951f01c197.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+2026-02-24T04:13:29.131+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 8f4f5162-aaf7-4b23-8439-df78a741c4b8 by user f03dcb9b-fd30-4d01-9cbd-906f3e4bd668 for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.132+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_af0d6 POST_CREATED BTC Analysis (8f4f5162-aaf7-4b23-8439-df78a741c4b8)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"f03dcb9b-fd30-4d01-9cbd-906f3e4bd668", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"8f4f5162-aaf7-4b23-8439-df78a741c4b8","authorId":"f03dcb9b-fd30-4d01-9cbd-906f3e4bd668","authorUsername":"analyst_af0d6","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.135392","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = DELETE
+      Request URI = /api/v1/posts/8f4f5162-aaf7-4b23-8439-df78a741c4b8
+       Parameters = {}
+          Headers = [X-User-Id:"f03dcb9b-fd30-4d01-9cbd-906f3e4bd668"]
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/8f4f5162-aaf7-4b23-8439-df78a741c4b8.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+2026-02-24T04:13:29.183+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: bc157347-273b-4be0-a17c-6eab732bbadd by user ecdc7b5f-43f1-4d86-982b-ea280a6cd596 for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.184+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_beef7 POST_CREATED BTC Analysis (bc157347-273b-4be0-a17c-6eab732bbadd)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"ecdc7b5f-43f1-4d86-982b-ea280a6cd596", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"bc157347-273b-4be0-a17c-6eab732bbadd","authorId":"ecdc7b5f-43f1-4d86-982b-ea280a6cd596","authorUsername":"analyst_beef7","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.187706","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = DELETE
+      Request URI = /api/v1/posts/bc157347-273b-4be0-a17c-6eab732bbadd
+       Parameters = {}
+          Headers = [X-User-Id:"047de986-720e-423e-9190-798250a735af"]
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/bc157347-273b-4be0-a17c-6eab732bbadd.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+[ERROR] Tests run: 4, Failures: 4, Errors: 0, Skipped: 0, Time elapsed: 0.221 s <<< FAILURE! -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletedPost_disappearsFromFeed -- Time elapsed: 0.056 s <<< FAILURE!
+java.lang.AssertionError: Status expected:<200> but was:<404>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletedPost_disappearsFromFeed(AnalysisPostControllerIntegrationTest.java:279)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_success -- Time elapsed: 0.049 s <<< FAILURE!
+java.lang.AssertionError: Status expected:<200> but was:<404>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_success(AnalysisPostControllerIntegrationTest.java:228)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_alreadyDeleted_returns400 -- Time elapsed: 0.048 s <<< FAILURE!
+java.lang.AssertionError: Status expected:<200> but was:<404>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_alreadyDeleted_returns400(AnalysisPostControllerIntegrationTest.java:262)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_notAuthor_returns400 -- Time elapsed: 0.054 s <<< FAILURE!
+java.lang.AssertionError: Status expected:<400> but was:<404>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_notAuthor_returns400(AnalysisPostControllerIntegrationTest.java:250)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed
+2026-02-24T04:13:29.221+03:00  INFO 38176 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed]: GetAndFeed does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T04:13:29.224+03:00  INFO 38176 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed
+2026-02-24T04:13:29.246+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: c6f6bb65-92fa-43bd-8fb5-0c4b5f452466 by user 7d9d176c-b605-4c27-a9aa-cf08a014491f for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.246+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_6b961 POST_CREATED BTC Analysis (c6f6bb65-92fa-43bd-8fb5-0c4b5f452466)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"7d9d176c-b605-4c27-a9aa-cf08a014491f", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"c6f6bb65-92fa-43bd-8fb5-0c4b5f452466","authorId":"7d9d176c-b605-4c27-a9aa-cf08a014491f","authorUsername":"analyst_6b961","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.249563","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/v1/posts/c6f6bb65-92fa-43bd-8fb5-0c4b5f452466
+       Parameters = {}
+          Headers = []
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/c6f6bb65-92fa-43bd-8fb5-0c4b5f452466.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+2026-02-24T04:13:29.296+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 683b43e0-e251-4aa4-8cfd-449a08f317d7 by user 2355a705-6d58-4741-abe0-d73aa7cb7668 for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.297+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_00bd2 POST_CREATED BTC Analysis (683b43e0-e251-4aa4-8cfd-449a08f317d7)
+2026-02-24T04:13:29.319+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 40aa7883-3e54-4703-8995-74382d88c68c by user 2355a705-6d58-4741-abe0-d73aa7cb7668 for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.319+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_00bd2 POST_CREATED BTC Analysis (40aa7883-3e54-4703-8995-74382d88c68c)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"2355a705-6d58-4741-abe0-d73aa7cb7668", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"683b43e0-e251-4aa4-8cfd-449a08f317d7","authorId":"2355a705-6d58-4741-abe0-d73aa7cb7668","authorUsername":"analyst_00bd2","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.299977","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"2355a705-6d58-4741-abe0-d73aa7cb7668", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"40aa7883-3e54-4703-8995-74382d88c68c","authorId":"2355a705-6d58-4741-abe0-d73aa7cb7668","authorUsername":"analyst_00bd2","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.321822","authorTotalPosts":2,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/v1/posts/feed
+       Parameters = {}
+          Headers = []
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/feed.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+2026-02-24T04:13:29.356+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 54b23e89-b236-40e0-8d54-94445dde1ea4 by user 0ed09b5b-0017-40ae-b496-6f87960d72f2 for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.356+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_ab632 POST_CREATED BTC Analysis (54b23e89-b236-40e0-8d54-94445dde1ea4)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"0ed09b5b-0017-40ae-b496-6f87960d72f2", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"54b23e89-b236-40e0-8d54-94445dde1ea4","authorId":"0ed09b5b-0017-40ae-b496-6f87960d72f2","authorUsername":"analyst_ab632","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.358799","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/v1/posts/user/0ed09b5b-0017-40ae-b496-6f87960d72f2
+       Parameters = {}
+          Headers = []
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/user/0ed09b5b-0017-40ae-b496-6f87960d72f2.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+[ERROR] Tests run: 4, Failures: 3, Errors: 0, Skipped: 0, Time elapsed: 0.161 s <<< FAILURE! -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed.getPost_returnsPostById -- Time elapsed: 0.040 s <<< FAILURE!
+java.lang.AssertionError: Status expected:<200> but was:<404>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed.getPost_returnsPostById(AnalysisPostControllerIntegrationTest.java:182)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed.getFeed_returnsAllPosts -- Time elapsed: 0.054 s <<< FAILURE!
+java.lang.AssertionError: Status expected:<200> but was:<404>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed.getFeed_returnsAllPosts(AnalysisPostControllerIntegrationTest.java:200)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed.getPostsByUser_returnsOnlyUserPosts -- Time elapsed: 0.040 s <<< FAILURE!
+java.lang.AssertionError: Status expected:<200> but was:<404>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed.getPostsByUser_returnsOnlyUserPosts(AnalysisPostControllerIntegrationTest.java:209)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint
+2026-02-24T04:13:29.383+03:00  INFO 38176 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint]: StatsEndpoint does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T04:13:29.385+03:00  INFO 38176 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint
+2026-02-24T04:13:29.406+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 5f73821a-0a8f-4a29-ab0d-4c0db8595c8b by user 2675f328-c97b-4c7e-b98f-102ec4fb15ed for BTCUSDT (BULLISH)
+2026-02-24T04:13:29.406+03:00  INFO 38176 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_93a36 POST_CREATED BTC Analysis (5f73821a-0a8f-4a29-ab0d-4c0db8595c8b)
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/analysis-posts
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", X-User-Id:"2675f328-c97b-4c7e-b98f-102ec4fb15ed", Content-Length:"178"]
+             Body = {"title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDays":null}
+    Session Attrs = {}
+
+Handler:
+             Type = com.finance.core.controller.AnalysisPostController
+           Method = com.finance.core.controller.AnalysisPostController#createPost(String, AnalysisPostRequest)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json
+             Body = {"id":"5f73821a-0a8f-4a29-ab0d-4c0db8595c8b","authorId":"2675f328-c97b-4c7e-b98f-102ec4fb15ed","authorUsername":"analyst_93a36","authorDisplayName":"The Analyst","title":"BTC Analysis","content":"BTC looking strong","instrumentSymbol":"BTCUSDT","direction":"BULLISH","targetPrice":55000,"stopPrice":null,"timeframe":null,"targetDate":null,"priceAtCreation":50000.0,"outcome":"PENDING","outcomeResolvedAt":null,"priceAtResolution":null,"deleted":false,"createdAt":"2026-02-24T04:13:29.409075","authorTotalPosts":1,"authorHitCount":0}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/v1/posts/user/2675f328-c97b-4c7e-b98f-102ec4fb15ed/stats
+       Parameters = {}
+          Headers = []
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = org.springframework.web.servlet.resource.ResourceHttpRequestHandler
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.web.servlet.resource.NoResourceFoundException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 404
+    Error message = No static resource api/v1/posts/user/2675f328-c97b-4c7e-b98f-102ec4fb15ed/stats.
+          Headers = [Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = null
+             Body = 
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+[ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.051 s <<< FAILURE! -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint
+[ERROR] com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint.getAuthorStats_returnsStats -- Time elapsed: 0.043 s <<< FAILURE!
+java.lang.AssertionError: Status expected:<200> but was:<404>
+	at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+	at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+	at org.springframework.test.web.servlet.result.StatusResultMatchers.lambda$matcher$9(StatusResultMatchers.java:640)
+	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+	at com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint.getAuthorStats_returnsStats(AnalysisPostControllerIntegrationTest.java:298)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.012 s -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_alreadyDeleted_returns400:262 Status expected:<200> but was:<404>
+[ERROR]   AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_notAuthor_returns400:250 Status expected:<400> but was:<404>
+[ERROR]   AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletePost_success:228 Status expected:<200> but was:<404>
+[ERROR]   AnalysisPostControllerIntegrationTest$DeleteEndpoint.deletedPost_disappearsFromFeed:279 Status expected:<200> but was:<404>
+[ERROR]   AnalysisPostControllerIntegrationTest$GetAndFeed.getFeed_returnsAllPosts:200 Status expected:<200> but was:<404>
+[ERROR]   AnalysisPostControllerIntegrationTest$GetAndFeed.getPost_returnsPostById:182 Status expected:<200> but was:<404>
+[ERROR]   AnalysisPostControllerIntegrationTest$GetAndFeed.getPostsByUser_returnsOnlyUserPosts:209 Status expected:<200> but was:<404>
+[ERROR]   AnalysisPostControllerIntegrationTest$StatsEndpoint.getAuthorStats_returnsStats:298 Status expected:<200> but was:<404>
+[ERROR]   AnalysisPostControllerIntegrationTest.fullLifecycle_createPostThenVerifyThenDelete:332 No value at JSON path "$.content[?(@.id == '7e71ec05-d798-4e22-b9f5-7b548bd23a09')]"
+[INFO] 
+[ERROR] Tests run: 15, Failures: 9, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  11.298 s
+[INFO] Finished at: 2026-02-24T04:13:29+03:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.2:test (default-test) on project core-api: There are test failures.
+[ERROR] 
+[ERROR] See C:\Users\pc\OneDrive\Masa³st³\finance-app\services\core-api\target\surefire-reports for the individual test results.
+[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

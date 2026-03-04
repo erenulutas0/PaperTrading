@@ -1,0 +1,573 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.finance:core-api >------------------------
+[INFO] Building core-api 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ core-api ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ core-api ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ core-api ---
+[INFO] skip non existing resourceDirectory C:\Users\pc\OneDrive\Masa³st³\finance-app\services\core-api\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ core-api ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.2:test (default-test) @ core-api ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest
+05:56:30.250 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest]: AnalysisPostControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+05:56:30.420 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.2)
+
+2026-02-24T05:56:30.939+03:00  INFO 56044 --- [core-api] [           main] .c.AnalysisPostControllerIntegrationTest : Starting AnalysisPostControllerIntegrationTest using Java 22.0.1 with PID 56044 (started by pc in C:\Users\pc\OneDrive\Masa³st³\finance-app\services\core-api)
+2026-02-24T05:56:30.940+03:00  INFO 56044 --- [core-api] [           main] .c.AnalysisPostControllerIntegrationTest : No active profile set, falling back to 1 default profile: "default"
+2026-02-24T05:56:31.743+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T05:56:31.744+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-02-24T05:56:31.927+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 172 ms. Found 16 JPA repository interfaces.
+2026-02-24T05:56:31.949+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T05:56:31.950+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-02-24T05:56:31.966+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.ActivityEventRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.966+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.AnalysisPostRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.966+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.BadgeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.967+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.FollowRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.967+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.InteractionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.967+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.NotificationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.967+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.967+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.969+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.969+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioSnapshotRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.969+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TournamentParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.969+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TournamentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.969+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TradeActivityRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.969+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.969+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.WatchlistItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.970+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.WatchlistRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:31.970+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 13 ms. Found 0 Redis repository interfaces.
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build what is described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org/mockito/Mockito.html#0.3
+WARNING: A Java agent has been loaded dynamically (C:\Users\pc\.m2\repository\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+2026-02-24T05:56:33.894+03:00  INFO 56044 --- [core-api] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-02-24T05:56:34.007+03:00  INFO 56044 --- [core-api] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.5.Final
+2026-02-24T05:56:34.096+03:00  INFO 56044 --- [core-api] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-02-24T05:56:34.304+03:00  INFO 56044 --- [core-api] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-02-24T05:56:34.357+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-02-24T05:56:34.481+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@351d726c
+2026-02-24T05:56:34.483+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-02-24T05:56:34.529+03:00  WARN 56044 --- [core-api] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-02-24T05:56:34.554+03:00  INFO 56044 --- [core-api] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 16.11
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-02-24T05:56:35.769+03:00  INFO 56044 --- [core-api] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-02-24T05:56:35.998+03:00  INFO 56044 --- [core-api] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-02-24T05:56:36.317+03:00  INFO 56044 --- [core-api] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-02-24T05:56:37.762+03:00  WARN 56044 --- [core-api] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-02-24T05:56:37.789+03:00  WARN 56044 --- [core-api] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 947d92b4-b708-44c2-bffb-f6f442bdf234
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-02-24T05:56:37.825+03:00  INFO 56044 --- [core-api] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-02-24T05:56:38.662+03:00  INFO 56044 --- [core-api] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-02-24T05:56:38.662+03:00  INFO 56044 --- [core-api] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-02-24T05:56:38.663+03:00  INFO 56044 --- [core-api] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 1 ms
+2026-02-24T05:56:38.691+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-02-24T05:56:38.691+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@67d30d56]]
+2026-02-24T05:56:38.692+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-02-24T05:56:38.705+03:00  INFO 56044 --- [core-api] [           main] .c.AnalysisPostControllerIntegrationTest : Started AnalysisPostControllerIntegrationTest in 8.14 seconds (process running for 9.292)
+2026-02-24T05:56:38.718+03:00  INFO 56044 --- [core-api] [MessageBroker-5] c.f.c.s.PerformanceTrackingService       : Capturing portfolio snapshots...
+2026-02-24T05:56:38.719+03:00  INFO 56044 --- [core-api] [MessageBroker-7] c.f.core.service.TrustScoreService       : Computing trust scores for all accounts...
+2026-02-24T05:56:38.751+03:00  WARN 56044 --- [core-api] [MessageBroker-1] c.f.core.service.LeaderboardService      : Leaderboard Job: Skipping refresh - no market prices available from Binance.
+2026-02-24T05:56:38.843+03:00  INFO 56044 --- [core-api] [MessageBroker-5] c.f.c.s.PerformanceTrackingService       : Captured snapshots for 0 portfolios.
+2026-02-24T05:56:38.885+03:00  INFO 56044 --- [core-api] [MessageBroker-7] c.f.core.service.TrustScoreService       : Trust scores computed for 2 users.
+2026-02-24T05:56:39.058+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 3dae16cf-56c1-42b1-bbb4-90d0651080b6 by user b8044ea0-bc67-4dea-9e38-629060e6ef71 for BTCUSDT (BULLISH)
+2026-02-24T05:56:39.059+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_30b85 POST_CREATED Full Lifecycle Test (3dae16cf-56c1-42b1-bbb4-90d0651080b6)
+2026-02-24T05:56:39.529+03:00  WARN 56044 --- [core-api] [           main] ration$PageModule$WarningLoggingModifier : Serializing PageImpl instances as-is is not supported, meaning that there is no guarantee about the stability of the resulting JSON structure!
+	For a stable JSON structure, please use Spring Data's PagedModel (globally via @EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO))
+	or Spring HATEOAS and Spring Data's PagedResourcesAssembler as documented in https://docs.spring.io/spring-data/commons/reference/repositories/core-extensions.html#core.web.pageables.
+
+2026-02-24T05:56:39.605+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Post 3dae16cf-56c1-42b1-bbb4-90d0651080b6 soft-deleted by author b8044ea0-bc67-4dea-9e38-629060e6ef71
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint
+2026-02-24T05:56:39.670+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint]: StatsEndpoint does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:39.674+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint
+2026-02-24T05:56:39.697+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: d91f5498-a679-4b60-a45f-b6a2c5123a7a by user f31dbbf5-1410-44dd-8e09-7d02aaa4f9fa for BTCUSDT (BULLISH)
+2026-02-24T05:56:39.698+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_57480 POST_CREATED BTC Analysis (d91f5498-a679-4b60-a45f-b6a2c5123a7a)
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.085 s -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest$StatsEndpoint
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint
+2026-02-24T05:56:39.756+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint]: DeleteEndpoint does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:39.759+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint
+2026-02-24T05:56:39.798+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: f3df3b33-907d-4ebc-91b2-29839cbe095d by user c2640481-6a9b-4612-859c-b412b50837de for BTCUSDT (BULLISH)
+2026-02-24T05:56:39.799+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_1c8a8 POST_CREATED BTC Analysis (f3df3b33-907d-4ebc-91b2-29839cbe095d)
+2026-02-24T05:56:39.839+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Post f3df3b33-907d-4ebc-91b2-29839cbe095d soft-deleted by author c2640481-6a9b-4612-859c-b412b50837de
+2026-02-24T05:56:39.877+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 82728a75-41bf-4ecb-a657-5948ae7ce64a by user 954f3808-070f-4873-89fa-642c132ac904 for BTCUSDT (BULLISH)
+2026-02-24T05:56:39.878+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_5b4c0 POST_CREATED BTC Analysis (82728a75-41bf-4ecb-a657-5948ae7ce64a)
+2026-02-24T05:56:39.911+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Post 82728a75-41bf-4ecb-a657-5948ae7ce64a soft-deleted by author 954f3808-070f-4873-89fa-642c132ac904
+2026-02-24T05:56:39.946+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 6b071f77-ee16-4a68-b977-30a976eb6f49 by user 21d9b3f0-2c9e-4434-85f1-95a7931677d1 for BTCUSDT (BULLISH)
+2026-02-24T05:56:39.947+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_38670 POST_CREATED BTC Analysis (6b071f77-ee16-4a68-b977-30a976eb6f49)
+2026-02-24T05:56:39.974+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Post 6b071f77-ee16-4a68-b977-30a976eb6f49 soft-deleted by author 21d9b3f0-2c9e-4434-85f1-95a7931677d1
+2026-02-24T05:56:40.014+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 24265846-fdc6-44e3-933a-0d21d8dc91ef by user 699e1ff2-df5e-410e-b0c3-b938d6df53c0 for BTCUSDT (BULLISH)
+2026-02-24T05:56:40.014+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_f0c5f POST_CREATED BTC Analysis (24265846-fdc6-44e3-933a-0d21d8dc91ef)
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.303 s -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest$DeleteEndpoint
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed
+2026-02-24T05:56:40.061+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed]: GetAndFeed does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:40.065+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed
+2026-02-24T05:56:40.086+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: e34c8a84-5a4c-4fef-9119-a515455e0ddd by user 0ff1b78e-7ec7-424f-8009-46bf01dbe4a7 for BTCUSDT (BULLISH)
+2026-02-24T05:56:40.087+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_fcbff POST_CREATED BTC Analysis (e34c8a84-5a4c-4fef-9119-a515455e0ddd)
+2026-02-24T05:56:40.176+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 9686c2e9-e699-4fe9-9c88-a6f65605c99c by user 6410f007-744b-4e9c-9f60-9cfa588a03e3 for BTCUSDT (BULLISH)
+2026-02-24T05:56:40.176+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_47d2b POST_CREATED BTC Analysis (9686c2e9-e699-4fe9-9c88-a6f65605c99c)
+2026-02-24T05:56:40.207+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: d8b2252f-3a66-4cd6-9f97-3873574600d0 by user 6410f007-744b-4e9c-9f60-9cfa588a03e3 for BTCUSDT (BULLISH)
+2026-02-24T05:56:40.207+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_47d2b POST_CREATED BTC Analysis (d8b2252f-3a66-4cd6-9f97-3873574600d0)
+2026-02-24T05:56:40.275+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: e91754d2-ca18-4b6a-89b5-860bacb59a97 by user 5c29677a-5ac1-4137-b90b-df96107255d1 for BTCUSDT (BULLISH)
+2026-02-24T05:56:40.275+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_d15e8 POST_CREATED BTC Analysis (e91754d2-ca18-4b6a-89b5-860bacb59a97)
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.262 s -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest$GetAndFeed
+[INFO] Running com.finance.core.controller.AnalysisPostControllerIntegrationTest$CreatePostEndpoint
+2026-02-24T05:56:40.326+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalysisPostControllerIntegrationTest$CreatePostEndpoint]: CreatePostEndpoint does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:40.330+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalysisPostControllerIntegrationTest$CreatePostEndpoint
+2026-02-24T05:56:40.383+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: add454f5-e331-4783-8920-73fd4878f5ce by user 26e56b8e-6bcf-4bb6-9da5-49fe93ae3e23 for BTCUSDT (BULLISH)
+2026-02-24T05:56:40.384+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_323d2 POST_CREATED BTC to 60k (add454f5-e331-4783-8920-73fd4878f5ce)
+2026-02-24T05:56:40.442+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: d698031f-0514-4285-903a-93d8311c0ad8 by user e0eaadcf-5731-4d73-9679-84b1b02f03f0 for ETHUSDT (BEARISH)
+2026-02-24T05:56:40.442+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: analyst_498fe POST_CREATED ETH crash (d698031f-0514-4285-903a-93d8311c0ad8)
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.146 s -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest$CreatePostEndpoint
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.41 s -- in com.finance.core.controller.AnalysisPostControllerIntegrationTest
+[INFO] Running com.finance.core.controller.AnalyticsControllerIntegrationTest
+2026-02-24T05:56:40.474+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.AnalyticsControllerIntegrationTest]: AnalyticsControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:40.476+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.AnalyticsControllerIntegrationTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.2)
+
+2026-02-24T05:56:40.521+03:00  INFO 56044 --- [core-api] [           main] f.c.c.AnalyticsControllerIntegrationTest : Starting AnalyticsControllerIntegrationTest using Java 22.0.1 with PID 56044 (started by pc in C:\Users\pc\OneDrive\Masa³st³\finance-app\services\core-api)
+2026-02-24T05:56:40.521+03:00  INFO 56044 --- [core-api] [           main] f.c.c.AnalyticsControllerIntegrationTest : No active profile set, falling back to 1 default profile: "default"
+2026-02-24T05:56:40.849+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T05:56:40.849+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-02-24T05:56:40.883+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 31 ms. Found 16 JPA repository interfaces.
+2026-02-24T05:56:40.887+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T05:56:40.887+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.ActivityEventRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.AnalysisPostRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.BadgeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.FollowRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.InteractionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.NotificationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioSnapshotRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TournamentParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TournamentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TradeActivityRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.WatchlistItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.WatchlistRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:40.894+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 6 ms. Found 0 Redis repository interfaces.
+2026-02-24T05:56:41.003+03:00  INFO 56044 --- [core-api] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-02-24T05:56:41.005+03:00  INFO 56044 --- [core-api] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-02-24T05:56:41.014+03:00  INFO 56044 --- [core-api] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-02-24T05:56:41.015+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Starting...
+2026-02-24T05:56:41.026+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-2 - Added connection org.postgresql.jdbc.PgConnection@34388183
+2026-02-24T05:56:41.026+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-2 - Start completed.
+2026-02-24T05:56:41.030+03:00  WARN 56044 --- [core-api] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-02-24T05:56:41.033+03:00  INFO 56044 --- [core-api] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-2)']
+	Database driver: undefined/unknown
+	Database version: 16.11
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-02-24T05:56:41.221+03:00  INFO 56044 --- [core-api] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-02-24T05:56:41.409+03:00  INFO 56044 --- [core-api] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-02-24T05:56:41.510+03:00  INFO 56044 --- [core-api] [           main] c.finance.core.service.BinanceService    : Connected to Binance WebSocket: wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/avaxusdt@ticker/bnbusdt@ticker
+2026-02-24T05:56:41.677+03:00  WARN 56044 --- [core-api] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-02-24T05:56:41.686+03:00  WARN 56044 --- [core-api] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: b0600215-98f4-490b-ad4e-83f32ca07f1e
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-02-24T05:56:41.687+03:00  INFO 56044 --- [core-api] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-02-24T05:56:41.850+03:00  INFO 56044 --- [core-api] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-02-24T05:56:41.850+03:00  INFO 56044 --- [core-api] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-02-24T05:56:41.850+03:00  INFO 56044 --- [core-api] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 0 ms
+2026-02-24T05:56:41.857+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-02-24T05:56:41.857+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@da92bf7]]
+2026-02-24T05:56:41.857+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-02-24T05:56:41.860+03:00  WARN 56044 --- [core-api] [MessageBroker-1] c.f.core.service.LeaderboardService      : Leaderboard Job: Skipping refresh - no market prices available from Binance.
+2026-02-24T05:56:41.860+03:00  INFO 56044 --- [core-api] [           main] f.c.c.AnalyticsControllerIntegrationTest : Started AnalyticsControllerIntegrationTest in 1.378 seconds (process running for 12.448)
+2026-02-24T05:56:41.862+03:00  INFO 56044 --- [core-api] [MessageBroker-4] c.f.c.s.PerformanceTrackingService       : Capturing portfolio snapshots...
+2026-02-24T05:56:41.863+03:00  INFO 56044 --- [core-api] [MessageBroker-6] c.f.core.service.TrustScoreService       : Computing trust scores for all accounts...
+2026-02-24T05:56:41.869+03:00  WARN 56044 --- [core-api] [MessageBroker-4] c.f.c.s.PerformanceTrackingService       : Skipping snapshots: No market prices available.
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.520 s -- in com.finance.core.controller.AnalyticsControllerIntegrationTest
+[INFO] Running com.finance.core.controller.LeaderboardControllerIntegrationTest
+2026-02-24T05:56:41.995+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.LeaderboardControllerIntegrationTest]: LeaderboardControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:41.998+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.LeaderboardControllerIntegrationTest
+2026-02-24T05:56:42.012+03:00  INFO 56044 --- [core-api] [MessageBroker-6] c.f.core.service.TrustScoreService       : Trust scores computed for 18 users.
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.2)
+
+2026-02-24T05:56:42.021+03:00  INFO 56044 --- [core-api] [           main] c.c.LeaderboardControllerIntegrationTest : Starting LeaderboardControllerIntegrationTest using Java 22.0.1 with PID 56044 (started by pc in C:\Users\pc\OneDrive\Masa³st³\finance-app\services\core-api)
+2026-02-24T05:56:42.021+03:00  INFO 56044 --- [core-api] [           main] c.c.LeaderboardControllerIntegrationTest : No active profile set, falling back to 1 default profile: "default"
+2026-02-24T05:56:42.291+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T05:56:42.292+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-02-24T05:56:42.331+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 38 ms. Found 16 JPA repository interfaces.
+2026-02-24T05:56:42.338+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T05:56:42.338+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.ActivityEventRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.AnalysisPostRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.BadgeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.FollowRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.InteractionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.NotificationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioSnapshotRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TournamentParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TournamentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TradeActivityRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.348+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.349+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.WatchlistItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.349+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.WatchlistRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:42.349+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 8 ms. Found 0 Redis repository interfaces.
+2026-02-24T05:56:42.496+03:00  INFO 56044 --- [core-api] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-02-24T05:56:42.499+03:00  INFO 56044 --- [core-api] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-02-24T05:56:42.511+03:00  INFO 56044 --- [core-api] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-02-24T05:56:42.511+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-3 - Starting...
+2026-02-24T05:56:42.523+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-3 - Added connection org.postgresql.jdbc.PgConnection@248984c1
+2026-02-24T05:56:42.524+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-3 - Start completed.
+2026-02-24T05:56:42.528+03:00  WARN 56044 --- [core-api] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-02-24T05:56:42.530+03:00  INFO 56044 --- [core-api] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-3)']
+	Database driver: undefined/unknown
+	Database version: 16.11
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-02-24T05:56:42.727+03:00  INFO 56044 --- [core-api] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-02-24T05:56:42.916+03:00  INFO 56044 --- [core-api] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-02-24T05:56:43.129+03:00  WARN 56044 --- [core-api] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-02-24T05:56:43.135+03:00  WARN 56044 --- [core-api] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 87f59625-aa46-4d82-8890-bca85f7378fb
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-02-24T05:56:43.135+03:00  INFO 56044 --- [core-api] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-02-24T05:56:43.255+03:00  INFO 56044 --- [core-api] [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-02-24T05:56:43.255+03:00  INFO 56044 --- [core-api] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-02-24T05:56:43.257+03:00  INFO 56044 --- [core-api] [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 2 ms
+2026-02-24T05:56:43.261+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-02-24T05:56:43.262+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@53ce8ba]]
+2026-02-24T05:56:43.262+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-02-24T05:56:43.264+03:00  INFO 56044 --- [core-api] [MessageBroker-6] c.f.core.service.TrustScoreService       : Computing trust scores for all accounts...
+2026-02-24T05:56:43.264+03:00  INFO 56044 --- [core-api] [MessageBroker-4] c.f.c.s.PerformanceTrackingService       : Capturing portfolio snapshots...
+2026-02-24T05:56:43.264+03:00  INFO 56044 --- [core-api] [           main] c.c.LeaderboardControllerIntegrationTest : Started LeaderboardControllerIntegrationTest in 1.263 seconds (process running for 13.852)
+2026-02-24T05:56:43.269+03:00  WARN 56044 --- [core-api] [MessageBroker-4] c.f.c.s.PerformanceTrackingService       : Skipping snapshots: No market prices available.
+2026-02-24T05:56:43.283+03:00  WARN 56044 --- [core-api] [           main] ration$PageModule$WarningLoggingModifier : Serializing PageImpl instances as-is is not supported, meaning that there is no guarantee about the stability of the resulting JSON structure!
+	For a stable JSON structure, please use Spring Data's PagedModel (globally via @EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO))
+	or Spring HATEOAS and Spring Data's PagedResourcesAssembler as documented in https://docs.spring.io/spring-data/commons/reference/repositories/core-extensions.html#core.web.pageables.
+
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.306 s -- in com.finance.core.controller.LeaderboardControllerIntegrationTest
+[INFO] Running com.finance.core.controller.PortfolioSharingIntegrationTest
+2026-02-24T05:56:43.302+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.PortfolioSharingIntegrationTest]: PortfolioSharingIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:43.305+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.PortfolioSharingIntegrationTest
+2026-02-24T05:56:43.388+03:00  INFO 56044 --- [core-api] [MessageBroker-6] c.f.core.service.TrustScoreService       : Trust scores computed for 18 users.
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.246 s -- in com.finance.core.controller.PortfolioSharingIntegrationTest
+[INFO] Running com.finance.core.controller.TournamentControllerIntegrationTest
+2026-02-24T05:56:43.549+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.TournamentControllerIntegrationTest]: TournamentControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:43.551+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.TournamentControllerIntegrationTest
+2026-02-24T05:56:43.614+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TournamentService       : User tourney_tester joined tournament Active Challenge with portfolio 3f1a205e-b453-4ff4-b600-788c03fa4bbe
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.195 s -- in com.finance.core.controller.TournamentControllerIntegrationTest
+[INFO] Running com.finance.core.controller.TradeControllerIntegrationTest
+2026-02-24T05:56:43.745+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.TradeControllerIntegrationTest]: TradeControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:43.747+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.TradeControllerIntegrationTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.082 s -- in com.finance.core.controller.TradeControllerIntegrationTest
+[INFO] Running com.finance.core.controller.UserProfileControllerIntegrationTest
+2026-02-24T05:56:43.828+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.UserProfileControllerIntegrationTest]: UserProfileControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:43.830+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.UserProfileControllerIntegrationTest
+2026-02-24T05:56:43.868+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: alice_b159c FOLLOW bob_66b4f (f3fd463f-b68a-4251-8f2d-4b51e1206d4a)
+2026-02-24T05:56:43.881+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.NotificationService     : Saved notification FOLLOW for user f3fd463f-b68a-4251-8f2d-4b51e1206d4a
+2026-02-24T05:56:43.886+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User 87212874-eb22-48f6-adf8-7d79f340b07c followed user f3fd463f-b68a-4251-8f2d-4b51e1206d4a
+2026-02-24T05:56:43.900+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User 87212874-eb22-48f6-adf8-7d79f340b07c unfollowed user f3fd463f-b68a-4251-8f2d-4b51e1206d4a
+2026-02-24T05:56:43.982+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: alice_9facd FOLLOW bob_0c14d (d77936a5-9c73-4e10-ba0c-9a81708ee2ba)
+2026-02-24T05:56:43.993+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.NotificationService     : Saved notification FOLLOW for user d77936a5-9c73-4e10-ba0c-9a81708ee2ba
+2026-02-24T05:56:43.993+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User 476b2269-bf87-47f5-a722-f30f1f3553ab followed user d77936a5-9c73-4e10-ba0c-9a81708ee2ba
+2026-02-24T05:56:44.021+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User 476b2269-bf87-47f5-a722-f30f1f3553ab unfollowed user d77936a5-9c73-4e10-ba0c-9a81708ee2ba
+2026-02-24T05:56:44.072+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: alice_bfaf3 FOLLOW bob_f3dcb (29876b17-6480-4de7-94d0-d599f2137003)
+2026-02-24T05:56:44.079+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.NotificationService     : Saved notification FOLLOW for user 29876b17-6480-4de7-94d0-d599f2137003
+2026-02-24T05:56:44.080+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User 4fb94023-e190-4350-ad10-515d5a5d3716 followed user 29876b17-6480-4de7-94d0-d599f2137003
+2026-02-24T05:56:44.150+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: alice_e45eb FOLLOW bob_dd62f (5b79e41e-8072-45a8-be8d-c509bea536c7)
+2026-02-24T05:56:44.157+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.NotificationService     : Saved notification FOLLOW for user 5b79e41e-8072-45a8-be8d-c509bea536c7
+2026-02-24T05:56:44.157+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User 4901304e-85a9-44b2-b43e-ba6ea42c01e3 followed user 5b79e41e-8072-45a8-be8d-c509bea536c7
+2026-02-24T05:56:44.200+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: alice_d94bb FOLLOW bob_1a524 (19027311-063f-4a92-bc52-5b656ee55b57)
+2026-02-24T05:56:44.208+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.NotificationService     : Saved notification FOLLOW for user 19027311-063f-4a92-bc52-5b656ee55b57
+2026-02-24T05:56:44.208+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User e04b8795-f388-4009-9ebb-38ac8dee3030 followed user 19027311-063f-4a92-bc52-5b656ee55b57
+2026-02-24T05:56:44.240+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : Profile updated for user b23ecf11-db92-4318-bfaa-b4f8d045d8b3
+2026-02-24T05:56:44.276+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: alice_a9318 FOLLOW bob_229fc (67e80af2-c7c1-4456-82ae-1a9b93b3e839)
+2026-02-24T05:56:44.283+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.NotificationService     : Saved notification FOLLOW for user 67e80af2-c7c1-4456-82ae-1a9b93b3e839
+2026-02-24T05:56:44.283+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User bb35bce6-7d0c-4833-be99-ba0b0434ce45 followed user 67e80af2-c7c1-4456-82ae-1a9b93b3e839
+2026-02-24T05:56:44.340+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: alice_527aa FOLLOW bob_1c6d6 (035362e1-1174-4929-b944-e73745e7c6fb)
+2026-02-24T05:56:44.348+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.NotificationService     : Saved notification FOLLOW for user 035362e1-1174-4929-b944-e73745e7c6fb
+2026-02-24T05:56:44.348+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User bbd06481-a6ed-4f9e-b547-ddaf9b4733e8 followed user 035362e1-1174-4929-b944-e73745e7c6fb
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.596 s -- in com.finance.core.controller.UserProfileControllerIntegrationTest
+[INFO] Running com.finance.core.controller.WatchlistControllerIntegrationTest
+2026-02-24T05:56:44.425+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.controller.WatchlistControllerIntegrationTest]: WatchlistControllerIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:44.427+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.controller.WatchlistControllerIntegrationTest
+2026-02-24T05:56:44.519+03:00  INFO 56044 --- [core-api] [           main] c.finance.core.service.WatchlistService  : Added ETHUSDT to watchlist c30dede8-abbd-4134-9c35-331295381fa8 (alerts: above=4000, below=null)
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.103 s -- in com.finance.core.controller.WatchlistControllerIntegrationTest
+[INFO] Running com.finance.core.CoreApiApplicationTests
+2026-02-24T05:56:44.529+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.CoreApiApplicationTests]: CoreApiApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:44.538+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.CoreApiApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.2)
+
+2026-02-24T05:56:44.554+03:00  INFO 56044 --- [core-api] [           main] c.finance.core.CoreApiApplicationTests   : Starting CoreApiApplicationTests using Java 22.0.1 with PID 56044 (started by pc in C:\Users\pc\OneDrive\Masa³st³\finance-app\services\core-api)
+2026-02-24T05:56:44.554+03:00  INFO 56044 --- [core-api] [           main] c.finance.core.CoreApiApplicationTests   : No active profile set, falling back to 1 default profile: "default"
+2026-02-24T05:56:44.742+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T05:56:44.742+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-02-24T05:56:44.774+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 31 ms. Found 16 JPA repository interfaces.
+2026-02-24T05:56:44.776+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-02-24T05:56:44.776+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.ActivityEventRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.AnalysisPostRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.BadgeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.FollowRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.InteractionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.NotificationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.PortfolioSnapshotRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TournamentParticipantRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TournamentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.TradeActivityRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.WatchlistItemRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.finance.core.repository.WatchlistRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-02-24T05:56:44.783+03:00  INFO 56044 --- [core-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 5 ms. Found 0 Redis repository interfaces.
+2026-02-24T05:56:44.848+03:00  INFO 56044 --- [core-api] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-02-24T05:56:44.850+03:00  INFO 56044 --- [core-api] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-02-24T05:56:44.857+03:00  INFO 56044 --- [core-api] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-02-24T05:56:44.857+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-4 - Starting...
+2026-02-24T05:56:44.865+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-4 - Added connection org.postgresql.jdbc.PgConnection@5743a94e
+2026-02-24T05:56:44.865+03:00  INFO 56044 --- [core-api] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-4 - Start completed.
+2026-02-24T05:56:44.868+03:00  WARN 56044 --- [core-api] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-02-24T05:56:44.869+03:00  INFO 56044 --- [core-api] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-4)']
+	Database driver: undefined/unknown
+	Database version: 16.11
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-02-24T05:56:45.015+03:00  INFO 56044 --- [core-api] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-02-24T05:56:45.231+03:00  INFO 56044 --- [core-api] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-02-24T05:56:45.289+03:00  INFO 56044 --- [core-api] [           main] c.finance.core.service.BinanceService    : Connected to Binance WebSocket: wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/avaxusdt@ticker/bnbusdt@ticker
+2026-02-24T05:56:45.389+03:00  WARN 56044 --- [core-api] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-02-24T05:56:45.394+03:00  WARN 56044 --- [core-api] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 449b5a3e-34bc-4347-86fd-e6366b29edb1
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-02-24T05:56:45.394+03:00  INFO 56044 --- [core-api] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-02-24T05:56:45.522+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-02-24T05:56:45.522+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@7b4b6695]]
+2026-02-24T05:56:45.522+03:00  INFO 56044 --- [core-api] [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-02-24T05:56:45.526+03:00  INFO 56044 --- [core-api] [           main] c.finance.core.CoreApiApplicationTests   : Started CoreApiApplicationTests in 0.987 seconds (process running for 16.114)
+2026-02-24T05:56:45.527+03:00  INFO 56044 --- [core-api] [MessageBroker-4] c.f.c.s.PerformanceTrackingService       : Capturing portfolio snapshots...
+2026-02-24T05:56:45.527+03:00  INFO 56044 --- [core-api] [MessageBroker-5] c.f.core.service.TrustScoreService       : Computing trust scores for all accounts...
+2026-02-24T05:56:45.530+03:00  WARN 56044 --- [core-api] [MessageBroker-1] c.f.core.service.LeaderboardService      : Leaderboard Job: Skipping refresh - no market prices available from Binance.
+2026-02-24T05:56:45.532+03:00  WARN 56044 --- [core-api] [MessageBroker-4] c.f.c.s.PerformanceTrackingService       : Skipping snapshots: No market prices available.
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.004 s -- in com.finance.core.CoreApiApplicationTests
+[INFO] Running com.finance.core.service.ActivityFeedServiceTest
+2026-02-24T05:56:45.553+03:00  INFO 56044 --- [core-api] [MessageBroker-5] c.f.core.service.TrustScoreService       : Trust scores computed for 2 users.
+2026-02-24T05:56:45.829+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.ActivityFeedService     : Activity event: trader1 POST_CREATED BTC Analysis (ba9728e5-5535-4d23-9bc1-e16b9f56dd3e)
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.307 s -- in com.finance.core.service.ActivityFeedServiceTest
+[INFO] Running com.finance.core.service.AnalysisPostServiceTest
+[INFO] Running com.finance.core.service.AnalysisPostServiceTest$AuthorStats
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.184 s -- in com.finance.core.service.AnalysisPostServiceTest$AuthorStats
+[INFO] Running com.finance.core.service.AnalysisPostServiceTest$FeedAndAuthorPosts
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in com.finance.core.service.AnalysisPostServiceTest$FeedAndAuthorPosts
+[INFO] Running com.finance.core.service.AnalysisPostServiceTest$GetPost
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s -- in com.finance.core.service.AnalysisPostServiceTest$GetPost
+[INFO] Running com.finance.core.service.AnalysisPostServiceTest$DeletePost
+2026-02-24T05:56:46.065+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Post f4dff8f7-7e04-4768-863e-a6bb3fd01e6d soft-deleted by author 6caf40c7-edf7-4b33-bffc-a5542ad3251e
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s -- in com.finance.core.service.AnalysisPostServiceTest$DeletePost
+[INFO] Running com.finance.core.service.AnalysisPostServiceTest$CreatePost
+2026-02-24T05:56:46.084+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 2aae96ce-57cd-472e-bc00-16f2c211a3dd by user 364ac231-b44b-49e3-845f-27cb8ed8208b for BTCUSDT (BULLISH)
+2026-02-24T05:56:46.096+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: a5dde1f1-9ed8-4158-807d-439fafdb3cd1 by user 1e8dcc69-6bf1-4242-a71a-d537432ce6d6 for ETHUSDT (BEARISH)
+2026-02-24T05:56:46.099+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: d58abac8-a3c9-4eb8-be92-4fd437b79737 by user 790192ac-81c1-4f94-a887-67455fadc027 for BTCUSDT (BULLISH)
+2026-02-24T05:56:46.103+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 9eafc0cb-05fb-4c1d-97b7-d82871383435 by user cf7f5d9d-e2a5-4823-9fd4-309dcf6696e0 for BTCUSDT (BULLISH)
+2026-02-24T05:56:46.110+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.AnalysisPostService     : Analysis post created: 498fb9a7-4460-44aa-9814-b8d373792a01 by user 1f1d42ab-5b70-4428-a456-87679c61812f for SOLUSDT (NEUTRAL)
+[INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.036 s -- in com.finance.core.service.AnalysisPostServiceTest$CreatePost
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.267 s -- in com.finance.core.service.AnalysisPostServiceTest
+[INFO] Running com.finance.core.service.AnalyticsIntegrationTest
+2026-02-24T05:56:46.118+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.service.AnalyticsIntegrationTest]: AnalyticsIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:46.153+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.service.AnalyticsIntegrationTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.060 s -- in com.finance.core.service.AnalyticsIntegrationTest
+[INFO] Running com.finance.core.service.CopyTradingServiceTest
+[INFO] Running com.finance.core.service.CopyTradingServiceTest$ReplicateSell
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.262 s -- in com.finance.core.service.CopyTradingServiceTest$ReplicateSell
+[INFO] Running com.finance.core.service.CopyTradingServiceTest$ReplicateBuy
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.015 s -- in com.finance.core.service.CopyTradingServiceTest$ReplicateBuy
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.278 s -- in com.finance.core.service.CopyTradingServiceTest
+[INFO] Running com.finance.core.service.InteractionServiceTest
+2026-02-24T05:56:46.572+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.InteractionService      : User 2fb1afa9-c86d-40e1-a879-2e444c6fafab COMMENTED on PORTFOLIO f29986ef-75a7-4673-acb3-ecf8f79b24eb
+2026-02-24T05:56:46.577+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.InteractionService      : User cf90ca55-9c7f-4af0-af7c-77de7bea59b9 LIKED PORTFOLIO b68ee7ff-165b-4759-85c7-e6bd6379fe08
+2026-02-24T05:56:46.579+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.InteractionService      : User 3a6b12ed-81f7-435c-b418-c86ab5aaa171 UNLIKED PORTFOLIO 90dfb82b-363c-4f41-be8c-372ad3001182
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.123 s -- in com.finance.core.service.InteractionServiceTest
+[INFO] Running com.finance.core.service.LeaderboardServiceTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.091 s -- in com.finance.core.service.LeaderboardServiceTest
+[INFO] Running com.finance.core.service.LiquidationServiceTest
+2026-02-24T05:56:46.681+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.LiquidationService      : LIQUIDATING SHORT: Symbol=BTCUSDT Portfolio=Test Portfolio Price=11100.0 LiqPrice=11000.00000000
+2026-02-24T05:56:46.689+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.LiquidationService      : LIQUIDATING LONG: Symbol=BTCUSDT Portfolio=Test Portfolio Price=8900.0 LiqPrice=9000.00000000
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in com.finance.core.service.LiquidationServiceTest
+[INFO] Running com.finance.core.service.NotificationServiceTest
+2026-02-24T05:56:46.767+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.NotificationService     : Saved notification FOLLOW for user 30bfc1f0-3c14-4905-b51f-573e19c7e01a
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.077 s -- in com.finance.core.service.NotificationServiceTest
+[INFO] Running com.finance.core.service.OutcomeResolutionServiceTest
+[INFO] Running com.finance.core.service.OutcomeResolutionServiceTest$EdgeCases
+2026-02-24T05:56:46.823+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : ? Post de7e59a4-99d4-4b50-a8d6-5e4f97c9e7c2 HIT: BULLISH BTCUSDT target 60000 reached! Current price: 60000.0
+2026-02-24T05:56:46.827+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : ? Post 598a0d13-09db-4797-813d-83c97234b7c8 MISSED (stop hit): BULLISH BTCUSDT stop 45000 triggered. Current price: 45000.0
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.058 s -- in com.finance.core.service.OutcomeResolutionServiceTest$EdgeCases
+[INFO] Running com.finance.core.service.OutcomeResolutionServiceTest$Expiry
+2026-02-24T05:56:46.833+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : Post 1ffde8cc-99b8-4b07-a148-9a258ec5274a EXPIRED: BTCUSDT target 60000 not reached by deadline. Price at expiry: 55000.0
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in com.finance.core.service.OutcomeResolutionServiceTest$Expiry
+[INFO] Running com.finance.core.service.OutcomeResolutionServiceTest$StopHit
+2026-02-24T05:56:46.840+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : ? Post ffdb786c-7899-42d5-9d79-e627343652c1 MISSED (stop hit): BEARISH BTCUSDT stop 55000 triggered. Current price: 56000.0
+2026-02-24T05:56:46.842+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : ? Post fe11ef39-a013-486d-b7c5-b316be82915f HIT: BULLISH BTCUSDT target 60000 reached! Current price: 61000.0
+2026-02-24T05:56:46.845+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : ? Post 06fb6114-c00e-44f4-8aef-f9772ac8523e MISSED (stop hit): BULLISH BTCUSDT stop 45000 triggered. Current price: 44000.0
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s -- in com.finance.core.service.OutcomeResolutionServiceTest$StopHit
+[INFO] Running com.finance.core.service.OutcomeResolutionServiceTest$TargetHit
+2026-02-24T05:56:46.851+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : ? Post ad6074ac-b937-4ca5-9b6e-af6083832d4c HIT: BEARISH BTCUSDT target 40000 reached! Current price: 40000.0
+2026-02-24T05:56:46.858+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : ? Post d0d2d67a-5400-4bdf-b489-d4588ff09b65 HIT: BULLISH BTCUSDT target 60000 reached! Current price: 60000.0
+2026-02-24T05:56:46.862+03:00  INFO 56044 --- [core-api] [           main] c.f.c.service.OutcomeResolutionService   : ? Post 1d14d563-496b-49c7-8862-c38b1d8dadf1 HIT: BULLISH BTCUSDT target 60000 reached! Current price: 75000.0
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in com.finance.core.service.OutcomeResolutionServiceTest$TargetHit
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.094 s -- in com.finance.core.service.OutcomeResolutionServiceTest
+[INFO] Running com.finance.core.service.PerformanceAnalyticsServiceTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.086 s -- in com.finance.core.service.PerformanceAnalyticsServiceTest
+[INFO] Running com.finance.core.service.PerformanceCalculationServiceTest
+2026-02-24T05:56:46.955+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PerformanceCalculationService    : CALC METRICS [ALL]: profitLoss=2000.0000000000, investedMargin=10000.0000000000, baseEquity=100000, chosenDenominator=10000.0000000000
+2026-02-24T05:56:46.959+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PerformanceCalculationService    : CALC METRICS [1D]: profitLoss=1000.0000000000, investedMargin=50000.0000000000, baseEquity=100000, chosenDenominator=50000.0000000000
+2026-02-24T05:56:46.961+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PerformanceCalculationService    : CALC METRICS [1D]: profitLoss=-5000.0000000000, investedMargin=50000.0000000000, baseEquity=100000, chosenDenominator=50000.0000000000
+2026-02-24T05:56:46.964+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PerformanceCalculationService    : CALC METRICS [ALL]: profitLoss=5000, investedMargin=0, baseEquity=100000, chosenDenominator=100000
+2026-02-24T05:56:46.966+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PerformanceCalculationService    : CALC METRICS [ALL]: profitLoss=1000.0000000000, investedMargin=15000.0000000000, baseEquity=100000, chosenDenominator=15000.0000000000
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in com.finance.core.service.PerformanceCalculationServiceTest
+[INFO] Running com.finance.core.service.PerformanceTrackingServiceTest
+2026-02-24T05:56:46.970+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PerformanceTrackingService       : Capturing portfolio snapshots...
+2026-02-24T05:56:46.972+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PerformanceTrackingService       : Captured snapshots for 1 portfolios.
+2026-02-24T05:56:46.974+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PerformanceTrackingService       : Capturing portfolio snapshots...
+2026-02-24T05:56:46.974+03:00  WARN 56044 --- [core-api] [           main] c.f.c.s.PerformanceTrackingService       : Skipping snapshots: No market prices available.
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in com.finance.core.service.PerformanceTrackingServiceTest
+[INFO] Running com.finance.core.service.PortfolioParticipationServiceTest
+[INFO] Running com.finance.core.service.PortfolioParticipationServiceTest$LeavePortfolio
+2026-02-24T05:56:46.981+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PortfolioParticipationService    : User 00784cc2-7f74-4b13-97c0-6d8f8c301495 left portfolio e642ae1b-1546-49cd-b5ed-6b064a8ff583
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s -- in com.finance.core.service.PortfolioParticipationServiceTest$LeavePortfolio
+[INFO] Running com.finance.core.service.PortfolioParticipationServiceTest$JoinPortfolio
+2026-02-24T05:56:47.000+03:00  INFO 56044 --- [core-api] [           main] c.f.c.s.PortfolioParticipationService    : User 7bb287d3-3a94-44f1-a4e8-5752fc627095 joined portfolio 4cf633fd-587c-461d-9307-017a20376749 (clone: 0df8ca15-2956-4af5-a281-10538073f392). Total participants: 1
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s -- in com.finance.core.service.PortfolioParticipationServiceTest$JoinPortfolio
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.029 s -- in com.finance.core.service.PortfolioParticipationServiceTest
+[INFO] Running com.finance.core.service.TournamentServiceTest
+[INFO] Running com.finance.core.service.TournamentServiceTest$Lifecycle
+2026-02-24T05:56:47.186+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TournamentService       : ? Tournament ACTIVATED: Starting Now
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.180 s -- in com.finance.core.service.TournamentServiceTest$Lifecycle
+[INFO] Running com.finance.core.service.TournamentServiceTest$Leaderboard
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.009 s -- in com.finance.core.service.TournamentServiceTest$Leaderboard
+[INFO] Running com.finance.core.service.TournamentServiceTest$JoinTournament
+2026-02-24T05:56:47.203+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TournamentService       : User trader1 joined tournament Weekly Challenge with portfolio 61682cf4-29f3-4e53-a369-35203be26f09
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s -- in com.finance.core.service.TournamentServiceTest$JoinTournament
+[INFO] Running com.finance.core.service.TournamentServiceTest$CreateTournament
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in com.finance.core.service.TournamentServiceTest$CreateTournament
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.213 s -- in com.finance.core.service.TournamentServiceTest
+[INFO] Running com.finance.core.service.TrustScoreIntegrationTest
+2026-02-24T05:56:47.221+03:00  INFO 56044 --- [core-api] [           main] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.finance.core.service.TrustScoreIntegrationTest]: TrustScoreIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-02-24T05:56:47.222+03:00  INFO 56044 --- [core-api] [           main] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.finance.core.CoreApiApplication for test class com.finance.core.service.TrustScoreIntegrationTest
+2026-02-24T05:56:47.233+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TrustScoreService       : Computing trust scores for all accounts...
+2026-02-24T05:56:47.283+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TrustScoreService       : Trust scores computed for 4 users.
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.069 s -- in com.finance.core.service.TrustScoreIntegrationTest
+[INFO] Running com.finance.core.service.TrustScoreServiceTest
+2026-02-24T05:56:47.354+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TrustScoreService       : Computing trust scores for all accounts...
+2026-02-24T05:56:47.355+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TrustScoreService       : Trust scores computed for 2 users.
+2026-02-24T05:56:47.356+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TrustScoreService       : Computing trust scores for all accounts...
+2026-02-24T05:56:47.356+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.TrustScoreService       : Trust scores computed for 4 users.
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.069 s -- in com.finance.core.service.TrustScoreServiceTest
+[INFO] Running com.finance.core.service.UserProfileServiceTest
+2026-02-24T05:56:47.368+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User b64cb368-15fe-47e6-8972-a2d53c3c8833 unfollowed user 60de5893-29e4-45b9-a213-ebb0ae6e7c23
+2026-02-24T05:56:47.372+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : Profile updated for user 11d2cad2-dfd6-445d-adb1-22aaf9b00132
+2026-02-24T05:56:47.388+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User a4d7cf43-b1b1-448f-a4a1-d57b975d46db unfollowed user 2a4f3699-3f7d-4458-871c-cf39b0f18b51
+2026-02-24T05:56:47.394+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : User b5d1d8d0-5b87-45d1-bce9-50dc42603843 followed user f80f0630-eaf3-45f9-9bbc-22e8b7d70d84
+2026-02-24T05:56:47.398+03:00  INFO 56044 --- [core-api] [           main] c.f.core.service.UserProfileService      : Profile updated for user d4e90b1e-ff0c-431d-87d6-6f0d9bb88e34
+[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.041 s -- in com.finance.core.service.UserProfileServiceTest
+[INFO] Running com.finance.core.service.WatchlistServiceTest
+[INFO] Running com.finance.core.service.WatchlistServiceTest$GetEnrichedItems
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.121 s -- in com.finance.core.service.WatchlistServiceTest$GetEnrichedItems
+[INFO] Running com.finance.core.service.WatchlistServiceTest$UpdateAlerts
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in com.finance.core.service.WatchlistServiceTest$UpdateAlerts
+[INFO] Running com.finance.core.service.WatchlistServiceTest$AddItem
+2026-02-24T05:56:47.527+03:00  INFO 56044 --- [core-api] [           main] c.finance.core.service.WatchlistService  : Added btcusdt to watchlist 01fb1f86-c6fa-4c85-8ab1-054fce6884dc (alerts: above=60000, below=40000)
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in com.finance.core.service.WatchlistServiceTest$AddItem
+[INFO] Running com.finance.core.service.WatchlistServiceTest$DeleteWatchlist
+2026-02-24T05:56:47.532+03:00  INFO 56044 --- [core-api] [           main] c.finance.core.service.WatchlistService  : Watchlist 80f48c26-5cbd-4123-b281-4a58a91adddc deleted by user bc8f2816-a510-4799-b71c-7f18ed79c3b3
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in com.finance.core.service.WatchlistServiceTest$DeleteWatchlist
+[INFO] Running com.finance.core.service.WatchlistServiceTest$CreateWatchlist
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in com.finance.core.service.WatchlistServiceTest$CreateWatchlist
+[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.140 s -- in com.finance.core.service.WatchlistServiceTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 168, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  20.224 s
+[INFO] Finished at: 2026-02-24T05:56:48+03:00
+[INFO] ------------------------------------------------------------------------

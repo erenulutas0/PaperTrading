@@ -1,0 +1,1 @@
+{"service":"core-api","component":"feed-latency","severity":"CRITICAL","alertKey":"critical-breach","message":"Feed latency critical threshold breached","timestamp":"2026-03-01T18:01:40.517222100Z","details":{"criticalBreaches":1,"maxObservedP99Ms":167.641088,"warningP99Ms":0.0,"warningBreaches":1,"maxObservedP95Ms":167.641088,"warningP95Ms":0.0,"criticalP99Ms":0.0}}

@@ -1,0 +1,20 @@
+package com.finance.core.repository;
+
+import com.finance.core.domain.TradeActivity;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.UUID;
+
+@Repository
+public interface TradeActivityRepository extends JpaRepository<TradeActivity, UUID> {
+    List<TradeActivity> findByPortfolioIdOrderByTimestampDesc(UUID portfolioId);
+
+    @Query("SELECT t FROM TradeActivity t WHERE t.portfolioId IN :portfolioIds ORDER BY t.timestamp DESC")
+    List<TradeActivity> findRecentTradesForPortfolios(@Param("portfolioIds") List<UUID> portfolioIds,
+            Pageable pageable);
+}

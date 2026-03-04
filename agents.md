@@ -1,0 +1,1551 @@
+# agents.md — Proof-of-Performance Investing Platform
+
+This repository powers a **paper-only** investing platform with a **social accountability layer**:
+- Users create **portfolios/baskets** and **structured analysis posts**
+- Everything is **timestamped**, **immutable**, and **auditable**
+- We compute **verified performance** and show **leaderboards**
+- No real trading, no order routing, no brokerage integration
+- **Anti-manipulation by design**: claims cannot be silently deleted or backdated
+
+## Social Platform Vision
+Unlike Twitter/X where users post "buy this" then delete when wrong, our platform enforces:
+- **Immutable posts**: analysis posts can never be edited or truly deleted (soft-delete = tombstone)
+- **Server timestamps only**: no backdating, server clock is the only source of truth
+- **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
+- **Trust scores**: computed from historical accuracy, not self-reported
+
+### Progress Tracker (updated 2026-03-04)
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + legacy `X-User-Id` bridge fallback (REST + STOMP) + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
+| Portfolio CRUD | ✅ Done | Create, delete, deposit |
+| Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
+| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling |
+| Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
+| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) |
+| Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
+| User Profiles & Social | ✅ Done | Display name, bio, avatar, follows, profile page |
+| Portfolio Sharing (Public/Private) | ✅ Done | Visibility toggle, discover endpoint |
+| Analysis Posts | ✅ Done | Immutable posts, soft-delete tombstone, price snapshot, auto outcome resolution (30s) |
+| Outcome Resolution Engine | ✅ Done | Scheduled 30s: target hit, stop hit, expiry checks |
+| Redis Integration | ✅ Done | Cache layer for leaderboard (ZSET), prices |
+| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`); remaining legacy list endpoints are being migrated |
+| Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
+| Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
+| File Uploads | ⬜ Planned | Images/charts attached to posts |
+| Trust/Credibility Scores | ⬜ Planned | Auto-computed from track record |
+| Audit Log | ⬜ Planned | All critical actions logged |
+| BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
+
+### Architecture Decisions Log
+- **2026-03-04**: **Notification/WebSocket Security Coverage Expansion + Auth Attack Simulation Tooling (Fifty-Fifth Pass)**
+  - **Problem observed**:
+    - WebSocket and notification hardening had strong baseline coverage, but two explicit regression gaps remained:
+      - invalid Bearer token path on STOMP `CONNECT`
+      - notification REST behavior verification in Bearer-only mode and spoofed header mismatch mode
+    - Ops also needed a repeatable red-team-style script to exercise auth abuse paths and capture metric deltas in one artifact.
+  - **Implementation**:
+    - Added/expanded backend tests:
+      - `StompAuthChannelInterceptorTest`:
+        - invalid Bearer token now explicitly verified as rejected with observability reason `invalid-jwt`
+      - `NotificationControllerIntegrationTest`:
+        - Bearer-only unread-count call success path
+        - Bearer + mismatched `X-User-Id` rejection (`401`)
+    - Added auth attack simulation script:
+      - `infra/load-test/run_auth_attack_scenarios.ps1`
+      - scenario pack:
+        - invalid JWT flood
+        - token/header mismatch flood
+        - invalid refresh token flood
+        - websocket canary probe stress loop
+      - report artifact:
+        - `infra/load-test/reports/auth-attack-scenarios-YYYYMMDD-HHMMSS.md`
+      - report includes auth metric deltas for key reject/invalid counters.
+    - Updated load-test docs:
+      - added usage and artifact listing for attack simulation script in `infra/load-test/README.md`.
+  - **Verification**:
+    - Targeted test run passed:
+      - `NotificationServiceTest`
+      - `NotificationControllerIntegrationTest`
+      - `StompAuthChannelInterceptorTest`
+      - `WebSocketObservabilityServiceTest`
+      - `WebSocketEndpointIntegrationTest`
+      - `WebSocketCanaryServiceTest`
+      - `WebSocketCanaryEndpointIntegrationTest`
+    - Script parser check passed for `run_auth_attack_scenarios.ps1`.
+    - Local no-app smoke report generated:
+      - `infra/load-test/reports/auth-attack-scenarios-20260304-223423.md` (`UNAVAILABLE` expected without running app).
+    - Attempted local live attack run by script-starting app could not complete in this environment because `spring-boot:run` plugin dependencies could not be resolved.
+- **2026-03-04**: **Auth Strict-Mode Readiness Orchestration (Fifty-Fourth Pass)**
+  - **Problem observed**:
+    - Auth strict-mode cutover still required running multiple scripts manually and combining outputs mentally (`legacy usage`, `churn calibration`, and rollout decision).
+    - This manual process increased operator error risk and slowed staging gate decisions.
+  - **Implementation**:
+    - Added single-command orchestration:
+      - `infra/load-test/assess_auth_strict_mode_readiness.ps1`
+    - Orchestrated steps:
+      - executes `check_auth_legacy_usage.ps1` in report mode
+      - executes `calibrate_auth_observability_thresholds.ps1` in report mode
+      - parses latest generated reports
+      - computes consolidated readiness result:
+        - `READY`
+        - `CONDITIONAL_READY`
+        - `NOT_READY`
+    - Consolidated report artifact:
+      - `infra/load-test/reports/auth-strict-readiness-YYYYMMDD-HHMMSS.md`
+      - includes:
+        - source report paths
+        - observed signal summary
+        - recommended next actions
+        - recommended `APP_AUTH_OBSERVABILITY_*` overrides when available
+    - CI/pipeline guard support:
+      - `-FailOnNotReady`
+      - unavailable telemetry endpoints produce non-zero exit code unless `-NoFail`
+    - Updated load-test docs with usage examples and artifact listing.
+  - **Verification**:
+    - PowerShell parser check passed (`PARSE_OK`).
+    - Local no-app smoke run produced expected unavailable/not-ready assessment:
+      - `infra/load-test/reports/auth-strict-readiness-20260304-222424.md`
+- **2026-03-04**: **Auth Rollout Tooling Hardening (Fifty-Third Pass)**
+  - **Problem observed**:
+    - Strict-mode readiness script could return a false `READY` when actuator endpoint was unreachable (metric fetch failures collapsed to zero values).
+    - Refresh churn observability existed in runtime, but there was no dedicated sampling/calibration utility to generate environment threshold suggestions from staged traffic windows.
+  - **Implementation**:
+    - Hardened strict-mode readiness script:
+      - `infra/load-test/check_auth_legacy_usage.ps1`
+      - fetch failures now surface as:
+        - status `UNAVAILABLE`
+        - explicit per-slice notes for missing metric calls
+      - non-report mode now exits non-zero for unavailable metric state (pipeline-safe behavior).
+    - Added refresh churn calibration utility:
+      - `infra/load-test/calibrate_auth_observability_thresholds.ps1`
+      - samples `GET /actuator/authsessions` across configurable iterations/intervals
+      - computes p95 baseline window values for:
+        - refresh success count
+        - invalid refresh count
+        - total refresh attempts
+        - invalid refresh ratio
+      - emits recommended `APP_AUTH_OBSERVABILITY_*` overrides via count/ratio multipliers
+      - reports `UNAVAILABLE` and withholds recommendations when endpoint samples are absent.
+    - Updated ops/load tooling docs:
+      - `infra/load-test/README.md` now includes new calibration script usage and output artifact.
+  - **Verification**:
+    - PowerShell parser checks passed:
+      - `check_auth_legacy_usage.ps1`
+      - `calibrate_auth_observability_thresholds.ps1`
+    - Local no-app smoke reports validate unavailable-state behavior:
+      - `auth-legacy-usage-20260304-221209.md`
+      - `auth-observability-calibration-20260304-221328.md`
+- **2026-03-04**: **Auth Refresh Churn Observability + Actuator/Health Baseline (Fifty-Second Pass)**
+  - **Problem observed**:
+    - Refresh-token rotation was active, but there was no direct runtime signal for:
+      - sudden `/api/v1/auth/refresh` volume spikes
+      - repeated invalid refresh token attempts
+    - Ops needed a direct threshold-based signal before strict auth cutover hardens in staging/prod.
+  - **Implementation**:
+    - Added auth observability config (`app.auth.observability.*`):
+      - `enabled`
+      - `refresh-interval`
+      - `churn-window`
+      - `min-samples`
+      - warning/critical thresholds for:
+        - refresh success volume
+        - invalid refresh count
+        - invalid refresh ratio
+      - `alert-on-recovery`
+    - Added `AuthSessionObservabilityService`:
+      - rolling-window event tracking for:
+        - refresh success
+        - invalid refresh attempts
+      - stateful alert transitions (`NONE`/`WARNING`/`CRITICAL`) to avoid repeated alert spam
+      - ops alert routing:
+        - `refresh-churn-breach`
+        - `refresh-churn-recovered`
+      - new metrics:
+        - `app.auth.refresh.window.success`
+        - `app.auth.refresh.window.invalid`
+        - `app.auth.refresh.window.invalid.ratio`
+        - `app.auth.refresh.alert.state`
+        - `app.auth.refresh.state.transitions`
+    - Added runtime visibility:
+      - Actuator endpoint: `GET /actuator/authsessions`
+      - Health contributor: `authSessions`
+      - management exposure list now includes `authsessions`
+    - Wiring updates:
+      - `AuthSessionService` now records refresh success and invalid refresh attempts into observability service.
+      - `AuthController /auth/refresh` missing-token path now records invalid refresh attempts.
+    - Frontend reliability cleanup included in same pass:
+      - removed lint-blocking `any` types in:
+        - `CryptoChart`
+        - `PortfolioChart`
+        - `sockjs-client.d.ts`
+  - **Verification**:
+    - Targeted backend tests passed:
+      - `AuthControllerIntegrationTest`
+      - `JwtAuthenticationFilterIntegrationTest`
+      - `AuthSessionObservabilityServiceTest`
+      - `AuthSessionEndpointIntegrationTest`
+      - `AuthSessionHealthIndicatorTest`
+      - `AuthObservabilityPropertiesTest`
+    - Frontend validation:
+      - `npm run lint` passed with warnings only (no errors)
+      - `npx tsc --noEmit` passed
+- **2026-03-04**: **Refresh Token Rotation + Logout Revocation Baseline (Fifty-First Pass)**
+  - **Problem observed**:
+    - Access-token-only flow lacked long-lived session renewal and server-side session invalidation semantics.
+    - Strict-mode auth hardening needed a durable refresh path before disabling legacy identity fallback in staged environments.
+  - **Implementation**:
+    - Added refresh-token persistence and schema:
+      - `RefreshToken` entity + repository
+      - Flyway migration: `V8__create_refresh_tokens_table.sql`
+    - Added `AuthSessionService` for auth session lifecycle:
+      - issue access+refresh token pair
+      - rotate refresh token on refresh
+      - revoke one refresh token or all active sessions
+    - Extended auth API:
+      - `POST /api/v1/auth/refresh`
+      - `POST /api/v1/auth/logout`
+      - login/register response now includes:
+        - `refreshToken`
+        - `refreshExpiresInSeconds`
+    - Added explicit refresh-token error surface:
+      - `InvalidRefreshTokenException` mapped to `401` via `GlobalExceptionHandler`
+    - Added config surface:
+      - `app.auth.jwt.refresh-token-ttl`
+    - Frontend auth client improvements:
+      - login/register persist refresh token
+      - `apiFetch` performs single retry flow on `401`:
+        - call `/api/v1/auth/refresh`
+        - update stored tokens
+        - replay original request once
+  - **Verification**:
+    - Targeted backend tests passed:
+      - `AuthControllerIntegrationTest` (including refresh rotation + logout revoke flow)
+      - `JwtAuthenticationFilterIntegrationTest`
+      - `JwtAuthenticationFilterStrictModeIntegrationTest`
+      - `CurrentUserIdArgumentResolverTest`
+      - `UserPreferencesControllerIntegrationTest`
+    - Frontend checks passed:
+      - targeted lint for touched files
+      - `npx tsc --noEmit`
+- **2026-03-04**: **Principal-Aware REST Identity Resolver Migration (Fiftieth Pass)**
+  - **Problem observed**:
+    - Even after JWT bridge, controllers were still directly coupled to `@RequestHeader("X-User-Id")` parsing, which duplicated identity handling and kept spoof-sensitive patterns spread across endpoints.
+  - **Implementation**:
+    - Added REST identity abstraction:
+      - `@CurrentUserId`
+      - `CurrentUserIdArgumentResolver`
+      - `WebMvcConfig` registration
+    - Resolver behavior:
+      - uses authenticated principal when principal is a UUID
+      - falls back to legacy `X-User-Id` header for migration compatibility
+      - supports optional identity (`required=false`) for mixed public/personalized endpoints
+      - fixed anonymous principal edge case (`anonymousUser`) to ensure header fallback remains functional
+    - Migrated all controllers previously using direct `X-User-Id` request header parsing to `@CurrentUserId`:
+      - feed, analysis, analytics, interactions, notifications, portfolio participation, tournaments, user preferences/profile, watchlists
+  - **Verification**:
+    - Added resolver unit test:
+      - `CurrentUserIdArgumentResolverTest`
+    - Targeted controller integration suite passed:
+      - `ActivityFeedControllerIntegrationTest`
+      - `AnalysisPostControllerIntegrationTest`
+      - `InteractionControllerIntegrationTest`
+      - `NotificationControllerIntegrationTest`
+      - `TournamentControllerIntegrationTest`
+      - `UserProfileControllerIntegrationTest`
+      - `UserPreferencesControllerIntegrationTest`
+      - `WatchlistControllerIntegrationTest`
+- **2026-03-04**: **Auth Strict-Mode Cutover Scripted Readiness Check (Forty-Ninth Pass)**
+  - **Problem observed**:
+    - Legacy-header disablement in staging/prod needs a repeatable numeric gate to avoid subjective/manual readiness decisions.
+  - **Implementation**:
+    - Added `infra/load-test/check_auth_legacy_usage.ps1`:
+      - queries actuator metric `app.auth.requests.total`
+      - evaluates key tag slices:
+        - `mode=legacy-header,result=accepted`
+        - `mode=legacy-header,result=rejected_disabled`
+        - `mode=bearer,result=accepted`
+        - `mode=anonymous,result=accepted`
+      - compares legacy accepted count with configurable threshold (`-MaxLegacyAccepted`)
+      - fails process on threshold breach by default (can be disabled via `-NoFail`)
+      - writes report artifact:
+        - `infra/load-test/reports/auth-legacy-usage-YYYYMMDD-HHMMSS.md`
+    - Updated load-test docs with usage examples and output artifact.
+  - **Verification**:
+    - PowerShell parser validation passed for new script (`PARSE_OK`).
+- **2026-03-04**: **Auth Strict-Mode Rollout Guardrails + Legacy Usage Telemetry (Forty-Eighth Pass)**
+  - **Problem observed**:
+    - JWT bridge was implemented, but strict-mode cutover (`legacy header off`) needed measurable rollout safety to avoid blind client breakage.
+  - **Implementation**:
+    - Added auth-mode telemetry in `JwtAuthenticationFilter`:
+      - metric: `app.auth.requests.total`
+      - tags:
+        - `mode`: `bearer`, `legacy-header`, `anonymous`
+        - `result`: accepted/rejection reason variants
+    - Added strict-mode integration test coverage:
+      - `JwtAuthenticationFilterStrictModeIntegrationTest`
+      - verifies:
+        - `X-User-Id`-only request is rejected when `app.auth.jwt.allow-legacy-user-id-header=false`
+        - Bearer request remains valid in strict mode
+    - Tightened frontend fallback policy for rollout:
+      - `apiFetch` / `userIdHeaders` now send `X-User-Id` only when access token is absent
+      - `user-preferences` client moved to shared helper path (removed direct hardcoded header map)
+      - websocket STOMP clients now prefer Bearer-only connect headers; `X-User-Id` is sent only as no-token fallback
+  - **Verification**:
+    - Targeted backend auth test set passed:
+      - `AuthControllerIntegrationTest`
+      - `JwtTokenServiceTest`
+      - `JwtAuthenticationFilterIntegrationTest`
+      - `JwtAuthenticationFilterStrictModeIntegrationTest`
+      - `StompAuthChannelInterceptorTest`
+    - Frontend validation passed:
+      - targeted lint (warnings only, no errors)
+      - `npx tsc --noEmit`
+- **2026-03-04**: **JWT-First Frontend REST Header Consolidation (Forty-Seventh Pass)**
+  - **Problem observed**:
+    - After JWT introduction, multiple frontend modules still manually set `X-User-Id` on REST calls, which keeps identity scattered and increases spoof-prone call-site drift.
+  - **Implementation**:
+    - Kept `apiFetch` as single auth-header source (`Authorization` + transitional legacy header).
+    - Removed explicit `X-User-Id` REST header wiring from major client flows:
+      - discover join
+      - watchlist list/create/delete/add-item/get-items
+      - tournaments join
+      - analysis create/delete
+      - activity feed
+      - like/comment widget
+      - notification read/list calls in live provider
+    - Kept STOMP dual-header connect mode (`Authorization` + `X-User-Id`) for rollout safety with existing broker/interceptor compatibility.
+  - **Verification**:
+    - Frontend targeted lint run succeeded (warnings only on pre-existing hook dependency rules, no errors).
+    - Frontend strict type-check passed (`npx tsc --noEmit`).
+- **2026-03-04**: **JWT + bcrypt Auth Baseline with Backward-Compatible Identity Bridge (Forty-Sixth Pass)**
+  - **Problem observed**:
+    - Core auth still returned raw user objects and relied on plaintext password comparison.
+    - REST and STOMP identity was still heavily tied to caller-controlled `X-User-Id`, creating spoofing risk and fragmented auth semantics.
+  - **Implementation**:
+    - Added JWT runtime/auth components:
+      - `JwtRuntimeProperties` (`app.auth.jwt.*`)
+      - `JwtTokenService` (HS256 issue/validation)
+      - `JwtAuthenticationFilter` (Bearer validation + SecurityContext binding)
+    - Added migration bridge behavior in HTTP layer:
+      - valid Bearer token auto-populates legacy `X-User-Id` for existing controllers
+      - mismatch between Bearer identity and explicit header now returns `401`
+      - rollout flags:
+        - `allow-legacy-user-id-header`
+        - `enforce-header-token-match`
+    - Upgraded `AuthController`:
+      - register now stores bcrypt hash
+      - login supports legacy plaintext users and auto-upgrades them to bcrypt on successful login
+      - auth responses now include:
+        - `accessToken`
+        - `tokenType`
+        - `expiresInSeconds`
+    - Extended STOMP connect auth:
+      - `StompAuthChannelInterceptor` now accepts `Authorization: Bearer ...`
+      - enforces token/header identity consistency on CONNECT
+    - Frontend migration baseline:
+      - `apiFetch` auto-attaches `Authorization` from local storage token
+      - login/register store `accessToken`
+      - notification and tournament STOMP clients now include Bearer in `connectHeaders`
+  - **Verification**:
+    - Added/updated backend tests:
+      - `AuthControllerIntegrationTest`
+      - `JwtTokenServiceTest`
+      - `JwtAuthenticationFilterIntegrationTest`
+      - `StompAuthChannelInterceptorTest`
+    - Targeted backend test run passed (`0 failures`).
+    - Frontend checks passed:
+      - targeted lint on touched files
+      - `npx tsc --noEmit`
+- **2026-03-04**: **WebSocket Canary Multi-Window Noise Guard + External Runner Tooling (Forty-Fifth Pass)**
+  - **Problem observed**:
+    - Canary failures could still be noisy during unstable windows because alerting was failure-event driven.
+    - Also, canary validation from inside the app process cannot validate external routing behavior (LB/sticky/cross-instance path) by itself.
+  - **Implementation**:
+    - Hardened canary alerting policy in `WebSocketCanaryService`:
+      - state-transition based alerting (`NONE` -> `WARNING` -> `CRITICAL` -> `NONE`) to avoid duplicate alerts when state is unchanged.
+      - failure/recovery logging moved to state-transition model to reduce repeated warn noise in unstable windows.
+      - rolling-window failure policy:
+        - `window-size`
+        - `min-window-samples`
+        - `warning-failure-ratio-threshold`
+        - `critical-failure-ratio-threshold`
+      - consecutive thresholds split:
+        - `warning-consecutive-failure-threshold`
+        - `critical-failure-threshold`
+      - recovery controls:
+        - `recovery-success-threshold`
+        - `alert-on-recovery`
+      - recovery alert key:
+        - `probe-recovered`
+      - additional telemetry:
+        - `app.websocket.canary.window.failure.ratio`
+        - `app.websocket.canary.alert.state`
+        - `app.websocket.canary.state.transitions`
+      - canary snapshot payload expanded with window stats + alert state metadata.
+    - Added out-of-process canary runner script:
+      - `infra/load-test/run_websocket_canary_external.ps1`
+      - designed to be executed from external node/network path against `/actuator/websocketcanary`
+      - supports repeated sampling, optional websocket context snapshot (`/actuator/websocket`), fail-on-any-failure mode, and markdown report output.
+    - Added scheduler lock regression coverage for canary scheduled method:
+      - `ScheduledLockAnnotationTest` now includes `WebSocketCanaryService`.
+  - **Verification**:
+    - Targeted backend test run passed:
+      - `WebSocketCanaryServiceTest`
+      - `WebSocketCanaryEndpointIntegrationTest`
+      - `ScheduledLockAnnotationTest`
+    - New external runner script syntax validated with PowerShell parser.
+- **2026-03-04**: **Canary Subscription Readiness Hardened via STOMP Receipts (Forty-Fourth Pass)**
+  - **Problem observed**:
+    - Synthetic websocket canary initially used a fixed short wait after subscribe calls; under broker/runtime jitter, this could produce false-negative failures when payload publish happened before subscription became active.
+  - **Implementation**:
+    - Updated `StompWebSocketCanaryClient` to replace fixed wait with receipt-based readiness:
+      - enables STOMP auto-receipts on session
+      - waits for subscription receipts from both:
+        - topic subscription
+        - user-queue subscription
+      - only publishes probe payloads after both receipts are confirmed
+      - returns explicit probe errors for:
+        - missing receipt id
+        - lost receipt
+        - receipt timeout
+    - Removed fixed sleep-based subscription stabilization path.
+  - **Verification**:
+    - Re-ran targeted canary tests successfully:
+      - `WebSocketCanaryServiceTest`
+      - `WebSocketCanaryEndpointIntegrationTest`
+- **2026-03-04**: **Synthetic WebSocket Canary + Ops Alert Escalation + Actuator/Health Integration (Forty-Third Pass)**
+  - **Problem observed**:
+    - Relay smoke script and runtime websocket metrics existed, but there was no continuous synthetic probe to verify handshake + subscribe + publish delivery path and alert ops when stream semantics degrade.
+  - **Implementation**:
+    - Added websocket canary runtime config (`app.websocket.canary.*`):
+      - enable flag
+      - probe interval
+      - connect/message timeouts
+      - critical failure threshold
+      - base/ws urls
+      - topic and user-queue destinations
+    - Added STOMP canary probe client:
+      - `StompWebSocketCanaryClient`
+      - Probe flow:
+        - connect with `X-User-Id`
+        - subscribe to topic + `/user/queue` destination
+        - publish canary payloads through `SimpMessagingTemplate`
+        - assert both streams are delivered within timeout
+    - Added scheduled canary service:
+      - `WebSocketCanaryService`
+      - scheduled with `@SchedulerLock` for multi-instance safety
+      - emits canary metrics (run count, latency, last success, consecutive failures, success ratio)
+      - publishes ops alerts (`WARNING`/`CRITICAL`) with threshold-based escalation on failures
+    - Added runtime visibility:
+      - Actuator endpoint: `GET /actuator/websocketcanary`
+      - health indicator: `websocketCanary`
+      - management exposure updated to include `websocketcanary`
+    - Design hardening:
+      - health indicator now reports `unknown` until first completed probe (prevents startup-time synthetic probe side effects).
+  - **Verification**:
+    - Added/updated tests:
+      - `WebSocketCanaryServiceTest`
+      - `WebSocketCanaryEndpointIntegrationTest`
+      - plus websocket observability/interceptor regression tests
+    - Targeted backend websocket test set passed with zero failures.
+- **2026-03-04**: **WebSocket Relay Observability Counters + Actuator Endpoint (Forty-Second Pass)**
+  - **Problem observed**:
+    - Relay mode readiness existed, but there was no native runtime telemetry to quantify websocket connection churn, STOMP validation errors, and reconnect recovery quality for alerting/dashboard workflows.
+  - **Implementation**:
+    - Added websocket observability configuration:
+      - `app.websocket.observability.enabled`
+      - `app.websocket.observability.reconnect-window`
+    - Added `WebSocketObservabilityService` (event-driven via session connect/disconnect events):
+      - metrics:
+        - `websocket.sessions.active` (gauge)
+        - `app.websocket.events.total` (counter tags for `connect`, `disconnect`, `stomp-error`, `reconnect-success`)
+        - `app.websocket.reconnect.success.ratio` (gauge)
+      - snapshot fields:
+        - active sessions
+        - connect/disconnect counts
+        - stomp error count + command-level map
+        - reconnect candidate/success counts + success ratio
+    - Added Actuator endpoint:
+      - `GET /actuator/websocket`
+    - Integrated STOMP error telemetry in `StompAuthChannelInterceptor` for policy/validation failures:
+      - invalid user UUID
+      - legacy topic subscription disabled
+      - missing principal on legacy topic path
+      - cross-user topic subscription attempt
+    - Updated management endpoint exposure to include `websocket`.
+  - **Verification**:
+    - Added/updated targeted tests:
+      - `WebSocketObservabilityServiceTest`
+      - `WebSocketEndpointIntegrationTest`
+      - `StompAuthChannelInterceptorTest`
+    - Targeted backend test execution passed with local Maven repo override.
+- **2026-03-04**: **WebSocket Relay Smoke/Failover Validation Tooling + Staging Profile (Forty-First Pass)**
+  - **Problem observed**:
+    - Relay broker mode was integrated in application runtime, but there was no repeatable end-to-end script to validate notification and tournament websocket streams under relay mode and controlled broker restart scenarios.
+  - **Implementation**:
+    - Added relay smoke/failover validation script:
+      - `infra/load-test/validate_websocket_relay_smoke.ps1`
+      - Runs end-to-end STOMP checks for:
+        - `/user/queue/notifications`
+        - `/topic/tournament/{tournamentId}`
+      - Supports both:
+        - `-SkipAppStart` flow against an already running environment
+        - script-started app flow with relay env settings (`APP_WEBSOCKET_BROKER_MODE=RELAY`)
+      - Supports failover drill execution:
+        - `-BrokerRestartCommand`
+        - `-BrokerRecoveryWaitSec`
+      - Persists report artifact:
+        - `infra/load-test/reports/websocket-relay-smoke-YYYYMMDD-HHMMSS.md`
+    - Added staging profile override:
+      - `services/core-api/src/main/resources/application-staging.yml`
+      - default `app.websocket.broker-mode=RELAY`
+    - Updated load-test docs with relay smoke/failover usage examples:
+      - `infra/load-test/README.md`
+  - **Verification**:
+    - Script syntax validated via PowerShell parser (no parse errors).
+    - Flow is ready for staging execution with real broker restart command and report capture.
+- **2026-03-04**: **Broker Relay Readiness for Multi-Instance WebSocket Fanout (Fortieth Pass)**
+  - **Problem observed**:
+    - Simple in-memory STOMP broker mode is suitable for single-instance/local workloads, but it does not provide durable cross-instance fanout behavior needed for horizontally scaled websocket workloads.
+  - **Implementation**:
+    - Extended websocket runtime configuration (`app.websocket.*`) with relay controls:
+      - `broker-mode=SIMPLE|RELAY`
+      - relay host/port/client credentials/system credentials/virtual host
+    - `WebSocketConfig.configureMessageBroker(...)` now supports dual mode:
+      - `SIMPLE`: in-memory broker + heartbeat task scheduler
+      - `RELAY`: external STOMP broker relay (`/topic`, `/queue`) with relay connection and heartbeat settings
+    - Added explicit test coverage for broker mode normalization:
+      - `WebSocketRuntimePropertiesTest`
+  - **Verification**:
+    - Full targeted backend verification set passed after integration:
+      - `WebSocketRuntimePropertiesTest`
+      - `StompAuthChannelInterceptorTest`
+      - `NotificationServiceTest`
+      - `UserPreferencesServiceTest`
+      - `UserPreferencesControllerIntegrationTest`
+      - `LeaderboardServiceTest`
+      - `LeaderboardControllerIntegrationTest`
+      - total: `23 tests run, 0 failures`
+- **2026-03-04**: **WebSocket Security/Reliability Hardening Baseline (Thirty-Ninth Pass)**
+  - **Problem observed**:
+    - Real-time layer worked functionally, but retained scale/security gaps:
+      - wildcard websocket origin policy
+      - no explicit STOMP principal binding on connect
+      - legacy user-id-addressable notification topic path
+      - no explicit transport/message guardrails in config
+  - **Implementation**:
+    - Added websocket runtime configuration surface (`app.websocket.*`):
+      - `allowed-origin-patterns`
+      - heartbeat intervals
+      - transport guardrails (`message-size`, `send-buffer`, `send-time`)
+      - `legacy-user-topic-broadcast-enabled` flag
+    - `WebSocketConfig` now:
+      - reads explicit origin allowlist from config (no wildcard default)
+      - applies broker heartbeat scheduler
+      - applies transport limits
+      - registers inbound `StompAuthChannelInterceptor`
+    - Added `StompAuthChannelInterceptor`:
+      - binds principal from STOMP `X-User-Id` header when provided (UUID-validated)
+      - falls back to generated anonymous principal for public topic subscriptions
+      - blocks legacy `/topic/notifications/{userId}` subscription path unless feature-flag explicitly enabled
+    - `NotificationService` now sends legacy direct user topic only when explicitly enabled; default runtime keeps it off.
+    - Frontend STOMP clients now send `connectHeaders` with `X-User-Id`:
+      - notifications provider
+      - tournament hub stream client
+    - Notification frontend subscription path simplified to `/user/queue/notifications`.
+  - **Verification**:
+    - Backend targeted tests passed:
+      - `StompAuthChannelInterceptorTest`
+      - `NotificationServiceTest`
+      - `UserPreferencesServiceTest`
+      - `UserPreferencesControllerIntegrationTest`
+      - `LeaderboardServiceTest`
+      - `LeaderboardControllerIntegrationTest`
+      - total: `21 tests run, 0 failures`
+    - Frontend targeted lint on touched websocket/leaderboard files passed.
+    - Frontend strict type-check (`npx tsc --noEmit`) passed.
+- **2026-03-04**: **Cross-Device Leaderboard Preference Sync + User Preference API (Thirty-Eighth Pass)**
+  - **Problem observed**:
+    - Local-storage preference persistence solved same-device reload friction, but filters still reset across browsers/devices and new sessions on different clients.
+  - **Implementation**:
+    - Added backend user preference persistence model:
+      - `user_preferences` table via Flyway migration:
+        - `V7__create_user_preferences_table.sql`
+      - Domain/repository:
+        - `UserPreference`
+        - `UserPreferenceRepository`
+    - Added user preference API:
+      - `GET /api/v1/users/me/preferences`
+      - `PUT /api/v1/users/me/preferences/leaderboard`
+      - Supports partial updates for dashboard/public leaderboard filter scopes.
+    - Added normalization layer for safe values:
+      - period: `1D|1W|1M|ALL`
+      - sortBy: `RETURN_PERCENTAGE|PROFIT_LOSS` (plus aliases)
+      - direction: `ASC|DESC` (plus aliases)
+    - Frontend leaderboard pages now hydrate from local storage + backend and sync preference changes back to backend while preserving local fallback behavior.
+  - **Verification**:
+    - Targeted backend tests passed:
+      - `UserPreferencesServiceTest`
+      - `UserPreferencesControllerIntegrationTest`
+      - plus leaderboard regression tests (`LeaderboardServiceTest`, `LeaderboardControllerIntegrationTest`)
+      - total: `9 tests run, 0 failures`
+    - Targeted frontend lint passed:
+      - `apps/web/app/dashboard/leaderboard/page.tsx`
+      - `apps/web/app/leaderboards/page.tsx`
+      - `apps/web/lib/user-preferences.ts`
+    - Added local typing shim for `sockjs-client` and verified strict frontend type-check:
+      - `apps/web/types/sockjs-client.d.ts`
+      - `npx tsc --noEmit` passed
+- **2026-03-04**: **Leaderboard Filter Preference Persistence (Thirty-Seventh Pass)**
+  - **Problem observed**:
+    - Users changing leaderboard sort mode/direction had to reselect filters after every reload/session restart, creating repeated friction during analysis workflows.
+  - **Implementation**:
+    - Added local-storage backed preference persistence for leaderboard filters:
+      - Dashboard leaderboard:
+        - key: `dashboard_leaderboard_preferences_v1`
+        - stores: `period`, `sortBy`, `direction`
+      - Public leaderboard:
+        - key: `public_leaderboard_preferences_v1`
+        - stores: `sortBy`, `direction`
+    - Added hydration guards in both pages so first fetch waits for preference restoration, avoiding initial request with stale defaults.
+    - Preserved current backend API contract (`sortBy`, `direction`, `period`) and polling behavior.
+  - **Verification**:
+    - Targeted frontend lint on modified files passes cleanly:
+      - `apps/web/app/dashboard/leaderboard/page.tsx`
+      - `apps/web/app/leaderboards/page.tsx`
+- **2026-03-04**: **Leaderboard Multi-Metric Sorting Controls (Thirty-Sixth Pass)**
+  - **Problem observed**:
+    - Leaderboard was effectively fixed to one ranking axis (return percentage descending), while users needed to inspect both `% gain` and absolute `profit` in both directions.
+  - **Implementation**:
+    - Backend API contract expanded:
+      - `GET /api/v1/leaderboards` now supports:
+        - `sortBy=RETURN_PERCENTAGE|PROFIT_LOSS` (default `RETURN_PERCENTAGE`)
+        - `direction=DESC|ASC` (default `DESC`)
+    - `LeaderboardService` refresh path now writes dual Redis ZSET caches per period:
+      - `leaderboard_portfolios:{period}` (return % score)
+      - `leaderboard_portfolios_profit:{period}` (profit/loss score)
+    - Read path now switches between `ZRANGE`/`ZREVRANGE` based on requested sort direction.
+    - Frontend controls added on both leaderboard screens:
+      - `apps/web/app/dashboard/leaderboard/page.tsx`
+      - `apps/web/app/leaderboards/page.tsx`
+  - **Verification**:
+    - Updated backend tests:
+      - `LeaderboardServiceTest`
+      - `LeaderboardControllerIntegrationTest`
+    - Added coverage for profit-based ascending read path and dual-cache refresh behavior.
+- **2026-03-04**: **Offline-Safe Font Loading Strategy for Web Build (Thirty-Fifth Pass)**
+  - **Problem observed**:
+    - `next/font/google` required network access during build, which failed in restricted/offline environments and blocked release validation.
+  - **Implementation**:
+    - Removed Google font imports from `apps/web/app/layout.tsx`.
+    - Switched typography variables to offline-safe local/system fallback stacks in `apps/web/app/globals.css`:
+      - `--font-space-grotesk`
+      - `--font-jetbrains-mono`
+    - Preserved existing design token usage (`--font-sans`, `--font-mono`) so page styles remain consistent without remote fetch.
+  - **Verification**:
+    - Repository scan confirms no remaining `next/font/google` usage in `apps/web`.
+    - Build compile stage succeeds without Google Fonts fetch errors in this environment.
+    - Remaining build stop (`spawn EPERM`) is environment process-permission related and independent of font loading.
+- **2026-03-04**: **Profile Avatar Image Pipeline Cleanup (Thirty-Fourth Pass)**
+  - **Problem observed**:
+    - Profile page still used raw `<img>` rendering for avatar, leaving a persistent lint advisory and inconsistent image handling.
+  - **Implementation**:
+    - Updated profile avatar rendering in:
+      - `apps/web/app/profile/[userId]/page.tsx`
+    - Switched from `<img>` to `next/image` (`Image`), using a passthrough loader with `unoptimized` mode to preserve current runtime behavior for arbitrary avatar URLs.
+  - **Verification**:
+    - Targeted ESLint check on profile page completed with no warnings/errors.
+- **2026-03-04**: **Desktop QA Sweep + Route Integrity Hardening (Thirty-Third Pass)**
+  - **Problem observed**:
+    - After multi-pass frontend migration, desktop flow needed a targeted validation pass for route correctness and lint-level regressions.
+    - Legacy social CTA path (`/social`) no longer matched current route tree.
+  - **Implementation**:
+    - Ran targeted desktop lint checks on recently migrated/critical surfaces:
+      - analysis detail/new
+      - portfolio detail
+      - tournament hub
+      - profile
+      - notification components and top-level layouts.
+    - Executed static hardcoded-link audit against current route tree.
+    - Fixed route mismatch in activity feed footer:
+      - `apps/web/components/ActivityFeed.tsx`
+      - `/social` -> `/discover`.
+    - Updated `ActivityFeed` effect wiring (`useCallback`) to satisfy hook dependency safety.
+  - **Verification**:
+    - Targeted lint run passes (only pre-existing non-blocking `next/image` advisory in profile avatar).
+    - Static route audit reports no missing hardcoded routes.
+    - Production build attempt in this environment fails on external Google Fonts fetch, identified as environment/network restriction rather than runtime code defect.
+- **2026-03-04**: **Profile Connections Live-Wire + Follow Graph UX Completion (Thirty-Second Pass)**
+  - **Problem observed**:
+    - Profile screen still had placeholder content for followers/following tabs, leaving a key social workflow incomplete.
+  - **Implementation**:
+    - Frontend profile page (`apps/web/app/profile/[userId]/page.tsx`) now consumes live paginated connection endpoints:
+      - `GET /api/v1/users/{userId}/followers`
+      - `GET /api/v1/users/{userId}/following`
+    - Added tab-aware lazy loading, page metadata handling, and `Load More` behavior.
+    - Added per-row follow/unfollow action directly in follower/following lists with refresh of:
+      - viewed profile counters
+      - active connection tab data.
+    - Kept existing backend API contract unchanged; implementation is frontend-side completion over already available endpoints.
+  - **Verification**:
+    - Frontend targeted lint run passed for updated profile page (only pre-existing non-blocking `next/image` warning).
+    - Backend compatibility and follow graph behavior re-verified with targeted tests:
+      - `UserProfileControllerIntegrationTest`
+      - `UserProfileServiceTest`
+      - total: `28 tests run, 0 failures`.
+- **2026-03-04**: **Notification Read Granularity + Deep-Link Integrity (Thirty-First Pass)**
+  - **Problem observed**:
+    - Notification UX only supported global `mark-all-read`, causing coarse state transitions.
+    - Bell interaction marked all notifications as read on open, which was too aggressive.
+    - Follow-notification navigation could point to non-existent/incorrect route in current frontend structure.
+  - **Implementation**:
+    - Backend API enhancement:
+      - Added single-item read endpoint:
+        - `POST /api/v1/notifications/{notificationId}/mark-read`
+      - Added owner-scoped repository finder:
+        - `NotificationRepository.findByIdAndUserId(...)`
+      - Added service method:
+        - `NotificationService.markAsRead(userId, notificationId)`
+      - Controller returns `404` when notification does not belong to request user.
+    - Frontend notification flow:
+      - `LiveNotificationProvider` context now exposes `markRead(notificationId)`.
+      - Notifications page supports per-item `Mark read` and read-on-open behavior per notification.
+      - Notification bell no longer auto-marks all on open; only clicked notification is marked.
+      - Follow deep-link routing aligned to profile path when reference id is present.
+  - **Verification**:
+    - Backend targeted test run passed:
+      - `NotificationControllerIntegrationTest`
+      - `NotificationServiceTest`
+      - total: `15 tests run, 0 failures`.
+    - Frontend targeted ESLint check passed for touched notification files/components.
+- **2026-03-04**: **Desktop-Only Frontend Policy Enforcement (Thirtieth Pass)**
+  - **Problem observed**:
+    - Product direction clarified that this web client is not intended to support mobile screens.
+    - Existing UI still exposed mobile navigation and attempted responsive behavior, creating misleading UX expectations.
+  - **Implementation**:
+    - Added global desktop-only viewport guard in `apps/web/app/layout.tsx`:
+      - renders app content only for `lg` (`>=1024px`) and shows explicit desktop-required fallback on smaller screens.
+    - Removed dashboard mobile bottom-nav and mobile-specific content padding path in `apps/web/app/dashboard/layout.tsx`.
+  - **Verification**:
+    - Targeted ESLint check for updated layout files passed with no warnings/errors.
+- **2026-03-04**: **Figma Frontend Migration Phase-3 (Detail Screens) + Tournament Hub Stability Fix (Twenty-Ninth Pass)**
+  - **Problem observed**:
+    - Key detail workflows still used the old visual layer, creating inconsistent UX against the new Figma direction.
+    - Tournament hub leaderboard row highlighting referenced an undefined `DEMO_USER_ID`, causing fragile runtime behavior.
+  - **Implementation**:
+    - Migrated remaining target screens to the shared design language (glass panels, tokenized colors, responsive card/table hierarchy) while keeping existing API contracts:
+      - `apps/web/app/dashboard/analysis/[id]/page.tsx`
+      - `apps/web/app/dashboard/analysis/new/page.tsx`
+      - `apps/web/app/dashboard/portfolio/[id]/page.tsx`
+      - `apps/web/app/tournaments/[id]/hub/page.tsx`
+    - Stabilized tournament user-highlighting logic:
+      - Removed undefined constant dependency and now compares leaderboard entry user id with session `localStorage.userId`.
+    - Per-screen quality pass:
+      - modernized hook dependencies in touched screens to avoid stale callback/effect behavior.
+      - corrected P/L sign rendering in portfolio tables for negative values.
+  - **Verification**:
+    - Targeted ESLint validation on migrated screens completed with no errors/warnings.
+- **2026-03-04**: **Frontend Network Decoupling + Figma Phase-2 Screen Refresh (Twenty-Eighth Pass)**
+  - **Problem observed**:
+    - Frontend still contained direct backend host assumptions and mixed fetch patterns, increasing environment-coupling risk.
+    - Figma migration was only partial; profile/notifications pages still diverged from the new design language.
+  - **Implementation**:
+    - Network/client standardization:
+      - Added Next rewrites in `apps/web/next.config.ts`:
+        - `/api/:path* -> ${NEXT_PUBLIC_API_BASE_URL}/api/:path*`
+        - `/ws/:path* -> ${NEXT_PUBLIC_API_BASE_URL}/ws/:path*`
+      - Added shared helpers:
+        - `apps/web/lib/network.ts` (`apiPath`, `wsBrokerUrl`, `wsHttpUrl`)
+        - `apps/web/lib/api-client.ts` (`apiFetch`, `userIdHeaders`)
+      - Migrated frontend call sites to shared client wrapper and removed hardcoded localhost backend URLs.
+      - Updated analytics fetch path (`app/analytics/[portfolioId]`) to shared client + hook-safe callbacks.
+    - Figma phase-2 UI migration:
+      - Refactored:
+        - `apps/web/app/notifications/page.tsx`
+        - `apps/web/app/profile/[userId]/page.tsx`
+      - Applied glass-panel card hierarchy, compact stat cards, and consistent filter/tab patterns aligned to `new_frontend` visual tokens.
+  - **Verification**:
+    - Host-scan check confirms no direct `http://localhost:8080` or `ws://localhost:8080` references remain under `apps/web`.
+    - Targeted ESLint run on touched files passed with no errors; one non-blocking `@next/next/no-img-element` warning remains on profile avatar rendering.
+- **2026-03-04**: **Frontend Figma Integration Kickoff + Pagination Contract Upgrade (Twenty-Seventh Pass)**
+  - **Problem observed**:
+    - New `new_frontend` Figma export arrived as a separate Vite app and did not align with existing Next.js App Router runtime.
+    - Core list endpoints still had mixed response contracts (`List<T>` vs `Page<T>`), making large-list behavior and frontend handling inconsistent.
+    - Duplicate route mapping existed for portfolio join (`POST /api/v1/portfolios/{id}/join`) across two controllers.
+  - **Implementation**:
+    - Backend API hygiene (roadmap phase 1):
+      - Converted key list endpoints to paged contracts:
+        - `GET /api/v1/portfolios?ownerId=...` -> `Page<Portfolio>`
+        - `GET /api/v1/portfolios/discover` -> `Page<Portfolio>`
+        - `GET /api/v1/tournaments` -> `Page<Tournament>`
+        - `GET /api/v1/tournaments/active` -> `Page<Tournament>`
+      - Removed duplicate join mapping from `PortfolioController`; portfolio participation ownership remains in `PortfolioParticipationController`.
+      - Updated related integration tests to assert `$.content` payload shape.
+    - Frontend integration kickoff:
+      - Added page payload normalizer (`apps/web/lib/page.ts`) to safely consume both `Page<T>` and legacy list responses during transition.
+      - Updated dashboard/discover/profile/tournaments fetch paths to paged-safe parsing.
+      - Removed hardcoded demo user id usage from discover/tournaments/watchlist/tournament-hub flows; now uses session `localStorage.userId`.
+      - Ported Figma design system baseline into Next.js:
+        - new theme tokens/utilities in `apps/web/app/globals.css`
+        - app typography switched to `Space Grotesk` + `JetBrains Mono`
+        - landing/auth pages restyled to new visual language
+        - dashboard shell replaced with new desktop/mobile navigation pattern.
+  - **Verification**:
+    - Source-level verification of endpoint contracts, controller mappings, and frontend call sites completed.
+    - Runtime test execution is currently constrained in this environment due sandboxed Maven repository path/write restrictions and wrapper download restrictions; full suite re-run pending on normal dev host.
+- **2026-03-02**: **Portfolio Visibility Toggle UX Reliability Fix (Twenty-Sixth Pass)**
+  - **Problem observed**:
+    - Users clicked `Make Public`, but UI sometimes appeared unchanged (stale client state/cached reads).
+  - **Implementation**:
+    - Dashboard visibility toggle now applies optimistic state update from API response.
+    - Portfolio list/detail fetches now use cache-busting (`?t=`) + `cache: 'no-store'` to avoid stale reads.
+    - Visibility toggle error handling now surfaces backend message for immediate diagnosis.
+  - **Verification**:
+    - Backend endpoint sanity check succeeded via direct API call (`PUT /api/v1/portfolios/{id}/visibility`) and DB row persisted as `PUBLIC`.
+- **2026-03-01**: **Leaderboard Refactor: Position-Based -> Portfolio Period Performance (Twenty-Fifth Pass)**
+  - **Problem observed**:
+    - Leaderboard entries were cached per `portfolio_item` and effectively showed live position ROE, not portfolio-period performance.
+    - `period` tabs (`1D/1W/1M/ALL`) did not represent true windowed portfolio metrics.
+  - **Implementation**:
+    - `LeaderboardService` now caches ZSET members by `portfolioId` (not `portfolioId_itemId`).
+    - Scheduled refresh computes each period independently using `PerformanceCalculationService.calculateMetrics(...)` with period start times:
+      - `1D`, `1W`, `1M`, `ALL`.
+    - `GET /api/v1/leaderboards` now resolves period metrics per portfolio and returns:
+      - `returnPercentage`, `profitLoss`, `startEquity`, `totalEquity`.
+    - Added cache warm-up fallback on read when a period key is cold.
+    - Updated leaderboard UI wording to portfolio semantics (`Position` -> `Portfolio`).
+  - **Verification**:
+    - Updated unit coverage:
+      - `LeaderboardServiceTest` for new cache key/member strategy and multi-period refresh behavior.
+    - Targeted backend verification passed:
+      - `LeaderboardServiceTest`
+      - `LeaderboardControllerIntegrationTest`
+      - `PortfolioControllerIntegrationTest`
+      - `TradeControllerIntegrationTest`
+      - Result: `7 tests run, 0 failures`.
+- **2026-03-02**: **Holdings Serialization Fix for Portfolio List Endpoint (Twenty-Third Pass)**
+  - **Problem observed**:
+    - Users could open positions (margin deducted, `portfolio_items` rows persisted), but dashboard holdings showed `No open positions`.
+    - API diagnosis:
+      - `GET /api/v1/portfolios?ownerId=...` returned `items: null`.
+  - **Root cause**:
+    - Portfolio list queries were returning lazy `items` collections without eager fetch guarantees for JSON serialization path.
+  - **Implementation**:
+    - Updated `PortfolioRepository` list queries with `@EntityGraph(attributePaths = "items")`:
+      - `findByOwnerId(...)`
+      - `findByVisibility(...)`
+      - `findByOwnerIdAndVisibility(...)`
+    - Added regression integration test:
+      - `PortfolioControllerIntegrationTest.listPortfolios_shouldIncludeOpenItemsAfterTrade`
+  - **Verification**:
+    - Targeted integration tests passed:
+      - `PortfolioControllerIntegrationTest`, `TradeControllerIntegrationTest`.
+    - Live API verification after restart confirms list response includes populated `items`.
+- **2026-03-02**: **Leaderboard Visibility UX Clarification in Dashboard (Twenty-Fourth Pass)**
+  - **Problem observed**:
+    - Private portfolios are intentionally excluded from leaderboard, but UI lacked an explicit indicator, causing confusion ("position exists but not on leaderboard").
+  - **Implementation**:
+    - Dashboard card now shows `visibility` badge (`PUBLIC`/`PRIVATE`).
+    - For private portfolios, added inline note:
+      - `Not on leaderboard`.
+  - **Verification**:
+    - Frontend dev server confirms rendering path works with new visibility metadata.
+- **2026-03-01**: **Portfolio/Follow Query Index Pack Added (Twenty-Second Pass)**
+  - **Problem observed**:
+    - Stress snapshot showed portfolio/follow read paths are central to social UX and should be explicitly indexed for growth.
+  - **Implementation**:
+    - Added Flyway migration:
+      - `V6__portfolio_and_follow_query_indexes.sql`
+    - Added indexes:
+      - `portfolios(owner_id)`
+      - `portfolios(visibility, created_at desc)`
+      - `portfolios(owner_id, visibility, created_at desc)`
+      - `follows(follower_id, created_at desc)`
+  - **Verification**:
+    - Flyway applied migration successfully (schema moved to `v6`) in integration test boot.
+    - Full backend suite remains green: `216 tests passed`.
+    - PostgreSQL `pg_indexes` query confirms new indexes exist.
+- **2026-03-01**: **Feed Publish Fanout Degradation Fixed + Live Social Stress Re-Validation (Twentieth Pass)**
+  - **Problem observed**:
+    - Under high follower fanout (`1000 followers`), publish/write path showed severe latency because each event performed follower-level cache invalidation scan/work.
+    - Baseline fanout stress (before optimization):
+      - `avg=942.32ms`, `p95=1326.24ms`, `p99=1695.44ms`
+      - report: `infra/load-test/reports/load-baseline-20260301-222339.md`
+  - **Implementation**:
+    - `ActivityFeedService` publish path made explicitly mode-driven:
+      - `app.feed.cache.invalidate-global-on-publish` (`true` default)
+      - `app.feed.cache.invalidate-followers-on-publish` (`false` default)
+      - `app.feed.realtime.broadcast-followers-on-publish` (`false` default)
+    - Default runtime now avoids follower scan/invalidation/broadcast on publish and relies on short TTL + pull semantics for personalized feed freshness.
+    - Added regression test:
+      - `publish_defaultMode_shouldSkipFollowerScanAndFollowerInvalidation`
+  - **Verification**:
+    - Full backend suite green after change: `216 tests passed`.
+    - Same high-fanout profile re-run:
+      - report: `infra/load-test/reports/load-baseline-20260301-223058.md`
+      - `avg=21.5ms`, `p95=39.87ms`, `p99=64.22ms`
+    - Fanout comparison:
+      - `infra/load-test/reports/load-comparison-20260301-223150.md`
+      - p95 improvement: `-96.99%`
+      - p99 improvement: `-96.21%`
+- **2026-03-01**: **Live DB + Social Load Suitability Snapshot (Twenty-First Pass)**
+  - **Goal**:
+    - Validate whether current DB/runtime posture can sustain social-network-like traffic characteristics in current environment.
+  - **Execution**:
+    - Mixed social-feed stress:
+      - `infra/load-test/reports/load-baseline-20260301-222317.md`
+    - DB settings + runtime/index snapshot:
+      - `infra/load-test/reports/db-social-check-20260301-222303.md`
+    - Mixed rerun after feed publish optimization:
+      - `infra/load-test/reports/load-baseline-20260301-223034.md`
+      - comparison: `infra/load-test/reports/load-comparison-20260301-223149.md`
+  - **Result summary**:
+    - DB runtime counters remained stable (no deadlocks, no temp spill in this scenario).
+    - Index-heavy read paths continue to be exercised on core social tables.
+    - Remaining scale risk is now shifted from DB pressure to higher-level product semantics (freshness mode choices) at very high fanout.
+- **2026-03-01**: **Follower-Fanout Stress Profile Added to Load Tooling (Nineteenth Pass)**
+  - **Goal**:
+    - Add a dedicated stress mode for feed invalidation fanout pressure (single actor, many followers, write-heavy activity events).
+  - **Implementation**:
+    - Extended `infra/load-test/lightweight_baseline.ps1`:
+      - new profile: `-LoadProfile fanout`
+      - new parameter: `-FanoutFollowers`
+      - fanout setup creates follower accounts and follows a single actor.
+      - worker loop switches to write-heavy operation mix (`global/personalized/user/write = 0/0/0/100`) for this profile.
+      - report now includes:
+        - `fanout_followers`
+        - `fanout_setup_ms`
+    - Extended `infra/load-test/repeat_baseline_median.ps1`:
+      - passes `-FanoutFollowers` for repeated median fanout runs.
+    - Updated `infra/load-test/README.md` with fanout examples (single run + median run).
+  - **Verification**:
+    - Script parse validation passed for updated load scripts.
+    - End-to-end smoke run completed on ephemeral local app port with fanout profile:
+      - report: `infra/load-test/reports/load-baseline-20260301-220517.md`
+      - scenario snapshot: `fanout_followers=20`, `success_rate=100%`.
+- **2026-03-01**: **Personalized Feed Read Path De-Unbounded (Eighteenth Pass)**
+  - **Problem addressed**:
+    - `ActivityFeedService.getPersonalizedFeed(...)` loaded all followed user ids into memory (`findByFollowerId(...)` list) before querying events.
+    - Risk: high-memory and query construction pressure for heavy-follow users.
+  - **Implementation**:
+    - Added repository-level personalized feed query:
+      - `ActivityEventRepository.findPersonalizedFeedByFollowerId(followerId, pageable)`
+      - Uses DB-side subquery on `Follow` to keep read path page-bounded.
+    - Updated `ActivityFeedService` to use the new paged repository query directly.
+    - Preserved existing Redis + local near-cache semantics and total-elements pagination behavior.
+  - **Verification**:
+    - Updated `ActivityFeedServiceTest` assertions to validate new path.
+    - Full backend suite re-verified: `215 tests passed`.
+- **2026-03-01**: **Leaderboard Read/Refresh Scale Hardening + Feed Invalidation Pagination (Seventeenth Pass)**
+  - **Problem addressed**:
+    - Leaderboard read path fetched all public portfolios per request.
+    - Leaderboard refresh could leave stale ZSET members and used unbounded portfolio scan patterns.
+    - Feed publish follower invalidation needed explicit pagination control.
+  - **Implementation**:
+    - `LeaderboardService.getLeaderboard(...)` now:
+      - parses requested Redis page members,
+      - fetches only required public portfolios via `findByIdInAndVisibility(...)`.
+    - `LeaderboardService.refreshLeaderboardJob(...)` now:
+      - clears stale period keys before recompute,
+      - processes public portfolios with paged scan (`PageRequest`, batch size 250).
+    - `ActivityFeedService.publish(...)` follower invalidation now paginates with configurable batch:
+      - `app.feed.cache.follower-invalidation-batch-size`
+      - env: `APP_FEED_CACHE_FOLLOWER_INVALIDATION_BATCH_SIZE`
+    - Added global pageable guardrail:
+      - `spring.data.web.pageable.default-page-size`
+      - `spring.data.web.pageable.max-page-size`
+  - **Verification**:
+    - Added/updated tests:
+      - `ActivityFeedServiceTest.publish_shouldIterateFollowersWithPagination`
+      - `LeaderboardServiceTest.refreshLeaderboardJob_shouldClearStaleKeysAndProcessPagedPortfolios`
+    - Full backend suite remained green after change set.
+- **2026-03-01**: **Skip-App Validation Orchestration for Ops Webhook (Sixteenth Pass)**
+  - **Problem observed**:
+    - In this execution environment, child process lifecycle is tied to command scope, making multi-step external `-SkipAppStart` checks unreliable if app start and validation run in separate invocations.
+  - **Implementation**:
+    - Added orchestration script:
+      - `infra/load-test/validate_ops_alert_webhook_skipapp_flow.ps1`
+    - Script behavior:
+      - Selects free ports for app and webhook.
+      - Starts isolated `core-api` with webhook + forced threshold env.
+      - Executes `validate_ops_alert_webhook.ps1 -SkipAppStart` against the running instance.
+      - Captures inner validation report path and tears down app process.
+      - Persists orchestration report:
+        - `ops-alert-webhook-skipapp-flow-YYYYMMDD-HHMMSS.md`
+  - **Verification**:
+    - Orchestration report:
+      - `infra/load-test/reports/ops-alert-webhook-skipapp-flow-20260301-210109.md` (`PASSED`)
+    - Inner skip-app validation report:
+      - `infra/load-test/reports/ops-alert-webhook-validation-20260301-210140.md` (`PASSED`)
+    - Captured payload includes expected routed alert fields (`service`, `component`, `severity`, `alertKey`, `details`).
+- **2026-03-01**: **Feed Threshold Defaults Applied + Ops Webhook E2E Validation Script (Fifteenth Pass)**
+  - **Goal**:
+    - Move calibrated feed threshold recommendations into sane default runtime values.
+    - Provide a repeatable end-to-end validation workflow for ops webhook delivery.
+  - **Implementation**:
+    - Applied calibrated feed observability defaults:
+      - warning p95: `50ms` (from `40ms`)
+      - warning p99: `170ms` (from `100ms`)
+      - critical p99: `220ms` (from `150ms`)
+    - Updated both config sources to keep defaults consistent:
+      - `application.yml` (`app.feed.observability.*`)
+      - `FeedObservabilityProperties`
+    - Added `infra/load-test/validate_ops_alert_webhook.ps1`:
+      - Starts isolated `core-api` instance (auto-switches port if requested port is occupied).
+      - Sets forced low feed thresholds to trigger a deterministic breach.
+      - Launches local webhook receiver and captures alert payload.
+      - Triggers feed metrics + `/actuator/feedlatency`.
+      - Emits report artifact under `infra/load-test/reports/`.
+    - Listener implementation handles chunked POST request bodies to avoid false negatives in local validation.
+  - **Verification**:
+    - Passing end-to-end webhook validation report:
+      - `infra/load-test/reports/ops-alert-webhook-validation-20260301-195529.md`
+    - Captured payload includes expected fields:
+      - `service`, `component`, `severity`, `alertKey`, `message`, `details`.
+    - Full backend suite remains green: `213 tests passed`.
+- **2026-03-01**: **Threshold Calibration Automation from Median Load Reports (Fourteenth Pass)**
+  - **Goal**:
+    - Standardize feed latency threshold recommendations from repeatable benchmark artifacts instead of manual ad-hoc tuning.
+  - **Implementation**:
+    - Added `infra/load-test/calibrate_feed_thresholds.ps1`:
+      - Parses `load-baseline-median-*.md` summaries.
+      - Extracts `p95_latency_ms` and `p99_latency_ms`.
+      - Computes percentile-based baseline (`-Percentile`, default `0.90`).
+      - Applies configurable multipliers:
+        - warning: `-WarningMultiplier` (default `1.25`)
+        - critical: `-CriticalMultiplier` (default `1.60`)
+      - Emits ready-to-apply env vars:
+        - `APP_FEED_OBSERVABILITY_WARNING_P95_MS`
+        - `APP_FEED_OBSERVABILITY_WARNING_P99_MS`
+        - `APP_FEED_OBSERVABILITY_CRITICAL_P99_MS`
+      - Persists markdown artifact: `feed-threshold-calibration-YYYYMMDD-HHMMSS.md`.
+    - Updated `infra/load-test/README.md` with calibration workflow usage.
+  - **Verification**:
+    - Generated calibration artifact:
+      - `infra/load-test/reports/feed-threshold-calibration-20260301-191344.md`
+    - Result snapshot from current local median corpus:
+      - warning p95: `48.58`
+      - warning p99: `165.58`
+      - critical p99: `211.94`
+- **2026-03-01**: **Ops Alert Routing for Feed/ShedLock Guardrails (Thirteenth Pass)**
+  - **Problem observed**:
+    - Feed/ShedLock guardrails existed, but alerting was log-only and not safely routable to an ops channel.
+    - Repeated breaches could spam logs without a cooldown/dedup policy.
+  - **Implementation**:
+    - Added shared alerting config (`app.alerting.*`):
+      - `enabled`
+      - `cooldown`
+      - `webhook-url`
+      - `connect-timeout`
+      - `read-timeout`
+    - Added alert routing components:
+      - `OpsAlertPublisher` abstraction with fallback `NoOpOpsAlertPublisher`
+      - `OpsAlertService` (`@Primary`) with:
+        - per-key cooldown suppression
+        - structured payload generation
+        - optional webhook POST delivery
+        - Micrometer counters: `app.ops.alerts.total` (`component`, `severity`, `channel`, `result`)
+      - `OpsWebhookClient` + `RestOpsWebhookClient` (timeout-aware HTTP client)
+    - Integrated alert publisher into observability services:
+      - `FeedLatencyObservabilityService` now emits:
+        - `warning-breach`
+        - `critical-breach`
+      - `ShedLockObservabilityService` now emits:
+        - `stale-lock-threshold`
+  - **Verification**:
+    - Added regression tests:
+      - `OpsAlertServiceTest` (cooldown suppression, webhook on/off behavior)
+      - `FeedLatencyObservabilityServiceTest` (warning/critical publish path)
+    - Full suite green after integration: `213 tests passed`.
+- **2026-03-01**: **Feed Cache Config Externalization + Mixed Traffic Baseline (Twelfth Pass)**
+  - **Goal**:
+    - Move feed near-cache tuning knobs to environment configuration.
+    - Benchmark feed path under a production-like mixed read profile (not global-feed-only).
+  - **Implementation**:
+    - `ActivityFeedService` cache tuning is now env-driven:
+      - `app.feed.cache.redis-ttl` (`APP_FEED_CACHE_REDIS_TTL`)
+      - `app.feed.cache.local-ttl` (`APP_FEED_CACHE_LOCAL_TTL`)
+      - `app.feed.cache.local-max-entries` (`APP_FEED_CACHE_LOCAL_MAX_ENTRIES`)
+      - `app.feed.cache.local-lock-stripes` (`APP_FEED_CACHE_LOCAL_LOCK_STRIPES`)
+    - Added defensive clamps for invalid config values:
+      - local max entries minimum
+      - lock stripe minimum
+    - Load tooling enhancements:
+      - `lightweight_baseline.ps1` supports `LoadProfile=mixed` with weighted ops:
+        - global feed read
+        - personalized feed read
+        - user feed read
+        - optional interaction write
+      - Baseline report now includes per-operation execution counts.
+      - Fixed mixed user-feed URL interpolation bug in worker path.
+      - `repeat_baseline_median.ps1` accepts mixed-profile/weight params.
+      - `compare_median_reports.ps1` now shows profile/weight scenario deltas.
+  - **Verification**:
+    - Mixed profile 3-round median generated (post URL bugfix):
+      - `infra/load-test/reports/load-baseline-median-20260301-185359.md`
+      - scenario: `60/25/15/0` weights (`global/personalized/user/write`), median success `100%`.
+    - Env override run validated:
+      - `APP_FEED_CACHE_LOCAL_TTL=PT25S`
+      - `APP_FEED_CACHE_LOCAL_MAX_ENTRIES=1024`
+      - `APP_FEED_CACHE_LOCAL_LOCK_STRIPES=128`
+      - report: `infra/load-test/reports/load-baseline-20260301-184715.md` (`100%` success).
+    - Full suite green after updates: `204 tests passed`.
+- **2026-03-01**: **Feed Read-Path Latency Tuning for High-Stress Profile (Eleventh Pass)**
+  - **Problem observed**:
+    - Under `Seed=400`, `Concurrency=12`, `Requests/worker=150` (3-round median), feed p95/p99 were materially higher than base target.
+  - **Implementation**:
+    - `ActivityFeedService`:
+      - Added in-process near-cache for feed pages (global + personalized paths).
+      - Added striped key lock (single-flight style) for cache-miss paths to reduce stampede on hot keys.
+      - Extended local near-cache TTL to better cover burst window duration.
+      - Cleared local near-cache on event publish to keep read correctness.
+      - Cached empty personalized-feed responses (no-follow case) to avoid repeated DB/follow lookups.
+    - `RateLimitFilter`:
+      - Replaced per-request localhost bypass bucket construction with a reusable singleton bypass bucket.
+  - **Regression coverage**:
+    - `ActivityFeedServiceTest.getGlobalFeed_secondRead_shouldUseLocalNearCache`
+    - `ActivityFeedServiceTest.publish_shouldClearLocalNearCache`
+    - New `RateLimitFilterTest` (loopback bucket reuse + per-IP bucket reuse)
+  - **Benchmark verification**:
+    - Before median: `infra/load-test/reports/load-baseline-median-20260301-182607.md`
+    - After median: `infra/load-test/reports/load-baseline-median-20260301-183731.md`
+    - Comparison: `infra/load-test/reports/load-median-comparison-20260301-183740.md`
+    - Median delta:
+      - avg: `14.5ms -> 8.64ms` (`-40.41%`)
+      - p95: `31.74ms -> 18.4ms` (`-42.03%`)
+      - p99: `67.62ms -> 45.25ms` (`-33.08%`)
+  - **Verification**:
+    - Full backend test suite green after tuning: `203 tests passed`.
+- **2026-03-01**: **High-Stress Median Benchmark Standardized (Tenth Pass)**
+  - **Goal**:
+    - Validate feed/read-path behavior under a stronger profile with lower variance than single-run baselines.
+  - **Implementation**:
+    - Ran 3-round median benchmark on stress profile:
+      - `Seed events=400`, `Concurrency=12`, `Requests/worker=150`, `Rounds=3`.
+    - Added median-to-median comparison tooling:
+      - `infra/load-test/compare_median_reports.ps1`
+    - Generated artifacts:
+      - Stress rounds:
+        - `infra/load-test/reports/load-baseline-20260301-182530.md`
+        - `infra/load-test/reports/load-baseline-20260301-182545.md`
+        - `infra/load-test/reports/load-baseline-20260301-182557.md`
+      - Stress median:
+        - `infra/load-test/reports/load-baseline-median-20260301-182607.md`
+      - Median-to-median comparison:
+        - `infra/load-test/reports/load-median-comparison-20260301-182619.md`
+  - **Result snapshot (base median vs stress median)**:
+    - success rate: `100% -> 100%`
+    - avg latency: `7.13ms -> 14.5ms` (`+103.37%`)
+    - p95 latency: `10.23ms -> 31.74ms` (`+210.26%`)
+    - p99 latency: `29.36ms -> 67.62ms` (`+130.31%`)
+  - **Decision**:
+    - Keep current architecture, but prioritize feed query/cache path tuning before next scale jump.
+- **2026-03-01**: **Redis Command Telemetry + Multi-Round Median Baseline (Ninth Pass)**
+  - **Goal**:
+    - Improve Redis runtime observability for app-level (non-Spring-Cache abstraction) keys.
+    - Reduce load-test variance by standardizing 3-round median reporting.
+  - **Implementation**:
+    - Added Micrometer instrumentation in `CacheService`:
+      - Counter: `app.redis.command.calls` (tags: `command`, `result`)
+      - Timer: `app.redis.command.latency` (tags: `command`, `result`)
+      - Explicit `hit/miss/error` outcomes for read/exists paths and `success/error` for mutating commands.
+    - Enabled latency percentile/histogram publishing in `application.yml` for:
+      - `app.redis.command.latency` (`p50`, `p95`, `p99`)
+    - Extended load tooling:
+      - `infra/load-test/lightweight_baseline.ps1` now captures `app.redis.*` actuator metrics in Redis snapshot fallback.
+      - Added `infra/load-test/repeat_baseline_median.ps1` to run N rounds and persist median summary.
+      - Updated `infra/load-test/README.md` with median workflow usage.
+  - **Verification**:
+    - Added regression checks in `CacheServiceTest` for `hit` and `miss` metric emission.
+    - Generated 3-round baseline + median summary:
+      - `infra/load-test/reports/load-baseline-20260301-182046.md`
+      - `infra/load-test/reports/load-baseline-20260301-182053.md`
+      - `infra/load-test/reports/load-baseline-20260301-182058.md`
+      - `infra/load-test/reports/load-baseline-median-20260301-182103.md`
+    - Full suite green after updates: `199 tests passed`.
+- **2026-03-01**: **ShedLock Runtime Observability + Alert Thresholds (Eighth Pass)**
+  - **Goal**:
+    - Move ShedLock from "configured" state to "operationally visible" state with dashboard/health signals.
+  - **Implementation**:
+    - Added configuration surface under `app.shedlock.observability`:
+      - `enabled`
+      - `refresh-interval`
+      - `stale-lock-age-threshold`
+      - `max-report-locks`
+      - `alert-stale-lock-count`
+    - Added `ShedLockObservabilityService` (DB-backed):
+      - Computes active lock count, stale lock count, max lock age, max remaining lock time.
+      - Keeps sampled active lock rows for dashboard-style inspection.
+      - Emits warning when stale lock count exceeds alert threshold.
+    - Added Micrometer gauges:
+      - `shedlock.active.locks`
+      - `shedlock.stale.locks`
+      - `shedlock.max.lock.age.seconds`
+      - `shedlock.max.lock.remaining.seconds`
+    - Added Actuator integrations:
+      - Custom endpoint: `GET /actuator/shedlock`
+      - Health contributor: `shedlock`
+      - Management exposure updated to include `shedlock`.
+  - **Regression coverage**:
+    - `ShedLockHealthIndicatorTest`
+    - `ShedLockEndpointIntegrationTest`
+  - **Verification**:
+    - Full suite green after observability additions: `197 tests passed`.
+- **2026-03-01**: **Distributed Scheduler Locking for Multi-Instance Consistency (Seventh Pass)**
+  - **Problem addressed**:
+    - Core jobs were protected only by `@Scheduled`; in horizontal scale, each instance could run the same job concurrently.
+    - Risk: duplicated snapshot writes, repeated liquidation scans, repeated outcome resolution runs, and inconsistent cache refresh pressure.
+  - **Implementation**:
+    - Added ShedLock with JDBC provider:
+      - Dependencies: `shedlock-spring`, `shedlock-provider-jdbc-template`.
+      - `SchedulingConfig` now enables scheduler lock and registers a `LockProvider` using DB time (`usingDbTime`).
+    - Added Flyway migration:
+      - `V5__create_shedlock_table.sql` (`shedlock` table as lock state store).
+    - Added per-job lock boundaries with explicit names and TTLs:
+      - `PerformanceTrackingService.captureSnapshots`
+      - `LiquidationService.monitorLiquidations`
+      - `OutcomeResolutionService.resolveOutcomes`
+      - `LeaderboardService.refreshLeaderboardJob`
+      - `PriceAlertService.checkPriceAlerts`
+      - `TournamentService.manageTournamentLifecycle`
+      - `TrustScoreService.computeTrustScores`
+  - **Regression coverage**:
+    - `ScheduledLockAnnotationTest`: every `@Scheduled` method in target services must also have `@SchedulerLock`; lock names must remain unique.
+    - `ShedLockMigrationIntegrationTest`: validates `shedlock` table and expected columns after Flyway.
+  - **Verification**:
+    - Full suite green after lock integration: `193 tests passed`.
+- **2026-03-01**: **Observability Baseline Upgrade + Load Trend Comparison (Sixth Pass)**
+  - **Actuator/Micrometer fallback added for load telemetry**:
+    - Added `spring-boot-starter-actuator` dependency.
+    - Exposed management endpoints: `health,info,metrics`.
+    - `infra/load-test/lightweight_baseline.ps1` now uses Redis metrics source order:
+      - `redis-cli` (preferred)
+      - `/actuator/metrics` fallback (when CLI unavailable)
+  - **Fallback coverage widened to cache metrics**:
+    - In this environment, direct `redis.*` metrics were not exposed.
+    - Script now consumes `cache.gets`, `cache.puts`, `cache.removals` and reports source as `actuator-cache`.
+    - Report now includes `metrics_source` and `observed_redis_metrics` for traceability.
+  - **Load trend comparison formalized**:
+    - Added `infra/load-test/compare_baselines.ps1` for repeatable p95/p99 trend analysis.
+    - Generated reports:
+      - Base: `infra/load-test/reports/load-baseline-20260301-175304.md`
+      - Stress: `infra/load-test/reports/load-baseline-20260301-175308.md`
+      - Comparison: `infra/load-test/reports/load-comparison-20260301-175416.md`
+    - Result snapshot:
+      - p95: `13.24ms -> 11.83ms` (`-10.65%`)
+      - p99: `125.58ms -> 23.17ms` (`-81.55%`)
+  - **Verification**:
+    - Full suite still green after observability additions: `189 tests passed`.
+- **2026-03-01**: **Load Baseline Execution + Deterministic Test Runtime (Fifth Pass)**
+  - **Load baseline executed end-to-end**:
+    - Core API started with `APP_MARKET_WS_ENABLED=false` and `APP_SCHEDULING_ENABLED=false` for isolated API read-load measurement.
+    - Generated report: `infra/load-test/reports/load-baseline-20260301-174255.md`.
+    - Scenario result: 240/240 success; avg `9.94ms`, p95 `14.13ms`, p99 `136.31ms`, max `169.08ms`.
+    - PostgreSQL deltas stayed healthy (no deadlocks, no temp spill in this profile).
+    - Redis metric snapshot skipped gracefully because `redis-cli` is not available on this machine.
+  - **Load script correctness fixes applied** (`infra/load-test/lightweight_baseline.ps1`):
+    - Fixed PowerShell reserved variable collision (`Host` parameter rename in snapshot helpers).
+    - Fixed latency parsing to be locale-safe (prevents inflated percentile/avg values on non-EN locales).
+    - Fixed markdown message escaping for missing CLI dependency notices.
+  - **Test runtime deterministic by configuration**:
+    - Added `app.market.ws.enabled` property (default `true`).
+    - Test profile sets it to `false`, preventing outbound Binance WebSocket connect attempts during tests.
+  - **Test modernization**:
+    - Replaced remaining deprecated `@MockBean` usage with `@MockitoBean` in integration tests.
+    - Full suite remains green after changes (`189 tests passed`).
+- **2026-03-01**: **Feed Cache Verification + Test Runtime Stabilization (Fourth Pass)**
+  - **Redis cache-hit integration test added**:
+    - New `ActivityFeedControllerIntegrationTest` validates global feed cache behavior end-to-end.
+    - Test sequence proves cache path: first `GET /api/v1/feed/global` warms cache, DB events are deleted, second read still serves cached payload.
+    - Includes explicit Redis key presence check for page-key format (`feed:global:p0:s20:sort:unsorted`).
+  - **Test profile formalized**:
+    - Added `src/test/resources/application-test.yml` for test-specific runtime settings.
+    - Maven Surefire now activates `spring.profiles.active=test` for all test runs.
+  - **Scheduling toggle decoupled from app bootstrap**:
+    - Moved `@EnableScheduling` out of `CoreApiApplication` into `SchedulingConfig`.
+    - Introduced property gate: `app.scheduling.enabled` (default `true`).
+    - Test profile sets scheduling `false` to reduce non-essential background job noise/overhead in CI.
+  - **Verification**:
+    - Full suite after changes: `189 tests passed`.
+- **2026-03-01**: **Flyway-First Schema Ownership + Scheduled Job Scale Pass (Third Pass)**
+  - **Flyway-first finalized**:
+    - Added `V3__bootstrap_core_schema.sql` so empty databases are fully provisioned by Flyway (no Hibernate schema mutation dependency).
+    - Added `V4__expand_notification_type_constraint.sql` to align DB enum check with `NotificationType.PRICE_ALERT`.
+    - Switched default JPA mode to `ddl-auto=validate` (schema drift now detected rather than silently mutated).
+  - **Scheduled jobs made pageable (scale-safe)**:
+    - Replaced unbounded `findAll()` scans with page-based processing (`batch=250`) in:
+      - `PerformanceTrackingService`
+      - `LiquidationService`
+      - `TrustScoreService`
+    - Added `PortfolioRepository.findAllBy(Pageable)` with `@EntityGraph(items)` to avoid N+1 during paged portfolio scans.
+    - `TrustScoreService` now flushes batched writes with `saveAll(...)` per page.
+  - **Config tuning from best-practice review**:
+    - Added `hibernate.default_batch_fetch_size` (env-tunable).
+    - Added Redis client timeout (`spring.data.redis.timeout`).
+    - Enabled `flyway.validate-on-migrate=true` explicitly.
+  - **Verification**:
+    - Added/updated regression tests for pageable scheduled paths and notification enum persistence.
+    - Full suite green after changes: `188 tests passed`.
+- **2026-03-01**: **Social Feed & Notification Reliability Hardening**
+  - **Feed taxonomy expanded**:
+    - Added activity event types: `PORTFOLIO_PUBLISHED`, `PORTFOLIO_LIKED`, `PORTFOLIO_COMMENTED`, `POST_LIKED`, `POST_COMMENTED`
+    - Fixed portfolio visibility publish event type (`FOLLOW` → `PORTFOLIO_PUBLISHED`)
+  - **Interaction correctness**:
+    - Likes/comments now validate target existence before write (prevents orphan interactions)
+    - Added comment length guard (`<= 1000`) aligned with DB column constraints
+  - **Feed cache correctness**:
+    - Fixed cache invalidation pattern mismatch (`feed:*` page keys are now invalidated correctly)
+    - Feed cache key now includes `page + size + sort` to prevent cross-page cache pollution
+    - Cached payload now keeps `totalElements` to preserve pagination semantics
+  - **Notification delivery hardening**:
+    - Backend now publishes both user queue (`/user/queue/notifications`) and explicit topic (`/topic/notifications/{userId}`)
+    - Frontend subscription aligned to standard Spring user destination + compatibility topic
+  - **Data/infra config hardening**:
+    - Switched DB/Redis config to environment-based values
+    - Disabled unnecessary Redis repository scanning (`spring.data.redis.repositories.enabled=false`)
+    - Added Redis cache key namespace/version prefix (`core-api:v1`)
+  - **Migration introduced**:
+    - Enabled Flyway with baseline mode and added `V1__expand_activity_event_enum_constraint.sql`
+    - Purpose: align existing PostgreSQL enum check constraint with newly added `ActivityEvent.EventType` values
+- **2026-03-01**: **DB/Redis Throughput Hardening (Second Pass)**
+  - **Redis key management**:
+    - Replaced blocking `KEYS` usage with `SCAN` + batched `DEL` in `CacheService.deletePattern`
+    - Rationale: avoid O(N) keyspace stalls under large cache cardinality
+  - **DB indexing and consistency**:
+    - Added Flyway migration `V2__social_query_indexes_and_like_uniqueness.sql`
+    - Added targeted indexes for:
+      - `activity_events (actor_id, created_at desc)`
+      - `notifications (user_id, created_at desc)`
+      - `follows (following_id, created_at desc)`
+      - `analysis_posts (deleted, created_at desc)` and `(author_id, deleted, created_at desc)`
+      - `interactions (target_type, target_id, interaction_type, created_at desc)`
+    - Added partial unique index for likes:
+      - `interactions (actor_id, target_type, target_id) WHERE interaction_type='LIKE'`
+    - Added pre-index dedupe step for legacy duplicate likes
+  - **Service-level idempotency**:
+    - `InteractionService` now gracefully handles duplicate-like race collisions (no duplicate side effects)
+- **2026-02-14**: **Scalability Review & Redis Activation**
+  - **Finding**: Redis was deployed in Docker but never actually used in code (no dependency, no RedisTemplate).
+  - **Fix**: Added `spring-boot-starter-data-redis`, implemented `CacheService` for:
+    - Leaderboard cache (Redis ZSET, 60s TTL)
+    - Feed cache (Redis LIST, 30s TTL)
+    - Market prices (Redis STRING, from BinanceService)
+    - Rate limiting (sliding window counters)
+  - **Pagination**: All list endpoints converted from `List<T>` to `Page<T>` to prevent memory issues at scale.
+  - **Portfolio Participation**: New social feature — users can "join" public portfolios, creating a tracked clone.
+  - **Activity Feed**: Event-driven social feed (FOLLOW, POST_CREATED, PORTFOLIO_JOINED events).
+- **2026-02-14**: **Database Strategy Confirmed (PostgreSQL + Redis)**
+  - **Why PostgreSQL?**:
+    - **Relational Integrity**: Essential for user funds, social graphs (followers), and ownership linking.
+    - **Versatility**: Handles structured data (SQL) and unstructured metadata (JSONB) equally well.
+    - **Scalability**: Capable of handling millions of rows; supports partitioning and read replicas for future growth.
+  - **Why Redis?**:
+    - Acts as the high-speed buffer for ephemeral data (real-time prices, session tokens, leaderboard caching).
+  - **Verdict**: This hybrid stack (SQL for truth, Redis for speed) is industry standard and sufficient for scale.
+- **2026-02-14**: Go services reserved for high-throughput pathways (10K+ concurrent connections):
+  - `ws-gateway`: WebSocket fan-out to thousands of clients (later)
+  - `market-ingestor`: high-frequency tick processing (later)
+  - 1000 users → Spring Boot + Redis is more than sufficient. Go needed only at 10K+.
+- **2026-02-14**: Spring Boot remains for core business logic (auth, CRUD, social, posts).
+
+## 0) Product Principles (non-negotiable)
+1. **Paper-only**: never place real trades or connect to broker execution.
+2. **Immutable claims**: analysis/portfolio entries are timestamped; edits become new events.
+3. **Anti-manipulation by design**: we prioritize liquid instruments (e.g., BIST30 in MVP).
+4. **Measured performance > opinions**: leaderboards are computed from recorded entries.
+5. **Safety & compliance posture**: posts are user-generated opinions; we do not provide investment advice.
+
+## 1) Scope (MVP)
+### MUST
+- User auth (email/otp or OAuth)
+- Instruments: **BIST30 only** (configurable allowlist)
+- Portfolio creation (public/private)
+- Portfolio items (weight/qty), timestamp lock
+- Structured analysis post:
+  - instrument or portfolio reference
+  - optional entry, target, stop, horizon, risk level, thesis text
+  - system attaches outcome later (hit target / hit stop / expired)
+- Leaderboards: 1D/1W/1M/1Y (computed; cached)
+- Audit log for all critical actions
+- Rate limiting + basic moderation hooks
+
+### MUST NOT (MVP)
+- Real execution, copy-trading, order routing
+- “Buy/Sell now” prompts inside UI
+- Low-liquidity instruments
+- Any feature that looks like paid signals
+
+## 2) Architecture (target, scalable)
+We start as a **modular monolith** + dedicated ingest services.
+
+### Services
+- `core-api` (Spring Boot, Java/Kotlin): auth, users, social, portfolios, leaderboards, moderation
+- `web` (Next.js): UI
+- Optional now / later:
+  - `market-ingestor` (Go): provider streams -> normalize -> publish events
+  - `ws-gateway` (Go): realtime push to clients
+
+### Data stores
+- PostgreSQL: system of record (users, posts, portfolios, follows, audit)
+- Redis: cache, rate limits, feed/leaderboard hot data, idempotency keys
+- OpenSearch (later): search
+- ClickHouse (later): heavy analytics / leaderboard windows at scale
+
+### Eventing
+- MVP: internal jobs (cron/Quartz) + DB tables
+- Scale: Kafka/Redpanda topics:
+  - `price.bar.1m`, `price.bar.1d`
+  - `portfolio.snapshot.created`
+  - `analysis.outcome.updated`
+  - `leaderboard.recomputed`
+
+## 3) Repo Layout (expected)
+- `/apps/web` — Next.js
+- `/services/core-api` — Spring Boot API
+- `/services/market-ingestor` — Go (optional)
+- `/services/ws-gateway` — Go (optional)
+- `/infra` — docker-compose, k8s manifests, terraform (as needed)
+- `/docs` — product + API docs
+
+If structure differs, follow existing layout and conventions.
+
+## 4) Local Dev: How to run
+### Quick start (preferred)
+- Use docker-compose for Postgres + Redis
+- Run `core-api` locally
+- Run `web` locally
+
+Minimum environment:
+- `DATABASE_URL`
+- `REDIS_URL`
+- `JWT_SECRET`
+- `INSTRUMENT_ALLOWLIST=BIST30` (or explicit symbols)
+
+## 5) Data Model Guidelines
+### Portfolios
+- Portfolios are owned by a user and can be `private|public`.
+- Portfolio items are **append-only**:
+  - changes are recorded as `rebalance_event` or `portfolio_item_event`
+- We store **snapshots** (daily minimum) for fast leaderboards.
+
+### Analysis Posts (structured)
+- `analysis_post` is immutable after creation.
+- Corrections are new posts or `analysis_post_revision` records (never overwrite original).
+- Outcomes are computed by jobs reading price bars.
+
+### Audit Log (critical)
+Every action affecting money-like metrics must be auditable:
+- create/edit portfolio (event)
+- add/remove item (event)
+- create analysis post
+- moderation actions
+Audit record must include:
+- actor_id
+- action_type
+- resource_type/resource_id
+- timestamp
+- IP/user-agent if available
+- request_id/correlation_id
+
+## 6) Anti-Manipulation Rules (enforce)
+- MVP instruments must be allowlisted (BIST30).
+- Leaderboard eligibility rules:
+  - minimum portfolio age for each window
+  - minimum number of holdings if needed
+  - apply transaction cost assumptions (fee/slippage) consistently
+- No backdating. All timestamps from server time.
+- “Delete” becomes tombstone; historical record stays.
+
+## 7) Performance & Caching Rules
+- Never compute leaderboard on every request.
+- Precompute:
+  - daily portfolio snapshots
+  - rolling returns (1D/1W/1M/1Y)
+- Cache top leaderboards in Redis (TTL 30–120s).
+- Use pagination everywhere (feed, posts, leaderboards).
+
+## 8) API Conventions
+- REST JSON.
+- Consistent error format: `{ code, message, details? }`.
+- All write endpoints must support idempotency via header:
+  - `Idempotency-Key`
+- Include `request_id` in logs and responses.
+
+### Endpoint examples (conceptual)
+- `POST /v1/portfolios`
+- `POST /v1/portfolios/{id}/events` (rebalance/add/remove)
+- `POST /v1/analysis-posts`
+- `GET  /v1/feed?cursor=...`
+- `GET  /v1/leaderboards?window=1y`
+
+## 9) Coding Standards
+### General
+- Prefer small, reviewable changes.
+- No “clever” abstractions in MVP.
+- Validate inputs at boundaries; never trust client.
+- Add tests for new logic.
+
+### Spring Boot
+- Use DTOs; never expose entities directly.
+- Use migrations (Flyway/Liquibase).
+- Use optimistic locking where appropriate.
+- Don’t add new dependencies unless necessary.
+
+### Next.js
+- TypeScript strict mode.
+- Server actions only if it simplifies; keep data fetching consistent.
+- Avoid heavy client state; prefer query cache (e.g., TanStack Query).
+
+### Go services (if present)
+- Simple packages; avoid overengineering.
+- Context everywhere; graceful shutdown.
+- Backoff/retry for provider connections.
+
+## 10) Testing Requirements
+- Unit tests for:
+  - return calculations
+  - eligibility rules
+  - outcome computation logic
+- Integration tests for critical flows:
+  - create portfolio -> snapshot -> leaderboard
+- Add at least one test per bug fix to prevent regression.
+
+## 11) Security & Privacy
+- **NOTE: Security enforcement is DE-PRIORITIZED for early development. Focus on features first.**
+- Store minimum PII.
+- Hash secrets; never log tokens.
+- Rate limit auth and posting endpoints.
+- Content moderation:
+  - flag spam
+  - ban evasion protections (basic)
+- Explicit UI copy:
+  - “User-generated content”
+  - “Not investment advice”
+  - “Past performance is not indicative...”
+
+## 12) Agent Workflow (how to work in this repo)
+When asked to implement something:
+1. Identify which service(s) are affected.
+2. Locate existing patterns and follow them.
+3. Implement minimal viable change.
+4. Add tests.
+5. Run linters/tests locally.
+6. Provide a short summary + any follow-up TODOs.
+
+If requirements are ambiguous:
+- Choose the simplest safe default,
+- Document assumptions in code comments or PR notes,
+- Leave TODOs rather than blocking.
+
+## 13) Definition of Done
+A change is “done” when:
+- Feature works end-to-end
+- Tests added/updated and passing
+- Migrations included (if schema changed)
+- Logs + error handling present
+- No sensitive data leaked
+- Performance is acceptable (no N+1, no per-request heavy compute)
+
+---
+Maintainers: keep this file updated when architecture decisions change.
