@@ -6,6 +6,7 @@ Last updated: 2026-03-04
 - [ ] Bootstrap Railway staging (monorepo split): backend `services/core-api`, frontend `apps/web`, generate both domains, wire `NEXT_PUBLIC_API_BASE_URL` and websocket origin vars
 - [ ] Fix current Railway boot failure by setting backend vars (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`) from Railway Postgres service references, then redeploy and verify `/actuator/health=UP`
 - [ ] If Railway runtime still shows only `Starting Container`, switch backend deploy mode to Dockerfile (`services/core-api/Dockerfile`) and re-validate startup logs + health endpoint
+- [ ] Re-check staging `/actuator/health` after websocket canary scheduler fix and confirm `websocketCanary` is no longer `DOWN`
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
 - [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
@@ -25,6 +26,19 @@ Last updated: 2026-03-04
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Fixed websocket canary receipt-tracking failure in staging health:
+  - Root symptom:
+    - `/actuator/health` was `DOWN` only because `websocketCanary` failed with:
+      - `To track receipts, a TaskScheduler must be configured`
+  - Backend fix:
+    - `StompWebSocketCanaryClient` now injects and sets broker task scheduler on `WebSocketStompClient`:
+      - `services/core-api/src/main/java/com/finance/core/observability/StompWebSocketCanaryClient.java`
+    - applied via:
+      - `@Qualifier("webSocketBrokerTaskScheduler") TaskScheduler`
+      - `stompClient.setTaskScheduler(...)`
+  - Verification:
+    - backend compile passed:
+      - `./mvnw.cmd -q -DskipTests compile`
 - [x] Added deterministic backend Docker deploy path for Railway:
   - Added:
     - `services/core-api/Dockerfile`

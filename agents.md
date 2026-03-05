@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **WebSocket Canary Receipt Scheduler Fix for Staging Health (Fifty-Ninth Pass)**
+  - **Problem observed**:
+    - Staging backend started successfully (`db`, `redis`, `shedlock` all `UP`) but overall `/actuator/health` remained `DOWN`.
+    - `websocketCanary` component failed with:
+      - `To track receipts, a TaskScheduler must be configured`
+  - **Root cause**:
+    - `StompWebSocketCanaryClient` enabled STOMP receipt tracking (`setAutoReceipt`, `addReceiptTask`) but did not set a `TaskScheduler` on `WebSocketStompClient`.
+  - **Implementation**:
+    - Updated canary client:
+      - `services/core-api/src/main/java/com/finance/core/observability/StompWebSocketCanaryClient.java`
+    - Injected shared scheduler bean:
+      - `@Qualifier("webSocketBrokerTaskScheduler") TaskScheduler`
+    - Applied scheduler on canary STOMP client:
+      - `stompClient.setTaskScheduler(receiptTaskScheduler)`
+  - **Verification**:
+    - Backend compile validation passed:
+      - `./mvnw.cmd -q -DskipTests compile`
+    - Staging follow-up required:
+      - redeploy and confirm `websocketCanary` no longer reports scheduler error in `/actuator/health`.
 - **2026-03-05**: **Railway Runtime Silent-Crash Fallback via Dockerfile (Fifty-Eighth Pass)**
   - **Problem observed**:
     - In staging, certain deploy attempts showed only `Starting Container` in runtime logs and restarted without actionable app logs.

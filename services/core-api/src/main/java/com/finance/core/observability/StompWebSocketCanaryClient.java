@@ -2,9 +2,11 @@ package com.finance.core.observability;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.*;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.WebSocketHttpHeaders;
@@ -23,6 +25,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class StompWebSocketCanaryClient implements WebSocketCanaryClient {
 
     private final SimpMessagingTemplate messagingTemplate;
+    @Qualifier("webSocketBrokerTaskScheduler")
+    private final TaskScheduler receiptTaskScheduler;
 
     @Override
     public WebSocketCanaryProbeResult probe(WebSocketCanaryProbeRequest request) {
@@ -32,6 +36,8 @@ public class StompWebSocketCanaryClient implements WebSocketCanaryClient {
 
         WebSocketStompClient stompClient = new WebSocketStompClient(new StandardWebSocketClient());
         stompClient.setMessageConverter(new StringMessageConverter());
+        // Receipt tracking requires an explicit TaskScheduler on WebSocketStompClient.
+        stompClient.setTaskScheduler(receiptTaskScheduler);
         long messageTimeoutMs = timeoutMillis(request.messageTimeout());
         stompClient.setReceiptTimeLimit(messageTimeoutMs);
 
