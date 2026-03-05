@@ -4,6 +4,7 @@ Last updated: 2026-03-05
 
 ## In Progress
 - [ ] Bootstrap Railway staging frontend service (`apps/web`), generate frontend domain, and wire `NEXT_PUBLIC_API_BASE_URL` to backend domain
+- [ ] Wire frontend runtime proxy env (`API_BASE_URL`) in Railway web service and verify `/api/v1/auth/*` and `/api/v1/leaderboards` no longer return Next.js 404
 - [ ] Switch frontend Railway deploy mode to Dockerfile fallback (`apps/web/Dockerfile`) to bypass Railpack `npm ci` lockfile mismatch and verify successful build/start on port 3000
 - [ ] Set backend staging `APP_WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` to include frontend Railway domain and verify notification websocket handshake
 - [ ] Confirm websocket canary transitions from initial `UNKNOWN (not-run-yet)` to healthy probe state after scheduled run window
@@ -26,6 +27,20 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added runtime API proxy for frontend to remove build-time rewrite dependency:
+  - Added catch-all API route handler:
+    - `apps/web/app/api/[...path]/route.ts`
+  - Behavior:
+    - forwards `/api/*` requests to backend at runtime using:
+      - `API_BASE_URL` (primary)
+      - `NEXT_PUBLIC_API_BASE_URL` (fallback)
+    - supports `GET/POST/PUT/PATCH/DELETE/OPTIONS`
+    - preserves query string and forwards headers/body
+  - Updated Next config:
+    - `apps/web/next.config.ts`
+    - API rewrite removed; WS rewrite only enabled when `NEXT_PUBLIC_API_BASE_URL` exists
+  - Goal:
+    - prevent Railway Docker build-time env gaps from causing `/api/*` 404 in staged frontend
 - [x] Added frontend Docker deploy fallback for Railway lockfile-ci incompatibility:
   - Added:
     - `apps/web/Dockerfile`

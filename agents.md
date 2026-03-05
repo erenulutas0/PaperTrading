@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Frontend Runtime API Proxy for Railway Docker Builds (Sixty-Fourth Pass)**
+  - **Problem observed**:
+    - Staged frontend loaded, but all `/api/v1/*` calls returned Next.js `404` (`/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/leaderboards`).
+    - Root cause was build-time dependency on Next rewrites with `NEXT_PUBLIC_API_BASE_URL`; in Docker builds, rewrite target may be missing/empty at build time.
+  - **Implementation**:
+    - Added runtime API proxy route:
+      - `apps/web/app/api/[...path]/route.ts`
+      - forwards all `/api/*` calls to backend using runtime env:
+        - `API_BASE_URL` (primary)
+        - `NEXT_PUBLIC_API_BASE_URL` (fallback)
+      - supports read/write HTTP methods and preserves query/body/headers.
+    - Updated Next config:
+      - `apps/web/next.config.ts`
+      - removed `/api` rewrite dependency; `/ws` rewrite now conditional on configured backend base URL.
+    - Updated deploy runbook:
+      - `infra/deploy/railway-staging.md`
+      - frontend env now documents `API_BASE_URL` as required for runtime proxy.
+  - **Verification**:
+    - Local npm-based lint/test validation could not be executed in this environment due Windows filesystem `EPERM` issues under `node_modules`/npm cache paths.
+    - Staging redeploy + endpoint smoke verification is the required next validation step.
 - **2026-03-05**: **Frontend Railway Build Stabilization via Docker Fallback (Sixty-Third Pass)**
   - **Problem observed**:
     - Frontend Railpack build failed at `npm ci` with lockfile sync error (`picomatch` mismatch), blocking staging UI deployment despite backend readiness.

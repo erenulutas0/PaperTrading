@@ -5,11 +5,10 @@ const backendBaseUrl =
 
 const nextConfig: NextConfig = {
   async rewrites() {
+    if (!backendBaseUrl) {
+      return [];
+    }
     return [
-      {
-        source: "/api/:path*",
-        destination: `${backendBaseUrl}/api/:path*`,
-      },
       {
         source: "/ws/:path*",
         destination: `${backendBaseUrl}/ws/:path*`,

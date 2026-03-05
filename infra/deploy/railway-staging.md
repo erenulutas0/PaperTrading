@@ -58,7 +58,9 @@ Bu Docker imajı:
 
 Gerekli environment variables:
 
-- `NEXT_PUBLIC_API_BASE_URL` = backend domaini (ör: `https://<backend>.up.railway.app`)
+- `API_BASE_URL` = backend domaini (ör: `https://<backend>.up.railway.app`)
+  - frontend runtime proxy (`/api/*`) bunu kullanır
+- `NEXT_PUBLIC_API_BASE_URL` = opsiyonel (rewrite/ws fallback için)
 
 Opsiyonel:
 - `NEXT_PUBLIC_WS_BROKER_URL` = backend domaini (boş bırakılırsa API base'den türetilir)
