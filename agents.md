@@ -38,6 +38,46 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Railway Datasource Boot-Failure Fix (Fifty-Seventh Pass)**
+  - **Problem observed**:
+    - Core API failed to boot on Railway with:
+      - `Connection to localhost:5433 refused`
+    - Runtime fell back to local development datasource because staging env variables were not mapped to active datasource keys.
+  - **Implementation**:
+    - Extended datasource env fallback chain in:
+      - `services/core-api/src/main/resources/application.yml`
+    - New resolution order:
+      - URL: `SPRING_DATASOURCE_URL -> DATABASE_URL -> local default`
+      - Username: `SPRING_DATASOURCE_USERNAME -> DATABASE_USERNAME -> local default`
+      - Password: `SPRING_DATASOURCE_PASSWORD -> DATABASE_PASSWORD -> local default`
+    - Updated deploy runbook:
+      - `infra/deploy/railway-staging.md`
+      - backend envs now documented with `SPRING_DATASOURCE_*` first-class guidance and service-name placeholder clarification (`Postgres` vs `PostgreSQL`).
+  - **Verification**:
+    - Config inspection confirms no hard dependency on `localhost` when Railway datasource envs are present.
+    - Remaining live validation step:
+      - set Railway vars, redeploy, verify `GET /actuator/health` returns `UP`.
+- **2026-03-04**: **Railway Monorepo Staging Bootstrap Guardrails (Fifty-Sixth Pass)**
+  - **Problem observed**:
+    - Deploying the monorepo root directly on Railway produced `Script start.sh not found` and `Railpack could not determine how to build the app`.
+    - Root-level detection failed because runtime entrypoints live under service subdirectories (`services/core-api`, `apps/web`).
+    - Backend runtime also had fixed `server.port=8080`, which is unsafe for PaaS platforms that inject dynamic `PORT`.
+  - **Implementation**:
+    - Added explicit staging deploy runbook:
+      - `infra/deploy/railway-staging.md`
+      - defines two-service monorepo setup:
+        - backend root directory: `services/core-api`
+        - frontend root directory: `apps/web`
+      - documents required Railway env wiring for PostgreSQL, Redis, JWT secret, frontend API base URL, websocket origin/base-url.
+      - includes generated-domain flow and post-deploy smoke checks.
+    - Updated backend runtime port binding:
+      - `services/core-api/src/main/resources/application.yml`
+      - `server.port` changed to `${PORT:8080}` for Railway compatibility.
+  - **Verification**:
+    - Repository structure validated for deploy roots:
+      - `services/core-api`
+      - `apps/web`
+    - Commit/tag baseline already published as `v0.1` on GitHub remote for Railway source connection.
 - **2026-03-04**: **Notification/WebSocket Security Coverage Expansion + Auth Attack Simulation Tooling (Fifty-Fifth Pass)**
   - **Problem observed**:
     - WebSocket and notification hardening had strong baseline coverage, but two explicit regression gaps remained:

@@ -3,6 +3,8 @@
 Last updated: 2026-03-04
 
 ## In Progress
+- [ ] Bootstrap Railway staging (monorepo split): backend `services/core-api`, frontend `apps/web`, generate both domains, wire `NEXT_PUBLIC_API_BASE_URL` and websocket origin vars
+- [ ] Fix current Railway boot failure by setting backend vars (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`) from Railway Postgres service references, then redeploy and verify `/actuator/health=UP`
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
 - [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
@@ -22,6 +24,30 @@ Last updated: 2026-03-04
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Hardened datasource env compatibility for Railway and documented variable mapping:
+  - Backend datasource now accepts both env naming models:
+    - primary: `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`
+    - fallback: `DATABASE_URL/USERNAME/PASSWORD`
+  - File:
+    - `services/core-api/src/main/resources/application.yml`
+  - Railway runbook updated with explicit Postgres service reference notes:
+    - `infra/deploy/railway-staging.md`
+    - includes `Postgres` vs `PostgreSQL` service-name placeholder guidance
+- [x] Added Railway staging deployment runbook + platform port compatibility hardening:
+  - Added deploy playbook:
+    - `infra/deploy/railway-staging.md`
+    - documents monorepo split deployment:
+      - backend root: `services/core-api`
+      - frontend root: `apps/web`
+    - includes required Railway variables for:
+      - PostgreSQL (`DATABASE_URL` JDBC format + username/password)
+      - Redis (`REDIS_URL`)
+      - frontend API binding (`NEXT_PUBLIC_API_BASE_URL`)
+      - websocket/canary origin/base-url settings
+    - includes domain generation and smoke checks
+  - Updated backend runtime for PaaS dynamic port:
+    - `services/core-api/src/main/resources/application.yml`
+    - `server.port` now reads `${PORT:8080}`
 - [x] Expanded websocket/notification hardening tests + added auth attack simulation tooling:
   - Backend test hardening:
     - `StompAuthChannelInterceptorTest`:
