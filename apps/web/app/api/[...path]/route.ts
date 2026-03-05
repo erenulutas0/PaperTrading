@@ -44,6 +44,8 @@ async function forwardToBackend(
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("content-length");
+  headers.delete("origin");
+  headers.delete("referer");
   headers.set("x-forwarded-proto", request.nextUrl.protocol.replace(":", ""));
   headers.set("x-forwarded-host", request.headers.get("host") ?? "");
 

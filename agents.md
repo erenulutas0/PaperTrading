@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **CORS Stabilization for Staged Frontend Proxy + Backend Allowlist Externalization (Sixty-Fifth Pass)**
+  - **Problem observed**:
+    - Frontend runtime proxy path was active, but register/login API calls still failed with `Invalid CORS request`.
+    - Root cause: proxied backend calls preserved browser `Origin` header while backend CORS allowlist was hardcoded to localhost-only.
+  - **Implementation**:
+    - Frontend proxy hardening:
+      - `apps/web/app/api/[...path]/route.ts`
+      - strips `origin` and `referer` headers before server-to-server forwarding.
+    - Backend CORS externalization:
+      - `services/core-api/src/main/java/com/finance/core/config/SecurityConfig.java`
+      - CORS now reads `app.cors.allowed-origin-patterns` (env: `APP_CORS_ALLOWED_ORIGIN_PATTERNS`)
+      - switched to `setAllowedOriginPatterns(...)` with comma-separated parsing.
+    - Config/default surface:
+      - `services/core-api/src/main/resources/application.yml`
+      - added `app.cors.allowed-origin-patterns` local fallback.
+    - Deploy docs updated:
+      - `infra/deploy/railway-staging.md` now includes `APP_CORS_ALLOWED_ORIGIN_PATTERNS`.
+  - **Operational impact**:
+    - Staging frontend can use runtime `/api/*` proxy without backend CORS false rejections.
+    - Backend CORS allowlist can be safely tuned per environment without code edits.
 - **2026-03-05**: **Frontend Runtime API Proxy for Railway Docker Builds (Sixty-Fourth Pass)**
   - **Problem observed**:
     - Staged frontend loaded, but all `/api/v1/*` calls returned Next.js `404` (`/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/leaderboards`).

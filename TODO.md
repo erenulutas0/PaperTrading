@@ -7,6 +7,7 @@ Last updated: 2026-03-05
 - [ ] Wire frontend runtime proxy env (`API_BASE_URL`) in Railway web service and verify `/api/v1/auth/*` and `/api/v1/leaderboards` no longer return Next.js 404
 - [ ] Switch frontend Railway deploy mode to Dockerfile fallback (`apps/web/Dockerfile`) to bypass Railpack `npm ci` lockfile mismatch and verify successful build/start on port 3000
 - [ ] Set backend staging `APP_WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` to include frontend Railway domain and verify notification websocket handshake
+- [ ] Set backend staging `APP_CORS_ALLOWED_ORIGIN_PATTERNS` to include frontend Railway domain and re-test register/login flows for CORS-free API proxying
 - [ ] Confirm websocket canary transitions from initial `UNKNOWN (not-run-yet)` to healthy probe state after scheduled run window
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
@@ -27,6 +28,21 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Hardened staging API path against backend CORS rejections:
+  - Frontend proxy update:
+    - `apps/web/app/api/[...path]/route.ts`
+    - now strips `origin`/`referer` headers before server-to-server forwarding to backend
+  - Backend CORS update:
+    - `services/core-api/src/main/java/com/finance/core/config/SecurityConfig.java`
+    - CORS allowlist is now env-driven via:
+      - `app.cors.allowed-origin-patterns`
+      - `APP_CORS_ALLOWED_ORIGIN_PATTERNS`
+    - switched to `setAllowedOriginPatterns(...)` with comma-separated parsing
+  - Config surfaced:
+    - `services/core-api/src/main/resources/application.yml`
+    - added `app.cors.allowed-origin-patterns` default/local fallback
+  - Deploy runbook updated:
+    - `infra/deploy/railway-staging.md`
 - [x] Added runtime API proxy for frontend to remove build-time rewrite dependency:
   - Added catch-all API route handler:
     - `apps/web/app/api/[...path]/route.ts`

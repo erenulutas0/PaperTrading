@@ -20,6 +20,7 @@ Deploy sonrası gerekli environment variables:
 - `SPRING_DATASOURCE_PASSWORD` = `${{Postgres.PGPASSWORD}}`
 - `REDIS_URL` = `${{Redis.REDIS_URL}}`
 - `JWT_SECRET` = güçlü bir secret (en az 32+ karakter)
+- `APP_CORS_ALLOWED_ORIGIN_PATTERNS` = frontend domainini içermeli (ör: `https://<frontend>.up.railway.app,http://localhost:3000,http://localhost:3001,http://localhost:3005,http://localhost:3010`)
 - `APP_WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` = frontend staging domaini (ör: `https://<frontend>.up.railway.app`)
 - `APP_WEBSOCKET_CANARY_BASE_URL` = backend domaini (ör: `https://<backend>.up.railway.app`)
 

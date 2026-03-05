@@ -60,6 +60,8 @@ resilience4j.circuitbreaker:
       permittedNumberOfCallsInHalfOpenState: 3
 
 app:
+  cors:
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:3001,http://localhost:3005,http://localhost:3010}
   auth:
     jwt:
       secret: ${JWT_SECRET:dev-only-change-me-with-at-least-32-bytes-for-hs256}
