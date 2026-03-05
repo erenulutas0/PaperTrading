@@ -14,7 +14,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-04)
+### Progress Tracker (updated 2026-03-05)
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + legacy `X-User-Id` bridge fallback (REST + STOMP) + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Railway Backend Staging Reached Healthy Boot Baseline (Sixty-Second Pass)**
+  - **Problem context**:
+    - Staging rollout was previously blocked by sequential startup failures:
+      - datasource resolution errors
+      - credential mismatch
+      - websocket canary wiring/health noise issues
+  - **Outcome achieved**:
+    - Backend now boots successfully on Railway and reports global actuator health `UP`.
+    - Verified healthy components include:
+      - `db`, `redis`, `shedlock`, `feedLatency`, `authSessions`.
+  - **Observed nuance**:
+    - `websocketCanary` may report initial:
+      - `UNKNOWN` with `status=not-run-yet`
+    - This is expected before the first scheduled probe interval and is no longer a startup blocker.
+  - **Operational next focus**:
+    - complete frontend Railway service bootstrap and domain wiring
+    - set websocket allowed-origins to include frontend domain
+    - run end-to-end notification websocket handshake validation from staged frontend.
 - **2026-03-05**: **WebSocket Canary Health Noise Suppression (Sixty-First Pass)**
   - **Problem observed**:
     - Backend runtime became stable (`db`, `redis`, `shedlock` all `UP`), but overall `/actuator/health` remained `DOWN` due canary single-probe failures (e.g. `subscription-receipt-lost:topic`).
