@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Railway Runtime Silent-Crash Fallback via Dockerfile (Fifty-Eighth Pass)**
+  - **Problem observed**:
+    - In staging, certain deploy attempts showed only `Starting Container` in runtime logs and restarted without actionable app logs.
+    - This behavior blocked quick diagnosis of whether failure was entrypoint, env expansion, or early process termination.
+  - **Implementation**:
+    - Added deterministic container runtime path for backend:
+      - `services/core-api/Dockerfile`
+      - `services/core-api/.dockerignore`
+    - Docker build/runtime model:
+      - build stage: Maven package (`-DskipTests`)
+      - runtime stage: Java 21 JRE
+      - explicit startup command binds Railway dynamic port via:
+        - `-Dserver.port=${PORT:-8080}`
+    - Updated staging runbook:
+      - `infra/deploy/railway-staging.md`
+      - now includes Dockerfile fallback when Railpack runtime logs are non-actionable.
+  - **Verification**:
+    - Backend deploy artifact path is now explicit and reproducible independent of Railpack auto-detection behavior.
+    - Live validation pending:
+      - redeploy backend with Dockerfile path and verify `GET /actuator/health` returns `UP`.
 - **2026-03-05**: **Railway Datasource Boot-Failure Fix (Fifty-Seventh Pass)**
   - **Problem observed**:
     - Core API failed to boot on Railway with:

@@ -5,6 +5,7 @@ Last updated: 2026-03-04
 ## In Progress
 - [ ] Bootstrap Railway staging (monorepo split): backend `services/core-api`, frontend `apps/web`, generate both domains, wire `NEXT_PUBLIC_API_BASE_URL` and websocket origin vars
 - [ ] Fix current Railway boot failure by setting backend vars (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`) from Railway Postgres service references, then redeploy and verify `/actuator/health=UP`
+- [ ] If Railway runtime still shows only `Starting Container`, switch backend deploy mode to Dockerfile (`services/core-api/Dockerfile`) and re-validate startup logs + health endpoint
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
 - [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
@@ -24,6 +25,17 @@ Last updated: 2026-03-04
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added deterministic backend Docker deploy path for Railway:
+  - Added:
+    - `services/core-api/Dockerfile`
+    - `services/core-api/.dockerignore`
+  - Docker flow:
+    - build stage: Maven package (`-DskipTests`)
+    - runtime stage: Java 21 JRE
+    - startup command binds Railway port via `-Dserver.port=${PORT:-8080}`
+  - Updated runbook:
+    - `infra/deploy/railway-staging.md`
+    - includes explicit fallback guidance for "Starting Container" with missing app logs
 - [x] Hardened datasource env compatibility for Railway and documented variable mapping:
   - Backend datasource now accepts both env naming models:
     - primary: `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`

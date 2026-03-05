@@ -36,6 +36,18 @@ Not:
 - `Postgres`/`PostgreSQL` service adı workspace'e göre değişebilir. Variable referansında servis adını birebir kullanın (ör. `${{PostgreSQL.PGHOST}}`).
 - `services/core-api/src/main/resources/application.yml` dosyası `server.port=${PORT:8080}` olarak Railway portunu dinleyecek şekilde ayarlandı.
 
+### Railpack sessiz crash fallback (önerilen)
+
+Eğer runtime logunda sadece `Starting Container` görüp uygulama logu gelmiyorsa:
+
+- Railway service backend root'u yine `services/core-api` kalsın.
+- Repo içinde bulunan `services/core-api/Dockerfile` ile deploy ettirin (Railway Docker build path).
+
+Bu Docker imajı:
+- Maven ile backend jar üretir
+- runtime'da `PORT` env ile ayağa kaldırır
+- entrypoint'i açık olduğu için startup logları deterministik görünür
+
 ## 2) Frontend Service (Next.js)
 
 - `New -> Service -> GitHub Repo`
