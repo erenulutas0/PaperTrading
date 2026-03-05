@@ -63,6 +63,22 @@ Gerekli environment variables:
 Opsiyonel:
 - `NEXT_PUBLIC_WS_BROKER_URL` = backend domaini (boş bırakılırsa API base'den türetilir)
 
+### Frontend `npm ci` lock mismatch fallback
+
+Eğer Railpack frontend build'i şu hata ile durursa:
+
+- ``npm ci can only install packages when your package.json and package-lock.json are in sync``
+
+Railway frontend service için Docker deploy kullanın:
+
+- Root Directory: `apps/web`
+- Dockerfile Path: `Dockerfile`
+
+Repo bu fallback için hazır dosyaları içerir:
+
+- `apps/web/Dockerfile`
+- `apps/web/.dockerignore`
+
 ## 3) Domainler
 
 Her service için:

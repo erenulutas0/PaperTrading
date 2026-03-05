@@ -4,6 +4,7 @@ Last updated: 2026-03-05
 
 ## In Progress
 - [ ] Bootstrap Railway staging frontend service (`apps/web`), generate frontend domain, and wire `NEXT_PUBLIC_API_BASE_URL` to backend domain
+- [ ] Switch frontend Railway deploy mode to Dockerfile fallback (`apps/web/Dockerfile`) to bypass Railpack `npm ci` lockfile mismatch and verify successful build/start on port 3000
 - [ ] Set backend staging `APP_WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` to include frontend Railway domain and verify notification websocket handshake
 - [ ] Confirm websocket canary transitions from initial `UNKNOWN (not-run-yet)` to healthy probe state after scheduled run window
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
@@ -25,6 +26,16 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added frontend Docker deploy fallback for Railway lockfile-ci incompatibility:
+  - Added:
+    - `apps/web/Dockerfile`
+    - `apps/web/.dockerignore`
+  - Runtime behavior:
+    - installs deps via `npm install`
+    - builds with `npm run build`
+    - serves Next app on `0.0.0.0:3000`
+  - Docs updated:
+    - `infra/deploy/railway-staging.md` now includes `npm ci` mismatch fallback for frontend
 - [x] Railway backend staging reached healthy startup state (`/actuator/health` global `UP`):
   - Verified runtime components:
     - `db=UP`, `redis=UP`, `shedlock=UP`, `feedLatency=UP`, `authSessions=UP`

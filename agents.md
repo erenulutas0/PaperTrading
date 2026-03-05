@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Frontend Railway Build Stabilization via Docker Fallback (Sixty-Third Pass)**
+  - **Problem observed**:
+    - Frontend Railpack build failed at `npm ci` with lockfile sync error (`picomatch` mismatch), blocking staging UI deployment despite backend readiness.
+  - **Implementation**:
+    - Added deterministic frontend Docker deployment path:
+      - `apps/web/Dockerfile`
+      - `apps/web/.dockerignore`
+    - Build/runtime strategy:
+      - install deps with `npm install`
+      - build with `npm run build`
+      - run Next.js on `0.0.0.0:3000`
+    - Updated deploy runbook:
+      - `infra/deploy/railway-staging.md`
+      - includes explicit fallback instructions for Railpack `npm ci` lock mismatch.
+  - **Operational impact**:
+    - Frontend staging no longer depends on Railpack package-lock strictness and can progress with Docker-backed reproducible deploys.
 - **2026-03-05**: **Railway Backend Staging Reached Healthy Boot Baseline (Sixty-Second Pass)**
   - **Problem context**:
     - Staging rollout was previously blocked by sequential startup failures:
