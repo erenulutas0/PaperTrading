@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **WebSocket Canary Qualifier Ambiguity Fix (Sixtieth Pass)**
+  - **Problem observed**:
+    - After introducing canary receipt scheduler support, staging startup failed with:
+      - `No qualifying bean of type 'TaskScheduler' available: expected single matching bean but found 4`
+    - This blocked app boot and surfaced as `502 Bad Gateway` despite DB/Flyway readiness.
+  - **Root cause**:
+    - Qualifier intent on canary scheduler dependency was not reliably retained on the effective constructor wiring path, leaving Spring to resolve `TaskScheduler` by type only.
+  - **Implementation**:
+    - Updated:
+      - `services/core-api/src/main/java/com/finance/core/observability/StompWebSocketCanaryClient.java`
+    - Replaced Lombok constructor generation with explicit constructor and parameter-level qualifier:
+      - `@Qualifier("webSocketBrokerTaskScheduler") TaskScheduler receiptTaskScheduler`
+  - **Verification**:
+    - Backend compile passed:
+      - `./mvnw.cmd -q -DskipTests compile`
+    - Staging runtime follow-up:
+      - redeploy and verify startup no longer fails with `TaskScheduler` ambiguity.
 - **2026-03-05**: **WebSocket Canary Receipt Scheduler Fix for Staging Health (Fifty-Ninth Pass)**
   - **Problem observed**:
     - Staging backend started successfully (`db`, `redis`, `shedlock` all `UP`) but overall `/actuator/health` remained `DOWN`.

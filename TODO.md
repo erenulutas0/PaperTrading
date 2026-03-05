@@ -7,6 +7,7 @@ Last updated: 2026-03-04
 - [ ] Fix current Railway boot failure by setting backend vars (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`) from Railway Postgres service references, then redeploy and verify `/actuator/health=UP`
 - [ ] If Railway runtime still shows only `Starting Container`, switch backend deploy mode to Dockerfile (`services/core-api/Dockerfile`) and re-validate startup logs + health endpoint
 - [ ] Re-check staging `/actuator/health` after websocket canary scheduler fix and confirm `websocketCanary` is no longer `DOWN`
+- [ ] Re-deploy backend after canary qualifier wiring fix and confirm startup no longer fails with `No qualifying bean of type TaskScheduler`
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
 - [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
@@ -26,6 +27,20 @@ Last updated: 2026-03-04
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Fixed websocket canary bean startup crash due TaskScheduler ambiguity in production runtime:
+  - Symptom after previous canary patch:
+    - app boot failed with:
+      - `No qualifying bean of type 'TaskScheduler' available: expected single matching bean but found 4`
+  - Root cause:
+    - `@Qualifier` on Lombok-generated constructor path was not reliably applied in runtime wiring.
+  - Fix:
+    - replaced Lombok constructor generation with explicit constructor in:
+      - `services/core-api/src/main/java/com/finance/core/observability/StompWebSocketCanaryClient.java`
+    - applied parameter-level qualifier:
+      - `@Qualifier("webSocketBrokerTaskScheduler")`
+  - Verification:
+    - backend compile passed:
+      - `./mvnw.cmd -q -DskipTests compile`
 - [x] Fixed websocket canary receipt-tracking failure in staging health:
   - Root symptom:
     - `/actuator/health` was `DOWN` only because `websocketCanary` failed with:

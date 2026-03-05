@@ -1,6 +1,5 @@
 package com.finance.core.observability;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.converter.StringMessageConverter;
@@ -20,13 +19,19 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.websocket.canary.enabled", havingValue = "true", matchIfMissing = true)
 public class StompWebSocketCanaryClient implements WebSocketCanaryClient {
 
     private final SimpMessagingTemplate messagingTemplate;
-    @Qualifier("webSocketBrokerTaskScheduler")
     private final TaskScheduler receiptTaskScheduler;
+
+    public StompWebSocketCanaryClient(
+            SimpMessagingTemplate messagingTemplate,
+            @Qualifier("webSocketBrokerTaskScheduler") TaskScheduler receiptTaskScheduler
+    ) {
+        this.messagingTemplate = messagingTemplate;
+        this.receiptTaskScheduler = receiptTaskScheduler;
+    }
 
     @Override
     public WebSocketCanaryProbeResult probe(WebSocketCanaryProbeRequest request) {
