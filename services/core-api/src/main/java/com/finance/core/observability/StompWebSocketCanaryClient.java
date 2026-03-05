@@ -47,6 +47,7 @@ public class StompWebSocketCanaryClient implements WebSocketCanaryClient {
         stompClient.setReceiptTimeLimit(messageTimeoutMs);
 
         AtomicReference<String> transportError = new AtomicReference<>(null);
+        AtomicReference<String> subscriptionReceiptWarning = new AtomicReference<>(null);
         CountDownLatch topicLatch = new CountDownLatch(1);
         CountDownLatch userLatch = new CountDownLatch(1);
         StompSession session = null;
@@ -94,16 +95,12 @@ public class StompWebSocketCanaryClient implements WebSocketCanaryClient {
             );
 
             CountDownLatch subscriptionReceipts = new CountDownLatch(2);
-            attachSubscriptionReceipt(topicReceipt, "topic", subscriptionReceipts, transportError);
-            attachSubscriptionReceipt(userReceipt, "user", subscriptionReceipts, transportError);
+            attachSubscriptionReceipt(topicReceipt, "topic", subscriptionReceipts, subscriptionReceiptWarning);
+            attachSubscriptionReceipt(userReceipt, "user", subscriptionReceipts, subscriptionReceiptWarning);
 
             boolean receiptsReady = subscriptionReceipts.await(messageTimeoutMs, TimeUnit.MILLISECONDS);
             if (!receiptsReady) {
-                String error = transportError.get();
-                if (!StringUtils.hasText(error)) {
-                    error = "subscription-receipt-timeout";
-                }
-                return new WebSocketCanaryProbeResult(false, false, elapsedMillis(startedAt), error);
+                subscriptionReceiptWarning.compareAndSet(null, "subscription-receipt-timeout");
             }
             if (StringUtils.hasText(transportError.get())) {
                 return new WebSocketCanaryProbeResult(false, false, elapsedMillis(startedAt), transportError.get());
@@ -114,9 +111,22 @@ public class StompWebSocketCanaryClient implements WebSocketCanaryClient {
 
             boolean topicReceived = topicLatch.await(messageTimeoutMs, TimeUnit.MILLISECONDS);
             boolean userReceived = userLatch.await(messageTimeoutMs, TimeUnit.MILLISECONDS);
-            String error = transportError.get();
             long latencyMs = elapsedMillis(startedAt);
 
+            String transportFailure = transportError.get();
+            if (StringUtils.hasText(transportFailure)) {
+                return new WebSocketCanaryProbeResult(topicReceived, userReceived, latencyMs, transportFailure);
+            }
+
+            // Treat receipt issues as soft warnings when payload delivery succeeds.
+            if (topicReceived && userReceived) {
+                return new WebSocketCanaryProbeResult(true, true, latencyMs, null);
+            }
+
+            String error = subscriptionReceiptWarning.get();
+            if (!StringUtils.hasText(error)) {
+                error = "message-delivery-timeout";
+            }
             return new WebSocketCanaryProbeResult(topicReceived, userReceived, latencyMs, error);
         } catch (TimeoutException ex) {
             return new WebSocketCanaryProbeResult(false, false, elapsedMillis(startedAt), "timeout");
@@ -173,23 +183,23 @@ public class StompWebSocketCanaryClient implements WebSocketCanaryClient {
     private void attachSubscriptionReceipt(StompSession.Receiptable receiptable,
                                            String subscriptionName,
                                            CountDownLatch receiptLatch,
-                                           AtomicReference<String> transportError) {
+                                           AtomicReference<String> subscriptionReceiptWarning) {
         if (receiptable == null) {
-            transportError.compareAndSet(null, "subscription-receipt-unavailable:" + subscriptionName);
+            subscriptionReceiptWarning.compareAndSet(null, "subscription-receipt-unavailable:" + subscriptionName);
             receiptLatch.countDown();
             return;
         }
 
         String receiptId = receiptable.getReceiptId();
         if (!StringUtils.hasText(receiptId)) {
-            transportError.compareAndSet(null, "subscription-receipt-id-missing:" + subscriptionName);
+            subscriptionReceiptWarning.compareAndSet(null, "subscription-receipt-id-missing:" + subscriptionName);
             receiptLatch.countDown();
             return;
         }
 
         receiptable.addReceiptTask(receiptLatch::countDown);
         receiptable.addReceiptLostTask(() -> {
-            transportError.compareAndSet(null, "subscription-receipt-lost:" + subscriptionName);
+            subscriptionReceiptWarning.compareAndSet(null, "subscription-receipt-lost:" + subscriptionName);
             receiptLatch.countDown();
         });
     }

@@ -38,6 +38,30 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **WebSocket Canary Health Noise Suppression (Sixty-First Pass)**
+  - **Problem observed**:
+    - Backend runtime became stable (`db`, `redis`, `shedlock` all `UP`), but overall `/actuator/health` remained `DOWN` due canary single-probe failures (e.g. `subscription-receipt-lost:topic`).
+    - Previous health indicator mapped any probe failure directly to `DOWN`, causing noisy platform health signals.
+  - **Implementation**:
+    - Updated canary probe behavior:
+      - `services/core-api/src/main/java/com/finance/core/observability/StompWebSocketCanaryClient.java`
+      - Subscription receipt failures/timeouts are now treated as non-fatal warnings.
+      - Transport errors still fail probe hard.
+      - If both topic and user-queue test payloads are received, probe succeeds regardless of receipt warning.
+    - Updated health mapping:
+      - `services/core-api/src/main/java/com/finance/core/observability/WebSocketCanaryHealthIndicator.java`
+      - Health now returns:
+        - `DOWN` only when canary `alertState=CRITICAL`
+        - `UP` for `NONE` / `WARNING`
+      - Added `alertState` in health details.
+    - Added regression tests:
+      - `services/core-api/src/test/java/com/finance/core/observability/WebSocketCanaryHealthIndicatorTest.java`
+      - verifies warning vs critical status mapping.
+  - **Verification**:
+    - Backend compile validation passed:
+      - `./mvnw.cmd -q -DskipTests compile`
+    - Staging follow-up required:
+      - redeploy and confirm `/actuator/health` remains `UP` under non-critical canary blips.
 - **2026-03-05**: **WebSocket Canary Qualifier Ambiguity Fix (Sixtieth Pass)**
   - **Problem observed**:
     - After introducing canary receipt scheduler support, staging startup failed with:

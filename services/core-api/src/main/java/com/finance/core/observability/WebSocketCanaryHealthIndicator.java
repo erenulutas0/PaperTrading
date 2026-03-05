@@ -24,9 +24,11 @@ public class WebSocketCanaryHealthIndicator implements HealthIndicator {
                     .withDetail("consecutiveFailures", snapshot.consecutiveFailures())
                     .build();
         }
-        Health.Builder builder = snapshot.success() ? Health.up() : Health.down();
+        boolean critical = "CRITICAL".equalsIgnoreCase(snapshot.alertState());
+        Health.Builder builder = critical ? Health.down() : Health.up();
         return builder
                 .withDetail("checkedAt", snapshot.checkedAt())
+                .withDetail("alertState", snapshot.alertState())
                 .withDetail("consecutiveFailures", snapshot.consecutiveFailures())
                 .withDetail("criticalFailureThreshold", snapshot.criticalFailureThreshold())
                 .withDetail("latencyMs", snapshot.latencyMs())

@@ -8,6 +8,7 @@ Last updated: 2026-03-04
 - [ ] If Railway runtime still shows only `Starting Container`, switch backend deploy mode to Dockerfile (`services/core-api/Dockerfile`) and re-validate startup logs + health endpoint
 - [ ] Re-check staging `/actuator/health` after websocket canary scheduler fix and confirm `websocketCanary` is no longer `DOWN`
 - [ ] Re-deploy backend after canary qualifier wiring fix and confirm startup no longer fails with `No qualifying bean of type TaskScheduler`
+- [ ] Re-deploy backend after canary health-noise suppression patch and validate `/actuator/health` stays `UP` for non-critical canary blips
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
 - [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
@@ -27,6 +28,25 @@ Last updated: 2026-03-04
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Reduced websocket canary false-negative impact on health:
+  - Problem:
+    - staging health stayed `DOWN` for single probe failures with receipt warnings
+      (`subscription-receipt-lost:*`) although app/data plane was healthy.
+  - Backend fixes:
+    - `StompWebSocketCanaryClient`:
+      - subscription receipt loss/timeouts are now treated as soft warnings
+      - transport errors remain hard failures
+      - if topic + user queue payloads are both received, probe returns success even if receipt warning exists
+    - `WebSocketCanaryHealthIndicator`:
+      - returns `DOWN` only when canary alert state is `CRITICAL`
+      - returns `UP` for `NONE`/`WARNING`
+      - exposes `alertState` detail
+    - Added regression unit test:
+      - `WebSocketCanaryHealthIndicatorTest`
+      - verifies `WARNING -> UP`, `CRITICAL -> DOWN`
+  - Verification:
+    - backend compile passed:
+      - `./mvnw.cmd -q -DskipTests compile`
 - [x] Fixed websocket canary bean startup crash due TaskScheduler ambiguity in production runtime:
   - Symptom after previous canary patch:
     - app boot failed with:
