@@ -3,6 +3,7 @@
 Last updated: 2026-03-05
 
 ## In Progress
+- [ ] Redeploy frontend after notification dropdown inbox-preview improvement and verify bell panel now supports scrollable recent notifications without forcing `View All`
 - [ ] Redeploy staging after market-price fallback + portfolio equity calculation fix, then verify leaderboard P/L/return and portfolio detail P/L no longer freeze at false losses when Binance WS is sparse
 - [ ] Verify Flyway `V9__backfill_buy_trade_realized_pnl.sql` applied in staging and confirm legacy BUY history rows now render `0` instead of `-`
 - [ ] Redeploy backend/frontend after notification SSE stream-token hardening and verify WS->SSE fallback still delivers notifications without duplicates
@@ -31,6 +32,16 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Improved bell notification UX so recent items are browsable inline without mandatory inbox navigation:
+  - Updated:
+    - `apps/web/components/NotificationBell.tsx`
+  - UX changes:
+    - removed hard cap of `15` preview items in the bell dropdown
+    - enlarged dropdown panel and increased scrollable viewport height
+    - added visible "Scroll recent activity" section cue and sticky-style footer CTA
+    - added relative timestamps + notification-type badges for denser scanning
+  - Goal:
+    - keep the fast bell interaction useful for real inbox browsing while preserving `View All` for full-page workflows
 - [x] Hardened notification fallback transport and client dedupe:
   - SSE subscription no longer trusts raw `userId` query parameter
   - Added short-lived signed notification stream token flow:

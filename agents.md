@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Bell Notification Inbox Preview UX Upgrade (Sixty-Ninth Pass)**
+  - **Problem observed**:
+    - Real-time notifications were functionally correct, but the bell dropdown still behaved like a shallow teaser.
+    - Users had to click `View All` too early because the panel only rendered the first `15` items and did not feel like a browsable mini-inbox.
+  - **Implementation**:
+    - Updated:
+      - `apps/web/components/NotificationBell.tsx`
+    - Bell dropdown changes:
+      - removed the `slice(0, 15)` cap so the in-memory notification list is browsable inline
+      - increased dropdown width/height for desktop-first usage
+      - kept the list inside a dedicated scrollable viewport
+      - added relative-time labels and type badges for faster scanning
+      - added footer CTA so full inbox navigation remains available without making it the only practical path
+  - **Operational impact**:
+    - Notification UX is now closer to a real inbox preview rather than a forced redirect pattern.
+    - This fits current desktop-only product posture better than a tiny teaser dropdown.
 - **2026-03-05**: **Authenticated SSE Fallback Tokens + Client Notification De-Dupe (Sixty-Eighth Pass)**
   - **Problem observed**:
     - Notification fallback path used:

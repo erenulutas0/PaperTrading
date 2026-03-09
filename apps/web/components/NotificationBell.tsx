@@ -14,6 +14,19 @@ interface NotificationItem {
     createdAt: string;
 }
 
+function formatRelativeTime(createdAt: string): string {
+    const ts = new Date(createdAt).getTime();
+    if (!Number.isFinite(ts)) return '';
+    const diffMs = Date.now() - ts;
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
+
 export default function NotificationBell() {
     const { notifications, unreadCount, markAllRead, markRead, connected } = useLiveNotifications();
     const [isOpen, setIsOpen] = useState(false);
@@ -79,7 +92,7 @@ export default function NotificationBell() {
                     {/* Backdrop */}
                     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
 
-                    <div className="absolute right-0 mt-2 w-96 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl">
+                    <div className="absolute right-0 mt-2 w-[28rem] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl">
                         <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-black/40">
                             <div className="flex items-center gap-2">
                                 <h3 className="text-sm font-bold text-white uppercase tracking-widest">Notifications</h3>
@@ -104,13 +117,16 @@ export default function NotificationBell() {
                                 </Link>
                             </div>
                         </div>
-                        <div className="max-h-96 overflow-y-auto custom-scrollbar">
+                        <div className="border-b border-zinc-800/80 bg-zinc-950/60 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">
+                            Scroll recent activity
+                        </div>
+                        <div className="max-h-[32rem] overflow-y-auto pr-1 custom-scrollbar">
                             {notifications.length === 0 ? (
                                 <div className="p-8 text-center text-zinc-600 text-xs italic">
                                     No notifications yet.
                                 </div>
                             ) : (
-                                notifications.slice(0, 15).map(n => (
+                                notifications.map(n => (
                                     <Link
                                         key={n.id}
                                         href={getLink(n)}
@@ -129,7 +145,12 @@ export default function NotificationBell() {
                                                 <p className="text-xs text-zinc-300 leading-tight">
                                                     <span className="font-bold text-white">{n.actorUsername || 'System'}</span> {getMessage(n)}
                                                 </p>
-                                                <p className="text-[10px] text-zinc-600 mt-1">{n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}</p>
+                                                <div className="mt-1 flex items-center gap-2 text-[10px] text-zinc-600">
+                                                    <span>{formatRelativeTime(n.createdAt)}</span>
+                                                    <span className="rounded-full border border-zinc-800 px-1.5 py-0.5 uppercase tracking-wide text-[9px]">
+                                                        {n.type.replace(/_/g, ' ')}
+                                                    </span>
+                                                </div>
                                             </div>
                                             {!n.read && <div className="w-2 h-2 rounded-full bg-green-500 ml-auto shrink-0 mt-1"></div>}
                                         </div>
@@ -137,6 +158,20 @@ export default function NotificationBell() {
                                 ))
                             )}
                         </div>
+                        {notifications.length > 0 && (
+                            <div className="flex items-center justify-between bg-black/40 px-4 py-3">
+                                <p className="text-[11px] text-zinc-500">
+                                    {notifications.length} notification{notifications.length === 1 ? '' : 's'} loaded
+                                </p>
+                                <Link
+                                    href="/notifications"
+                                    onClick={() => setIsOpen(false)}
+                                    className="text-[11px] font-semibold text-blue-400 hover:text-blue-300"
+                                >
+                                    Open full inbox
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 </>
             )}
