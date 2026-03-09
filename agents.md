@@ -61,6 +61,8 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - BUY rows display `+$0.00` in realized P/L column instead of `-`
     - Regression coverage:
       - `services/core-api/src/test/java/com/finance/core/service/PerformanceCalculationServiceTest.java`
+      - `services/core-api/src/test/java/com/finance/core/service/PerformanceTrackingServiceTest.java`
+      - `services/core-api/src/test/java/com/finance/core/controller/TradeControllerIntegrationTest.java`
       - added test verifying missing market prices do not create false negative returns
   - **Operational impact**:
     - Staging leaderboards and portfolio detail pages no longer misclassify open positions as losses when live price cache temporarily drops out.

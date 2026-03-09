@@ -17,6 +17,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -84,6 +86,27 @@ class TradeControllerIntegrationTest {
                 .andExpect(jsonPath("$.balance").value(9500.0))
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.items[0].side").value("LONG"));
+    }
+
+    @Test
+    void testBuyLong_shouldPersistZeroRealizedPnlTradeActivity() throws Exception {
+        TradeRequest request = new TradeRequest();
+        request.setPortfolioId(testPortfolio.getId().toString());
+        request.setSymbol("BTCUSDT");
+        request.setQuantity(BigDecimal.valueOf(0.1));
+        request.setLeverage(10);
+        request.setSide("LONG");
+
+        mockMvc.perform(post("/api/v1/trade/buy")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        var trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(testPortfolio.getId());
+        assertEquals(1, trades.size());
+        assertEquals("BUY", trades.get(0).getType());
+        assertNotNull(trades.get(0).getRealizedPnl());
+        assertEquals(0, BigDecimal.ZERO.compareTo(trades.get(0).getRealizedPnl()));
     }
 
     @Test

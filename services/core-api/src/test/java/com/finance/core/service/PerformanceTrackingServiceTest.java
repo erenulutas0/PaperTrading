@@ -132,4 +132,13 @@ class PerformanceTrackingServiceTest {
         verify(portfolioRepository, times(1)).findAllBy(PageRequest.of(1, 250));
         verify(snapshotRepository, times(251)).save(any(PortfolioSnapshot.class));
     }
+
+    @Test
+    void calculateTotalEquity_shouldPreserveMarginWhenCurrentPriceMissing() {
+        portfolio.getItems().add(longItem);
+
+        BigDecimal totalEquity = PerformanceTrackingService.calculateTotalEquity(portfolio, Collections.emptyMap());
+
+        assertEquals(0, BigDecimal.valueOf(60000).compareTo(totalEquity));
+    }
 }

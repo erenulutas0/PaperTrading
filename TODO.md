@@ -47,6 +47,8 @@ Last updated: 2026-03-05
     - BUY trade history rows display `+$0.00` instead of `-`
   - Regression coverage:
     - `services/core-api/src/test/java/com/finance/core/service/PerformanceCalculationServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/PerformanceTrackingServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/TradeControllerIntegrationTest.java`
     - added test asserting missing market prices preserve entry-equity baseline (no false negative return)
 - [x] Hardened staging API path against backend CORS rejections:
   - Frontend proxy update:
