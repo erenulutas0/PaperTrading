@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Recursive Comment Thread Actions in UI (Seventy-Second Pass)**
+  - **Problem observed**:
+    - Backend accepted `COMMENT` targets, but the first UI pass only exposed `like/reply` affordances on root comments.
+    - Replies rendered as passive leaf items, so the UX still did not feel like a real social thread.
+  - **Implementation**:
+    - Updated:
+      - `apps/web/components/LikeCommentWidget.tsx`
+    - `CommentThread` now renders replies recursively through the same component path.
+    - Result:
+      - reply nodes also show `Like`
+      - reply nodes also allow further replies
+  - **Operational impact**:
+    - Social discussion UI now matches the recursive interaction model already supported by backend endpoints.
+    - This closes the gap between data model capability and visible product behavior.
 - **2026-03-05**: **Comment Threads via `COMMENT` Target Type (Seventy-First Pass)**
   - **Problem observed**:
     - Social interaction model only supported flat comments on portfolios/posts.

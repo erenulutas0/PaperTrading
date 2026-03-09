@@ -37,9 +37,11 @@ function formatRelativeTime(createdAt: string): string {
 function CommentThread({
     comment,
     onRefresh,
+    depth = 0,
 }: {
     comment: CommentItem;
     onRefresh: () => Promise<void>;
+    depth?: number;
 }) {
     const [replies, setReplies] = useState<CommentItem[]>([]);
     const [showReplies, setShowReplies] = useState(false);
@@ -161,7 +163,7 @@ function CommentThread({
             </div>
 
             {showReplies && (
-                <div className="ml-11 space-y-3 border-l border-zinc-800/70 pl-4">
+                <div className={`${depth > 0 ? 'ml-6' : 'ml-11'} space-y-3 border-l border-zinc-800/70 pl-4`}>
                     <form onSubmit={postReply} className="flex gap-2">
                         <input
                             type="text"
@@ -185,14 +187,12 @@ function CommentThread({
                         <p className="text-[11px] italic text-zinc-600">No replies yet.</p>
                     ) : (
                         replies.map((reply) => (
-                            <div key={reply.id} className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-3">
-                                <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                                    <span className="font-semibold text-white">{reply.actorDisplayName || reply.actorUsername}</span>
-                                    <span className="text-zinc-500">@{reply.actorUsername}</span>
-                                    <span className="text-zinc-600">{formatRelativeTime(reply.createdAt)}</span>
-                                </div>
-                                <p className="mt-2 text-xs leading-relaxed text-zinc-300">{reply.content}</p>
-                            </div>
+                            <CommentThread
+                                key={reply.id}
+                                comment={reply}
+                                onRefresh={onRefresh}
+                                depth={depth + 1}
+                            />
                         ))
                     )}
                 </div>

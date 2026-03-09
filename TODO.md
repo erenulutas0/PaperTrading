@@ -3,6 +3,7 @@
 Last updated: 2026-03-05
 
 ## In Progress
+- [ ] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
 - [ ] Redeploy backend/frontend after comment-thread interaction upgrade and verify portfolio/post comments now support comment likes + replies with sane notifications and root-page links
 - [ ] Redeploy frontend after global bell relocation + follow-back action and verify notifications are visible from all dashboard sub-pages without header clipping
 - [ ] Redeploy frontend after notification dropdown inbox-preview improvement and verify bell panel now supports scrollable recent notifications without forcing `View All`
@@ -34,6 +35,14 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Upgraded comment thread renderer from root-only actions to recursive thread actions:
+  - Updated:
+    - `apps/web/components/LikeCommentWidget.tsx`
+  - Behavior:
+    - replies now render through the same `CommentThread` component as root comments
+    - reply cards also expose `Like` and `Replies/Hide replies`
+  - Goal:
+    - match expected Twitter/X-style conversation affordances instead of stopping interaction at first reply level
 - [x] Extended social interactions from flat comments to comment-thread primitives:
   - Backend:
     - added `COMMENT` as valid interaction target type
