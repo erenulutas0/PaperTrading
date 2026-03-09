@@ -283,7 +283,7 @@ export default function Dashboard() {
                                 <div className="space-y-2">
                                     {p.items && p.items.length > 0 ? (
                                         p.items.map((item) => {
-                                            const currentPrice = prices[item.symbol] || 0;
+                                            const currentPrice = prices[item.symbol] ?? item.averagePrice;
                                             const value = item.quantity * currentPrice;
                                             return (
                                                 <div key={item.id} className="flex justify-between text-sm items-center py-1 border-b border-white/5">
@@ -310,7 +310,7 @@ export default function Dashboard() {
                                 let totalCurrentValue = 0;
 
                                 p.items?.forEach(item => {
-                                    const currentPrice = prices[item.symbol] || item.averagePrice;
+                                    const currentPrice = prices[item.symbol] ?? item.averagePrice;
                                     const lev = item.leverage || 1;
                                     const costBasis = (item.quantity * item.averagePrice) / lev;
 

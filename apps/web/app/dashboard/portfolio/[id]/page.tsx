@@ -187,7 +187,7 @@ export default function PortfolioDetailPage({ params }: { params: Promise<{ id: 
 
     const assetsEquity =
         portfolio.items?.reduce((acc, item) => {
-            const currentPrice = prices[item.symbol] || item.averagePrice;
+            const currentPrice = prices[item.symbol] ?? item.averagePrice;
             const margin = (item.quantity * item.averagePrice) / (item.leverage || 1);
             const unrealizedPL =
                 item.side === 'SHORT'
@@ -363,7 +363,7 @@ export default function PortfolioDetailPage({ params }: { params: Promise<{ id: 
                                     </tr>
                                 ) : (
                                     portfolio.items.map((item) => {
-                                        const currentPrice = prices[item.symbol] || item.averagePrice;
+                                        const currentPrice = prices[item.symbol] ?? item.averagePrice;
                                         const margin = (item.quantity * item.averagePrice) / (item.leverage || 1);
                                         const pl =
                                             item.side === 'SHORT'
@@ -432,8 +432,10 @@ export default function PortfolioDetailPage({ params }: { params: Promise<{ id: 
                                             <td className="p-3 text-right">{entry.side}</td>
                                             <td className="p-3 text-right">{entry.quantity}</td>
                                             <td className="p-3 text-right">{formatUsd(entry.price)}</td>
-                                            <td className={`p-3 text-right font-semibold ${(entry.realizedPnl ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                                                {entry.realizedPnl == null ? '-' : `${entry.realizedPnl >= 0 ? '+' : '-'}${formatUsd(Math.abs(entry.realizedPnl)).slice(1)}`}
+                                            <td className={`p-3 text-right font-semibold ${((entry.realizedPnl ?? 0) >= 0) ? 'text-success' : 'text-destructive'}`}>
+                                                {entry.realizedPnl == null
+                                                    ? (entry.type === 'BUY' ? '+$0.00' : '-')
+                                                    : `${entry.realizedPnl >= 0 ? '+' : '-'}${formatUsd(Math.abs(entry.realizedPnl)).slice(1)}`}
                                             </td>
                                         </tr>
                                     ))

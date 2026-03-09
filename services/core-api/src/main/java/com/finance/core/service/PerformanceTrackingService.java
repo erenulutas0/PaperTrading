@@ -67,26 +67,27 @@ public class PerformanceTrackingService {
 
         if (portfolio.getItems() != null) {
             for (PortfolioItem item : portfolio.getItems()) {
+                BigDecimal avgPrice = item.getAveragePrice();
+                BigDecimal qty = item.getQuantity();
+
+                BigDecimal itemValue = avgPrice.multiply(qty);
+                BigDecimal margin = itemValue.divide(
+                        BigDecimal.valueOf(item.getLeverage() != null ? item.getLeverage() : 1), 10,
+                        java.math.RoundingMode.HALF_UP);
+                totalMargin = totalMargin.add(margin);
+
                 Double currentPrice = prices.get(item.getSymbol());
-                if (currentPrice != null) {
-                    BigDecimal currentPriceBD = BigDecimal.valueOf(currentPrice);
-                    BigDecimal avgPrice = item.getAveragePrice();
-                    BigDecimal qty = item.getQuantity();
+                BigDecimal currentPriceBD = currentPrice != null
+                        ? BigDecimal.valueOf(currentPrice)
+                        : avgPrice;
 
-                    BigDecimal itemValue = avgPrice.multiply(qty);
-                    BigDecimal margin = itemValue.divide(
-                            BigDecimal.valueOf(item.getLeverage() != null ? item.getLeverage() : 1), 10,
-                            java.math.RoundingMode.HALF_UP);
-                    totalMargin = totalMargin.add(margin);
-
-                    BigDecimal pl;
-                    if ("SHORT".equals(item.getSide())) {
-                        pl = avgPrice.subtract(currentPriceBD).multiply(qty);
-                    } else {
-                        pl = currentPriceBD.subtract(avgPrice).multiply(qty);
-                    }
-                    unrealizedPL = unrealizedPL.add(pl);
+                BigDecimal pl;
+                if ("SHORT".equals(item.getSide())) {
+                    pl = avgPrice.subtract(currentPriceBD).multiply(qty);
+                } else {
+                    pl = currentPriceBD.subtract(avgPrice).multiply(qty);
                 }
+                unrealizedPL = unrealizedPL.add(pl);
             }
         }
         return balance.add(totalMargin).add(unrealizedPL);

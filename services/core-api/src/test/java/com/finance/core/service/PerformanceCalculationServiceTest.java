@@ -169,6 +169,15 @@ class PerformanceCalculationServiceTest {
         }
 
         @Test
+        void testCalculateReturn_WhenMarketPriceUnavailable_ShouldPreserveEntryEquity() {
+                when(binanceService.getPrices()).thenReturn(Map.of());
+
+                BigDecimal returnPct = performanceCalculationService.calculateReturn(testPortfolio, "ALL");
+
+                assertEquals(0, BigDecimal.ZERO.compareTo(returnPct));
+        }
+
+        @Test
         void testGetStartTime_Various() {
                 assertNotNull(performanceCalculationService.getStartTimeForPeriod("1D"));
                 assertNotNull(performanceCalculationService.getStartTimeForPeriod("1W"));

@@ -3,6 +3,7 @@
 Last updated: 2026-03-05
 
 ## In Progress
+- [ ] Redeploy staging after market-price fallback + portfolio equity calculation fix, then verify leaderboard P/L/return and portfolio detail P/L no longer freeze at false losses when Binance WS is sparse
 - [ ] Bootstrap Railway staging frontend service (`apps/web`), generate frontend domain, and wire `NEXT_PUBLIC_API_BASE_URL` to backend domain
 - [ ] Wire frontend runtime proxy env (`API_BASE_URL`) in Railway web service and verify `/api/v1/auth/*` and `/api/v1/leaderboards` no longer return Next.js 404
 - [ ] Switch frontend Railway deploy mode to Dockerfile fallback (`apps/web/Dockerfile`) to bypass Railpack `npm ci` lockfile mismatch and verify successful build/start on port 3000
@@ -28,6 +29,25 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Fixed false-loss portfolio/leaderboard behavior when live market price cache is empty or stale:
+  - Backend equity calculation now preserves open-position margin even when current price is unavailable:
+    - `services/core-api/src/main/java/com/finance/core/service/PerformanceTrackingService.java`
+    - missing prices now fall back to entry price, preventing open positions from being treated as vanished capital
+  - Added Binance REST fallback for initial/stale price hydration:
+    - `services/core-api/src/main/java/com/finance/core/service/BinanceService.java`
+    - startup now seeds prices from Binance REST
+    - reads refresh from REST when WS prices are stale/empty
+  - Trade history consistency:
+    - new BUY trade activities now persist `realizedPnl=0`
+    - `services/core-api/src/main/java/com/finance/core/controller/TradeController.java`
+  - Frontend fallback/render fixes:
+    - `apps/web/app/dashboard/page.tsx`
+    - `apps/web/app/dashboard/portfolio/[id]/page.tsx`
+    - dashboard/detail pages now use entry price fallback instead of zero when live price is temporarily missing
+    - BUY trade history rows display `+$0.00` instead of `-`
+  - Regression coverage:
+    - `services/core-api/src/test/java/com/finance/core/service/PerformanceCalculationServiceTest.java`
+    - added test asserting missing market prices preserve entry-equity baseline (no false negative return)
 - [x] Hardened staging API path against backend CORS rejections:
   - Frontend proxy update:
     - `apps/web/app/api/[...path]/route.ts`

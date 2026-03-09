@@ -38,6 +38,33 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **False-Loss Portfolio/Leaderboard Fix Under Sparse Market Prices (Sixty-Sixth Pass)**
+  - **Problem observed**:
+    - In staging, portfolios with open positions appeared as fixed losses and leaderboard `P/L` / `return` often stayed at `0`.
+    - Root cause: when Binance WS prices were empty/stale, equity calculation skipped open positions entirely, so only reduced cash balance remained visible after margin deduction.
+  - **Implementation**:
+    - Backend equity fallback:
+      - `services/core-api/src/main/java/com/finance/core/service/PerformanceTrackingService.java`
+      - open-position margin is now always counted in total equity
+      - missing current prices fall back to entry price, so a position without fresh ticks stays mark-to-entry instead of becoming fake loss
+    - Market price fallback:
+      - `services/core-api/src/main/java/com/finance/core/service/BinanceService.java`
+      - app now seeds prices from Binance REST on startup
+      - `getPrices()` refreshes from REST when WS prices are empty/stale, reducing Railway WS fragility impact
+    - Trade history consistency:
+      - `services/core-api/src/main/java/com/finance/core/controller/TradeController.java`
+      - BUY activities now persist `realizedPnl=0`
+    - Frontend render fallback:
+      - `apps/web/app/dashboard/page.tsx`
+      - `apps/web/app/dashboard/portfolio/[id]/page.tsx`
+      - UI now falls back to entry price instead of zero for temporary price gaps
+      - BUY rows display `+$0.00` in realized P/L column instead of `-`
+    - Regression coverage:
+      - `services/core-api/src/test/java/com/finance/core/service/PerformanceCalculationServiceTest.java`
+      - added test verifying missing market prices do not create false negative returns
+  - **Operational impact**:
+    - Staging leaderboards and portfolio detail pages no longer misclassify open positions as losses when live price cache temporarily drops out.
+    - Price freshness still improves with WS, but correctness now degrades safely.
 - **2026-03-05**: **CORS Stabilization for Staged Frontend Proxy + Backend Allowlist Externalization (Sixty-Fifth Pass)**
   - **Problem observed**:
     - Frontend runtime proxy path was active, but register/login API calls still failed with `Invalid CORS request`.

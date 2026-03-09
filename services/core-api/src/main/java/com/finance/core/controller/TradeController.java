@@ -110,6 +110,7 @@ public class TradeController {
                 .side(side)
                 .quantity(request.getQuantity())
                 .price(currentPrice)
+                .realizedPnl(BigDecimal.ZERO)
                 .build();
         tradeActivityRepository.save(trade);
 
