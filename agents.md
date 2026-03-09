@@ -38,6 +38,33 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Comment Threads via `COMMENT` Target Type (Seventy-First Pass)**
+  - **Problem observed**:
+    - Social interaction model only supported flat comments on portfolios/posts.
+    - Users could not like a comment or reply to a comment, which capped discussion quality well below expected social-product behavior.
+  - **Implementation**:
+    - Interaction model extended:
+      - `services/core-api/src/main/java/com/finance/core/domain/Interaction.java`
+      - added `TargetType.COMMENT`
+    - Existing interaction endpoints remain stable:
+      - likes on comments use `POST /api/v1/interactions/{commentId}/like` with `targetType=COMMENT`
+      - replies use `POST /api/v1/interactions/{commentId}/comments` with `targetType=COMMENT`
+    - Read-path upgraded from raw entity exposure to comment DTO:
+      - `CommentResponse`
+      - includes actor metadata plus `likeCount`, `hasLiked`, `replyCount`
+    - Root-link semantics preserved:
+      - comment-like/reply notifications still reference the root portfolio/post page so navigation remains stable
+    - Schema compatibility:
+      - fresh bootstrap updated in `V3__bootstrap_core_schema.sql`
+      - staged DB migration added:
+        - `V10__expand_interaction_target_type_for_comment_threads.sql`
+    - Frontend thread UX:
+      - `apps/web/components/LikeCommentWidget.tsx`
+      - root comments now expose reply and like actions
+      - replies are expandable inline, one level deep for now
+  - **Operational impact**:
+    - Social layer moves from flat comments to thread-capable discussion without introducing a separate comment domain/table yet.
+    - This keeps current interaction storage simple while opening a clean path to deeper threaded discussion later.
 - **2026-03-05**: **Global Dashboard Notification Shell + Follow-Back CTA (Seventieth Pass)**
   - **Problem observed**:
     - Notification bell was mounted only in selected page headers, not in the shared dashboard shell.

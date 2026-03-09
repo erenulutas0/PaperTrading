@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -137,7 +138,60 @@ class InteractionControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/interactions/{targetId}/comments", portfolio.getId())
                 .param("type", "PORTFOLIO"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].content").value("Clean execution."));
+                .andExpect(jsonPath("$.content[0].content").value("Clean execution."))
+                .andExpect(jsonPath("$.content[0].actorUsername", notNullValue()))
+                .andExpect(jsonPath("$.content[0].replyCount").value(0));
+    }
+
+    @Test
+    void replyAndLikeComment_shouldSupportCommentThreads() throws Exception {
+        InteractionRequest rootCommentRequest = new InteractionRequest();
+        rootCommentRequest.setTargetType("PORTFOLIO");
+        rootCommentRequest.setContent("Root comment.");
+
+        String rootCommentBody = mockMvc.perform(post("/api/v1/interactions/{targetId}/comments", portfolio.getId())
+                        .header("X-User-Id", actor.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(rootCommentRequest)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String rootCommentId = objectMapper.readTree(rootCommentBody).get("id").asText();
+
+        InteractionRequest replyRequest = new InteractionRequest();
+        replyRequest.setTargetType("COMMENT");
+        replyRequest.setContent("Nested reply.");
+
+        mockMvc.perform(post("/api/v1/interactions/{targetId}/comments", rootCommentId)
+                .header("X-User-Id", owner.getId().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(replyRequest)))
+                .andExpect(status().isOk());
+
+        InteractionRequest likeCommentRequest = new InteractionRequest();
+        likeCommentRequest.setTargetType("COMMENT");
+
+        mockMvc.perform(post("/api/v1/interactions/{targetId}/like", rootCommentId)
+                .header("X-User-Id", owner.getId().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(likeCommentRequest)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/interactions/{targetId}/comments", portfolio.getId())
+                .param("type", "PORTFOLIO")
+                .header("X-User-Id", owner.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].replyCount").value(1))
+                .andExpect(jsonPath("$.content[0].likeCount").value(1))
+                .andExpect(jsonPath("$.content[0].hasLiked").value(true));
+
+        mockMvc.perform(get("/api/v1/interactions/{targetId}/comments", rootCommentId)
+                .param("type", "COMMENT")
+                .header("X-User-Id", owner.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].content").value("Nested reply."));
     }
 
     @Test

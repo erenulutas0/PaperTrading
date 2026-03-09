@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,4 +23,9 @@ public interface InteractionRepository extends JpaRepository<Interaction, UUID> 
 
     boolean existsByActorIdAndTargetTypeAndTargetIdAndInteractionType(
             UUID actorId, Interaction.TargetType targetType, UUID targetId, Interaction.InteractionType type);
+
+    Optional<Interaction> findByIdAndInteractionType(UUID id, Interaction.InteractionType type);
+
+    Collection<Interaction> findByTargetTypeAndTargetIdAndInteractionType(
+            Interaction.TargetType targetType, UUID targetId, Interaction.InteractionType type);
 }

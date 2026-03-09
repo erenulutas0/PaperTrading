@@ -16,12 +16,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,23 +67,19 @@ class InteractionServiceTest {
 
     @Test
     void toggleLike_WhenNotLiked_ShouldCreateLikeAndNotify() {
-        // Arrange
         when(interactionRepository.findByActorIdAndTargetTypeAndTargetIdAndInteractionType(
                 actorId, Interaction.TargetType.PORTFOLIO, targetId, Interaction.InteractionType.LIKE))
                 .thenReturn(Optional.empty());
 
-        when(userRepository.findById(actorId)).thenReturn(Optional.of(new AppUser()));
-        Portfolio portfolio = new Portfolio();
-        portfolio.setOwnerId(UUID.randomUUID().toString());
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(AppUser.builder().id(actorId).username("actor").build()));
+        Portfolio portfolio = portfolio("Growth");
         when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio));
 
-        // Act
         interactionService.toggleLike(actorId, targetId, likeRequest);
 
-        // Assert
-        verify(interactionRepository, times(1)).save(any(Interaction.class));
-        verify(eventPublisher, times(1)).publishEvent(any(Object.class)); // Notification triggered
-        verify(activityFeedService, times(1)).publish(any(), any(), any(), any(), any(), any());
+        verify(interactionRepository).save(any(Interaction.class));
+        verify(eventPublisher).publishEvent(any(Object.class));
+        verify(activityFeedService).publish(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -88,11 +88,8 @@ class InteractionServiceTest {
                 actorId, Interaction.TargetType.PORTFOLIO, targetId, Interaction.InteractionType.LIKE))
                 .thenReturn(Optional.empty());
 
-        when(userRepository.findById(actorId)).thenReturn(Optional.of(new AppUser()));
-        Portfolio portfolio = new Portfolio();
-        portfolio.setOwnerId(UUID.randomUUID().toString());
-        portfolio.setName("Race Portfolio");
-        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio));
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(AppUser.builder().id(actorId).username("actor").build()));
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Race Portfolio")));
         when(interactionRepository.save(any(Interaction.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
@@ -104,57 +101,43 @@ class InteractionServiceTest {
 
     @Test
     void toggleLike_WhenAlreadyLiked_ShouldDeleteLike() {
-        // Arrange
         Interaction existingLike = new Interaction();
-        Portfolio portfolio = new Portfolio();
-        portfolio.setOwnerId(UUID.randomUUID().toString());
         when(interactionRepository.findByActorIdAndTargetTypeAndTargetIdAndInteractionType(
                 actorId, Interaction.TargetType.PORTFOLIO, targetId, Interaction.InteractionType.LIKE))
                 .thenReturn(Optional.of(existingLike));
-        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
 
-        // Act
         interactionService.toggleLike(actorId, targetId, likeRequest);
 
-        // Assert
-        verify(interactionRepository, times(1)).delete(existingLike);
+        verify(interactionRepository).delete(existingLike);
         verify(interactionRepository, never()).save(any());
-        verify(eventPublisher, never()).publishEvent(any(Object.class)); // No notification on unlike
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
     void addComment_WithValidContent_ShouldSaveComment() {
-        // Arrange
-        when(userRepository.findById(actorId)).thenReturn(Optional.of(new AppUser()));
-        Portfolio portfolio = new Portfolio();
-        portfolio.setOwnerId(UUID.randomUUID().toString());
-        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio));
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(AppUser.builder().id(actorId).username("actor").build()));
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
 
         Interaction savedComment = Interaction.builder()
                 .content("Great portfolio!")
                 .build();
         when(interactionRepository.save(any())).thenReturn(savedComment);
 
-        // Act
         Interaction result = interactionService.addComment(actorId, targetId, commentRequest);
 
-        // Assert
         assertNotNull(result);
         assertEquals("Great portfolio!", result.getContent());
-        verify(interactionRepository, times(1)).save(any(Interaction.class));
-        verify(eventPublisher, times(1)).publishEvent(any(Object.class));
-        verify(activityFeedService, times(1)).publish(any(), any(), any(), any(), any(), any());
+        verify(interactionRepository).save(any(Interaction.class));
+        verify(eventPublisher).publishEvent(any(Object.class));
+        verify(activityFeedService).publish(any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void addComment_WithEmptyContent_ShouldThrowException() {
-        // Arrange
         commentRequest.setContent("   ");
-        Portfolio portfolio = new Portfolio();
-        portfolio.setOwnerId(UUID.randomUUID().toString());
-        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
 
-        // Act & Assert
         assertThrows(IllegalArgumentException.class,
                 () -> interactionService.addComment(actorId, targetId, commentRequest));
         verify(interactionRepository, never()).save(any());
@@ -175,9 +158,7 @@ class InteractionServiceTest {
 
     @Test
     void addComment_WithTooLongContent_ShouldThrowException() {
-        Portfolio portfolio = new Portfolio();
-        portfolio.setOwnerId(UUID.randomUUID().toString());
-        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
         commentRequest.setContent("x".repeat(1001));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -185,5 +166,84 @@ class InteractionServiceTest {
 
         assertEquals("Comment content cannot exceed 1000 characters", ex.getMessage());
         verify(interactionRepository, never()).save(any());
+    }
+
+    @Test
+    void addReplyToComment_ShouldResolveCommentTargetAndNotifyCommentOwner() {
+        UUID commentId = UUID.randomUUID();
+        UUID commentOwnerId = UUID.randomUUID();
+
+        InteractionRequest replyRequest = new InteractionRequest();
+        replyRequest.setTargetType("COMMENT");
+        replyRequest.setContent("Replying to this take");
+
+        Interaction parentComment = Interaction.builder()
+                .id(commentId)
+                .actorId(commentOwnerId)
+                .interactionType(Interaction.InteractionType.COMMENT)
+                .targetType(Interaction.TargetType.PORTFOLIO)
+                .targetId(targetId)
+                .content("Original comment")
+                .build();
+
+        when(interactionRepository.findByIdAndInteractionType(commentId, Interaction.InteractionType.COMMENT))
+                .thenReturn(Optional.of(parentComment));
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(AppUser.builder().id(actorId).username("reply_user").build()));
+        when(interactionRepository.save(any(Interaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Interaction reply = interactionService.addComment(actorId, commentId, replyRequest);
+
+        assertEquals(Interaction.TargetType.COMMENT, reply.getTargetType());
+        assertEquals(commentId, reply.getTargetId());
+        verify(eventPublisher).publishEvent(any());
+        verify(activityFeedService).publish(any(), any(), any(), any(), eq(targetId), eq("Growth"));
+    }
+
+    @Test
+    void getComments_ShouldReturnCommentDtoWithReplyAndLikeMetadata() {
+        UUID commentId = UUID.randomUUID();
+        AppUser actor = AppUser.builder()
+                .id(actorId)
+                .username("commenter")
+                .displayName("Commenter")
+                .build();
+        Interaction comment = Interaction.builder()
+                .id(commentId)
+                .actorId(actorId)
+                .interactionType(Interaction.InteractionType.COMMENT)
+                .targetType(Interaction.TargetType.PORTFOLIO)
+                .targetId(targetId)
+                .content("Root comment")
+                .build();
+
+        when(interactionRepository.findByTargetTypeAndTargetIdAndInteractionTypeOrderByCreatedAtDesc(
+                eq(Interaction.TargetType.PORTFOLIO), eq(targetId), eq(Interaction.InteractionType.COMMENT), any()))
+                .thenReturn(new PageImpl<>(List.of(comment)));
+        when(userRepository.findByIdIn(any())).thenReturn(List.of(actor));
+        when(interactionRepository.countByTargetTypeAndTargetIdAndInteractionType(
+                Interaction.TargetType.COMMENT, commentId, Interaction.InteractionType.LIKE))
+                .thenReturn(2L);
+        when(interactionRepository.existsByActorIdAndTargetTypeAndTargetIdAndInteractionType(
+                actorId, Interaction.TargetType.COMMENT, commentId, Interaction.InteractionType.LIKE))
+                .thenReturn(true);
+        when(interactionRepository.countByTargetTypeAndTargetIdAndInteractionType(
+                Interaction.TargetType.COMMENT, commentId, Interaction.InteractionType.COMMENT))
+                .thenReturn(1L);
+
+        var page = interactionService.getComments(targetId, "PORTFOLIO", actorId, PageRequest.of(0, 20));
+
+        assertEquals(1, page.getContent().size());
+        assertEquals("commenter", page.getContent().get(0).getActorUsername());
+        assertEquals(2L, page.getContent().get(0).getLikeCount());
+        assertEquals(1L, page.getContent().get(0).getReplyCount());
+        assertTrue(page.getContent().get(0).isHasLiked());
+    }
+
+    private Portfolio portfolio(String name) {
+        Portfolio portfolio = new Portfolio();
+        portfolio.setOwnerId(UUID.randomUUID().toString());
+        portfolio.setName(name);
+        return portfolio;
     }
 }

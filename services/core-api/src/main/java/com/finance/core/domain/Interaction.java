@@ -30,7 +30,8 @@ public class Interaction {
 
     public enum TargetType {
         PORTFOLIO,
-        ANALYSIS_POST
+        ANALYSIS_POST,
+        COMMENT
     }
 
     @Id

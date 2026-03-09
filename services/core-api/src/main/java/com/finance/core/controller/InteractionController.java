@@ -1,6 +1,7 @@
 package com.finance.core.controller;
 
 import com.finance.core.domain.Interaction;
+import com.finance.core.dto.CommentResponse;
 import com.finance.core.dto.InteractionRequest;
 import com.finance.core.service.InteractionService;
 import com.finance.core.web.CurrentUserId;
@@ -39,11 +40,12 @@ public class InteractionController {
     }
 
     @GetMapping("/{targetId}/comments")
-    public ResponseEntity<Page<Interaction>> getComments(
+    public ResponseEntity<Page<CommentResponse>> getComments(
             @PathVariable UUID targetId,
             @RequestParam String type,
+            @CurrentUserId(required = false) UUID userId,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(interactionService.getComments(targetId, type, pageable));
+        return ResponseEntity.ok(interactionService.getComments(targetId, type, userId, pageable));
     }
 
     @GetMapping("/{targetId}/likes/count")

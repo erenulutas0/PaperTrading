@@ -5,6 +5,7 @@ import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Interaction;
 import com.finance.core.domain.Notification.NotificationType;
 import com.finance.core.domain.event.NotificationEvent;
+import com.finance.core.dto.CommentResponse;
 import com.finance.core.dto.InteractionRequest;
 import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.InteractionRepository;
@@ -13,14 +14,18 @@ import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -43,30 +48,28 @@ public class InteractionService {
                 actorId, targetType, targetId, Interaction.InteractionType.LIKE);
 
         if (existing.isPresent()) {
-            // Unlike
             interactionRepository.delete(existing.get());
             log.info("User {} UNLIKED {} {}", actorId, targetType, targetId);
-        } else {
-            // Like
-            AppUser actor = getActor(actorId);
-            Interaction like = Interaction.builder()
-                    .actorId(actorId)
-                    .interactionType(Interaction.InteractionType.LIKE)
-                    .targetType(targetType)
-                    .targetId(targetId)
-                    .build();
-            try {
-                interactionRepository.save(like);
-            } catch (DataIntegrityViolationException e) {
-                // Concurrent like toggles can race; unique DB constraint is the source of truth.
-                log.debug("Duplicate LIKE ignored for actor {} target {} {}", actorId, targetType, targetId);
-                return;
-            }
-            log.info("User {} LIKED {} {}", actorId, targetType, targetId);
-
-            sendNotification(actor, target, targetId, true);
-            publishActivity(actor, target, targetId, true);
+            return;
         }
+
+        AppUser actor = getActor(actorId);
+        Interaction like = Interaction.builder()
+                .actorId(actorId)
+                .interactionType(Interaction.InteractionType.LIKE)
+                .targetType(targetType)
+                .targetId(targetId)
+                .build();
+        try {
+            interactionRepository.save(like);
+        } catch (DataIntegrityViolationException e) {
+            log.debug("Duplicate LIKE ignored for actor {} target {} {}", actorId, targetType, targetId);
+            return;
+        }
+        log.info("User {} LIKED {} {}", actorId, targetType, targetId);
+
+        sendNotification(actor, target, targetId, true);
+        publishActivity(actor, target, targetId, true);
     }
 
     @Transactional
@@ -74,10 +77,11 @@ public class InteractionService {
         Interaction.TargetType targetType = parseTargetType(request.getTargetType());
         TargetMetadata target = resolveTarget(targetType, targetId);
 
-        if (request.getContent() == null || request.getContent().trim().isEmpty()) {
+        String content = request.getContent() != null ? request.getContent().trim() : "";
+        if (content.isEmpty()) {
             throw new IllegalArgumentException("Comment content cannot be empty");
         }
-        if (request.getContent().trim().length() > 1000) {
+        if (content.length() > 1000) {
             throw new IllegalArgumentException("Comment content cannot exceed 1000 characters");
         }
 
@@ -88,7 +92,7 @@ public class InteractionService {
                 .interactionType(Interaction.InteractionType.COMMENT)
                 .targetType(targetType)
                 .targetId(targetId)
-                .content(request.getContent().trim())
+                .content(content)
                 .build();
 
         comment = interactionRepository.save(comment);
@@ -100,10 +104,18 @@ public class InteractionService {
         return comment;
     }
 
-    public Page<Interaction> getComments(UUID targetId, String targetTypeStr, Pageable pageable) {
+    public Page<CommentResponse> getComments(UUID targetId, String targetTypeStr, UUID requesterId, Pageable pageable) {
         Interaction.TargetType targetType = parseTargetType(targetTypeStr);
-        return interactionRepository.findByTargetTypeAndTargetIdAndInteractionTypeOrderByCreatedAtDesc(
+        Page<Interaction> comments = interactionRepository.findByTargetTypeAndTargetIdAndInteractionTypeOrderByCreatedAtDesc(
                 targetType, targetId, Interaction.InteractionType.COMMENT, pageable);
+
+        Set<UUID> actorIds = comments.getContent().stream()
+                .map(Interaction::getActorId)
+                .collect(Collectors.toSet());
+        Map<UUID, AppUser> actorMap = userRepository.findByIdIn(actorIds).stream()
+                .collect(Collectors.toMap(AppUser::getId, Function.identity()));
+
+        return comments.map(comment -> toCommentResponse(comment, requesterId, actorMap));
     }
 
     public long getLikeCount(UUID targetId, String targetTypeStr) {
@@ -125,7 +137,7 @@ public class InteractionService {
         try {
             return Interaction.TargetType.valueOf(typeStr.toUpperCase().trim());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid target type. Use PORTFOLIO or ANALYSIS_POST");
+            throw new IllegalArgumentException("Invalid target type. Use PORTFOLIO, ANALYSIS_POST or COMMENT");
         }
     }
 
@@ -151,29 +163,83 @@ public class InteractionService {
                     NotificationType.PORTFOLIO_LIKE,
                     NotificationType.PORTFOLIO_COMMENT,
                     ActivityEvent.EventType.PORTFOLIO_LIKED,
-                    ActivityEvent.EventType.PORTFOLIO_COMMENTED);
+                    ActivityEvent.EventType.PORTFOLIO_COMMENTED,
+                    targetId);
         }
 
-        var post = analysisPostRepository.findById(targetId)
-                .orElseThrow(() -> new RuntimeException("Analysis post not found"));
+        if (targetType == Interaction.TargetType.ANALYSIS_POST) {
+            var post = analysisPostRepository.findById(targetId)
+                    .orElseThrow(() -> new RuntimeException("Analysis post not found"));
+            return new TargetMetadata(
+                    post.getAuthorId(),
+                    post.getTitle(),
+                    ActivityEvent.TargetType.POST,
+                    NotificationType.POST_LIKE,
+                    NotificationType.POST_COMMENT,
+                    ActivityEvent.EventType.POST_LIKED,
+                    ActivityEvent.EventType.POST_COMMENTED,
+                    targetId);
+        }
+
+        Interaction comment = interactionRepository.findByIdAndInteractionType(targetId, Interaction.InteractionType.COMMENT)
+                .orElseThrow(() -> new RuntimeException("Comment not found"));
+        RootTargetMetadata rootTarget = resolveRootTarget(comment);
         return new TargetMetadata(
-                post.getAuthorId(),
-                post.getTitle(),
-                ActivityEvent.TargetType.POST,
-                NotificationType.POST_LIKE,
-                NotificationType.POST_COMMENT,
-                ActivityEvent.EventType.POST_LIKED,
-                ActivityEvent.EventType.POST_COMMENTED);
+                comment.getActorId(),
+                rootTarget.label(),
+                rootTarget.activityTargetType(),
+                rootTarget.likeNotificationType(),
+                rootTarget.commentNotificationType(),
+                rootTarget.likeEventType(),
+                rootTarget.commentEventType(),
+                rootTarget.referenceId());
+    }
+
+    private RootTargetMetadata resolveRootTarget(Interaction comment) {
+        if (comment.getTargetType() == Interaction.TargetType.PORTFOLIO) {
+            var portfolio = portfolioRepository.findById(comment.getTargetId())
+                    .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+            return new RootTargetMetadata(
+                    portfolio.getName(),
+                    ActivityEvent.TargetType.PORTFOLIO,
+                    NotificationType.PORTFOLIO_LIKE,
+                    NotificationType.PORTFOLIO_COMMENT,
+                    ActivityEvent.EventType.PORTFOLIO_LIKED,
+                    ActivityEvent.EventType.PORTFOLIO_COMMENTED,
+                    comment.getTargetId());
+        }
+
+        if (comment.getTargetType() == Interaction.TargetType.ANALYSIS_POST) {
+            var post = analysisPostRepository.findById(comment.getTargetId())
+                    .orElseThrow(() -> new RuntimeException("Analysis post not found"));
+            return new RootTargetMetadata(
+                    post.getTitle(),
+                    ActivityEvent.TargetType.POST,
+                    NotificationType.POST_LIKE,
+                    NotificationType.POST_COMMENT,
+                    ActivityEvent.EventType.POST_LIKED,
+                    ActivityEvent.EventType.POST_COMMENTED,
+                    comment.getTargetId());
+        }
+
+        Interaction parentComment = interactionRepository
+                .findByIdAndInteractionType(comment.getTargetId(), Interaction.InteractionType.COMMENT)
+                .orElseThrow(() -> new RuntimeException("Parent comment not found"));
+        return resolveRootTarget(parentComment);
     }
 
     private void sendNotification(AppUser actor, TargetMetadata target, UUID targetId, boolean isLike) {
         NotificationType type = isLike ? target.likeNotificationType() : target.commentNotificationType();
+        if (actor.getId().equals(target.ownerId())) {
+            return;
+        }
+
         NotificationEvent event = NotificationEvent.builder()
                 .receiverId(target.ownerId())
                 .actorId(actor.getId())
                 .actorUsername(actor.getUsername())
                 .type(type)
-                .referenceId(targetId)
+                .referenceId(target.referenceId() != null ? target.referenceId() : targetId)
                 .referenceLabel(target.label())
                 .build();
         eventPublisher.publishEvent(event);
@@ -186,8 +252,31 @@ public class InteractionService {
                 actor.getUsername(),
                 eventType,
                 target.activityTargetType(),
-                targetId,
+                target.referenceId() != null ? target.referenceId() : targetId,
                 target.label());
+    }
+
+    private CommentResponse toCommentResponse(Interaction comment, UUID requesterId, Map<UUID, AppUser> actorMap) {
+        AppUser actor = actorMap.get(comment.getActorId());
+        long likeCount = getLikeCount(comment.getId(), Interaction.TargetType.COMMENT.name());
+        boolean hasLiked = requesterId != null && hasLiked(requesterId, comment.getId(), Interaction.TargetType.COMMENT.name());
+        long replyCount = interactionRepository.countByTargetTypeAndTargetIdAndInteractionType(
+                Interaction.TargetType.COMMENT, comment.getId(), Interaction.InteractionType.COMMENT);
+
+        return CommentResponse.builder()
+                .id(comment.getId())
+                .actorId(comment.getActorId())
+                .actorUsername(actor != null ? actor.getUsername() : "unknown")
+                .actorDisplayName(actor != null && actor.getDisplayName() != null
+                        ? actor.getDisplayName()
+                        : actor != null ? actor.getUsername() : "Unknown")
+                .actorAvatarUrl(actor != null ? actor.getAvatarUrl() : null)
+                .content(comment.getContent())
+                .createdAt(comment.getCreatedAt())
+                .likeCount(likeCount)
+                .hasLiked(hasLiked)
+                .replyCount(replyCount)
+                .build();
     }
 
     private record TargetMetadata(
@@ -197,6 +286,17 @@ public class InteractionService {
             NotificationType likeNotificationType,
             NotificationType commentNotificationType,
             ActivityEvent.EventType likeEventType,
-            ActivityEvent.EventType commentEventType) {
+            ActivityEvent.EventType commentEventType,
+            UUID referenceId) {
+    }
+
+    private record RootTargetMetadata(
+            String label,
+            ActivityEvent.TargetType activityTargetType,
+            NotificationType likeNotificationType,
+            NotificationType commentNotificationType,
+            ActivityEvent.EventType likeEventType,
+            ActivityEvent.EventType commentEventType,
+            UUID referenceId) {
     }
 }

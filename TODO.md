@@ -3,6 +3,7 @@
 Last updated: 2026-03-05
 
 ## In Progress
+- [ ] Redeploy backend/frontend after comment-thread interaction upgrade and verify portfolio/post comments now support comment likes + replies with sane notifications and root-page links
 - [ ] Redeploy frontend after global bell relocation + follow-back action and verify notifications are visible from all dashboard sub-pages without header clipping
 - [ ] Redeploy frontend after notification dropdown inbox-preview improvement and verify bell panel now supports scrollable recent notifications without forcing `View All`
 - [ ] Redeploy staging after market-price fallback + portfolio equity calculation fix, then verify leaderboard P/L/return and portfolio detail P/L no longer freeze at false losses when Binance WS is sparse
@@ -33,6 +34,23 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Extended social interactions from flat comments to comment-thread primitives:
+  - Backend:
+    - added `COMMENT` as valid interaction target type
+    - new comment DTO read-path with actor metadata + `likeCount` + `hasLiked` + `replyCount`
+    - comment likes and replies reuse existing interaction endpoints with `targetType=COMMENT`
+    - added Flyway migration:
+      - `services/core-api/src/main/resources/db/migration/V10__expand_interaction_target_type_for_comment_threads.sql`
+  - Frontend:
+    - `apps/web/components/LikeCommentWidget.tsx` now supports:
+      - liking comments
+      - replying to comments
+      - expanding reply threads
+  - Regression coverage:
+    - `InteractionServiceTest`
+    - `InteractionControllerIntegrationTest`
+  - Goal:
+    - move social interaction model closer to Twitter/X-style threaded discussion instead of flat guestbook comments
 - [x] Moved notification bell to shared dashboard navigation and added inline `Follow back` actions:
   - Updated:
     - `apps/web/app/dashboard/layout.tsx`
