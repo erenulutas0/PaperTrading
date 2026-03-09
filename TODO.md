@@ -46,6 +46,7 @@ Last updated: 2026-03-05
     - notification stream token TTL introduced (`app.auth.jwt.notification-stream-token-ttl`, default `2m`)
     - SSE emitter replacement now completes previous emitter for same user to avoid stale duplicate streams
     - SSE emits initial `connected` event for explicit client readiness
+    - frontend WS connect watchdog now falls back to SSE when STOMP fails silently before initial connect
     - frontend de-duplicates incoming notifications by id across WS/SSE/reconnect paths
     - duplicate toasts are suppressed for already-known notification ids
   - Regression coverage:

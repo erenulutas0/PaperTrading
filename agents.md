@@ -63,6 +63,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - `apps/web/components/LiveNotificationProvider.tsx`
       - incoming notifications are de-duplicated by notification id across STOMP/SSE/reconnect paths
       - duplicate toasts are suppressed for already-known notifications
+      - added WS connect watchdog that falls back to SSE when STOMP setup succeeds but initial connect never completes
     - Added regression coverage:
       - `JwtTokenServiceTest`
       - `NotificationControllerIntegrationTest`

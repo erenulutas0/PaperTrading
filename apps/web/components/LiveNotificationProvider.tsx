@@ -71,6 +71,7 @@ function getNotifIcon(type: string): string {
 }
 
 export function LiveNotificationProvider({ children }: { children: ReactNode }) {
+    const WS_CONNECT_WATCHDOG_MS = 7000;
     const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -178,8 +179,57 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
             }
         }).catch(() => { });
 
-        // 1. Try WebSocket/STOMP connection
-        let stompCleanup: (() => void) | null = null;
+        let transportCleanup: (() => void) | null = null;
+        let connectWatchdog: ReturnType<typeof setTimeout> | null = null;
+        let fallbackStarted = false;
+        let wsConnected = false;
+        let disposed = false;
+
+        const clearWatchdog = () => {
+            if (connectWatchdog) {
+                clearTimeout(connectWatchdog);
+                connectWatchdog = null;
+            }
+        };
+
+        const startSseFallback = async (reason: string) => {
+            if (disposed || fallbackStarted) {
+                return;
+            }
+            fallbackStarted = true;
+            clearWatchdog();
+            setConnected(false);
+            transportCleanup?.();
+            console.warn(`[WS] Falling back to SSE: ${reason}`);
+
+            const tokenResponse = await apiFetch('/api/v1/notifications/stream-token');
+            if (!tokenResponse.ok) {
+                throw new Error(`stream-token-request-failed:${tokenResponse.status}`);
+            }
+            const tokenPayload = await tokenResponse.json();
+            const streamToken = tokenPayload.streamToken as string | undefined;
+            if (!streamToken) {
+                throw new Error('stream-token-missing');
+            }
+
+            const eventSource = new EventSource(`/api/v1/notifications/stream?streamToken=${encodeURIComponent(streamToken)}`);
+            eventSource.addEventListener('notification', (e) => {
+                try {
+                    const notif = JSON.parse(e.data);
+                    handleIncomingNotification(notif);
+                } catch { }
+            });
+            eventSource.addEventListener('connected', () => {
+                setConnected(true);
+            });
+            eventSource.onerror = () => {
+                setConnected(false);
+            };
+
+            transportCleanup = () => {
+                eventSource.close();
+            };
+        };
 
         const connectStomp = async () => {
             try {
@@ -199,6 +249,8 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
                     heartbeatIncoming: 10000,
                     heartbeatOutgoing: 10000,
                     onConnect: () => {
+                        wsConnected = true;
+                        clearWatchdog();
                         setConnected(true);
                         console.log('[WS] Connected to notification stream');
 
@@ -211,10 +263,7 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
                             }
                         };
 
-                        // Standard Spring user destination subscription.
                         client.subscribe('/user/queue/notifications', onNotification);
-
-                        // Subscribe to global market alerts (broadcast)
                         client.subscribe('/topic/market', (message) => {
                             try {
                                 const data = JSON.parse(message.body);
@@ -237,55 +286,44 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
                     onStompError: (frame) => {
                         console.error('[WS] STOMP error:', frame.headers['message']);
                         setConnected(false);
+                    },
+                    onWebSocketClose: () => {
+                        if (!wsConnected && !fallbackStarted && !disposed) {
+                            void startSseFallback('websocket-closed-before-connect');
+                        }
+                    },
+                    onWebSocketError: () => {
+                        if (!wsConnected && !fallbackStarted && !disposed) {
+                            void startSseFallback('websocket-error-before-connect');
+                        }
                     }
                 });
 
                 client.activate();
+                connectWatchdog = setTimeout(() => {
+                    if (!wsConnected && !fallbackStarted && !disposed) {
+                        void startSseFallback('connect-timeout');
+                    }
+                }, WS_CONNECT_WATCHDOG_MS);
 
-                stompCleanup = () => {
+                transportCleanup = () => {
+                    clearWatchdog();
                     client.deactivate();
                 };
             } catch (e) {
-                console.warn('[WS] WebSocket connection failed, falling back to SSE', e);
-
-                // 2. Fallback to SSE
-                const tokenResponse = await apiFetch('/api/v1/notifications/stream-token');
-                if (!tokenResponse.ok) {
-                    throw new Error(`stream-token-request-failed:${tokenResponse.status}`);
-                }
-                const tokenPayload = await tokenResponse.json();
-                const streamToken = tokenPayload.streamToken as string | undefined;
-                if (!streamToken) {
-                    throw new Error('stream-token-missing');
-                }
-
-                const eventSource = new EventSource(`/api/v1/notifications/stream?streamToken=${encodeURIComponent(streamToken)}`);
-                eventSource.addEventListener('notification', (e) => {
-                    try {
-                        const notif = JSON.parse(e.data);
-                        handleIncomingNotification(notif);
-                    } catch { }
-                });
-                eventSource.addEventListener('connected', () => {
-                    setConnected(true);
-                });
-                eventSource.onerror = () => {
-                    setConnected(false);
-                };
-                setConnected(true);
-
-                stompCleanup = () => {
-                    eventSource.close();
-                };
+                console.warn('[WS] WebSocket setup failed, falling back to SSE', e);
+                await startSseFallback('stomp-setup-failed');
             }
         };
 
-        connectStomp();
+        void connectStomp();
 
         return () => {
-            stompCleanup?.();
+            disposed = true;
+            clearWatchdog();
+            transportCleanup?.();
         };
-    }, [handleIncomingNotification]);
+    }, [addToast, handleIncomingNotification]);
 
     return (
         <LiveNotificationContext.Provider value={{ notifications, toasts, unreadCount, dismissToast, markRead, markAllRead, connected }}>
