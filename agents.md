@@ -38,6 +38,38 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Authenticated SSE Fallback Tokens + Client Notification De-Dupe (Sixty-Eighth Pass)**
+  - **Problem observed**:
+    - Notification fallback path used:
+      - `GET /api/v1/notifications/stream?userId=...`
+    - This trusted raw user id in the query string, which is weak for a real-time channel.
+    - Client also appended notifications blindly, so reconnect/fallback transitions could duplicate list rows and toasts.
+  - **Implementation**:
+    - Replaced raw user-id SSE fallback with short-lived signed stream tokens:
+      - new endpoint:
+        - `GET /api/v1/notifications/stream-token`
+      - stream connect:
+        - `GET /api/v1/notifications/stream?streamToken=...`
+      - token generation/validation added in:
+        - `services/core-api/src/main/java/com/finance/core/security/JwtTokenService.java`
+      - new runtime TTL:
+        - `app.auth.jwt.notification-stream-token-ttl`
+        - default `2 minutes`
+    - Notification SSE server hardening:
+      - `services/core-api/src/main/java/com/finance/core/service/NotificationService.java`
+      - creating a new emitter for the same user now completes the previous emitter
+      - stream sends initial `connected` event for explicit readiness detection
+    - Frontend notification dedupe:
+      - `apps/web/components/LiveNotificationProvider.tsx`
+      - incoming notifications are de-duplicated by notification id across STOMP/SSE/reconnect paths
+      - duplicate toasts are suppressed for already-known notifications
+    - Added regression coverage:
+      - `JwtTokenServiceTest`
+      - `NotificationControllerIntegrationTest`
+      - `NotificationServiceTest`
+  - **Operational impact**:
+    - SSE fallback is no longer trivially user-id spoofable.
+    - Client notification UX degrades more safely during reconnect/fallback scenarios, avoiding repeated rows/toasts.
 - **2026-03-05**: **Legacy BUY History Realized-PnL Backfill + Read-Path Normalization (Sixty-Seventh Pass)**
   - **Problem observed**:
     - Portfolio detail `Trade History` still showed `Realized P/L = -` for existing BUY rows created before the recent controller fix.

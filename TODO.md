@@ -5,6 +5,7 @@ Last updated: 2026-03-05
 ## In Progress
 - [ ] Redeploy staging after market-price fallback + portfolio equity calculation fix, then verify leaderboard P/L/return and portfolio detail P/L no longer freeze at false losses when Binance WS is sparse
 - [ ] Verify Flyway `V9__backfill_buy_trade_realized_pnl.sql` applied in staging and confirm legacy BUY history rows now render `0` instead of `-`
+- [ ] Redeploy backend/frontend after notification SSE stream-token hardening and verify WS->SSE fallback still delivers notifications without duplicates
 - [ ] Bootstrap Railway staging frontend service (`apps/web`), generate frontend domain, and wire `NEXT_PUBLIC_API_BASE_URL` to backend domain
 - [ ] Wire frontend runtime proxy env (`API_BASE_URL`) in Railway web service and verify `/api/v1/auth/*` and `/api/v1/leaderboards` no longer return Next.js 404
 - [ ] Switch frontend Railway deploy mode to Dockerfile fallback (`apps/web/Dockerfile`) to bypass Railpack `npm ci` lockfile mismatch and verify successful build/start on port 3000
@@ -30,6 +31,27 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Hardened notification fallback transport and client dedupe:
+  - SSE subscription no longer trusts raw `userId` query parameter
+  - Added short-lived signed notification stream token flow:
+    - backend: `GET /api/v1/notifications/stream-token`
+    - SSE connect: `GET /api/v1/notifications/stream?streamToken=...`
+  - Files:
+    - `services/core-api/src/main/java/com/finance/core/controller/NotificationController.java`
+    - `services/core-api/src/main/java/com/finance/core/security/JwtRuntimeProperties.java`
+    - `services/core-api/src/main/java/com/finance/core/security/JwtTokenService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/NotificationService.java`
+    - `apps/web/components/LiveNotificationProvider.tsx`
+  - Runtime hardening:
+    - notification stream token TTL introduced (`app.auth.jwt.notification-stream-token-ttl`, default `2m`)
+    - SSE emitter replacement now completes previous emitter for same user to avoid stale duplicate streams
+    - SSE emits initial `connected` event for explicit client readiness
+    - frontend de-duplicates incoming notifications by id across WS/SSE/reconnect paths
+    - duplicate toasts are suppressed for already-known notification ids
+  - Regression coverage:
+    - `services/core-api/src/test/java/com/finance/core/security/JwtTokenServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/NotificationControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/NotificationServiceTest.java`
 - [x] Fixed false-loss portfolio/leaderboard behavior when live market price cache is empty or stale:
   - Backend equity calculation now preserves open-position margin even when current price is unavailable:
     - `services/core-api/src/main/java/com/finance/core/service/PerformanceTrackingService.java`

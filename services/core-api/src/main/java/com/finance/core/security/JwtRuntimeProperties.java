@@ -17,6 +17,7 @@ public class JwtRuntimeProperties {
     private String issuer = "finance-core-api";
     private Duration accessTokenTtl = Duration.ofHours(12);
     private Duration refreshTokenTtl = Duration.ofDays(30);
+    private Duration notificationStreamTokenTtl = Duration.ofMinutes(2);
 
     /**
      * Transition flag:
@@ -41,5 +42,12 @@ public class JwtRuntimeProperties {
             return Duration.ofDays(30);
         }
         return refreshTokenTtl;
+    }
+
+    public Duration normalizedNotificationStreamTokenTtl() {
+        if (notificationStreamTokenTtl == null || notificationStreamTokenTtl.isZero() || notificationStreamTokenTtl.isNegative()) {
+            return Duration.ofMinutes(2);
+        }
+        return notificationStreamTokenTtl;
     }
 }

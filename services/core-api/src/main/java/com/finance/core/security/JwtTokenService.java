@@ -21,6 +21,8 @@ public class JwtTokenService {
 
     private static final Base64.Encoder URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
     private static final Base64.Decoder URL_DECODER = Base64.getUrlDecoder();
+    private static final String PURPOSE_ACCESS = "access";
+    private static final String PURPOSE_NOTIFICATION_STREAM = "notification-stream";
 
     private final JwtRuntimeProperties properties;
     private final ObjectMapper objectMapper;
@@ -46,7 +48,57 @@ public class JwtTokenService {
         return signingInput + "." + signature;
     }
 
+    public String generateNotificationStreamToken(UUID userId) {
+        Instant now = Instant.now();
+        Instant exp = now.plus(properties.normalizedNotificationStreamTokenTtl());
+
+        Map<String, Object> header = Map.of(
+                "alg", "HS256",
+                "typ", "JWT");
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sub", userId.toString());
+        payload.put("purpose", PURPOSE_NOTIFICATION_STREAM);
+        payload.put("iss", properties.getIssuer());
+        payload.put("iat", now.getEpochSecond());
+        payload.put("exp", exp.getEpochSecond());
+
+        String encodedHeader = base64UrlJson(header);
+        String encodedPayload = base64UrlJson(payload);
+        String signingInput = encodedHeader + "." + encodedPayload;
+        String signature = sign(signingInput);
+        return signingInput + "." + signature;
+    }
+
+    public UUID parseAndValidateNotificationStreamToken(String token) {
+        JsonNode payloadNode = parseAndValidatePayload(token);
+        String purpose = payloadNode.path("purpose").asText("");
+        if (!PURPOSE_NOTIFICATION_STREAM.equals(purpose)) {
+            throw new IllegalArgumentException("Invalid JWT purpose");
+        }
+        return parseUserId(payloadNode);
+    }
+
     public JwtTokenClaims parseAndValidate(String token) {
+        try {
+            JsonNode payloadNode = parseAndValidatePayload(token);
+            String purpose = payloadNode.path("purpose").asText(PURPOSE_ACCESS);
+            if (!PURPOSE_ACCESS.equals(purpose)) {
+                throw new IllegalArgumentException("Invalid JWT purpose");
+            }
+
+            UUID userId = parseUserId(payloadNode);
+            long issuedAt = payloadNode.path("iat").asLong(0L);
+            long expiresAt = payloadNode.path("exp").asLong(0L);
+            String username = payloadNode.path("preferred_username").asText("");
+            return new JwtTokenClaims(userId, username, issuedAt, expiresAt);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid JWT token");
+        }
+    }
+
+    private JsonNode parseAndValidatePayload(String token) {
         try {
             String[] parts = token != null ? token.split("\\.") : new String[0];
             if (parts.length != 3) {
@@ -76,14 +128,6 @@ public class JwtTokenService {
                 throw new IllegalArgumentException("Invalid JWT issuer");
             }
 
-            String rawSub = payloadNode.path("sub").asText();
-            UUID userId;
-            try {
-                userId = UUID.fromString(rawSub);
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Invalid JWT subject");
-            }
-
             long issuedAt = payloadNode.path("iat").asLong(0L);
             long expiresAt = payloadNode.path("exp").asLong(0L);
             long now = Instant.now().getEpochSecond();
@@ -94,12 +138,20 @@ public class JwtTokenService {
                 throw new IllegalArgumentException("JWT issued-at is invalid");
             }
 
-            String username = payloadNode.path("preferred_username").asText("");
-            return new JwtTokenClaims(userId, username, issuedAt, expiresAt);
+            return payloadNode;
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid JWT token");
+        }
+    }
+
+    private UUID parseUserId(JsonNode payloadNode) {
+        String rawSub = payloadNode.path("sub").asText();
+        try {
+            return UUID.fromString(rawSub);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid JWT subject");
         }
     }
 

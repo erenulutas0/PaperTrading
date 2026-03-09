@@ -38,7 +38,10 @@ public class NotificationService {
      */
     public SseEmitter createEmitter(UUID userId) {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
-        emitters.put(userId, emitter);
+        SseEmitter previous = emitters.put(userId, emitter);
+        if (previous != null) {
+            previous.complete();
+        }
 
         emitter.onCompletion(() -> {
             log.debug("SSE completion for user: {}", userId);
@@ -52,6 +55,15 @@ public class NotificationService {
             log.debug("SSE error for user: {}", userId, e);
             emitters.remove(userId);
         });
+
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("connected")
+                    .data(Map.of("status", "connected")));
+        } catch (IOException e) {
+            emitters.remove(userId);
+            throw new IllegalStateException("Failed to initialize notification stream", e);
+        }
 
         return emitter;
     }

@@ -113,6 +113,16 @@ class NotificationServiceTest {
     }
 
     @Test
+    void createEmitter_ShouldReplacePreviousEmitterForSameUser() {
+        SseEmitter first = notificationService.createEmitter(userId);
+        SseEmitter second = notificationService.createEmitter(userId);
+
+        assertNotNull(first);
+        assertNotNull(second);
+        assertNotSame(first, second);
+    }
+
+    @Test
     void getUnreadCount_ShouldReturnCount() {
         // Arrange
         when(notificationRepository.countByUserIdAndReadFalse(userId)).thenReturn(5L);

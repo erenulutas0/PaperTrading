@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import type { IMessage } from '@stomp/stompjs';
 import { wsHttpUrl } from '../lib/network';
 import { apiFetch } from '../lib/api-client';
@@ -75,14 +75,7 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [connected, setConnected] = useState(false);
-
-    // Auto-dismiss toasts after 5 seconds
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setToasts(prev => prev.filter(t => Date.now() - t.timestamp < 5000));
-        }, 1000);
-        return () => clearInterval(timer);
-    }, []);
+    const knownNotificationIdsRef = useRef<Set<string>>(new Set());
 
     const addToast = useCallback((notif: NotificationPayload) => {
         const toast: Toast = {
@@ -99,6 +92,37 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
             audio.volume = 0.3;
             audio.play().catch(() => { });
         } catch { }
+    }, []);
+
+    const mergeNotification = useCallback((notif: NotificationPayload) => {
+        const alreadyKnown = notif.id ? knownNotificationIdsRef.current.has(notif.id) : false;
+        setNotifications(prev => {
+            const exists = prev.some(existing => existing.id === notif.id);
+            if (exists) {
+                return prev.map(existing => existing.id === notif.id ? { ...existing, ...notif } : existing);
+            }
+            if (notif.id) {
+                knownNotificationIdsRef.current.add(notif.id);
+            }
+            return [notif, ...prev];
+        });
+        setUnreadCount(prev => (!alreadyKnown && !notif.read ? prev + 1 : prev));
+    }, []);
+
+    const handleIncomingNotification = useCallback((notif: NotificationPayload) => {
+        const alreadyKnown = notif.id ? knownNotificationIdsRef.current.has(notif.id) : false;
+        mergeNotification(notif);
+        if (!alreadyKnown) {
+            addToast(notif);
+        }
+    }, [addToast, mergeNotification]);
+
+    // Auto-dismiss toasts after 5 seconds
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setToasts(prev => prev.filter(t => Date.now() - t.timestamp < 5000));
+        }, 1000);
+        return () => clearInterval(timer);
     }, []);
 
     const dismissToast = useCallback((id: string) => {
@@ -144,6 +168,11 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
         // Fetch initial notifications
         apiFetch('/api/v1/notifications').then(res => res.json()).then(data => {
             if (data.content) {
+                knownNotificationIdsRef.current = new Set(
+                    (data.content as NotificationPayload[])
+                        .map(notification => notification.id)
+                        .filter((id): id is string => Boolean(id))
+                );
                 setNotifications(data.content);
                 setUnreadCount(data.content.filter((n: NotificationPayload) => !n.read).length);
             }
@@ -176,9 +205,7 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
                         const onNotification = (message: IMessage) => {
                             try {
                                 const notif = JSON.parse(message.body) as NotificationPayload;
-                                setNotifications(prev => [notif, ...prev]);
-                                setUnreadCount(prev => prev + 1);
-                                addToast(notif);
+                                handleIncomingNotification(notif);
                             } catch (e) {
                                 console.error('[WS] Failed to parse notification:', e);
                             }
@@ -222,15 +249,29 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
                 console.warn('[WS] WebSocket connection failed, falling back to SSE', e);
 
                 // 2. Fallback to SSE
-                const eventSource = new EventSource(`/api/v1/notifications/stream?userId=${userId}`);
+                const tokenResponse = await apiFetch('/api/v1/notifications/stream-token');
+                if (!tokenResponse.ok) {
+                    throw new Error(`stream-token-request-failed:${tokenResponse.status}`);
+                }
+                const tokenPayload = await tokenResponse.json();
+                const streamToken = tokenPayload.streamToken as string | undefined;
+                if (!streamToken) {
+                    throw new Error('stream-token-missing');
+                }
+
+                const eventSource = new EventSource(`/api/v1/notifications/stream?streamToken=${encodeURIComponent(streamToken)}`);
                 eventSource.addEventListener('notification', (e) => {
                     try {
                         const notif = JSON.parse(e.data);
-                        setNotifications(prev => [notif, ...prev]);
-                        setUnreadCount(prev => prev + 1);
-                        addToast(notif);
+                        handleIncomingNotification(notif);
                     } catch { }
                 });
+                eventSource.addEventListener('connected', () => {
+                    setConnected(true);
+                });
+                eventSource.onerror = () => {
+                    setConnected(false);
+                };
                 setConnected(true);
 
                 stompCleanup = () => {
@@ -244,7 +285,7 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
         return () => {
             stompCleanup?.();
         };
-    }, [addToast]);
+    }, [handleIncomingNotification]);
 
     return (
         <LiveNotificationContext.Provider value={{ notifications, toasts, unreadCount, dismissToast, markRead, markAllRead, connected }}>

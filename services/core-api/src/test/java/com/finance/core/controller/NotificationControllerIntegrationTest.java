@@ -289,4 +289,22 @@ class NotificationControllerIntegrationTest {
                                 .header("X-User-Id", userA.getId().toString()))
                                 .andExpect(status().isUnauthorized());
         }
+
+        @Test
+        void streamToken_WithBearerOnly_ShouldReturnShortLivedStreamToken() throws Exception {
+                String token = jwtTokenService.generateAccessToken(userB.getId(), userB.getUsername());
+
+                mockMvc.perform(get("/api/v1/notifications/stream-token")
+                                .header("Authorization", "Bearer " + token))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.streamToken", not(blankOrNullString())))
+                                .andExpect(jsonPath("$.expiresInSeconds").isNumber());
+        }
+
+        @Test
+        void subscribe_WithInvalidStreamToken_ShouldReturnBadRequest() throws Exception {
+                mockMvc.perform(get("/api/v1/notifications/stream")
+                                .param("streamToken", "invalid-token"))
+                                .andExpect(status().isBadRequest());
+        }
 }

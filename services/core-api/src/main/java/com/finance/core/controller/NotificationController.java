@@ -1,6 +1,8 @@
 package com.finance.core.controller;
 
 import com.finance.core.domain.Notification;
+import com.finance.core.security.JwtRuntimeProperties;
+import com.finance.core.security.JwtTokenService;
 import com.finance.core.service.NotificationService;
 import com.finance.core.web.CurrentUserId;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,8 @@ import java.util.UUID;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final JwtTokenService jwtTokenService;
+    private final JwtRuntimeProperties jwtRuntimeProperties;
 
     /**
      * Set up a Server-Sent Events (SSE) connection.
@@ -27,8 +31,18 @@ public class NotificationController {
      * "notification".
      */
     @GetMapping(value = "/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter subscribe(@RequestParam("userId") String userId) {
-        return notificationService.createEmitter(UUID.fromString(userId));
+    public SseEmitter subscribe(@RequestParam("streamToken") String streamToken) {
+        UUID userId = jwtTokenService.parseAndValidateNotificationStreamToken(streamToken);
+        return notificationService.createEmitter(userId);
+    }
+
+    @GetMapping("/stream-token")
+    public ResponseEntity<Map<String, Object>> getStreamToken(@CurrentUserId UUID userId) {
+        String streamToken = jwtTokenService.generateNotificationStreamToken(userId);
+        long expiresInSeconds = jwtRuntimeProperties.normalizedNotificationStreamTokenTtl().getSeconds();
+        return ResponseEntity.ok(Map.of(
+                "streamToken", streamToken,
+                "expiresInSeconds", expiresInSeconds));
     }
 
     /**
