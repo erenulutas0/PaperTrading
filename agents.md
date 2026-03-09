@@ -38,6 +38,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Global Dashboard Notification Shell + Follow-Back CTA (Seventieth Pass)**
+  - **Problem observed**:
+    - Notification bell was mounted only in selected page headers, not in the shared dashboard shell.
+    - Some of those page headers used `overflow-hidden`, which could clip the dropdown and make it appear "under" the page.
+    - This also made live-notification visibility feel inconsistent across dashboard sub-pages.
+  - **Implementation**:
+    - Moved bell entry-point into shared dashboard nav:
+      - `apps/web/app/dashboard/layout.tsx`
+    - Removed duplicated page-local bell instances:
+      - `apps/web/app/dashboard/page.tsx`
+      - `apps/web/app/dashboard/leaderboard/page.tsx`
+    - Strengthened bell overlay layering:
+      - `apps/web/components/NotificationBell.tsx`
+      - increased overlay z-index and kept dropdown outside clipping page sections
+    - Added inline social reciprocity action:
+      - `Follow back` button for `FOLLOW` notifications in:
+        - `apps/web/components/NotificationBell.tsx`
+        - `apps/web/app/notifications/page.tsx`
+  - **Operational impact**:
+    - Notification access is now consistent across the authenticated dashboard shell.
+    - The dropdown no longer depends on page-specific layout quirks.
+    - Social conversion from follow notifications is reduced to one click.
 - **2026-03-05**: **Bell Notification Inbox Preview UX Upgrade (Sixty-Ninth Pass)**
   - **Problem observed**:
     - Real-time notifications were functionally correct, but the bell dropdown still behaved like a shallow teaser.

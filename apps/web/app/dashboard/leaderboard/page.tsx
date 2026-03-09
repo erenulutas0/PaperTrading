@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import NotificationBell from '../../../components/NotificationBell';
 import { apiFetch } from '../../../lib/api-client';
 import {
     fetchUserPreferences,
@@ -174,7 +173,6 @@ export default function LeaderboardPage() {
                     <p className="text-zinc-500 text-sm mt-1">Top performing public portfolios by selected period performance</p>
                 </div>
                 <nav className="flex gap-4 items-center">
-                    <NotificationBell />
                     <button
                         onClick={handleManualRefresh}
                         disabled={refreshing}

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import TradeModal from '../../components/TradeModal';
 import ActivityFeed from '../../components/ActivityFeed';
-import NotificationBell from '../../components/NotificationBell';
 import { extractContent } from '../../lib/page';
 import { apiFetch } from '../../lib/api-client';
 
@@ -153,7 +152,6 @@ export default function Dashboard() {
             <header className="mb-10 flex justify-between items-center bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-2xl">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500 bg-clip-text text-transparent">Terminal</h1>
                 <div className="flex gap-6 items-center">
-                    <NotificationBell />
                     <Link href="/dashboard/analysis" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-green-400 transition-colors">Analyses</Link>
                     <Link href="/dashboard/leaderboard" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-green-400 transition-colors">Leaderboard</Link>
                     <Link href="/discover" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-blue-400 transition-colors">Discover</Link>

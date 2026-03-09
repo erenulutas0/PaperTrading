@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLiveNotifications } from '../../components/LiveNotificationProvider';
+import { apiFetch } from '../../lib/api-client';
 
 type FilterType = 'ALL' | 'FOLLOW' | 'PORTFOLIO' | 'POST' | 'PRICE_ALERT';
 
@@ -32,6 +33,9 @@ function formatRelativeTime(createdAt: string): string {
 export default function NotificationsPage() {
     const { notifications, unreadCount, markAllRead, markRead, connected } = useLiveNotifications();
     const [filter, setFilter] = useState<FilterType>('ALL');
+    const [followBackLoadingId, setFollowBackLoadingId] = useState<string | null>(null);
+    const [followedActorIds, setFollowedActorIds] = useState<Set<string>>(new Set());
+    const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
     const filtered = useMemo(
         () =>
@@ -121,6 +125,43 @@ export default function NotificationsPage() {
         { label: 'Posts', value: 'POST', icon: '📝' },
         { label: 'Price Alerts', value: 'PRICE_ALERT', icon: '🔔' },
     ];
+
+    const canFollowBack = (notification: NotificationItem) =>
+        notification.type === 'FOLLOW' &&
+        Boolean(notification.referenceId) &&
+        notification.referenceId !== currentUserId &&
+        !followedActorIds.has(notification.referenceId);
+
+    const handleFollowBack = async (notification: NotificationItem) => {
+        if (!notification.referenceId || !canFollowBack(notification)) {
+            return;
+        }
+
+        setFollowBackLoadingId(notification.id);
+        try {
+            const response = await apiFetch(`/api/v1/users/${notification.referenceId}/follow`, {
+                method: 'POST',
+            });
+
+            if (response.ok) {
+                setFollowedActorIds(prev => new Set(prev).add(notification.referenceId));
+                return;
+            }
+
+            const message = await response.text();
+            if (message.toLowerCase().includes('already following')) {
+                setFollowedActorIds(prev => new Set(prev).add(notification.referenceId));
+                return;
+            }
+
+            throw new Error(message || `Failed to follow user (${response.status})`);
+        } catch (error) {
+            console.error(error);
+            alert(error instanceof Error ? error.message : 'Could not follow user');
+        } finally {
+            setFollowBackLoadingId(null);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-background text-foreground">
@@ -217,6 +258,16 @@ export default function NotificationsPage() {
                                         </div>
                                     </div>
                                     <div className="flex shrink-0 flex-col items-end gap-2">
+                                        {canFollowBack(n) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleFollowBack(n)}
+                                                disabled={followBackLoadingId === n.id}
+                                                className="rounded-md border border-secondary/35 bg-secondary/10 px-2 py-1 text-[11px] font-medium text-secondary hover:bg-secondary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                {followBackLoadingId === n.id ? 'Following...' : 'Follow back'}
+                                            </button>
+                                        )}
                                         {!n.read ? (
                                             <button
                                                 onClick={() => void markRead(n.id)}

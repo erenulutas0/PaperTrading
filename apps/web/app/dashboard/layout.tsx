@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import NotificationBell from '../../components/NotificationBell';
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard' },
@@ -21,7 +22,7 @@ export default function DashboardLayout({
 
     return (
         <div className="min-h-screen bg-background text-foreground noise-bg">
-            <nav className="flex items-center justify-between px-6 py-4 border-b border-border glass-panel sticky top-0 z-50">
+            <nav className="flex items-center justify-between px-6 py-4 border-b border-border glass-panel sticky top-0 z-[80]">
                 <div className="flex items-center gap-8">
                     <Link href="/dashboard" className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center text-background font-bold">
@@ -50,8 +51,9 @@ export default function DashboardLayout({
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <NotificationBell />
                     <Link href="/notifications" className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent text-sm">
-                        Notifications
+                        Inbox
                     </Link>
                     <Link href="/" className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent text-sm">
                         Exit

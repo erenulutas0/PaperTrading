@@ -3,6 +3,7 @@
 Last updated: 2026-03-05
 
 ## In Progress
+- [ ] Redeploy frontend after global bell relocation + follow-back action and verify notifications are visible from all dashboard sub-pages without header clipping
 - [ ] Redeploy frontend after notification dropdown inbox-preview improvement and verify bell panel now supports scrollable recent notifications without forcing `View All`
 - [ ] Redeploy staging after market-price fallback + portfolio equity calculation fix, then verify leaderboard P/L/return and portfolio detail P/L no longer freeze at false losses when Binance WS is sparse
 - [ ] Verify Flyway `V9__backfill_buy_trade_realized_pnl.sql` applied in staging and confirm legacy BUY history rows now render `0` instead of `-`
@@ -32,6 +33,20 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Moved notification bell to shared dashboard navigation and added inline `Follow back` actions:
+  - Updated:
+    - `apps/web/app/dashboard/layout.tsx`
+    - `apps/web/components/NotificationBell.tsx`
+    - `apps/web/app/notifications/page.tsx`
+    - `apps/web/app/dashboard/page.tsx`
+    - `apps/web/app/dashboard/leaderboard/page.tsx`
+  - UX/behavior changes:
+    - bell now lives in shared dashboard header instead of page-local hero sections
+    - removes clipping risk from `overflow-hidden` page headers
+    - keeps notification access consistent across portfolio/detail/leaderboard/dashboard sub-pages
+    - follow notifications now expose inline `Follow back` action in both bell preview and full inbox
+  - Goal:
+    - make live notifications visible everywhere in the authenticated app shell and reduce friction on social reciprocity actions
 - [x] Improved bell notification UX so recent items are browsable inline without mandatory inbox navigation:
   - Updated:
     - `apps/web/components/NotificationBell.tsx`

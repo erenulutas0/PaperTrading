@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLiveNotifications } from './LiveNotificationProvider';
+import { apiFetch } from '../lib/api-client';
 
 interface NotificationItem {
     id: string;
@@ -30,6 +31,11 @@ function formatRelativeTime(createdAt: string): string {
 export default function NotificationBell() {
     const { notifications, unreadCount, markAllRead, markRead, connected } = useLiveNotifications();
     const [isOpen, setIsOpen] = useState(false);
+    const [followBackLoadingId, setFollowBackLoadingId] = useState<string | null>(null);
+    const [followedActorIds, setFollowedActorIds] = useState<Set<string>>(new Set());
+    const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+
+    const visibleNotifications = useMemo(() => notifications.slice(0, 30), [notifications]);
 
     const toggleOpen = () => {
         setIsOpen(!isOpen);
@@ -69,8 +75,45 @@ export default function NotificationBell() {
         }
     };
 
+    const canFollowBack = (n: NotificationItem) =>
+        n.type === 'FOLLOW' &&
+        Boolean(n.referenceId) &&
+        n.referenceId !== currentUserId &&
+        !followedActorIds.has(n.referenceId);
+
+    const handleFollowBack = async (notification: NotificationItem) => {
+        if (!notification.referenceId || !canFollowBack(notification)) {
+            return;
+        }
+
+        setFollowBackLoadingId(notification.id);
+        try {
+            const response = await apiFetch(`/api/v1/users/${notification.referenceId}/follow`, {
+                method: 'POST',
+            });
+
+            if (response.ok) {
+                setFollowedActorIds(prev => new Set(prev).add(notification.referenceId));
+                return;
+            }
+
+            const message = await response.text();
+            if (message.toLowerCase().includes('already following')) {
+                setFollowedActorIds(prev => new Set(prev).add(notification.referenceId));
+                return;
+            }
+
+            throw new Error(message || `Failed to follow user (${response.status})`);
+        } catch (error) {
+            console.error(error);
+            alert(error instanceof Error ? error.message : 'Could not follow user');
+        } finally {
+            setFollowBackLoadingId(null);
+        }
+    };
+
     return (
-        <div className="relative">
+        <div className="relative z-[120]">
             <button
                 onClick={toggleOpen}
                 className="relative p-2 text-zinc-400 hover:text-white transition-colors focus:outline-none group"
@@ -90,9 +133,9 @@ export default function NotificationBell() {
             {isOpen && (
                 <>
                     {/* Backdrop */}
-                    <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
+                    <div className="fixed inset-0 z-[110]" onClick={() => setIsOpen(false)}></div>
 
-                    <div className="absolute right-0 mt-2 w-[28rem] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl">
+                    <div className="absolute right-0 mt-2 w-[28rem] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-[120] overflow-hidden backdrop-blur-xl">
                         <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-black/40">
                             <div className="flex items-center gap-2">
                                 <h3 className="text-sm font-bold text-white uppercase tracking-widest">Notifications</h3>
@@ -121,23 +164,26 @@ export default function NotificationBell() {
                             Scroll recent activity
                         </div>
                         <div className="max-h-[32rem] overflow-y-auto pr-1 custom-scrollbar">
-                            {notifications.length === 0 ? (
+                            {visibleNotifications.length === 0 ? (
                                 <div className="p-8 text-center text-zinc-600 text-xs italic">
                                     No notifications yet.
                                 </div>
                             ) : (
-                                notifications.map(n => (
-                                    <Link
+                                visibleNotifications.map(n => (
+                                    <div
                                         key={n.id}
-                                        href={getLink(n)}
-                                        onClick={() => {
-                                            if (!n.read) {
-                                                void markRead(n.id);
-                                            }
-                                            setIsOpen(false);
-                                        }}
+                                        className={`p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors flex gap-3 ${!n.read ? 'bg-green-500/5' : ''}`}
                                     >
-                                        <div className={`p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors flex gap-3 ${!n.read ? 'bg-green-500/5' : ''}`}>
+                                        <Link
+                                            href={getLink(n)}
+                                            className="contents"
+                                            onClick={() => {
+                                                if (!n.read) {
+                                                    void markRead(n.id);
+                                                }
+                                                setIsOpen(false);
+                                            }}
+                                        >
                                             <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-sm shrink-0">
                                                 {getIcon(n.type)}
                                             </div>
@@ -153,8 +199,22 @@ export default function NotificationBell() {
                                                 </div>
                                             </div>
                                             {!n.read && <div className="w-2 h-2 rounded-full bg-green-500 ml-auto shrink-0 mt-1"></div>}
-                                        </div>
-                                    </Link>
+                                        </Link>
+                                        {canFollowBack(n) && (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.preventDefault();
+                                                    event.stopPropagation();
+                                                    void handleFollowBack(n);
+                                                }}
+                                                disabled={followBackLoadingId === n.id}
+                                                className="self-start shrink-0 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-300 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                {followBackLoadingId === n.id ? 'Following...' : 'Follow back'}
+                                            </button>
+                                        )}
+                                    </div>
                                 ))
                             )}
                         </div>
