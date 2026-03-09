@@ -171,11 +171,50 @@ public class PortfolioController {
         private java.math.BigDecimal amount;
     }
 
+    private BigDecimal resolveRealizedPnl(com.finance.core.domain.TradeActivity trade) {
+        if (trade.getRealizedPnl() != null) {
+            return trade.getRealizedPnl();
+        }
+
+        String type = trade.getType() != null ? trade.getType().toUpperCase() : "";
+        if (type.startsWith("BUY")) {
+            return BigDecimal.ZERO;
+        }
+
+        return null;
+    }
+
+    @lombok.Data
+    @lombok.Builder
+    static class TradeHistoryEntryResponse {
+        private UUID id;
+        private String symbol;
+        private String type;
+        private String side;
+        private BigDecimal quantity;
+        private BigDecimal price;
+        private BigDecimal realizedPnl;
+        private java.time.LocalDateTime timestamp;
+    }
+
     // --- History & Snapshots ---
 
     @GetMapping("/{id}/history")
     public ResponseEntity<?> getPortfolioHistory(@PathVariable UUID id) {
-        return ResponseEntity.ok(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(id));
+        List<TradeHistoryEntryResponse> history = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(id)
+                .stream()
+                .map(trade -> TradeHistoryEntryResponse.builder()
+                        .id(trade.getId())
+                        .symbol(trade.getSymbol())
+                        .type(trade.getType())
+                        .side(trade.getSide())
+                        .quantity(trade.getQuantity())
+                        .price(trade.getPrice())
+                        .realizedPnl(resolveRealizedPnl(trade))
+                        .timestamp(trade.getTimestamp())
+                        .build())
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(history);
     }
 
     @GetMapping("/{id}/snapshots")

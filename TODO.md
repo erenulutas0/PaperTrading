@@ -4,6 +4,7 @@ Last updated: 2026-03-05
 
 ## In Progress
 - [ ] Redeploy staging after market-price fallback + portfolio equity calculation fix, then verify leaderboard P/L/return and portfolio detail P/L no longer freeze at false losses when Binance WS is sparse
+- [ ] Verify Flyway `V9__backfill_buy_trade_realized_pnl.sql` applied in staging and confirm legacy BUY history rows now render `0` instead of `-`
 - [ ] Bootstrap Railway staging frontend service (`apps/web`), generate frontend domain, and wire `NEXT_PUBLIC_API_BASE_URL` to backend domain
 - [ ] Wire frontend runtime proxy env (`API_BASE_URL`) in Railway web service and verify `/api/v1/auth/*` and `/api/v1/leaderboards` no longer return Next.js 404
 - [ ] Switch frontend Railway deploy mode to Dockerfile fallback (`apps/web/Dockerfile`) to bypass Railpack `npm ci` lockfile mismatch and verify successful build/start on port 3000
@@ -49,7 +50,18 @@ Last updated: 2026-03-05
     - `services/core-api/src/test/java/com/finance/core/service/PerformanceCalculationServiceTest.java`
     - `services/core-api/src/test/java/com/finance/core/service/PerformanceTrackingServiceTest.java`
     - `services/core-api/src/test/java/com/finance/core/controller/TradeControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/PortfolioControllerIntegrationTest.java`
     - added test asserting missing market prices preserve entry-equity baseline (no false negative return)
+- [x] Normalized legacy BUY trade history rows that previously showed `Realized P/L = -`:
+  - Added Flyway data-fix migration:
+    - `services/core-api/src/main/resources/db/migration/V9__backfill_buy_trade_realized_pnl.sql`
+    - backfills `trade_activities.realized_pnl = 0` where `type LIKE 'BUY%'` and value was null
+  - Hardened history read path:
+    - `services/core-api/src/main/java/com/finance/core/controller/PortfolioController.java`
+    - `/api/v1/portfolios/{id}/history` now maps legacy null BUY realized P/L values to `0` on read
+  - Added regression coverage:
+    - `services/core-api/src/test/java/com/finance/core/controller/PortfolioControllerIntegrationTest.java`
+    - verifies legacy BUY/null history row is returned as `realizedPnl=0`
 - [x] Hardened staging API path against backend CORS rejections:
   - Frontend proxy update:
     - `apps/web/app/api/[...path]/route.ts`

@@ -2,6 +2,7 @@ package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.TradeRequest;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.TradeActivityRepository;
@@ -90,5 +91,24 @@ class PortfolioControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].items", hasSize(1)))
                 .andExpect(jsonPath("$.content[0].items[0].symbol").value("BTCUSDT"))
                 .andExpect(jsonPath("$.content[0].items[0].side").value("LONG"));
+    }
+
+    @Test
+    void getPortfolioHistory_shouldNormalizeLegacyBuyNullRealizedPnlToZero() throws Exception {
+        tradeActivityRepository.save(TradeActivity.builder()
+                .portfolioId(portfolio.getId())
+                .symbol("BTCUSDT")
+                .type("BUY")
+                .side("LONG")
+                .quantity(BigDecimal.valueOf(0.1))
+                .price(BigDecimal.valueOf(50000))
+                .realizedPnl(null)
+                .build());
+
+        mockMvc.perform(get("/api/v1/portfolios/{id}/history", portfolio.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].type").value("BUY"))
+                .andExpect(jsonPath("$[0].realizedPnl").value(0));
     }
 }

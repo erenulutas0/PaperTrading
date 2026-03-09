@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-05**: **Legacy BUY History Realized-PnL Backfill + Read-Path Normalization (Sixty-Seventh Pass)**
+  - **Problem observed**:
+    - Portfolio detail `Trade History` still showed `Realized P/L = -` for existing BUY rows created before the recent controller fix.
+    - Root cause: historical `trade_activities` rows had `realized_pnl = null`, and the UI interpreted that as missing value.
+  - **Implementation**:
+    - Added data backfill migration:
+      - `services/core-api/src/main/resources/db/migration/V9__backfill_buy_trade_realized_pnl.sql`
+      - sets `realized_pnl = 0` for legacy rows where `type LIKE 'BUY%'` and `realized_pnl IS NULL`
+    - Hardened history response:
+      - `services/core-api/src/main/java/com/finance/core/controller/PortfolioController.java`
+      - `/api/v1/portfolios/{id}/history` now maps legacy BUY/null rows to `realizedPnl=0` on read
+      - endpoint now returns a stable history DTO instead of raw entity exposure for this path
+    - Added regression coverage:
+      - `services/core-api/src/test/java/com/finance/core/controller/PortfolioControllerIntegrationTest.java`
+      - verifies legacy BUY history row is surfaced with `realizedPnl=0`
+  - **Operational impact**:
+    - Existing staged portfolios no longer depend on fresh trade recreation to show sane BUY realized P/L values.
+    - Flyway migration plus read-path normalization gives both data repair and backwards-safe API output.
 - **2026-03-05**: **False-Loss Portfolio/Leaderboard Fix Under Sparse Market Prices (Sixty-Sixth Pass)**
   - **Problem observed**:
     - In staging, portfolios with open positions appeared as fixed losses and leaderboard `P/L` / `return` often stayed at `0`.
