@@ -4,11 +4,14 @@ import com.finance.core.domain.Notification;
 import com.finance.core.security.JwtRuntimeProperties;
 import com.finance.core.security.JwtTokenService;
 import com.finance.core.service.NotificationService;
+import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.CurrentUserId;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -75,12 +78,20 @@ public class NotificationController {
     }
 
     @PostMapping("/{notificationId}/mark-read")
-    public ResponseEntity<Void> markAsRead(
+    public ResponseEntity<?> markAsRead(
             @CurrentUserId UUID userId,
-            @PathVariable("notificationId") String notificationId) {
+            @PathVariable("notificationId") String notificationId,
+            HttpServletRequest httpRequest) {
         boolean marked = notificationService.markAsRead(
                 userId,
                 UUID.fromString(notificationId));
-        return marked ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
+        return marked
+                ? ResponseEntity.ok().build()
+                : ApiErrorResponses.build(
+                        HttpStatus.NOT_FOUND,
+                        "notification_not_found",
+                        "Notification not found",
+                        null,
+                        httpRequest);
     }
 }

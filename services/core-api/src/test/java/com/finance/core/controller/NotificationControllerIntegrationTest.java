@@ -266,8 +266,13 @@ class NotificationControllerIntegrationTest {
                                 .andExpect(jsonPath("$.count").value(0));
 
                 mockMvc.perform(post("/api/v1/notifications/{notificationId}/mark-read", target.getId())
+                                .header("X-Request-Id", "notif-err-1")
                                 .header("X-User-Id", userA.getId().toString()))
-                                .andExpect(status().isNotFound());
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "notif-err-1"))
+                                .andExpect(jsonPath("$.code").value("notification_not_found"))
+                                .andExpect(jsonPath("$.message").value("Notification not found"))
+                                .andExpect(jsonPath("$.requestId").value("notif-err-1"));
         }
 
         @Test

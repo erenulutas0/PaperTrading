@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Notification Error Path Normalization Completed (Seventy-Ninth Pass)**
+  - **Problem observed**:
+    - After controller-wide cleanup, `NotificationController.markAsRead` still returned an empty `404`.
+    - This was a small but visible inconsistency in a high-frequency UI path.
+  - **Implementation**:
+    - Updated:
+      - `NotificationController`
+      - `NotificationControllerIntegrationTest`
+    - Not-found mark-read now emits:
+      - `code=notification_not_found`
+      - `message=Notification not found`
+      - `requestId`
+  - **Operational impact**:
+    - first-pass controller error normalization now covers notification flows too.
+    - backend is in a better place to start emitting audit events and correlation-aware logs without mixed response semantics in the main product paths.
 - **2026-03-10**: **Expanded Unified Error Contract to Core Trading/Social Controllers (Seventy-Eighth Pass)**
   - **Problem observed**:
     - First-pass error normalization covered auth/filter/global exception paths, but several core controllers still returned:

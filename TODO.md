@@ -3,6 +3,7 @@
 Last updated: 2026-03-10
 
 ## In Progress
+- [ ] Redeploy backend after notification error cleanup and verify unread-count/mark-read paths now use the same correlated error contract as other controllers
 - [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
 - [ ] Redeploy backend after request-correlation + unified error contract rollout and verify `X-Request-Id` is echoed on errors plus auth failures now return `{code,message,details?,requestId}`
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
@@ -42,6 +43,14 @@ Last updated: 2026-03-10
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Removed remaining empty `404` from notification mark-read path:
+  - Updated:
+    - `NotificationController`
+    - `NotificationControllerIntegrationTest`
+  - Behavior:
+    - `POST /api/v1/notifications/{id}/mark-read` now returns correlated `notification_not_found` error payload instead of empty `404`
+  - Goal:
+    - finish first-pass controller error normalization before moving to audit logging
 - [x] Extended unified error contract into core user-facing controllers:
   - Updated:
     - `PortfolioController`
