@@ -157,6 +157,10 @@ app:
     interaction-comment-capacity: ${APP_RATE_LIMIT_INTERACTION_COMMENT_CAPACITY:12}
     interaction-like-capacity: ${APP_RATE_LIMIT_INTERACTION_LIKE_CAPACITY:60}
     social-follow-capacity: ${APP_RATE_LIMIT_SOCIAL_FOLLOW_CAPACITY:20}
+  idempotency:
+    enabled: ${APP_IDEMPOTENCY_ENABLED:true}
+    ttl: ${APP_IDEMPOTENCY_TTL:PT24H}
+    max-body-bytes: ${APP_IDEMPOTENCY_MAX_BODY_BYTES:65536}
   shedlock:
     observability:
       enabled: ${APP_SHEDLOCK_OBSERVABILITY_ENABLED:true}

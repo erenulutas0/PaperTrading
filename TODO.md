@@ -3,6 +3,7 @@
 Last updated: 2026-03-10
 
 ## In Progress
+- [ ] Redeploy backend after idempotency-key rollout and verify duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
 - [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
 - [ ] Redeploy backend after notification error cleanup and verify unread-count/mark-read paths now use the same correlated error contract as other controllers
 - [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
@@ -35,6 +36,7 @@ Last updated: 2026-03-10
 - [ ] Monitor runtime for one sprint and tune pool/cache TTL values using real traffic metrics
 
 ## Next
+- [ ] Add cleanup/inspection path for expired idempotency records once staging verifies replay semantics under real duplicate-submit scenarios
 - [ ] Add audit-log read tooling (admin/report/export or actuator-style inspection path) once write-path capture is stable in staging
 - [ ] Add test/log hardening for canary failure-path tests (reduce expected-failure warning noise in CI logs)
 - [ ] If strict real-time follower fanout is required again, introduce versioned feed cache keys to avoid pattern-scan invalidation costs in eager mode
@@ -45,6 +47,22 @@ Last updated: 2026-03-10
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
+  - Added:
+    - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`
+    - `services/core-api/src/main/java/com/finance/core/domain/IdempotencyKeyRecord.java`
+    - `services/core-api/src/main/java/com/finance/core/repository/IdempotencyKeyRepository.java`
+    - `services/core-api/src/main/java/com/finance/core/config/IdempotencyProperties.java`
+    - `services/core-api/src/main/java/com/finance/core/service/IdempotencyService.java`
+    - `services/core-api/src/main/java/com/finance/core/config/IdempotencyKeyFilter.java`
+    - `services/core-api/src/test/java/com/finance/core/config/IdempotencyKeyFilterIntegrationTest.java`
+  - Behavior:
+    - protects write requests under `/api/v1/**` except `/api/v1/auth/**`
+    - same `Idempotency-Key` + same actor/method/path/payload replays the stored successful `2xx` response
+    - same key reused with a different request fingerprint returns correlated `409 idempotency_key_reused`
+    - non-`2xx` responses are not cached, so retries can proceed normally
+  - Goal:
+    - prevent accidental double writes for trades/social actions/portfolio mutations before moving to admin inspection and cleanup tooling
 - [x] Added append-only audit log foundation for critical write paths:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V11__create_audit_logs_table.sql`

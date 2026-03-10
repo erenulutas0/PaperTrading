@@ -23,12 +23,15 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final RequestCorrelationFilter requestCorrelationFilter;
+    private final IdempotencyKeyFilter idempotencyKeyFilter;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            RequestCorrelationFilter requestCorrelationFilter) {
+            RequestCorrelationFilter requestCorrelationFilter,
+            IdempotencyKeyFilter idempotencyKeyFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.requestCorrelationFilter = requestCorrelationFilter;
+        this.idempotencyKeyFilter = idempotencyKeyFilter;
     }
 
     @Bean
@@ -40,7 +43,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .anyRequest().permitAll())
                 .addFilterBefore(requestCorrelationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(jwtAuthenticationFilter, RequestCorrelationFilter.class);
+                .addFilterAfter(jwtAuthenticationFilter, RequestCorrelationFilter.class)
+                .addFilterAfter(idempotencyKeyFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 

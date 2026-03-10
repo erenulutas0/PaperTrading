@@ -38,6 +38,35 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Backend Idempotency-Key Filter for Critical Writes (Eighty-First Pass)**
+  - **Problem observed**:
+    - Request correlation and audit logging were in place, but duplicate-submit protection was still missing.
+    - Critical write endpoints could still double-apply on browser retries, racey double-clicks, or client/network retry loops.
+  - **Implementation**:
+    - Added Flyway migration:
+      - `V12__create_idempotency_keys_table.sql`
+    - Added idempotency runtime components:
+      - `IdempotencyKeyRecord`
+      - `IdempotencyKeyRepository`
+      - `IdempotencyProperties`
+      - `IdempotencyService`
+      - `IdempotencyKeyFilter`
+    - Filter behavior:
+      - applies to write requests under `/api/v1/**`
+      - excludes `/api/v1/auth/**`
+      - uses `actorScope + Idempotency-Key` as the identity bucket
+      - fingerprints request by `method + path + payload hash`
+      - on duplicate same request:
+        - replays cached successful `2xx` response
+        - sets `X-Idempotent-Replay: true`
+      - on duplicate different request:
+        - returns `409 idempotency_key_reused`
+      - `4xx/5xx` responses are not cached; only successful writes are replayable
+    - Added regression coverage:
+      - `IdempotencyKeyFilterIntegrationTest`
+  - **Operational impact**:
+    - common duplicate-submit classes are now blocked at the HTTP boundary before business code re-executes.
+    - keeping auth endpoints out of scope avoids accidental token/login response replay while still hardening money-like and social write paths.
 - **2026-03-10**: **Append-Only Audit Log Foundation for Critical Writes (Eightieth Pass)**
   - **Problem observed**:
     - The product promise is "timestamped, immutable, auditable", but critical write paths still had no first-class audit store.
