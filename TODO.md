@@ -1,8 +1,10 @@
 # TODO - Core API Reliability & Scalability Sweep
 
-Last updated: 2026-03-05
+Last updated: 2026-03-10
 
 ## In Progress
+- [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
+- [ ] Migrate remaining local load/smoke tooling off legacy `X-User-Id` auth (`lightweight_baseline.ps1`, `validate_websocket_relay_smoke.ps1`) before enforcing strict-mode across all operational scripts
 - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [ ] Redeploy backend after reverting accidental `V3` migration edit and verify Flyway validation passes with `COMMENT` support coming only from `V10`
 - [ ] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
@@ -37,6 +39,18 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Removed legacy `X-User-Id` fallback from primary web client/runtime paths:
+  - Updated:
+    - `apps/web/lib/api-client.ts`
+    - `apps/web/components/LiveNotificationProvider.tsx`
+    - `apps/web/app/tournaments/[id]/hub/page.tsx`
+  - Behavior:
+    - browser API calls now attach only Bearer token from local storage
+    - refresh retry path no longer re-injects `X-User-Id`
+    - notification and tournament websocket connects now require Bearer token instead of silently falling back to legacy header auth
+    - auth-clear path now removes stored `userId` and `username` along with tokens to avoid stale pseudo-session state
+  - Goal:
+    - make staged web traffic compatible with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` before strict-mode rollout
 - [x] Hardened backend rate limiting for high-risk write paths:
   - Updated:
     - `services/core-api/src/main/java/com/finance/core/config/RateLimitFilter.java`

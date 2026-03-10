@@ -14,10 +14,10 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-05)
+### Progress Tracker (updated 2026-03-10)
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + legacy `X-User-Id` bridge fallback (REST + STOMP) + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
+| Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
 | Portfolio CRUD | ✅ Done | Create, delete, deposit |
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
 | Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling |
@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Token-Only Web Client Auth Readiness for Strict-Mode Rollout (Seventy-Fifth Pass)**
+  - **Problem observed**:
+    - Backend already supports strict mode via `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`, but primary web client/runtime paths still silently fell back to `X-User-Id` when access token was missing.
+    - That meant staging browser traffic could still depend on a legacy bridge even after JWT rollout was functionally complete.
+  - **Implementation**:
+    - Updated:
+      - `apps/web/lib/api-client.ts`
+      - `apps/web/components/LiveNotificationProvider.tsx`
+      - `apps/web/app/tournaments/[id]/hub/page.tsx`
+    - Browser API path now injects only Bearer token; retry flow no longer re-adds `X-User-Id`.
+    - Notification and tournament websocket connects now require Bearer token instead of using legacy header fallback.
+    - Client-side auth clear now also removes persisted `userId` / `username` to avoid stale pseudo-session state after refresh failure/logout-like flows.
+  - **Operational impact**:
+    - Staging web traffic is now structurally compatible with strict-mode auth enforcement.
+    - Remaining strict-mode risk is shifted to local tooling and ad hoc scripts that still use `X-User-Id`, which must be migrated separately before global enforcement.
 - **2026-03-10**: **Endpoint-Aware Rate Limiting for Social/Auth Writes (Seventy-Fourth Pass)**
   - **Problem observed**:
     - Existing rate limiting used a single IP bucket for all traffic.

@@ -164,7 +164,7 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
     useEffect(() => {
         const userId = localStorage.getItem('userId');
         const accessToken = localStorage.getItem('accessToken');
-        if (!userId) return;
+        if (!userId || !accessToken) return;
 
         // Fetch initial notifications
         apiFetch('/api/v1/notifications').then(res => res.json()).then(data => {
@@ -236,11 +236,7 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
                 const { Client } = await import('@stomp/stompjs');
                 const SockJS = (await import('sockjs-client')).default;
                 const connectHeaders: Record<string, string> = {};
-                if (accessToken) {
-                    connectHeaders.Authorization = `Bearer ${accessToken}`;
-                } else {
-                    connectHeaders['X-User-Id'] = userId;
-                }
+                connectHeaders.Authorization = `Bearer ${accessToken}`;
 
                 const client = new Client({
                     webSocketFactory: () => new SockJS(wsHttpUrl('/ws')) as WebSocket,

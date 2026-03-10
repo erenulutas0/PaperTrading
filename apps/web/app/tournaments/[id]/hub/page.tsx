@@ -119,12 +119,10 @@ export default function TournamentHubPage() {
     useEffect(() => {
         if (!tournamentId) return;
         const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-        const connectHeaders: Record<string, string> = {};
-        if (accessToken) {
-            connectHeaders.Authorization = `Bearer ${accessToken}`;
-        } else if (currentUserId) {
-            connectHeaders['X-User-Id'] = currentUserId;
-        }
+        if (!accessToken) return;
+        const connectHeaders: Record<string, string> = {
+            Authorization: `Bearer ${accessToken}`,
+        };
 
         const client = new Client({
             brokerURL: wsBrokerUrl('/ws'),
@@ -156,7 +154,7 @@ export default function TournamentHubPage() {
         return () => {
             if (client.active) client.deactivate();
         };
-    }, [currentUserId, refreshLeaderboard, tournamentId]);
+    }, [refreshLeaderboard, tournamentId]);
 
     useEffect(() => {
         if (!tournamentId) return;

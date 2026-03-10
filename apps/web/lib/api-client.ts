@@ -7,14 +7,9 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
 
   if (typeof window !== "undefined") {
     const accessToken = window.localStorage.getItem("accessToken");
-    const userId = window.localStorage.getItem("userId");
 
     if (accessToken && !hasHeader(headers, "Authorization")) {
       headers["Authorization"] = `Bearer ${accessToken}`;
-    }
-    // Transitional fallback only when token is absent.
-    if (!accessToken && userId && !hasHeader(headers, "X-User-Id")) {
-      headers["X-User-Id"] = userId;
     }
   }
 
@@ -40,12 +35,8 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
 
   const retryHeaders = normalizeHeaders(init?.headers);
   const refreshedAccessToken = window.localStorage.getItem("accessToken");
-  const userId = window.localStorage.getItem("userId");
   if (refreshedAccessToken && !hasHeader(retryHeaders, "Authorization")) {
     retryHeaders["Authorization"] = `Bearer ${refreshedAccessToken}`;
-  }
-  if (!refreshedAccessToken && userId && !hasHeader(retryHeaders, "X-User-Id")) {
-    retryHeaders["X-User-Id"] = userId;
   }
   retryHeaders["X-Auth-Refresh-Retry"] = "1";
 
@@ -56,16 +47,8 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
 }
 
 export function userIdHeaders(userId: string | null, base?: HeadersInit): HeadersInit {
-  const headers = normalizeHeaders(base);
-  const hasAccessToken =
-    typeof window !== "undefined" && Boolean(window.localStorage.getItem("accessToken"));
-
-  // Transitional fallback only when token is absent.
-  if (!hasAccessToken && userId && !hasHeader(headers, "X-User-Id")) {
-    headers["X-User-Id"] = userId;
-  }
-
-  return headers;
+  void userId;
+  return normalizeHeaders(base);
 }
 
 function normalizeHeaders(base?: HeadersInit): Record<string, string> {
@@ -172,4 +155,6 @@ function clearStoredTokens() {
   }
   window.localStorage.removeItem("accessToken");
   window.localStorage.removeItem("refreshToken");
+  window.localStorage.removeItem("userId");
+  window.localStorage.removeItem("username");
 }
