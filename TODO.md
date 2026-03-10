@@ -3,6 +3,7 @@
 Last updated: 2026-03-05
 
 ## In Progress
+- [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [ ] Redeploy backend after reverting accidental `V3` migration edit and verify Flyway validation passes with `COMMENT` support coming only from `V10`
 - [ ] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
 - [ ] Redeploy backend/frontend after comment-thread interaction upgrade and verify portfolio/post comments now support comment likes + replies with sane notifications and root-page links
@@ -36,6 +37,22 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Hardened backend rate limiting for high-risk write paths:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/config/RateLimitFilter.java`
+    - `services/core-api/src/main/resources/application.yml`
+    - `services/core-api/src/test/java/com/finance/core/config/RateLimitFilterTest.java`
+  - Changes:
+    - proxy-aware client IP resolution via `X-Forwarded-For`
+    - endpoint-aware buckets for:
+      - auth refresh
+      - interaction comments/replies
+      - interaction likes
+      - follow/unfollow
+    - sensitive write buckets key on bearer/header identity hints instead of only remote IP
+    - default read traffic keeps existing broader bucket
+  - Goal:
+    - reduce abuse blast radius on social/auth write endpoints without over-throttling normal product reads behind shared proxy IPs
 - [x] Reverted accidental edit to already-applied Flyway `V3` migration:
   - Updated:
     - `services/core-api/src/main/resources/db/migration/V3__bootstrap_core_schema.sql`

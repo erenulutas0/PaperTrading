@@ -38,6 +38,38 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Endpoint-Aware Rate Limiting for Social/Auth Writes (Seventy-Fourth Pass)**
+  - **Problem observed**:
+    - Existing rate limiting used a single IP bucket for all traffic.
+    - This is too coarse behind proxies/NAT and too soft for abuse-prone write paths such as:
+      - auth refresh
+      - comment/reply spam
+      - like spam
+      - follow churn
+  - **Implementation**:
+    - Updated:
+      - `services/core-api/src/main/java/com/finance/core/config/RateLimitFilter.java`
+      - `services/core-api/src/main/resources/application.yml`
+    - Added request profile classification:
+      - `AUTH_REFRESH`
+      - `INTERACTION_COMMENT`
+      - `INTERACTION_LIKE`
+      - `SOCIAL_FOLLOW`
+      - `DEFAULT`
+    - Added proxy-aware client IP extraction via `X-Forwarded-For`.
+    - Sensitive write buckets now prefer identity hints (`Authorization` hash or legacy header) over raw remote IP alone.
+    - Added config surface:
+      - `APP_RATE_LIMIT_DEFAULT_CAPACITY`
+      - `APP_RATE_LIMIT_AUTH_REFRESH_CAPACITY`
+      - `APP_RATE_LIMIT_INTERACTION_COMMENT_CAPACITY`
+      - `APP_RATE_LIMIT_INTERACTION_LIKE_CAPACITY`
+      - `APP_RATE_LIMIT_SOCIAL_FOLLOW_CAPACITY`
+    - Added regression coverage:
+      - `RateLimitFilterTest`
+  - **Operational impact**:
+    - Shared-proxy traffic is less likely to over-throttle normal reads.
+    - Abuse-prone write paths now hit tighter, purpose-built buckets.
+    - This is a more production-credible baseline than a single undifferentiated IP limiter.
 - **2026-03-10**: **Flyway Checksum Discipline Fix for Comment-Thread Rollout (Seventy-Third Pass)**
   - **Problem observed**:
     - Railway backend crashed during Flyway validation with:

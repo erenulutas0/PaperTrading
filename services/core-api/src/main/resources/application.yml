@@ -151,6 +151,12 @@ app:
         - /api/v1/feed/global
         - /api/v1/feed
         - /api/v1/feed/user/{userId}
+  rate-limit:
+    default-capacity: ${APP_RATE_LIMIT_DEFAULT_CAPACITY:50}
+    auth-refresh-capacity: ${APP_RATE_LIMIT_AUTH_REFRESH_CAPACITY:20}
+    interaction-comment-capacity: ${APP_RATE_LIMIT_INTERACTION_COMMENT_CAPACITY:12}
+    interaction-like-capacity: ${APP_RATE_LIMIT_INTERACTION_LIKE_CAPACITY:60}
+    social-follow-capacity: ${APP_RATE_LIMIT_SOCIAL_FOLLOW_CAPACITY:20}
   shedlock:
     observability:
       enabled: ${APP_SHEDLOCK_OBSERVABILITY_ENABLED:true}
