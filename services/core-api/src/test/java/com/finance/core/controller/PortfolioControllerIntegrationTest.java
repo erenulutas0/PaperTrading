@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -110,5 +111,22 @@ class PortfolioControllerIntegrationTest {
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].type").value("BUY"))
                 .andExpect(jsonPath("$[0].realizedPnl").value(0));
+    }
+
+    @Test
+    void deposit_withNonPositiveAmount_shouldReturnUnifiedErrorContract() throws Exception {
+        mockMvc.perform(post("/api/v1/portfolios/{id}/deposit", portfolio.getId())
+                        .header("X-Request-Id", "portfolio-err-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "amount": 0
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_deposit_amount"))
+                .andExpect(jsonPath("$.message").value("Amount must be positive"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-1"));
     }
 }

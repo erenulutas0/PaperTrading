@@ -4,12 +4,15 @@ import com.finance.core.domain.Badge;
 import com.finance.core.domain.Tournament;
 import com.finance.core.service.TournamentService;
 import com.finance.core.repository.TournamentRepository;
+import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.CurrentUserId;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,7 +44,7 @@ public class TournamentController {
 
     /** Create a new tournament (admin-like) */
     @PostMapping
-    public ResponseEntity<?> createTournament(@RequestBody CreateTournamentRequest request) {
+    public ResponseEntity<?> createTournament(@RequestBody CreateTournamentRequest request, HttpServletRequest httpRequest) {
         try {
             Tournament tournament = tournamentService.createTournament(
                     request.getName(),
@@ -51,7 +54,7 @@ public class TournamentController {
                     request.getEndsAt());
             return ResponseEntity.ok(tournament);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_create_failed", e.getMessage(), null, httpRequest);
         }
     }
 
@@ -59,12 +62,13 @@ public class TournamentController {
     @PostMapping("/{tournamentId}/join")
     public ResponseEntity<?> joinTournament(
             @PathVariable UUID tournamentId,
-            @CurrentUserId UUID userId) {
+            @CurrentUserId UUID userId,
+            HttpServletRequest httpRequest) {
         try {
             Map<String, Object> result = tournamentService.joinTournament(tournamentId, userId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_join_failed", e.getMessage(), null, httpRequest);
         }
     }
 
@@ -72,39 +76,51 @@ public class TournamentController {
     @GetMapping("/{tournamentId}/participant")
     public ResponseEntity<?> getParticipantInfo(
             @PathVariable UUID tournamentId,
-            @CurrentUserId UUID userId) {
+            @CurrentUserId UUID userId,
+            HttpServletRequest httpRequest) {
         return tournamentService.getParticipantInfo(tournamentId, userId)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseGet(() -> ApiErrorResponses.build(
+                        HttpStatus.NOT_FOUND,
+                        "tournament_participant_not_found",
+                        "Tournament participant not found",
+                        null,
+                        httpRequest));
     }
 
     /** Get live tournament leaderboard */
     @GetMapping("/{tournamentId}/leaderboard")
-    public ResponseEntity<?> getLeaderboard(@PathVariable UUID tournamentId) {
+    public ResponseEntity<?> getLeaderboard(@PathVariable UUID tournamentId, HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(tournamentService.getTournamentLeaderboard(tournamentId));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_leaderboard_failed", e.getMessage(), null, httpRequest);
         }
     }
 
     /** Get tournament details */
     @GetMapping("/{tournamentId}")
-    public ResponseEntity<?> getTournament(@PathVariable UUID tournamentId) {
+    public ResponseEntity<?> getTournament(@PathVariable UUID tournamentId, HttpServletRequest httpRequest) {
         return tournamentRepository.findById(tournamentId)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseGet(() -> ApiErrorResponses.build(
+                        HttpStatus.NOT_FOUND,
+                        "tournament_not_found",
+                        "Tournament not found",
+                        null,
+                        httpRequest));
     }
 
     /** Get live tournament combat feed (recent trades) */
     @GetMapping("/{tournamentId}/trades")
     public ResponseEntity<?> getTournamentTrades(
             @PathVariable UUID tournamentId,
-            @RequestParam(defaultValue = "15") int limit) {
+            @RequestParam(defaultValue = "15") int limit,
+            HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(tournamentService.getTournamentTrades(tournamentId, limit));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_trades_failed", e.getMessage(), null, httpRequest);
         }
     }
 

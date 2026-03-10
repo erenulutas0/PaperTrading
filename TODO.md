@@ -3,6 +3,7 @@
 Last updated: 2026-03-10
 
 ## In Progress
+- [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
 - [ ] Redeploy backend after request-correlation + unified error contract rollout and verify `X-Request-Id` is echoed on errors plus auth failures now return `{code,message,details?,requestId}`
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
 - [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance
@@ -41,6 +42,18 @@ Last updated: 2026-03-10
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Extended unified error contract into core user-facing controllers:
+  - Updated:
+    - `PortfolioController`
+    - `TradeController`
+    - `TournamentController`
+    - `WatchlistController`
+  - Behavior:
+    - common bad-request and not-found flows no longer return raw strings or empty `404`
+    - portfolio/trade/tournament/watchlist errors now return the shared error shape with request correlation
+  - Coverage:
+    - `TradeControllerIntegrationTest`
+    - `PortfolioControllerIntegrationTest`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

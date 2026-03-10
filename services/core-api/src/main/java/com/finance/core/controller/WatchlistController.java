@@ -3,9 +3,12 @@ package com.finance.core.controller;
 import com.finance.core.domain.Watchlist;
 import com.finance.core.domain.WatchlistItem;
 import com.finance.core.service.WatchlistService;
+import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.CurrentUserId;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,12 +43,13 @@ public class WatchlistController {
     @DeleteMapping("/{watchlistId}")
     public ResponseEntity<?> deleteWatchlist(
             @PathVariable UUID watchlistId,
-            @CurrentUserId UUID userId) {
+            @CurrentUserId UUID userId,
+            HttpServletRequest httpRequest) {
         try {
             watchlistService.deleteWatchlist(watchlistId, userId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_delete_failed", e.getMessage(), null, httpRequest);
         }
     }
 
@@ -54,7 +58,8 @@ public class WatchlistController {
     public ResponseEntity<?> addItem(
             @PathVariable UUID watchlistId,
             @CurrentUserId UUID userId,
-            @RequestBody AddItemRequest request) {
+            @RequestBody AddItemRequest request,
+            HttpServletRequest httpRequest) {
         try {
             WatchlistItem item = watchlistService.addItem(
                     watchlistId, userId,
@@ -64,7 +69,7 @@ public class WatchlistController {
                     request.getNotes());
             return ResponseEntity.ok(item);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_add_item_failed", e.getMessage(), null, httpRequest);
         }
     }
 
@@ -79,13 +84,14 @@ public class WatchlistController {
     @PutMapping("/items/{itemId}/alerts")
     public ResponseEntity<?> updateAlerts(
             @PathVariable UUID itemId,
-            @RequestBody UpdateAlertsRequest request) {
+            @RequestBody UpdateAlertsRequest request,
+            HttpServletRequest httpRequest) {
         try {
             WatchlistItem updated = watchlistService.updateAlerts(itemId, request.getAlertPriceAbove(),
                     request.getAlertPriceBelow());
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_update_alerts_failed", e.getMessage(), null, httpRequest);
         }
     }
 
@@ -93,12 +99,13 @@ public class WatchlistController {
     @GetMapping("/{watchlistId}/items")
     public ResponseEntity<?> getEnrichedItems(
             @PathVariable UUID watchlistId,
-            @CurrentUserId UUID userId) {
+            @CurrentUserId UUID userId,
+            HttpServletRequest httpRequest) {
         try {
             List<Map<String, Object>> items = watchlistService.getEnrichedItems(watchlistId, userId);
             return ResponseEntity.ok(items);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_items_failed", e.getMessage(), null, httpRequest);
         }
     }
 

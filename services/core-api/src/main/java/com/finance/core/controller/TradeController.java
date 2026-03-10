@@ -5,8 +5,11 @@ import com.finance.core.domain.PortfolioItem;
 import com.finance.core.dto.TradeRequest;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.service.BinanceService;
+import com.finance.core.web.ApiErrorResponses;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -31,12 +34,12 @@ public class TradeController {
 
     @PostMapping("/buy")
     @Transactional
-    public ResponseEntity<?> buyAsset(@RequestBody TradeRequest request) {
+    public ResponseEntity<?> buyAsset(@RequestBody TradeRequest request, HttpServletRequest httpRequest) {
         UUID portfolioId = UUID.fromString(request.getPortfolioId());
         Optional<Portfolio> portfolioOpt = portfolioRepository.findById(portfolioId);
 
         if (portfolioOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "portfolio_not_found", "Portfolio not found", null, httpRequest);
         }
 
         Portfolio portfolio = portfolioOpt.get();
@@ -44,7 +47,7 @@ public class TradeController {
         Double currentPriceDouble = binanceService.getPrices().get(symbol);
 
         if (currentPriceDouble == null || currentPriceDouble <= 0) {
-            return ResponseEntity.badRequest().body("Price not available for symbol: " + symbol);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "price_not_available", "Price not available for symbol: " + symbol, null, httpRequest);
         }
 
         BigDecimal currentPrice = BigDecimal.valueOf(currentPriceDouble);
@@ -56,9 +59,12 @@ public class TradeController {
         BigDecimal requiredMargin = notionalValue.divide(BigDecimal.valueOf(leverage), 8, RoundingMode.HALF_UP);
 
         if (portfolio.getBalance().compareTo(requiredMargin) < 0) {
-            return ResponseEntity.badRequest()
-                    .body("Insufficient balance for margin. Required: " + requiredMargin + ", Balance: "
-                            + portfolio.getBalance());
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "insufficient_balance",
+                    "Insufficient balance for margin. Required: " + requiredMargin + ", Balance: " + portfolio.getBalance(),
+                    null,
+                    httpRequest);
         }
 
         // Deduct Margin from Balance
@@ -75,8 +81,12 @@ public class TradeController {
             // Check leverage match
             Integer existingLev = item.getLeverage() != null ? item.getLeverage() : 1;
             if (!existingLev.equals(leverage)) {
-                return ResponseEntity.badRequest().body("Existing position has leverage " + existingLev
-                        + "x. Cannot add with " + leverage + "x.");
+                return ApiErrorResponses.build(
+                        HttpStatus.BAD_REQUEST,
+                        "leverage_mismatch",
+                        "Existing position has leverage " + existingLev + "x. Cannot add with " + leverage + "x.",
+                        null,
+                        httpRequest);
             }
 
             BigDecimal oldTotal = item.getQuantity().multiply(item.getAveragePrice());
@@ -125,12 +135,12 @@ public class TradeController {
 
     @PostMapping("/sell")
     @Transactional
-    public ResponseEntity<?> sellAsset(@RequestBody TradeRequest request) {
+    public ResponseEntity<?> sellAsset(@RequestBody TradeRequest request, HttpServletRequest httpRequest) {
         UUID portfolioId = UUID.fromString(request.getPortfolioId());
         Optional<Portfolio> portfolioOpt = portfolioRepository.findById(portfolioId);
 
         if (portfolioOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "portfolio_not_found", "Portfolio not found", null, httpRequest);
         }
 
         Portfolio portfolio = portfolioOpt.get();
@@ -138,7 +148,7 @@ public class TradeController {
         Double currentPriceDouble = binanceService.getPrices().get(symbol);
 
         if (currentPriceDouble == null || currentPriceDouble <= 0) {
-            return ResponseEntity.badRequest().body("Price not available for symbol: " + symbol);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "price_not_available", "Price not available for symbol: " + symbol, null, httpRequest);
         }
 
         BigDecimal quantity = request.getQuantity();
@@ -149,7 +159,7 @@ public class TradeController {
                 .findFirst();
 
         if (existingItem.isEmpty() || existingItem.get().getQuantity().compareTo(quantity) < 0) {
-            return ResponseEntity.badRequest().body("Insufficient assets to sell.");
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "insufficient_assets", "Insufficient assets to sell.", null, httpRequest);
         }
 
         PortfolioItem item = existingItem.get();

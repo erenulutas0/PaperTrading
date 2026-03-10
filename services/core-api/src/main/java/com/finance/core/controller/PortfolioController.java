@@ -5,10 +5,13 @@ import com.finance.core.dto.PortfolioRequest;
 import com.finance.core.dto.PortfolioResponse;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.service.PerformanceCalculationService;
+import com.finance.core.web.ApiErrorResponses;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -62,13 +65,18 @@ public class PortfolioController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PortfolioResponse> getPortfolio(@PathVariable UUID id) {
+    public ResponseEntity<?> getPortfolio(@PathVariable UUID id, HttpServletRequest httpRequest) {
         return portfolioRepository.findById(id)
                 .map(portfolio -> {
                     PortfolioResponse response = mapToResponse(portfolio);
                     return ResponseEntity.ok(response);
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElseGet(() -> ApiErrorResponses.build(
+                        HttpStatus.NOT_FOUND,
+                        "portfolio_not_found",
+                        "Portfolio not found",
+                        null,
+                        httpRequest));
     }
 
     private PortfolioResponse mapToResponse(Portfolio portfolio) {
@@ -114,7 +122,10 @@ public class PortfolioController {
     }
 
     @PutMapping("/{id}/visibility")
-    public ResponseEntity<?> toggleVisibility(@PathVariable UUID id, @RequestBody VisibilityRequest request) {
+    public ResponseEntity<?> toggleVisibility(
+            @PathVariable UUID id,
+            @RequestBody VisibilityRequest request,
+            HttpServletRequest httpRequest) {
         return portfolioRepository.findById(id).map(portfolio -> {
             try {
                 Portfolio.Visibility oldVisibility = portfolio.getVisibility();
@@ -143,9 +154,19 @@ public class PortfolioController {
 
                 return ResponseEntity.ok(saved);
             } catch (IllegalArgumentException e) {
-                return ResponseEntity.badRequest().body("Invalid visibility value. Use PUBLIC or PRIVATE.");
+                return ApiErrorResponses.build(
+                        HttpStatus.BAD_REQUEST,
+                        "invalid_visibility",
+                        "Invalid visibility value. Use PUBLIC or PRIVATE.",
+                        null,
+                        httpRequest);
             }
-        }).orElse(ResponseEntity.notFound().build());
+        }).orElseGet(() -> ApiErrorResponses.build(
+                HttpStatus.NOT_FOUND,
+                "portfolio_not_found",
+                "Portfolio not found",
+                null,
+                httpRequest));
     }
 
     @lombok.Data
@@ -156,14 +177,27 @@ public class PortfolioController {
     // --- Deposit ---
 
     @PostMapping("/{id}/deposit")
-    public ResponseEntity<?> deposit(@PathVariable UUID id, @RequestBody DepositRequest request) {
+    public ResponseEntity<?> deposit(
+            @PathVariable UUID id,
+            @RequestBody DepositRequest request,
+            HttpServletRequest httpRequest) {
         return portfolioRepository.findById(id).map(portfolio -> {
             if (request.getAmount() == null || request.getAmount().signum() <= 0) {
-                return ResponseEntity.badRequest().body("Amount must be positive");
+                return ApiErrorResponses.build(
+                        HttpStatus.BAD_REQUEST,
+                        "invalid_deposit_amount",
+                        "Amount must be positive",
+                        null,
+                        httpRequest);
             }
             portfolio.setBalance(portfolio.getBalance().add(request.getAmount()));
             return ResponseEntity.ok(portfolioRepository.save(portfolio));
-        }).orElse(ResponseEntity.notFound().build());
+        }).orElseGet(() -> ApiErrorResponses.build(
+                HttpStatus.NOT_FOUND,
+                "portfolio_not_found",
+                "Portfolio not found",
+                null,
+                httpRequest));
     }
 
     @lombok.Data
@@ -225,9 +259,14 @@ public class PortfolioController {
     // --- Delete ---
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deletePortfolio(@PathVariable UUID id) {
+    public ResponseEntity<?> deletePortfolio(@PathVariable UUID id, HttpServletRequest httpRequest) {
         if (!portfolioRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
+            return ApiErrorResponses.build(
+                    HttpStatus.NOT_FOUND,
+                    "portfolio_not_found",
+                    "Portfolio not found",
+                    null,
+                    httpRequest);
         }
         portfolioRepository.deleteById(id);
         return ResponseEntity.ok().build();

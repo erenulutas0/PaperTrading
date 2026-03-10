@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -125,5 +126,27 @@ class TradeControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.balance").value(9000.0))
                 .andExpect(jsonPath("$.items[0].side").value("SHORT"));
+    }
+
+    @Test
+    void testBuy_whenPriceUnavailable_shouldReturnUnifiedErrorContract() throws Exception {
+        when(binanceService.getPrices()).thenReturn(Map.of());
+
+        TradeRequest request = new TradeRequest();
+        request.setPortfolioId(testPortfolio.getId().toString());
+        request.setSymbol("BTCUSDT");
+        request.setQuantity(BigDecimal.valueOf(0.1));
+        request.setLeverage(10);
+        request.setSide("LONG");
+
+        mockMvc.perform(post("/api/v1/trade/buy")
+                        .header("X-Request-Id", "trade-err-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "trade-err-1"))
+                .andExpect(jsonPath("$.code").value("price_not_available"))
+                .andExpect(jsonPath("$.message").value("Price not available for symbol: BTCUSDT"))
+                .andExpect(jsonPath("$.requestId").value("trade-err-1"));
     }
 }

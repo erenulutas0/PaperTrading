@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Expanded Unified Error Contract to Core Trading/Social Controllers (Seventy-Eighth Pass)**
+  - **Problem observed**:
+    - First-pass error normalization covered auth/filter/global exception paths, but several core controllers still returned:
+      - raw strings on `400`
+      - empty `404` responses
+    - That weakens frontend handling and makes staging smoke diagnostics inconsistent.
+  - **Implementation**:
+    - Updated:
+      - `PortfolioController`
+      - `TradeController`
+      - `TournamentController`
+      - `WatchlistController`
+    - Common invalid-request/not-found paths now use the shared `ApiErrorResponses` builder.
+    - Added regression checks for:
+      - trade price-unavailable error shape
+      - invalid deposit error shape
+  - **Operational impact**:
+    - the highest-visibility user flows around portfolios, trades, tournaments, and watchlists now produce a stable machine-readable error contract.
+    - remaining raw/manual responses can now be migrated incrementally with lower product risk because the main UX surfaces are aligned.
 - **2026-03-10**: **Request Correlation + Unified Error Contract Baseline (Seventy-Seventh Pass)**
   - **Problem observed**:
     - Error payloads were inconsistent:
