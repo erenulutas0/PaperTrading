@@ -1,9 +1,12 @@
 package com.finance.core.controller;
 
+import com.finance.core.domain.AuditActionType;
+import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.dto.PortfolioRequest;
 import com.finance.core.dto.PortfolioResponse;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.service.AuditLogService;
 import com.finance.core.service.PerformanceCalculationService;
 import com.finance.core.web.ApiErrorResponses;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -36,6 +40,7 @@ public class PortfolioController {
     private final com.finance.core.repository.UserRepository userRepository;
     private final com.finance.core.service.LeaderboardService leaderboardService;
     private final com.finance.core.service.PerformanceAnalyticsService performanceAnalyticsService;
+    private final AuditLogService auditLogService;
 
     @PostMapping
     public ResponseEntity<Portfolio> createPortfolio(@RequestBody PortfolioRequest request) {
@@ -54,7 +59,20 @@ public class PortfolioController {
             }
         }
 
-        return ResponseEntity.ok(portfolioRepository.save(builder.build()));
+        Portfolio saved = portfolioRepository.save(builder.build());
+
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+        details.put("name", saved.getName());
+        details.put("visibility", saved.getVisibility().name());
+        details.put("description", saved.getDescription());
+        auditLogService.record(
+                parseActorId(saved.getOwnerId()),
+                AuditActionType.PORTFOLIO_CREATED,
+                AuditResourceType.PORTFOLIO,
+                saved.getId(),
+                details);
+
+        return ResponseEntity.ok(saved);
     }
 
     @GetMapping
@@ -152,6 +170,17 @@ public class PortfolioController {
                 // Refresh leaderboard cache
                 leaderboardService.invalidateCache();
 
+                LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+                details.put("oldVisibility", oldVisibility.name());
+                details.put("newVisibility", newVisibility.name());
+                details.put("portfolioName", saved.getName());
+                auditLogService.record(
+                        parseActorId(saved.getOwnerId()),
+                        AuditActionType.PORTFOLIO_VISIBILITY_CHANGED,
+                        AuditResourceType.PORTFOLIO,
+                        saved.getId(),
+                        details);
+
                 return ResponseEntity.ok(saved);
             } catch (IllegalArgumentException e) {
                 return ApiErrorResponses.build(
@@ -191,7 +220,18 @@ public class PortfolioController {
                         httpRequest);
             }
             portfolio.setBalance(portfolio.getBalance().add(request.getAmount()));
-            return ResponseEntity.ok(portfolioRepository.save(portfolio));
+            Portfolio saved = portfolioRepository.save(portfolio);
+            LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+            details.put("amount", request.getAmount());
+            details.put("newBalance", saved.getBalance());
+            details.put("portfolioName", saved.getName());
+            auditLogService.record(
+                    parseActorId(saved.getOwnerId()),
+                    AuditActionType.PORTFOLIO_DEPOSITED,
+                    AuditResourceType.PORTFOLIO,
+                    saved.getId(),
+                    details);
+            return ResponseEntity.ok(saved);
         }).orElseGet(() -> ApiErrorResponses.build(
                 HttpStatus.NOT_FOUND,
                 "portfolio_not_found",
@@ -260,15 +300,36 @@ public class PortfolioController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deletePortfolio(@PathVariable UUID id, HttpServletRequest httpRequest) {
-        if (!portfolioRepository.existsById(id)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.NOT_FOUND,
-                    "portfolio_not_found",
-                    "Portfolio not found",
-                    null,
-                    httpRequest);
+        return portfolioRepository.findById(id)
+                .map(portfolio -> {
+                    portfolioRepository.delete(portfolio);
+                    LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+                    details.put("portfolioName", portfolio.getName());
+                    details.put("visibility", portfolio.getVisibility().name());
+                    auditLogService.record(
+                            parseActorId(portfolio.getOwnerId()),
+                            AuditActionType.PORTFOLIO_DELETED,
+                            AuditResourceType.PORTFOLIO,
+                            portfolio.getId(),
+                            details);
+                    return ResponseEntity.ok().build();
+                })
+                .orElseGet(() -> ApiErrorResponses.build(
+                        HttpStatus.NOT_FOUND,
+                        "portfolio_not_found",
+                        "Portfolio not found",
+                        null,
+                        httpRequest));
+    }
+
+    private UUID parseActorId(String rawOwnerId) {
+        if (rawOwnerId == null || rawOwnerId.isBlank()) {
+            return null;
         }
-        portfolioRepository.deleteById(id);
-        return ResponseEntity.ok().build();
+        try {
+            return UUID.fromString(rawOwnerId);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

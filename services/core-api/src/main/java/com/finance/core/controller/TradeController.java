@@ -1,9 +1,12 @@
 package com.finance.core.controller;
 
+import com.finance.core.domain.AuditActionType;
+import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioItem;
 import com.finance.core.dto.TradeRequest;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.service.AuditLogService;
 import com.finance.core.service.BinanceService;
 import com.finance.core.web.ApiErrorResponses;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,6 +35,7 @@ public class TradeController {
     private final BinanceService binanceService;
     private final com.finance.core.service.CopyTradingService copyTradingService;
     private final com.finance.core.service.TournamentService tournamentService;
+    private final AuditLogService auditLogService;
 
     @PostMapping("/buy")
     @Transactional
@@ -124,6 +129,21 @@ public class TradeController {
                 .build();
         tradeActivityRepository.save(trade);
 
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+        details.put("portfolioId", portfolioId);
+        details.put("symbol", symbol);
+        details.put("side", side);
+        details.put("quantity", request.getQuantity());
+        details.put("price", currentPrice);
+        details.put("leverage", leverage);
+        details.put("requiredMargin", requiredMargin);
+        auditLogService.record(
+                parseOwnerId(portfolio.getOwnerId()),
+                AuditActionType.TRADE_BUY_EXECUTED,
+                AuditResourceType.TRADE,
+                trade.getId(),
+                details);
+
         // Notify tournament hub if applicable
         tournamentService.notifyTournamentOfTrade(trade);
 
@@ -210,6 +230,21 @@ public class TradeController {
                 .build();
         tradeActivityRepository.save(trade);
 
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+        details.put("portfolioId", portfolioId);
+        details.put("symbol", symbol);
+        details.put("side", side);
+        details.put("quantity", quantity);
+        details.put("price", currentPrice);
+        details.put("realizedPnl", pnl);
+        details.put("credit", credit);
+        auditLogService.record(
+                parseOwnerId(portfolio.getOwnerId()),
+                AuditActionType.TRADE_SELL_EXECUTED,
+                AuditResourceType.TRADE,
+                trade.getId(),
+                details);
+
         // Notify tournament hub if applicable
         tournamentService.notifyTournamentOfTrade(trade);
 
@@ -217,5 +252,16 @@ public class TradeController {
         copyTradingService.replicateSell(portfolioId, request, currentPrice);
 
         return ResponseEntity.ok(portfolio);
+    }
+
+    private UUID parseOwnerId(String ownerId) {
+        if (ownerId == null || ownerId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(ownerId);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

@@ -3,6 +3,7 @@
 Last updated: 2026-03-10
 
 ## In Progress
+- [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
 - [ ] Redeploy backend after notification error cleanup and verify unread-count/mark-read paths now use the same correlated error contract as other controllers
 - [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
 - [ ] Redeploy backend after request-correlation + unified error contract rollout and verify `X-Request-Id` is echoed on errors plus auth failures now return `{code,message,details?,requestId}`
@@ -34,6 +35,7 @@ Last updated: 2026-03-10
 - [ ] Monitor runtime for one sprint and tune pool/cache TTL values using real traffic metrics
 
 ## Next
+- [ ] Add audit-log read tooling (admin/report/export or actuator-style inspection path) once write-path capture is stable in staging
 - [ ] Add test/log hardening for canary failure-path tests (reduce expected-failure warning noise in CI logs)
 - [ ] If strict real-time follower fanout is required again, introduce versioned feed cache keys to avoid pattern-scan invalidation costs in eager mode
 - [ ] Run follower-fanout stress profile with staged high follower counts (`1k -> 5k -> 10k`) and persist median reports (`repeat_baseline_median.ps1`)
@@ -43,6 +45,25 @@ Last updated: 2026-03-10
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added append-only audit log foundation for critical write paths:
+  - Added:
+    - `services/core-api/src/main/resources/db/migration/V11__create_audit_logs_table.sql`
+    - `services/core-api/src/main/java/com/finance/core/domain/AuditLogEntry.java`
+    - `services/core-api/src/main/java/com/finance/core/domain/AuditActionType.java`
+    - `services/core-api/src/main/java/com/finance/core/domain/AuditResourceType.java`
+    - `services/core-api/src/main/java/com/finance/core/repository/AuditLogRepository.java`
+    - `services/core-api/src/main/java/com/finance/core/service/AuditLogService.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/AuditLogIntegrationTest.java`
+  - Hooked write paths:
+    - `PortfolioController` (`create`, `visibility`, `deposit`, `delete`)
+    - `TradeController` (`buy`, `sell`)
+    - `UserProfileService` (`follow`, `unfollow`)
+    - `AnalysisPostService` (`create`, `delete`)
+    - `InteractionService` (`like/unlike`, `comment`)
+  - Behavior:
+    - critical actions now persist append-only audit rows with actor/resource metadata plus request correlation, method/path, IP, and user-agent when request context exists
+  - Goal:
+    - establish Flyway-first audit trail ownership before adding read/export tooling
 - [x] Removed remaining empty `404` from notification mark-read path:
   - Updated:
     - `NotificationController`

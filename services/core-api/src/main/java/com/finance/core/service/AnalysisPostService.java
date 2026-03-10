@@ -1,6 +1,8 @@
 package com.finance.core.service;
 
 import com.finance.core.domain.ActivityEvent;
+import com.finance.core.domain.AuditActionType;
+import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.AnalysisPost;
 import com.finance.core.domain.AppUser;
 import com.finance.core.dto.AnalysisPostRequest;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -32,6 +35,7 @@ public class AnalysisPostService {
     private final UserRepository userRepository;
     private final BinanceService binanceService;
     private final ActivityFeedService activityFeedService;
+    private final AuditLogService auditLogService;
 
     /**
      * Create an immutable analysis post.
@@ -106,6 +110,19 @@ public class AnalysisPostService {
                 ActivityEvent.TargetType.POST,
                 post.getId(), post.getTitle());
 
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+        details.put("title", post.getTitle());
+        details.put("instrumentSymbol", post.getInstrumentSymbol());
+        details.put("direction", post.getDirection().name());
+        details.put("priceAtCreation", post.getPriceAtCreation());
+        details.put("targetDate", post.getTargetDate());
+        auditLogService.record(
+                authorId,
+                AuditActionType.ANALYSIS_POST_CREATED,
+                AuditResourceType.ANALYSIS_POST,
+                post.getId(),
+                details);
+
         return toResponse(post, author);
     }
 
@@ -131,6 +148,17 @@ public class AnalysisPostService {
         post.setDeleted(true);
         post.setDeletedAt(LocalDateTime.now());
         postRepository.save(post);
+
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+        details.put("title", post.getTitle());
+        details.put("instrumentSymbol", post.getInstrumentSymbol());
+        details.put("deletedAt", post.getDeletedAt());
+        auditLogService.record(
+                requesterId,
+                AuditActionType.ANALYSIS_POST_DELETED,
+                AuditResourceType.ANALYSIS_POST,
+                post.getId(),
+                details);
         log.info("Post {} soft-deleted by author {}", postId, requesterId);
     }
 

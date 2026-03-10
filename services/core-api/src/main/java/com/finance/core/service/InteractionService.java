@@ -1,6 +1,8 @@
 package com.finance.core.service;
 
 import com.finance.core.domain.ActivityEvent;
+import com.finance.core.domain.AuditActionType;
+import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Interaction;
 import com.finance.core.domain.Notification.NotificationType;
@@ -20,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -38,6 +41,7 @@ public class InteractionService {
     private final AnalysisPostRepository analysisPostRepository;
     private final ActivityFeedService activityFeedService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public void toggleLike(UUID actorId, UUID targetId, InteractionRequest request) {
@@ -49,6 +53,12 @@ public class InteractionService {
 
         if (existing.isPresent()) {
             interactionRepository.delete(existing.get());
+            auditLogService.record(
+                    actorId,
+                    AuditActionType.INTERACTION_UNLIKED,
+                    mapAuditResourceType(targetType),
+                    targetId,
+                    buildInteractionDetails(targetType, target.label(), null, true));
             log.info("User {} UNLIKED {} {}", actorId, targetType, targetId);
             return;
         }
@@ -70,6 +80,12 @@ public class InteractionService {
 
         sendNotification(actor, target, targetId, true);
         publishActivity(actor, target, targetId, true);
+        auditLogService.record(
+                actorId,
+                AuditActionType.INTERACTION_LIKED,
+                mapAuditResourceType(targetType),
+                targetId,
+                buildInteractionDetails(targetType, target.label(), null, false));
     }
 
     @Transactional
@@ -100,6 +116,12 @@ public class InteractionService {
 
         sendNotification(actor, target, targetId, false);
         publishActivity(actor, target, targetId, false);
+        auditLogService.record(
+                actorId,
+                AuditActionType.INTERACTION_COMMENTED,
+                mapAuditResourceType(targetType),
+                targetId,
+                buildInteractionDetails(targetType, target.label(), content, false));
 
         return comment;
     }
@@ -298,5 +320,29 @@ public class InteractionService {
             ActivityEvent.EventType likeEventType,
             ActivityEvent.EventType commentEventType,
             UUID referenceId) {
+    }
+
+    private AuditResourceType mapAuditResourceType(Interaction.TargetType targetType) {
+        return switch (targetType) {
+            case PORTFOLIO -> AuditResourceType.PORTFOLIO;
+            case ANALYSIS_POST -> AuditResourceType.ANALYSIS_POST;
+            case COMMENT -> AuditResourceType.COMMENT;
+        };
+    }
+
+    private Map<String, Object> buildInteractionDetails(
+            Interaction.TargetType targetType,
+            String label,
+            String content,
+            boolean removed) {
+
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+        details.put("targetType", targetType.name());
+        details.put("targetLabel", label);
+        details.put("removed", removed);
+        if (content != null) {
+            details.put("contentPreview", content);
+        }
+        return details;
     }
 }

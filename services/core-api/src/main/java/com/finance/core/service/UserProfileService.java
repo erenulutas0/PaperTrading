@@ -1,6 +1,8 @@
 package com.finance.core.service;
 
 import com.finance.core.domain.ActivityEvent;
+import com.finance.core.domain.AuditActionType;
+import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Follow;
 import com.finance.core.domain.Portfolio;
@@ -21,6 +23,7 @@ import com.finance.core.domain.Notification.NotificationType;
 import com.finance.core.domain.event.NotificationEvent;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -35,6 +38,7 @@ public class UserProfileService {
         private final ActivityFeedService activityFeedService;
         private final PerformanceAnalyticsService performanceAnalyticsService;
         private final ApplicationEventPublisher eventPublisher;
+        private final AuditLogService auditLogService;
 
         public UserProfileResponse getProfile(UUID userId, UUID requesterId) {
                 AppUser user = userRepository.findById(userId)
@@ -126,6 +130,15 @@ public class UserProfileService {
                                 .referenceLabel(follower.getUsername())
                                 .build());
 
+                auditLogService.record(
+                                followerId,
+                                AuditActionType.USER_FOLLOWED,
+                                AuditResourceType.USER,
+                                followingId,
+                                Map.of(
+                                                "followerUsername", follower.getUsername(),
+                                                "followingUsername", following.getUsername()));
+
                 log.info("User {} followed user {}", followerId, followingId);
         }
 
@@ -143,6 +156,15 @@ public class UserProfileService {
                 following.setFollowerCount(Math.max(0, following.getFollowerCount() - 1));
                 userRepository.save(follower);
                 userRepository.save(following);
+
+                auditLogService.record(
+                                followerId,
+                                AuditActionType.USER_UNFOLLOWED,
+                                AuditResourceType.USER,
+                                followingId,
+                                Map.of(
+                                                "followerUsername", follower.getUsername(),
+                                                "followingUsername", following.getUsername()));
 
                 log.info("User {} unfollowed user {}", followerId, followingId);
         }

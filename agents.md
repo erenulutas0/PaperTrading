@@ -34,10 +34,46 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
 | Trust/Credibility Scores | ⬜ Planned | Auto-computed from track record |
-| Audit Log | ⬜ Planned | All critical actions logged |
+| Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; read/export tooling still pending |
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Append-Only Audit Log Foundation for Critical Writes (Eightieth Pass)**
+  - **Problem observed**:
+    - The product promise is "timestamped, immutable, auditable", but critical write paths still had no first-class audit store.
+    - Request correlation existed, yet there was no append-only place to persist who changed what under which request.
+  - **Implementation**:
+    - Added Flyway migration:
+      - `V11__create_audit_logs_table.sql`
+    - Added audit domain/repo/service:
+      - `AuditLogEntry`
+      - `AuditActionType`
+      - `AuditResourceType`
+      - `AuditLogRepository`
+      - `AuditLogService`
+    - Audit rows capture:
+      - `actor_id`
+      - `action_type`
+      - `resource_type`
+      - `resource_id`
+      - `request_id`
+      - `ip_address`
+      - `user_agent`
+      - `request_method`
+      - `request_path`
+      - JSON `details`
+      - `created_at`
+    - Hooked critical write paths:
+      - `PortfolioController` (`create`, `visibility`, `deposit`, `delete`)
+      - `TradeController` (`buy`, `sell`)
+      - `UserProfileService` (`follow`, `unfollow`)
+      - `AnalysisPostService` (`create`, `delete`)
+      - `InteractionService` (`like/unlike`, `comment`)
+    - Added regression coverage:
+      - `AuditLogIntegrationTest`
+  - **Operational impact**:
+    - critical actions now produce append-only audit rows tied to `X-Request-Id`, which improves incident traceability and supports future admin/export tooling.
+    - audit persistence is transactional with the business write path, so successful critical writes do not silently bypass the audit trail.
 - **2026-03-10**: **Notification Error Path Normalization Completed (Seventy-Ninth Pass)**
   - **Problem observed**:
     - After controller-wide cleanup, `NotificationController.markAsRead` still returned an empty `404`.
