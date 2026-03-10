@@ -3,6 +3,7 @@
 Last updated: 2026-03-10
 
 ## In Progress
+- [ ] Redeploy backend after idempotency cleanup/inspection rollout and verify `/actuator/idempotency` reports sane counts while scheduled purge removes expired keys without breaking replay semantics
 - [ ] Redeploy backend after idempotency-key rollout and verify duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
 - [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
 - [ ] Redeploy backend after notification error cleanup and verify unread-count/mark-read paths now use the same correlated error contract as other controllers
@@ -36,7 +37,6 @@ Last updated: 2026-03-10
 - [ ] Monitor runtime for one sprint and tune pool/cache TTL values using real traffic metrics
 
 ## Next
-- [ ] Add cleanup/inspection path for expired idempotency records once staging verifies replay semantics under real duplicate-submit scenarios
 - [ ] Add audit-log read tooling (admin/report/export or actuator-style inspection path) once write-path capture is stable in staging
 - [ ] Add test/log hardening for canary failure-path tests (reduce expected-failure warning noise in CI logs)
 - [ ] If strict real-time follower fanout is required again, introduce versioned feed cache keys to avoid pattern-scan invalidation costs in eager mode
@@ -47,6 +47,22 @@ Last updated: 2026-03-10
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added idempotency cleanup + actuator inspection:
+  - Added:
+    - `services/core-api/src/main/java/com/finance/core/observability/IdempotencySnapshot.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/IdempotencyObservabilityService.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/IdempotencyEndpoint.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/IdempotencyEndpointIntegrationTest.java`
+  - Updated:
+    - `IdempotencyProperties` with `cleanupInterval`
+    - `IdempotencyKeyRepository` with count/query helpers
+    - `ScheduledLockAnnotationTest`
+    - actuator exposure list in `application.yml`
+  - Behavior:
+    - scheduled ShedLock-protected purge removes expired idempotency rows
+    - `/actuator/idempotency` exposes total/in-progress/completed/expired counts plus cleanup metadata
+  - Goal:
+    - keep idempotency storage bounded and make replay health observable in staging/ops
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`

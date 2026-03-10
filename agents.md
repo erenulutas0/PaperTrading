@@ -38,6 +38,33 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Idempotency Cleanup + Ops Inspection Endpoint (Eighty-Second Pass)**
+  - **Problem observed**:
+    - First-pass idempotency support blocked duplicate writes, but there was no built-in cleanup or visibility into record accumulation.
+    - That would eventually leave stale rows behind and make it hard to diagnose stuck `IN_PROGRESS` records in staging.
+  - **Implementation**:
+    - Added idempotency observability components:
+      - `IdempotencySnapshot`
+      - `IdempotencyObservabilityService`
+      - `IdempotencyEndpoint`
+    - Added scheduled cleanup:
+      - `cleanupExpiredScheduled()`
+      - protected with `@SchedulerLock`
+    - Endpoint:
+      - `GET /actuator/idempotency`
+      - exposes:
+        - total records
+        - in-progress records
+        - completed records
+        - expired records
+        - oldest expired age
+        - last cleanup timestamp/count
+    - Added regression coverage:
+      - `IdempotencyEndpointIntegrationTest`
+      - `ScheduledLockAnnotationTest` updated for new scheduled job
+  - **Operational impact**:
+    - idempotency state is now observable without opening product-facing admin APIs.
+    - expired key accumulation is bounded by a lock-protected cleanup job, which is the safer production default before adding richer admin tooling.
 - **2026-03-10**: **Backend Idempotency-Key Filter for Critical Writes (Eighty-First Pass)**
   - **Problem observed**:
     - Request correlation and audit logging were in place, but duplicate-submit protection was still missing.

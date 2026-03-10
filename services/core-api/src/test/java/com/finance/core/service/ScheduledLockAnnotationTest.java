@@ -22,7 +22,8 @@ class ScheduledLockAnnotationTest {
             TournamentService.class,
             PriceAlertService.class,
             TrustScoreService.class,
-            com.finance.core.observability.WebSocketCanaryService.class
+            com.finance.core.observability.WebSocketCanaryService.class,
+            com.finance.core.observability.IdempotencyObservabilityService.class
     );
 
     @Test

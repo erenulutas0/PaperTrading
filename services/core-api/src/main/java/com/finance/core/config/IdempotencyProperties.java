@@ -16,4 +16,5 @@ public class IdempotencyProperties {
     private boolean enabled = true;
     private Duration ttl = Duration.ofHours(24);
     private int maxBodyBytes = 65536;
+    private Duration cleanupInterval = Duration.ofMinutes(30);
 }

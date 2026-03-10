@@ -11,5 +11,11 @@ public interface IdempotencyKeyRepository extends JpaRepository<IdempotencyKeyRe
 
     Optional<IdempotencyKeyRecord> findByActorScopeAndIdempotencyKey(String actorScope, String idempotencyKey);
 
+    long countByStatus(IdempotencyKeyRecord.Status status);
+
+    long countByExpiresAtBefore(LocalDateTime cutoff);
+
+    Optional<IdempotencyKeyRecord> findFirstByExpiresAtBeforeOrderByExpiresAtAsc(LocalDateTime cutoff);
+
     void deleteByExpiresAtBefore(LocalDateTime cutoff);
 }
