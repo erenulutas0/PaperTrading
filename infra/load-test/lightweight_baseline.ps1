@@ -322,6 +322,18 @@ function Register-User {
     return Invoke-RestMethod -Method Post -Uri "$ApiBase/api/v1/auth/register" -ContentType "application/json" -Body $payload
 }
 
+function Get-AuthHeaders {
+    param([psobject]$User)
+
+    if ($null -eq $User -or [string]::IsNullOrWhiteSpace($User.accessToken)) {
+        throw "User accessToken is required for strict-mode load tooling."
+    }
+
+    return @{
+        Authorization = "Bearer $($User.accessToken)"
+    }
+}
+
 function New-Portfolio {
     param(
         [string]$ApiBase,
@@ -341,13 +353,13 @@ function New-Portfolio {
 function Follow-User {
     param(
         [string]$ApiBase,
-        [string]$FollowerId,
+        [psobject]$Follower,
         [string]$FollowingId
     )
 
     Invoke-RestMethod -Method Post `
         -Uri "$ApiBase/api/v1/users/$FollowingId/follow" `
-        -Headers @{ "X-User-Id" = $FollowerId } | Out-Null
+        -Headers (Get-AuthHeaders -User $Follower) | Out-Null
 }
 
 function Initialize-FanoutFollowers {
@@ -357,14 +369,14 @@ function Initialize-FanoutFollowers {
         [int]$Count
     )
 
-    $followerIds = New-Object System.Collections.Generic.List[string]
+    $followerIds = New-Object System.Collections.Generic.List[object]
     $seed = [guid]::NewGuid().ToString("N").Substring(0, 8)
     for ($i = 1; $i -le $Count; $i++) {
         $username = "fan_f$($i)_$seed"
         $email = "fan_f$($i)_$seed@test.com"
         $follower = Register-User -ApiBase $ApiBase -Username $username -Email $email -Password "pass"
-        Follow-User -ApiBase $ApiBase -FollowerId $follower.id -FollowingId $FollowingId
-        $followerIds.Add($follower.id) | Out-Null
+        Follow-User -ApiBase $ApiBase -Follower $follower -FollowingId $FollowingId
+        $followerIds.Add($follower) | Out-Null
 
         if (($i % 100) -eq 0 -or $i -eq $Count) {
             Write-Host "Fanout setup progress: $i / $Count followers ready"
@@ -377,7 +389,7 @@ function Initialize-FanoutFollowers {
 function Seed-FeedEvents {
     param(
         [string]$ApiBase,
-        [string]$ActorId,
+        [psobject]$Actor,
         [string]$PortfolioId,
         [int]$Count
     )
@@ -390,7 +402,7 @@ function Seed-FeedEvents {
 
         Invoke-RestMethod -Method Post `
             -Uri "$ApiBase/api/v1/interactions/$PortfolioId/comments" `
-            -Headers @{ "X-User-Id" = $ActorId } `
+            -Headers (Get-AuthHeaders -User $Actor) `
             -ContentType "application/json" `
             -Body $payload | Out-Null
     }
@@ -523,12 +535,12 @@ $suffix = [guid]::NewGuid().ToString("N").Substring(0, 10)
 $owner = Register-User -ApiBase $BaseUrl -Username "load_owner_$suffix" -Email "load_owner_$suffix@test.com" -Password "pass"
 $actor = Register-User -ApiBase $BaseUrl -Username "load_actor_$suffix" -Email "load_actor_$suffix@test.com" -Password "pass"
 $portfolio = New-Portfolio -ApiBase $BaseUrl -OwnerId $owner.id -Name "Load Portfolio $suffix"
-Seed-FeedEvents -ApiBase $BaseUrl -ActorId $actor.id -PortfolioId $portfolio.id -Count $SeedEvents
+Seed-FeedEvents -ApiBase $BaseUrl -Actor $actor -PortfolioId $portfolio.id -Count $SeedEvents
 
 $fanoutFollowerIds = @()
 $fanoutSetupMs = 0.0
 if ($normalizedProfile -eq "mixed") {
-    Follow-User -ApiBase $BaseUrl -FollowerId $owner.id -FollowingId $actor.id
+    Follow-User -ApiBase $BaseUrl -Follower $owner -FollowingId $actor.id
 } elseif ($normalizedProfile -eq "fanout") {
     $fanoutSetupSw = [System.Diagnostics.Stopwatch]::StartNew()
     $fanoutFollowerIds = Initialize-FanoutFollowers -ApiBase $BaseUrl -FollowingId $actor.id -Count $FanoutFollowers
@@ -539,11 +551,11 @@ if ($normalizedProfile -eq "mixed") {
 Write-Host "Warming feed cache..."
 Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/feed/global?page=0&size=20" | Out-Null
 if ($normalizedProfile -eq "mixed") {
-    Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/feed?page=0&size=20" -Headers @{ "X-User-Id" = $owner.id } | Out-Null
+    Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/feed?page=0&size=20" -Headers (Get-AuthHeaders -User $owner) | Out-Null
     Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/feed/user/$($actor.id)?page=0&size=20" | Out-Null
 } elseif ($normalizedProfile -eq "fanout" -and $fanoutFollowerIds.Count -gt 0) {
     $sampleFollower = $fanoutFollowerIds[0]
-    Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/feed?page=0&size=20" -Headers @{ "X-User-Id" = $sampleFollower } | Out-Null
+    Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/feed?page=0&size=20" -Headers (Get-AuthHeaders -User $sampleFollower) | Out-Null
     Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/feed/user/$($actor.id)?page=0&size=20" | Out-Null
 }
 
@@ -569,7 +581,9 @@ for ($w = 1; $w -le $Concurrency; $w++) {
             $OutFile,
             $Profile,
             $OwnerId,
+            $OwnerAccessToken,
             $ActorId,
+            $ActorAccessToken,
             $PortfolioId,
             $GlobalWeight,
             $PersonalizedWeight,
@@ -609,7 +623,7 @@ for ($w = 1; $w -le $Concurrency; $w++) {
                 if ($operation -eq "global") {
                     Invoke-RestMethod -Method Get -Uri "$ApiBase/api/v1/feed/global?page=0&size=20" | Out-Null
                 } elseif ($operation -eq "personalized") {
-                    Invoke-RestMethod -Method Get -Uri "$ApiBase/api/v1/feed?page=0&size=20" -Headers @{ "X-User-Id" = $OwnerId } | Out-Null
+                    Invoke-RestMethod -Method Get -Uri "$ApiBase/api/v1/feed?page=0&size=20" -Headers @{ Authorization = "Bearer $OwnerAccessToken" } | Out-Null
                 } elseif ($operation -eq "user") {
                     Invoke-RestMethod -Method Get -Uri "$ApiBase/api/v1/feed/user/$($ActorId)?page=0&size=20" | Out-Null
                 } else {
@@ -619,7 +633,7 @@ for ($w = 1; $w -le $Concurrency; $w++) {
                     } | ConvertTo-Json
                     Invoke-RestMethod -Method Post `
                         -Uri "$ApiBase/api/v1/interactions/$PortfolioId/comments" `
-                        -Headers @{ "X-User-Id" = $ActorId } `
+                        -Headers @{ Authorization = "Bearer $ActorAccessToken" } `
                         -ContentType "application/json" `
                         -Body $payload | Out-Null
                 }
@@ -635,7 +649,7 @@ for ($w = 1; $w -le $Concurrency; $w++) {
                 })
         }
         $rows | Export-Csv -NoTypeInformation -Path $OutFile
-    } -ArgumentList $BaseUrl, $RequestsPerWorker, $outFile, $normalizedProfile, $owner.id, $actor.id, $portfolio.id, $effectiveGlobalWeight, $effectivePersonalizedWeight, $effectiveUserWeight, $effectiveWriteWeight
+    } -ArgumentList $BaseUrl, $RequestsPerWorker, $outFile, $normalizedProfile, $owner.id, $owner.accessToken, $actor.id, $actor.accessToken, $portfolio.id, $effectiveGlobalWeight, $effectivePersonalizedWeight, $effectiveUserWeight, $effectiveWriteWeight
 }
 
 Wait-Job -Job $jobs | Out-Null

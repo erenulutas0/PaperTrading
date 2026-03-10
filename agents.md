@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Bearer-Only Ops Script Migration for Auth Strict-Mode (Seventy-Sixth Pass)**
+  - **Problem observed**:
+    - Web client was prepared for strict-mode, but key ops/load scripts still authenticated with `X-User-Id`.
+    - That left rollout risk in:
+      - personalized feed baselines
+      - fanout setup
+      - websocket relay smoke validation
+  - **Implementation**:
+    - Updated:
+      - `infra/load-test/lightweight_baseline.ps1`
+      - `infra/load-test/validate_websocket_relay_smoke.ps1`
+    - Registration responses now carry the auth context used by later calls.
+    - Personalized feed reads, comment writes, follow/unfollow, tournament join, and STOMP connect now use `Authorization: Bearer ...`.
+    - Fanout follower setup now stores full user objects instead of bare ids so later reads can authenticate without legacy headers.
+  - **Operational impact**:
+    - The main staged load/smoke toolchain is now structurally compatible with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`.
+    - Remaining strict-mode risk is reduced to secondary/older scripts and ad hoc manual calls rather than the primary validation path.
 - **2026-03-10**: **Token-Only Web Client Auth Readiness for Strict-Mode Rollout (Seventy-Fifth Pass)**
   - **Problem observed**:
     - Backend already supports strict mode via `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`, but primary web client/runtime paths still silently fell back to `X-User-Id` when access token was missing.

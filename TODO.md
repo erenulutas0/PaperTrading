@@ -4,7 +4,7 @@ Last updated: 2026-03-10
 
 ## In Progress
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
-- [ ] Migrate remaining local load/smoke tooling off legacy `X-User-Id` auth (`lightweight_baseline.ps1`, `validate_websocket_relay_smoke.ps1`) before enforcing strict-mode across all operational scripts
+- [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance
 - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [ ] Redeploy backend after reverting accidental `V3` migration edit and verify Flyway validation passes with `COMMENT` support coming only from `V10`
 - [ ] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
@@ -39,6 +39,16 @@ Last updated: 2026-03-10
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Migrated core load/smoke operations scripts from legacy header auth to Bearer auth:
+  - Updated:
+    - `infra/load-test/lightweight_baseline.ps1`
+    - `infra/load-test/validate_websocket_relay_smoke.ps1`
+  - Behavior:
+    - generated users now reuse `register` response `accessToken` for personalized feed reads, comment writes, follow/unfollow writes, tournament join, and STOMP relay connect
+    - websocket relay smoke now authenticates STOMP `CONNECT` with `Authorization: Bearer ...` instead of `X-User-Id`
+    - fanout follower setup now stores full user auth context instead of bare ids
+  - Goal:
+    - make core operational validation scripts compatible with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`
 - [x] Removed legacy `X-User-Id` fallback from primary web client/runtime paths:
   - Updated:
     - `apps/web/lib/api-client.ts`

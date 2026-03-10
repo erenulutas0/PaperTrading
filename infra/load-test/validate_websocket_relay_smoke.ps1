@@ -104,6 +104,18 @@ function Invoke-JsonApi {
   return Invoke-RestMethod @request
 }
 
+function Get-AuthHeaders {
+  param([psobject]$User)
+
+  if ($null -eq $User -or [string]::IsNullOrWhiteSpace($User.accessToken)) {
+    throw "User accessToken is required for strict-mode websocket relay validation."
+  }
+
+  return @{
+    Authorization = "Bearer $($User.accessToken)"
+  }
+}
+
 function Wait-MarketPrice {
   param(
     [string]$ApiBaseUrl,
@@ -318,7 +330,7 @@ function Wait-StompMessage {
 function New-StompSession {
   param(
     [string]$SocketUrl,
-    [string]$UserId,
+    [string]$AccessToken,
     [string]$HostHeader,
     [int]$ConnectTimeoutSec
   )
@@ -341,7 +353,7 @@ function New-StompSession {
     "accept-version" = "1.2"
     "host"           = $HostHeader
     "heart-beat"     = "10000,10000"
-    "X-User-Id"      = $UserId
+    "Authorization"  = "Bearer $AccessToken"
   }
   Send-StompFrame -Session $session -Command "CONNECT" -Headers $connectHeaders
   $connectedFrame = Receive-StompFrame -Session $session -TimeoutSec $ConnectTimeoutSec
@@ -509,11 +521,11 @@ try {
   }
   $tournamentId = [string]$tournament.id
 
-  $joinResult = Invoke-JsonApi -Method POST -Url "$BaseUrl/api/v1/tournaments/$tournamentId/join" -Headers @{ "X-User-Id" = $receiverId } -Body $null
+  $joinResult = Invoke-JsonApi -Method POST -Url "$BaseUrl/api/v1/tournaments/$tournamentId/join" -Headers (Get-AuthHeaders -User $receiver) -Body $null
   $portfolioId = [string]$joinResult.portfolioId
 
   $hostHeader = if ([string]::IsNullOrWhiteSpace($RelayVirtualHost)) { "localhost" } else { $RelayVirtualHost }
-  $session = New-StompSession -SocketUrl $WsUrl -UserId $receiverId -HostHeader $hostHeader -ConnectTimeoutSec 30
+  $session = New-StompSession -SocketUrl $WsUrl -AccessToken $receiver.accessToken -HostHeader $hostHeader -ConnectTimeoutSec 30
 
   Send-StompFrame -Session $session -Command "SUBSCRIBE" -Headers @{
     id          = "sub-notifications"
@@ -526,7 +538,7 @@ try {
     ack         = "auto"
   }
 
-  $null = Invoke-JsonApi -Method POST -Url "$BaseUrl/api/v1/users/$receiverId/follow" -Headers @{ "X-User-Id" = $actorId } -Body $null
+  $null = Invoke-JsonApi -Method POST -Url "$BaseUrl/api/v1/users/$receiverId/follow" -Headers (Get-AuthHeaders -User $actor) -Body $null
   $notificationFrame = Wait-StompMessage -Session $session -TimeoutSec $EventTimeoutSec -Expectation "initial notification stream event" -Matcher {
     param($frame)
     $destination = [string]$frame.Headers["destination"]
@@ -569,7 +581,7 @@ try {
     }
 
     Close-StompSession -Session $session
-    $session = New-StompSession -SocketUrl $WsUrl -UserId $receiverId -HostHeader $hostHeader -ConnectTimeoutSec 30
+    $session = New-StompSession -SocketUrl $WsUrl -AccessToken $receiver.accessToken -HostHeader $hostHeader -ConnectTimeoutSec 30
     Send-StompFrame -Session $session -Command "SUBSCRIBE" -Headers @{
       id          = "sub-notifications-reconnect"
       destination = "/user/queue/notifications"
@@ -582,11 +594,11 @@ try {
     }
 
     try {
-      $null = Invoke-JsonApi -Method DELETE -Url "$BaseUrl/api/v1/users/$receiverId/follow" -Headers @{ "X-User-Id" = $actorId } -Body $null
+      $null = Invoke-JsonApi -Method DELETE -Url "$BaseUrl/api/v1/users/$receiverId/follow" -Headers (Get-AuthHeaders -User $actor) -Body $null
     } catch {
       $notes += "Cleanup unfollow failed before post-restart follow test: $($_.Exception.Message)"
     }
-    $null = Invoke-JsonApi -Method POST -Url "$BaseUrl/api/v1/users/$receiverId/follow" -Headers @{ "X-User-Id" = $actorId } -Body $null
+    $null = Invoke-JsonApi -Method POST -Url "$BaseUrl/api/v1/users/$receiverId/follow" -Headers (Get-AuthHeaders -User $actor) -Body $null
 
     $postNotificationFrame = Wait-StompMessage -Session $session -TimeoutSec $EventTimeoutSec -Expectation "post-restart notification stream event" -Matcher {
       param($frame)
