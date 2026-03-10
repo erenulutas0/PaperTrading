@@ -142,8 +142,7 @@ CREATE TABLE IF NOT EXISTS public.interactions (
     CONSTRAINT interactions_target_type_check CHECK (((target_type)::text = ANY (
         (ARRAY[
             'PORTFOLIO'::character varying,
-            'ANALYSIS_POST'::character varying,
-            'COMMENT'::character varying
+            'ANALYSIS_POST'::character varying
         ])::text[]
     )))
 );

@@ -3,6 +3,7 @@
 Last updated: 2026-03-05
 
 ## In Progress
+- [ ] Redeploy backend after reverting accidental `V3` migration edit and verify Flyway validation passes with `COMMENT` support coming only from `V10`
 - [ ] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
 - [ ] Redeploy backend/frontend after comment-thread interaction upgrade and verify portfolio/post comments now support comment likes + replies with sane notifications and root-page links
 - [ ] Redeploy frontend after global bell relocation + follow-back action and verify notifications are visible from all dashboard sub-pages without header clipping
@@ -35,6 +36,14 @@ Last updated: 2026-03-05
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Reverted accidental edit to already-applied Flyway `V3` migration:
+  - Updated:
+    - `services/core-api/src/main/resources/db/migration/V3__bootstrap_core_schema.sql`
+  - Fix:
+    - removed post-hoc `COMMENT` target-type change from `V3`
+    - keeps `COMMENT` expansion solely in `V10`
+  - Goal:
+    - restore Flyway checksum stability in staged databases where `V3` was already applied
 - [x] Upgraded comment thread renderer from root-only actions to recursive thread actions:
   - Updated:
     - `apps/web/components/LikeCommentWidget.tsx`

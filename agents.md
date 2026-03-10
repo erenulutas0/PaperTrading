@@ -38,6 +38,19 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Flyway Checksum Discipline Fix for Comment-Thread Rollout (Seventy-Third Pass)**
+  - **Problem observed**:
+    - Railway backend crashed during Flyway validation with:
+      - `Migration checksum mismatch for migration version 3`
+    - Root cause: `V3__bootstrap_core_schema.sql` was edited after it had already been applied in staging.
+  - **Implementation**:
+    - Reverted the accidental change in:
+      - `services/core-api/src/main/resources/db/migration/V3__bootstrap_core_schema.sql`
+    - `COMMENT` interaction target support now remains only in:
+      - `services/core-api/src/main/resources/db/migration/V10__expand_interaction_target_type_for_comment_threads.sql`
+  - **Operational impact**:
+    - Existing staged databases can validate successfully again without `flyway repair`.
+    - Reinforces the rule that applied Flyway migrations are immutable; forward-only changes must use a new versioned migration.
 - **2026-03-05**: **Recursive Comment Thread Actions in UI (Seventy-Second Pass)**
   - **Problem observed**:
     - Backend accepted `COMMENT` targets, but the first UI pass only exposed `like/reply` affordances on root comments.
