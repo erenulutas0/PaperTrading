@@ -6,9 +6,12 @@ import com.finance.core.security.AuthSessionService;
 import com.finance.core.security.AuthSessionTokens;
 import com.finance.core.security.InvalidRefreshTokenException;
 import com.finance.core.security.JwtTokenService;
+import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.CurrentUserId;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -27,12 +30,12 @@ public class AuthController {
     private final AuthSessionService authSessionService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            return ResponseEntity.badRequest().body("Email already in use");
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "email_in_use", "Email already in use", null, httpRequest);
         }
         if (userRepository.existsByUsername(request.getUsername())) {
-            return ResponseEntity.badRequest().body("Username already taken");
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "username_taken", "Username already taken", null, httpRequest);
         }
 
         AppUser user = AppUser.builder()
@@ -46,7 +49,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         Optional<AppUser> userOpt = userRepository.findByEmail(request.getEmail());
         if (userOpt.isPresent()) {
             AppUser user = userOpt.get();
@@ -59,7 +62,7 @@ public class AuthController {
                 return ResponseEntity.ok(toAuthResponse(user));
             }
         }
-        return ResponseEntity.status(401).body("Invalid credentials");
+        return ApiErrorResponses.build(HttpStatus.UNAUTHORIZED, "invalid_credentials", "Invalid credentials", null, httpRequest);
     }
 
     @PostMapping("/refresh")
@@ -76,9 +79,10 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(
+    public ResponseEntity<?> logout(
             @CurrentUserId(required = false) UUID userId,
-            @RequestBody(required = false) LogoutRequest request) {
+            @RequestBody(required = false) LogoutRequest request,
+            HttpServletRequest httpRequest) {
         boolean revoked = false;
         if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
             authSessionService.revokeRefreshToken(request.getRefreshToken());
@@ -93,7 +97,7 @@ public class AuthController {
             revoked = true;
         }
         if (!revoked) {
-            return ResponseEntity.badRequest().build();
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "logout_request_invalid", "No logout target was provided", null, httpRequest);
         }
         return ResponseEntity.ok().build();
     }

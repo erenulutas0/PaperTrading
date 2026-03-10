@@ -38,6 +38,32 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-10**: **Request Correlation + Unified Error Contract Baseline (Seventy-Seventh Pass)**
+  - **Problem observed**:
+    - Error payloads were inconsistent:
+      - some controller paths returned raw strings
+      - exception handler used `ProblemDetail`
+      - JWT filter wrote ad hoc JSON
+    - Request correlation was not surfaced as a stable response header/body field.
+  - **Implementation**:
+    - Added request correlation filter:
+      - emits/echoes `X-Request-Id`
+      - stores request id in request attributes and MDC
+    - Added shared error DTO/utilities:
+      - `ApiErrorResponse`
+      - `ApiErrorResponses`
+    - Updated:
+      - `GlobalExceptionHandler`
+      - `AuthController`
+      - `JwtAuthenticationFilter`
+    - Common error shape now includes:
+      - `code`
+      - `message`
+      - `details`
+      - `requestId`
+  - **Operational impact**:
+    - auth and exception-driven failures now have a stable contract that is easier to log, trace, and consume from frontend/proxy/load tooling.
+    - this is the first step toward repository-wide error normalization; remaining controllers with manual non-auth responses can migrate incrementally without changing the contract again.
 - **2026-03-10**: **Bearer-Only Ops Script Migration for Auth Strict-Mode (Seventy-Sixth Pass)**
   - **Problem observed**:
     - Web client was prepared for strict-mode, but key ops/load scripts still authenticated with `X-User-Id`.

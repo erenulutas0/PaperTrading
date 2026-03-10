@@ -1,6 +1,9 @@
 package com.finance.core.security;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.web.ApiErrorResponse;
+import com.finance.core.web.RequestCorrelation;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,14 +36,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenService jwtTokenService;
     private final JwtRuntimeProperties jwtRuntimeProperties;
     private final MeterRegistry meterRegistry;
+    private final ObjectMapper objectMapper;
 
     public JwtAuthenticationFilter(
             JwtTokenService jwtTokenService,
             JwtRuntimeProperties jwtRuntimeProperties,
-            @Autowired(required = false) MeterRegistry meterRegistry) {
+            @Autowired(required = false) MeterRegistry meterRegistry,
+            ObjectMapper objectMapper) {
         this.jwtTokenService = jwtTokenService;
         this.jwtRuntimeProperties = jwtRuntimeProperties;
         this.meterRegistry = meterRegistry;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -108,7 +114,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void reject(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
-        response.getWriter().write("{\"error\":\"" + sanitize(message) + "\",\"status\":401}");
+        String requestId = response.getHeader(RequestCorrelation.REQUEST_ID_HEADER);
+        ApiErrorResponse payload = new ApiErrorResponse(
+                "unauthorized",
+                sanitize(message),
+                null,
+                requestId == null ? "" : requestId);
+        objectMapper.writeValue(response.getWriter(), payload);
     }
 
     private String sanitize(String value) {

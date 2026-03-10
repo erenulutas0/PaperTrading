@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -190,11 +191,36 @@ class AuthControllerIntegrationTest {
 
         mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
+                .content("""
                                 {
                                   "refreshToken": "%s"
                                 }
                                 """.formatted(refreshToken)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void register_withDuplicateEmail_shouldReturnUnifiedErrorContractAndRequestId() throws Exception {
+        userRepository.save(AppUser.builder()
+                .username("existing")
+                .email("existing@test.com")
+                .password(passwordEncoder.encode("secret123"))
+                .build());
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .header("X-Request-Id", "test-request-123")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "alice-2",
+                                  "email": "existing@test.com",
+                                  "password": "secret123"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "test-request-123"))
+                .andExpect(jsonPath("$.code").value("email_in_use"))
+                .andExpect(jsonPath("$.message").value("Email already in use"))
+                .andExpect(jsonPath("$.requestId").value("test-request-123"));
     }
 }

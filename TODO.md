@@ -3,6 +3,7 @@
 Last updated: 2026-03-10
 
 ## In Progress
+- [ ] Redeploy backend after request-correlation + unified error contract rollout and verify `X-Request-Id` is echoed on errors plus auth failures now return `{code,message,details?,requestId}`
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
 - [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance
 - [ ] Keep `run_auth_attack_scenarios.ps1` header-mismatch scenario intact and use it as the explicit spoof-regression check after strict-mode cutover
@@ -40,6 +41,24 @@ Last updated: 2026-03-10
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added request correlation + first-pass unified backend error contract:
+  - Added:
+    - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`
+    - `services/core-api/src/main/java/com/finance/core/web/RequestCorrelation.java`
+    - `services/core-api/src/main/java/com/finance/core/web/ApiErrorResponse.java`
+    - `services/core-api/src/main/java/com/finance/core/web/ApiErrorResponses.java`
+  - Updated:
+    - `SecurityConfig`
+    - `GlobalExceptionHandler`
+    - `AuthController`
+    - `JwtAuthenticationFilter`
+  - Behavior:
+    - every request now gets/echoes `X-Request-Id`
+    - exception handler responses and JWT reject responses now use a shared JSON contract
+    - high-traffic auth controller manual error bodies no longer return raw strings
+  - Coverage:
+    - `AuthControllerIntegrationTest`
+    - `JwtAuthenticationFilterStrictModeIntegrationTest`
 - [x] Migrated core load/smoke operations scripts from legacy header auth to Bearer auth:
   - Updated:
     - `infra/load-test/lightweight_baseline.ps1`

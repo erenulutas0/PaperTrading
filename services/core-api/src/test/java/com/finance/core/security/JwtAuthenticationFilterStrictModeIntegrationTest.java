@@ -12,6 +12,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = "app.auth.jwt.allow-legacy-user-id-header=false")
@@ -35,8 +37,13 @@ class JwtAuthenticationFilterStrictModeIntegrationTest {
     @Test
     void requestWithLegacyHeaderOnly_whenStrictModeEnabled_shouldReturnUnauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/users/me/preferences")
+                .header("X-Request-Id", "strict-req-1")
                 .header("X-User-Id", UUID.randomUUID().toString()))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("X-Request-Id", "strict-req-1"))
+                .andExpect(jsonPath("$.code").value("unauthorized"))
+                .andExpect(jsonPath("$.message").value("X-User-Id header is disabled. Use Bearer token"))
+                .andExpect(jsonPath("$.requestId").value("strict-req-1"));
     }
 
     @Test
