@@ -55,6 +55,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - The main staged load/smoke toolchain is now structurally compatible with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`.
     - Remaining strict-mode risk is reduced to secondary/older scripts and ad hoc manual calls rather than the primary validation path.
+    - The only intentional remaining `X-User-Id` use in `infra/load-test` is the spoof/mismatch branch inside `run_auth_attack_scenarios.ps1`, which is kept specifically to verify rejection semantics.
 - **2026-03-10**: **Token-Only Web Client Auth Readiness for Strict-Mode Rollout (Seventy-Fifth Pass)**
   - **Problem observed**:
     - Backend already supports strict mode via `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`, but primary web client/runtime paths still silently fell back to `X-User-Id` when access token was missing.

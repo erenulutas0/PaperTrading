@@ -8,6 +8,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 2. Creates one public portfolio.
 3. Seeds activity events by posting comments to the portfolio.
 4. Warms the feed cache with `GET /api/v1/feed/global?page=0&size=20`.
+   Authenticated personalized/write paths in the load scripts now reuse returned Bearer tokens from registration responses.
 5. Runs concurrent workers calling the same feed endpoint.
    Optional mixed profile can drive:
    - global feed read
@@ -288,6 +289,11 @@ Run auth-focused attack scenarios (invalid JWT flood, header/token mismatch floo
   -CanaryProbeAttempts 20 `
   -FailOnAnyFailure
 ```
+
+Note:
+
+- `run_auth_attack_scenarios.ps1` intentionally keeps one `X-User-Id` spoof case to verify `Authorization` + legacy-header mismatch rejection during strict-mode rollout.
+- `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` are now Bearer-token based and are expected to pass with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`.
 
 ## Output
 

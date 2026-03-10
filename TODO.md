@@ -5,6 +5,7 @@ Last updated: 2026-03-10
 ## In Progress
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
 - [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance
+- [ ] Keep `run_auth_attack_scenarios.ps1` header-mismatch scenario intact and use it as the explicit spoof-regression check after strict-mode cutover
 - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [ ] Redeploy backend after reverting accidental `V3` migration edit and verify Flyway validation passes with `COMMENT` support coming only from `V10`
 - [ ] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
