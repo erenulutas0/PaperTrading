@@ -31,17 +31,29 @@ public class AuditLogEndpoint {
     @ReadOperation
     public Map<String, Object> auditLog(Integer limit, String requestId) {
         int safeLimit = normalizeLimit(limit);
-        List<AuditLogEntry> entries = (requestId != null && !requestId.isBlank())
-                ? auditLogRepository.findByRequestIdOrderByCreatedAtDesc(requestId.trim()).stream().limit(safeLimit).toList()
-                : auditLogRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, safeLimit)).getContent();
+        try {
+            List<AuditLogEntry> entries = (requestId != null && !requestId.isBlank())
+                    ? auditLogRepository.findByRequestIdOrderByCreatedAtDesc(requestId.trim()).stream().limit(safeLimit).toList()
+                    : auditLogRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, safeLimit)).getContent();
 
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("checkedAt", LocalDateTime.now());
-        payload.put("limit", safeLimit);
-        payload.put("requestId", requestId);
-        payload.put("count", entries.size());
-        payload.put("entries", entries.stream().map(this::toPayload).toList());
-        return payload;
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("checkedAt", LocalDateTime.now());
+            payload.put("limit", safeLimit);
+            payload.put("requestId", requestId);
+            payload.put("count", entries.size());
+            payload.put("entries", entries.stream().map(this::toPayload).toList());
+            return payload;
+        } catch (Throwable ex) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("checkedAt", LocalDateTime.now());
+            payload.put("limit", safeLimit);
+            payload.put("requestId", requestId);
+            payload.put("count", 0);
+            payload.put("entries", List.of());
+            payload.put("error", ex.getMessage());
+            payload.put("fatal", true);
+            return payload;
+        }
     }
 
     private int normalizeLimit(Integer limit) {
