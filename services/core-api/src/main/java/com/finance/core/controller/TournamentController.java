@@ -79,7 +79,7 @@ public class TournamentController {
             @CurrentUserId UUID userId,
             HttpServletRequest httpRequest) {
         return tournamentService.getParticipantInfo(tournamentId, userId)
-                .map(ResponseEntity::ok)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ApiErrorResponses.build(
                         HttpStatus.NOT_FOUND,
                         "tournament_participant_not_found",
@@ -102,7 +102,7 @@ public class TournamentController {
     @GetMapping("/{tournamentId}")
     public ResponseEntity<?> getTournament(@PathVariable UUID tournamentId, HttpServletRequest httpRequest) {
         return tournamentRepository.findById(tournamentId)
-                .map(ResponseEntity::ok)
+                .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ApiErrorResponses.build(
                         HttpStatus.NOT_FOUND,
                         "tournament_not_found",

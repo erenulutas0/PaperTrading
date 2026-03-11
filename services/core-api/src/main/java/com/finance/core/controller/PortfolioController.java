@@ -85,7 +85,7 @@ public class PortfolioController {
     @GetMapping("/{id}")
     public ResponseEntity<?> getPortfolio(@PathVariable UUID id, HttpServletRequest httpRequest) {
         return portfolioRepository.findById(id)
-                .map(portfolio -> {
+                .<ResponseEntity<?>>map(portfolio -> {
                     PortfolioResponse response = mapToResponse(portfolio);
                     return ResponseEntity.ok(response);
                 })
@@ -301,7 +301,7 @@ public class PortfolioController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deletePortfolio(@PathVariable UUID id, HttpServletRequest httpRequest) {
         return portfolioRepository.findById(id)
-                .map(portfolio -> {
+                .<ResponseEntity<?>>map(portfolio -> {
                     portfolioRepository.delete(portfolio);
                     LinkedHashMap<String, Object> details = new LinkedHashMap<>();
                     details.put("portfolioName", portfolio.getName());
