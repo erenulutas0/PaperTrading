@@ -69,7 +69,7 @@ public class UserProfileService {
                                 .portfolioCount((int) portfolioCount)
                                 .isFollowing(isFollowing)
                                 .trustScore(trustScore)
-                                .winRate(trustBreakdown.getPredictionWinRate())
+                                .winRate(trustBreakdown.getBlendedWinRate())
                                 .trustBreakdown(trustBreakdown)
                                 .memberSince(user.getCreatedAt())
                                 .build();

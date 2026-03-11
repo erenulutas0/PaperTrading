@@ -21,6 +21,7 @@ interface UserProfile {
     trustScore?: number;
     winRate?: number;
     trustBreakdown?: {
+        blendedWinRate: number;
         predictionWinRate: number;
         resolvedPredictionCount: number;
         tradeWinRate: number;
@@ -344,10 +345,15 @@ export default function ProfilePage() {
                         </Link>
                     </article>
                     <article className="glass-panel rounded-xl border border-border/80 p-4">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Prediction Win Rate</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Platform Win Rate</p>
                         <p className="mt-2 text-2xl font-bold text-secondary">
                             {profile.winRate !== undefined && profile.winRate > 0 ? `${profile.winRate.toFixed(1)}%` : 'N/A'}
                         </p>
+                        {profile.trustBreakdown && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Blend of prediction, trade, and portfolio signals
+                            </p>
+                        )}
                     </article>
                     <article className="glass-panel rounded-xl border border-border/80 p-4">
                         <p className="text-xs uppercase tracking-wide text-muted-foreground">Portfolios</p>

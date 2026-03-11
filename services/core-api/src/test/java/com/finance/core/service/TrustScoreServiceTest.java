@@ -92,10 +92,10 @@ class TrustScoreServiceTest {
 
         verify(userRepository, times(1)).saveAll(any(java.util.List.class));
 
-        assertEquals(62.14, userA.getTrustScore(), 0.001);
-        assertEquals(55.29, userB.getTrustScore(), 0.001);
+        assertEquals(61.71, userA.getTrustScore(), 0.001);
+        assertEquals(55.43, userB.getTrustScore(), 0.001);
         assertEquals(50.0, userC.getTrustScore(), 0.001);
-        assertEquals(53.1, userD.getTrustScore(), 0.001);
+        assertEquals(52.9, userD.getTrustScore(), 0.001);
     }
 
     @Test
@@ -117,8 +117,8 @@ class TrustScoreServiceTest {
 
         trustScoreService.computeTrustScores();
 
-        assertEquals(71.54, userExtremeUpper.getTrustScore(), 0.001);
-        assertEquals(48.69, userExtremeLower.getTrustScore(), 0.001);
+        assertEquals(70.58, userExtremeUpper.getTrustScore(), 0.001);
+        assertEquals(49.63, userExtremeLower.getTrustScore(), 0.001);
     }
 
     @Test
@@ -185,6 +185,7 @@ class TrustScoreServiceTest {
         TrustScoreBreakdownResponse breakdown = trustScoreService.buildTrustScoreBreakdown(userId);
 
         assertEquals(75.0, breakdown.getPredictionWinRate(), 0.001);
+        assertEquals(70.65, breakdown.getBlendedWinRate(), 0.001);
         assertEquals(12L, breakdown.getResolvedPredictionCount());
         assertEquals(75.0, breakdown.getTradeWinRate(), 0.001);
         assertEquals(8L, breakdown.getResolvedTradeCount());

@@ -85,6 +85,7 @@ class UserProfileServiceTest {
                                 .build();
 
                 TrustScoreBreakdownResponse neutralBreakdown = TrustScoreBreakdownResponse.builder()
+                                .blendedWinRate(0.0)
                                 .predictionWinRate(0.0)
                                 .resolvedPredictionCount(0)
                                 .tradeWinRate(0.0)

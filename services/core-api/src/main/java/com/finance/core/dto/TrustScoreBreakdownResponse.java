@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 @Data
 @Builder
 public class TrustScoreBreakdownResponse {
+    private double blendedWinRate;
     private double predictionWinRate;
     private long resolvedPredictionCount;
     private double tradeWinRate;

@@ -34,14 +34,13 @@ public class TrustScoreService {
     private static final double PREDICTION_PRIOR_WEIGHT = 8.0;
     private static final double TRADE_PRIOR_WEIGHT = 10.0;
     private static final double PORTFOLIO_PRIOR_WEIGHT = 6.0;
-    private static final double PREDICTION_MULTIPLIER = 24.0;
+    private static final double PREDICTION_MULTIPLIER = 22.0;
     private static final double TRADE_MULTIPLIER = 20.0;
-    private static final double PORTFOLIO_MULTIPLIER = 18.0;
-    private static final double MAX_RETURN_ABS_PERCENT = 25.0;
-    private static final double RETURN_MULTIPLIER = 8.0;
+    private static final double PORTFOLIO_MULTIPLIER = 26.0;
+    private static final double MAX_RETURN_ABS_PERCENT = 20.0;
+    private static final double RETURN_MULTIPLIER = 12.0;
     private static final double EXPERIENCE_PER_RESOLVED_POST = 0.35;
     private static final double EXPERIENCE_PER_RESOLVED_TRADE = 0.15;
-    private static final double EXPERIENCE_PER_PORTFOLIO = 0.60;
     private static final double MAX_EXPERIENCE_BONUS = 10.0;
     private final UserRepository userRepository;
     private final PerformanceAnalyticsService analyticsService;
@@ -128,10 +127,17 @@ public class TrustScoreService {
         double experienceComponent = Math.min(
                 MAX_EXPERIENCE_BONUS,
                 (resolvedPredictionCount * EXPERIENCE_PER_RESOLVED_POST)
-                        + (resolvedTradeCount * EXPERIENCE_PER_RESOLVED_TRADE)
-                        + (portfolioSignals.totalPortfolioCount * EXPERIENCE_PER_PORTFOLIO));
+                        + (resolvedTradeCount * EXPERIENCE_PER_RESOLVED_TRADE));
+        double blendedWinRate = calculateBlendedWinRate(
+                predictionWinRate,
+                resolvedPredictionCount,
+                tradeWinRate,
+                resolvedTradeCount,
+                portfolioSignals.portfolioWinRate,
+                portfolioSignals.totalPortfolioCount);
 
         return TrustScoreBreakdownResponse.builder()
+                .blendedWinRate(roundDouble(blendedWinRate))
                 .predictionWinRate(roundDouble(predictionWinRate))
                 .resolvedPredictionCount(resolvedPredictionCount)
                 .tradeWinRate(roundDouble(tradeWinRate))
@@ -171,6 +177,25 @@ public class TrustScoreService {
         double posteriorRate = ((normalizedRate * sampleSize) + (PRIOR_WIN_RATE * priorWeight))
                 / (sampleSize + priorWeight);
         return (posteriorRate - PRIOR_WIN_RATE) * multiplier;
+    }
+
+    private double calculateBlendedWinRate(
+            double predictionWinRate,
+            long resolvedPredictionCount,
+            double tradeWinRate,
+            long resolvedTradeCount,
+            double portfolioWinRate,
+            int totalPortfolioCount) {
+        double predictionWeight = resolvedPredictionCount + PREDICTION_PRIOR_WEIGHT;
+        double tradeWeight = resolvedTradeCount + TRADE_PRIOR_WEIGHT;
+        double portfolioWeight = totalPortfolioCount + PORTFOLIO_PRIOR_WEIGHT;
+        double totalWeight = predictionWeight + tradeWeight + portfolioWeight;
+        if (totalWeight <= 0) {
+            return 0.0;
+        }
+        return ((predictionWinRate * predictionWeight)
+                + (tradeWinRate * tradeWeight)
+                + (portfolioWinRate * portfolioWeight)) / totalWeight;
     }
 
     private PortfolioSignals buildPortfolioSignals(List<Portfolio> portfolios) {

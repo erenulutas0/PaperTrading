@@ -46,6 +46,9 @@ export default function TrustScorePage() {
                         Trust score combines prediction outcomes, realized trade quality, and live portfolio behavior.
                         It is intentionally sample-size-aware, so a tiny lucky streak does not look like durable skill.
                     </p>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                        The profile page also shows a platform win rate, which blends prediction accuracy, closed-trade quality, and profitable portfolio ratio.
+                    </p>
                 </section>
 
                 <section className="grid gap-4 md:grid-cols-2">

@@ -73,11 +73,11 @@ class TrustScoreIntegrationTest {
 
         // Good user: 2/2 resolved predictions -> trust stays above baseline, but no
         // longer spikes unrealistically on tiny samples
-        assertEquals(53.1, updatedGoodUser.getTrustScore(), 0.001);
+        assertEquals(52.9, updatedGoodUser.getTrustScore(), 0.001);
 
         // Bad user: 1/4 resolved predictions -> score dips, but remains near neutral
         // until more evidence accumulates
-        assertEquals(49.4, updatedBadUser.getTrustScore(), 0.001);
+        assertEquals(49.57, updatedBadUser.getTrustScore(), 0.001);
     }
 
     private void savePost(AppUser author, AnalysisPost.Outcome outcome) {
