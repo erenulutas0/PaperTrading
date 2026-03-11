@@ -216,6 +216,8 @@ public class InteractionService {
                     ActivityEvent.TargetType.PORTFOLIO,
                     NotificationType.PORTFOLIO_LIKE,
                     NotificationType.PORTFOLIO_COMMENT,
+                    NotificationType.PORTFOLIO_COMMENT_LIKE,
+                    NotificationType.PORTFOLIO_COMMENT_REPLY,
                     ActivityEvent.EventType.PORTFOLIO_LIKED,
                     ActivityEvent.EventType.PORTFOLIO_COMMENTED,
                     targetId);
@@ -230,6 +232,8 @@ public class InteractionService {
                     ActivityEvent.TargetType.POST,
                     NotificationType.POST_LIKE,
                     NotificationType.POST_COMMENT,
+                    NotificationType.POST_COMMENT_LIKE,
+                    NotificationType.POST_COMMENT_REPLY,
                     ActivityEvent.EventType.POST_LIKED,
                     ActivityEvent.EventType.POST_COMMENTED,
                     targetId);
@@ -242,8 +246,8 @@ public class InteractionService {
                 comment.getActorId(),
                 rootTarget.label(),
                 rootTarget.activityTargetType(),
-                rootTarget.likeNotificationType(),
-                rootTarget.commentNotificationType(),
+                rootTarget.commentLikeNotificationType(),
+                rootTarget.commentReplyNotificationType(),
                 rootTarget.likeEventType(),
                 rootTarget.commentEventType(),
                 rootTarget.referenceId());
@@ -258,6 +262,8 @@ public class InteractionService {
                     ActivityEvent.TargetType.PORTFOLIO,
                     NotificationType.PORTFOLIO_LIKE,
                     NotificationType.PORTFOLIO_COMMENT,
+                    NotificationType.PORTFOLIO_COMMENT_LIKE,
+                    NotificationType.PORTFOLIO_COMMENT_REPLY,
                     ActivityEvent.EventType.PORTFOLIO_LIKED,
                     ActivityEvent.EventType.PORTFOLIO_COMMENTED,
                     comment.getTargetId());
@@ -271,6 +277,8 @@ public class InteractionService {
                     ActivityEvent.TargetType.POST,
                     NotificationType.POST_LIKE,
                     NotificationType.POST_COMMENT,
+                    NotificationType.POST_COMMENT_LIKE,
+                    NotificationType.POST_COMMENT_REPLY,
                     ActivityEvent.EventType.POST_LIKED,
                     ActivityEvent.EventType.POST_COMMENTED,
                     comment.getTargetId());
@@ -343,6 +351,8 @@ public class InteractionService {
             ActivityEvent.TargetType activityTargetType,
             NotificationType likeNotificationType,
             NotificationType commentNotificationType,
+            NotificationType commentLikeNotificationType,
+            NotificationType commentReplyNotificationType,
             ActivityEvent.EventType likeEventType,
             ActivityEvent.EventType commentEventType,
             UUID referenceId) {
@@ -353,6 +363,8 @@ public class InteractionService {
             ActivityEvent.TargetType activityTargetType,
             NotificationType likeNotificationType,
             NotificationType commentNotificationType,
+            NotificationType commentLikeNotificationType,
+            NotificationType commentReplyNotificationType,
             ActivityEvent.EventType likeEventType,
             ActivityEvent.EventType commentEventType,
             UUID referenceId) {

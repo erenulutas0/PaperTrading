@@ -24,6 +24,10 @@ public class Notification {
         POST_LIKE,
         PORTFOLIO_COMMENT,
         POST_COMMENT,
+        PORTFOLIO_COMMENT_LIKE,
+        PORTFOLIO_COMMENT_REPLY,
+        POST_COMMENT_LIKE,
+        POST_COMMENT_REPLY,
         PORTFOLIO_JOINED,
         PRICE_ALERT
     }

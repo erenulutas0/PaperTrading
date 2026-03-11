@@ -61,6 +61,14 @@ export default function NotificationsPage() {
                 return `commented on "${n.referenceLabel}"`;
             case 'POST_COMMENT':
                 return `commented on "${n.referenceLabel}"`;
+            case 'PORTFOLIO_COMMENT_LIKE':
+                return `liked your comment on "${n.referenceLabel}"`;
+            case 'POST_COMMENT_LIKE':
+                return `liked your comment on "${n.referenceLabel}"`;
+            case 'PORTFOLIO_COMMENT_REPLY':
+                return `replied to your comment on "${n.referenceLabel}"`;
+            case 'POST_COMMENT_REPLY':
+                return `replied to your comment on "${n.referenceLabel}"`;
             case 'PORTFOLIO_JOINED':
                 return `joined your portfolio "${n.referenceLabel}"`;
             case 'PRICE_ALERT':
@@ -81,6 +89,12 @@ export default function NotificationsPage() {
             case 'PORTFOLIO_COMMENT':
             case 'POST_COMMENT':
                 return '💬';
+            case 'PORTFOLIO_COMMENT_LIKE':
+            case 'POST_COMMENT_LIKE':
+                return '💟';
+            case 'PORTFOLIO_COMMENT_REPLY':
+            case 'POST_COMMENT_REPLY':
+                return '↩️';
             case 'PORTFOLIO_JOINED':
                 return '🤝';
             case 'PRICE_ALERT':

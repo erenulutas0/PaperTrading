@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Comment Notifications Split Into Like vs Reply Semantics (Ninety-Sixth Pass)**
+  - **Problem observed**:
+    - Portfolio/post comment activity could notify the owner, but the message was too generic:
+      - a like on a comment
+      - a reply to a comment
+      were both effectively collapsed into broader portfolio/post comment semantics.
+    - That made inbox intent muddy and hid which interaction actually happened.
+  - **Implementation**:
+    - Added explicit notification types:
+      - `PORTFOLIO_COMMENT_LIKE`
+      - `PORTFOLIO_COMMENT_REPLY`
+      - `POST_COMMENT_LIKE`
+      - `POST_COMMENT_REPLY`
+    - Added Flyway migration:
+      - `V13__expand_notification_type_constraint_for_comment_events.sql`
+    - `InteractionService` now maps `COMMENT` targets to comment-specific notification types while still resolving navigation against the root portfolio/post reference.
+    - Frontend bell/inbox/live-toast copy now renders distinct like-vs-reply wording and icons.
+  - **Operational impact**:
+    - users can distinguish "someone liked my comment" from "someone replied to my comment" without opening the target
+    - root-target navigation still works, so this semantic improvement does not require a routing redesign first
 - **2026-03-11**: **Interaction Read Path Batched and UI Made Optimistic (Ninety-Fourth Pass)**
   - **Problem observed**:
     - Portfolio/post comment panels could feel inconsistent under live use:

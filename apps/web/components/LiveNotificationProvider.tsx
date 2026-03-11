@@ -52,6 +52,10 @@ function getNotifMessage(n: NotificationPayload): string {
         case 'POST_LIKE': return `${n.actorUsername} liked your analysis "${n.referenceLabel}"`;
         case 'PORTFOLIO_COMMENT': return `${n.actorUsername} commented on "${n.referenceLabel}"`;
         case 'POST_COMMENT': return `${n.actorUsername} commented on "${n.referenceLabel}"`;
+        case 'PORTFOLIO_COMMENT_LIKE': return `${n.actorUsername} liked your comment on "${n.referenceLabel}"`;
+        case 'POST_COMMENT_LIKE': return `${n.actorUsername} liked your comment on "${n.referenceLabel}"`;
+        case 'PORTFOLIO_COMMENT_REPLY': return `${n.actorUsername} replied to your comment on "${n.referenceLabel}"`;
+        case 'POST_COMMENT_REPLY': return `${n.actorUsername} replied to your comment on "${n.referenceLabel}"`;
         case 'PORTFOLIO_JOINED': return `${n.actorUsername} joined "${n.referenceLabel}"`;
         case 'PRICE_ALERT': return `${n.referenceLabel}`;
         default: return `${n.actorUsername || 'System'} sent a notification`;
@@ -65,6 +69,10 @@ function getNotifIcon(type: string): string {
         case 'POST_LIKE': return '💙';
         case 'PORTFOLIO_COMMENT': return '💬';
         case 'POST_COMMENT': return '💬';
+        case 'PORTFOLIO_COMMENT_LIKE': return '💟';
+        case 'POST_COMMENT_LIKE': return '💟';
+        case 'PORTFOLIO_COMMENT_REPLY': return '↩️';
+        case 'POST_COMMENT_REPLY': return '↩️';
         case 'PORTFOLIO_JOINED': return '🤝';
         case 'PRICE_ALERT': return '🔔';
         default: return '📢';

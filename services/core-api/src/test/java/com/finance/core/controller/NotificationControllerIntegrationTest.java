@@ -180,6 +180,58 @@ class NotificationControllerIntegrationTest {
         }
 
         @Test
+        void commentLikeAndReply_ShouldGenerateCommentSpecificNotifications() throws Exception {
+                Portfolio portfolio = portfolioRepository.save(Portfolio.builder()
+                                .name("B's Gems")
+                                .ownerId(userB.getId().toString())
+                                .visibility(Portfolio.Visibility.PUBLIC)
+                                .build());
+
+                InteractionRequest rootComment = new InteractionRequest();
+                rootComment.setTargetType("PORTFOLIO");
+                rootComment.setContent("Root comment");
+
+                String rootCommentBody = mockMvc.perform(post("/api/v1/interactions/{targetId}/comments", portfolio.getId())
+                                .header("X-User-Id", userB.getId().toString())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(rootComment)))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString();
+
+                String commentId = objectMapper.readTree(rootCommentBody).get("id").asText();
+
+                InteractionRequest likeRequest = new InteractionRequest();
+                likeRequest.setTargetType("COMMENT");
+
+                mockMvc.perform(post("/api/v1/interactions/{targetId}/like", commentId)
+                                .header("X-User-Id", userA.getId().toString())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(likeRequest)))
+                                .andExpect(status().isOk());
+
+                InteractionRequest replyRequest = new InteractionRequest();
+                replyRequest.setTargetType("COMMENT");
+                replyRequest.setContent("Reply to your comment");
+
+                mockMvc.perform(post("/api/v1/interactions/{targetId}/comments", commentId)
+                                .header("X-User-Id", userA.getId().toString())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(replyRequest)))
+                                .andExpect(status().isOk());
+
+                await().atMost(2, TimeUnit.SECONDS)
+                                .until(() -> notificationRepository.countByUserIdAndReadFalse(userB.getId()) >= 2);
+
+                mockMvc.perform(get("/api/v1/notifications")
+                                .header("X-User-Id", userB.getId().toString()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content[*].type", hasItems("PORTFOLIO_COMMENT_LIKE", "PORTFOLIO_COMMENT_REPLY")))
+                                .andExpect(jsonPath("$.content[*].actorUsername", hasItem("user_a")));
+        }
+
+        @Test
         void pagination_ShouldWorkCorrectly() throws Exception {
                 // Generate 25 notifications for User B
                 for (int i = 0; i < 25; i++) {

@@ -231,6 +231,7 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
     const [likes, setLikes] = useState(0);
     const [hasLiked, setHasLiked] = useState(false);
     const [comments, setComments] = useState<CommentItem[]>([]);
+    const [commentCount, setCommentCount] = useState(0);
     const [newComment, setNewComment] = useState('');
     const [showComments, setShowComments] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -251,6 +252,7 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
             if (commentRes.ok) {
                 const commentData = await commentRes.json();
                 setComments(commentData.content ?? []);
+                setCommentCount(commentData.page?.totalElements ?? commentData.content?.length ?? 0);
             }
         } catch (error) {
             console.error(error);
@@ -346,6 +348,7 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
 
                 setNewComment('');
                 setShowComments(true);
+                setCommentCount(prev => prev + 1);
                 setComments(prev => [optimisticComment, ...prev.filter(comment => comment.id !== optimisticComment.id)]);
                 await fetchInteractionData();
             }
@@ -379,7 +382,7 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
                     <svg className="h-4 w-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
                     </svg>
-                    {comments.length}
+                    {commentCount}
                 </button>
             </div>
 

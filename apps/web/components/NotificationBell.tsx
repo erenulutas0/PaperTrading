@@ -48,6 +48,10 @@ export default function NotificationBell() {
             case 'POST_LIKE': return `liked your analysis "${n.referenceLabel}"`;
             case 'PORTFOLIO_COMMENT': return `commented on "${n.referenceLabel}"`;
             case 'POST_COMMENT': return `commented on "${n.referenceLabel}"`;
+            case 'PORTFOLIO_COMMENT_LIKE': return `liked your comment on "${n.referenceLabel}"`;
+            case 'POST_COMMENT_LIKE': return `liked your comment on "${n.referenceLabel}"`;
+            case 'PORTFOLIO_COMMENT_REPLY': return `replied to your comment on "${n.referenceLabel}"`;
+            case 'POST_COMMENT_REPLY': return `replied to your comment on "${n.referenceLabel}"`;
             case 'PORTFOLIO_JOINED': return `joined your portfolio "${n.referenceLabel}"`;
             case 'PRICE_ALERT': return `${n.referenceLabel}`;
             default: return `sent a notification`;
@@ -69,6 +73,10 @@ export default function NotificationBell() {
             case 'POST_LIKE': return '💙';
             case 'PORTFOLIO_COMMENT': return '💬';
             case 'POST_COMMENT': return '💬';
+            case 'PORTFOLIO_COMMENT_LIKE': return '💟';
+            case 'POST_COMMENT_LIKE': return '💟';
+            case 'PORTFOLIO_COMMENT_REPLY': return '↩️';
+            case 'POST_COMMENT_REPLY': return '↩️';
             case 'PORTFOLIO_JOINED': return '🤝';
             case 'PRICE_ALERT': return '🔔';
             default: return '📢';
