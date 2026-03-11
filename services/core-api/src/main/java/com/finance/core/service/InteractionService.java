@@ -263,6 +263,8 @@ public class InteractionService {
                 comment.getActorId(),
                 rootTarget.label(),
                 rootTarget.activityTargetType(),
+                rootTarget.likeNotificationType(),
+                rootTarget.commentNotificationType(),
                 rootTarget.commentLikeNotificationType(),
                 rootTarget.commentReplyNotificationType(),
                 rootTarget.likeEventType(),
