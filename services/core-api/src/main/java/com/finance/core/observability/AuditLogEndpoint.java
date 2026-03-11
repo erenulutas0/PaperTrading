@@ -14,9 +14,6 @@ import java.util.Map;
 @Endpoint(id = "auditlog")
 public class AuditLogEndpoint {
 
-    private static final int DEFAULT_LIMIT = 20;
-    private static final int MAX_LIMIT = 100;
-
     private final AuditLogInspectionService inspectionService;
 
     public AuditLogEndpoint(AuditLogInspectionService inspectionService) {
@@ -24,14 +21,14 @@ public class AuditLogEndpoint {
     }
 
     @ReadOperation
-    public Map<String, Object> auditLog(Integer limit, String requestId) {
+    public Map<String, Object> auditLog() {
         try {
-            return inspectionService.snapshot(limit, requestId);
+            return inspectionService.snapshot(null, null);
         } catch (Throwable ex) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("checkedAt", LocalDateTime.now());
-            payload.put("limit", limit);
-            payload.put("requestId", requestId);
+            payload.put("limit", null);
+            payload.put("requestId", null);
             payload.put("count", 0);
             payload.put("entries", List.of());
             payload.put("error", ex.getMessage());

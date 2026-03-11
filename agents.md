@@ -38,6 +38,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Actuator Audit Endpoint Reduced to Snapshot-Only Mode (Eighty-Ninth Pass)**
+  - **Problem observed**:
+    - Even after compiler metadata and shared-service hardening, `/actuator/auditlog` still failed while the REST ops endpoint succeeded.
+    - That isolated the remaining risk to custom actuator invocation/binding rather than audit storage itself.
+  - **Implementation**:
+    - Simplified `AuditLogEndpoint` to a zero-argument `@ReadOperation`.
+    - `/actuator/auditlog` now exposes only the default recent snapshot.
+    - Advanced inspection concerns (`limit`, `requestId`) remain on:
+      - `GET /api/v1/ops/auditlog`
+  - **Operational impact**:
+    - actuator path becomes a lightweight, resilient observability snapshot
+    - richer forensic inspection stays on the normal REST ops endpoint where request/query semantics are easier to control and debug
 - **2026-03-11**: **JDBC-Based Audit Inspection to Decouple Ops Reads from ORM Drift (Eighty-Eighth Pass)**
   - **Problem observed**:
     - Both `/actuator/auditlog` and `/api/v1/ops/auditlog` were still failing with `internal_error` in staging even after endpoint hardening.

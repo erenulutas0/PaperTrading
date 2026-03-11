@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend after simplifying custom actuator audit endpoint to zero-argument snapshot mode and verify `/actuator/auditlog` returns recent rows without relying on optional parameter binding
 - [ ] Redeploy backend after JDBC-based audit inspection rewrite and verify both `/api/v1/ops/auditlog` and `/actuator/auditlog` return recent rows instead of `internal_error`
 - [ ] Redeploy backend after REST audit ops endpoint rollout and verify `/api/v1/ops/auditlog` exposes recent audit rows even if custom actuator inspection remains unstable in this runtime
 - [ ] Redeploy backend after enabling Java `-parameters` metadata and verify `/actuator/auditlog` no longer fails when optional query params (`limit`, `requestId`) are present or omitted
@@ -53,6 +54,14 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Simplified custom actuator audit endpoint to zero-arg snapshot mode:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/observability/AuditLogEndpoint.java`
+  - Behavior:
+    - `/actuator/auditlog` now returns the default recent audit snapshot only
+    - filtered inspection (`limit`, `requestId`) remains on `/api/v1/ops/auditlog`
+  - Goal:
+    - remove actuator argument-binding as a failure source while keeping richer inspection on the REST ops path
 - [x] Reworked audit inspection reads to bypass JPA entity hydration:
   - Updated:
     - `services/core-api/src/main/java/com/finance/core/service/AuditLogInspectionService.java`
