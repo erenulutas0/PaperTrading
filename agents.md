@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Interaction Widget Summary Fallback and Reduced Comment Auto-Refresh (Ninety-Eighth Pass)**
+  - **Problem observed**:
+    - Even after adding the summary endpoint, some staged clients still rendered `0 likes / 0 comments` until the comment panel opened.
+    - Open reply threads could also feel like they were being reset because the full comment list refreshed too aggressively.
+  - **Implementation**:
+    - `LikeCommentWidget` now degrades gracefully:
+      - tries `/interactions/{id}/summary`
+      - falls back to legacy `likes/count` + minimal comment-page metadata if summary is unavailable or stale
+    - Full comment list auto-refresh was reduced:
+      - summary keeps polling
+      - full comments list refreshes on open and focus/visibility return instead of constant interval churn
+  - **Operational impact**:
+    - staged clients stay functional even if backend/frontend deploys are temporarily out of sync on the new summary endpoint
+    - opened discussion threads are less likely to visually jump or collapse due to background polling
 - **2026-03-11**: **Interaction Widgets Now Use Atomic Summary + Lazy Comment Loading (Ninety-Seventh Pass)**
   - **Problem observed**:
     - On initial open, widgets could momentarily show `0 likes / 0 comments` and then converge in steps.

@@ -11,6 +11,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy backend after comment-specific notification type rollout and verify liking/replying to a comment produces distinct notifications (`*_COMMENT_LIKE`, `*_COMMENT_REPLY`) instead of generic portfolio/post comment messages
 - [ ] Redeploy frontend after notification message mapping upgrade and verify bell/inbox copy clearly distinguishes portfolio/post comment likes vs replies
 - [ ] Redeploy backend/frontend after interaction summary endpoint rollout and verify collapsed widgets no longer flash `0 likes / 0 comments` before settling on real counts
+- [ ] Redeploy frontend after legacy-summary fallback and reduced comment auto-refresh rollout; verify counts still render if `/summary` is stale/missing and opened reply threads no longer visually reset every few seconds
 - [ ] Redeploy frontend after auth-state-aware notification reconnect + polling fallback and verify receiver gets follow/like/comment notifications without manual refresh after login or transient WS/SSE stalls
 - [ ] Re-run `run_auth_attack_scenarios.ps1` after accepting rate-limit `429` on invalid refresh flood and making websocket canary parsing schema-tolerant for current endpoint payloads
 - [ ] Redeploy backend after simplifying custom actuator audit endpoint to zero-argument snapshot mode and verify `/actuator/auditlog` returns recent rows without relying on optional parameter binding

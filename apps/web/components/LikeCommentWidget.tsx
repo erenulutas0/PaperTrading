@@ -233,7 +233,7 @@ function CommentThread({
 }
 
 export default function LikeCommentWidget({ targetId, targetType }: LikeCommentWidgetProps) {
-    const COMMENT_SYNC_INTERVAL_MS = 8000;
+    const SUMMARY_SYNC_INTERVAL_MS = 12000;
     const [likes, setLikes] = useState(0);
     const [hasLiked, setHasLiked] = useState(false);
     const [comments, setComments] = useState<CommentItem[]>([]);
@@ -243,6 +243,30 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
     const [loading, setLoading] = useState(true);
     const [commentsLoading, setCommentsLoading] = useState(false);
 
+    const fetchLegacySummary = useCallback(async (includeCommentCount: boolean) => {
+        try {
+            const [likeRes, commentMetaRes] = await Promise.all([
+                apiFetch(`/api/v1/interactions/${targetId}/likes/count?type=${targetType}`, { cache: 'no-store' }),
+                includeCommentCount
+                    ? apiFetch(`/api/v1/interactions/${targetId}/comments?type=${targetType}&page=0&size=1`, { cache: 'no-store' })
+                    : Promise.resolve(null),
+            ]);
+
+            if (likeRes.ok) {
+                const likeData = await likeRes.json();
+                setLikes(likeData.count ?? 0);
+                setHasLiked(Boolean(likeData.hasLiked));
+            }
+
+            if (commentMetaRes && commentMetaRes.ok) {
+                const commentData = await commentMetaRes.json();
+                setCommentCount(commentData.page?.totalElements ?? commentData.content?.length ?? 0);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }, [targetId, targetType]);
+
     const fetchSummary = useCallback(async () => {
         try {
             const res = await apiFetch(`/api/v1/interactions/${targetId}/summary?type=${targetType}`, { cache: 'no-store' });
@@ -251,19 +275,23 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
                 setLikes(summary.likeCount ?? 0);
                 setHasLiked(Boolean(summary.hasLiked));
                 setCommentCount(summary.commentCount ?? 0);
+                return;
             }
+            await fetchLegacySummary(false);
         } catch (error) {
             console.error(error);
+            await fetchLegacySummary(false);
         } finally {
             setLoading(false);
         }
-    }, [targetId, targetType]);
+    }, [fetchLegacySummary, targetId, targetType]);
 
     const fetchComments = useCallback(async () => {
         setCommentsLoading(true);
         try {
             const res = await apiFetch(`/api/v1/interactions/${targetId}/comments?type=${targetType}`, { cache: 'no-store' });
             if (!res.ok) {
+                await fetchLegacySummary(true);
                 return;
             }
             const commentData = await res.json();
@@ -271,10 +299,11 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
             setCommentCount(commentData.page?.totalElements ?? commentData.content?.length ?? 0);
         } catch (error) {
             console.error(error);
+            await fetchLegacySummary(true);
         } finally {
             setCommentsLoading(false);
         }
-    }, [targetId, targetType]);
+    }, [fetchLegacySummary, targetId, targetType]);
 
     useEffect(() => {
         void fetchSummary();
@@ -286,16 +315,37 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
         }
 
         const syncNow = () => {
-            void fetchComments();
             void fetchSummary();
         };
 
-        syncNow();
-        const intervalId = window.setInterval(syncNow, COMMENT_SYNC_INTERVAL_MS);
+        void fetchComments();
         const handleFocus = () => syncNow();
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 syncNow();
+                void fetchComments();
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [fetchComments, fetchSummary, showComments]);
+
+    useEffect(() => {
+        const syncSummary = () => {
+            void fetchSummary();
+        };
+
+        const intervalId = window.setInterval(syncSummary, SUMMARY_SYNC_INTERVAL_MS);
+        const handleFocus = () => syncSummary();
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                syncSummary();
             }
         };
 
@@ -307,7 +357,7 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
             window.removeEventListener('focus', handleFocus);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [fetchComments, fetchSummary, showComments]);
+    }, [fetchSummary]);
 
     const toggleLike = async () => {
         const previousState = hasLiked;
