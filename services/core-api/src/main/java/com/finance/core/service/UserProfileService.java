@@ -7,6 +7,7 @@ import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Follow;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.dto.UpdateProfileRequest;
+import com.finance.core.dto.TrustScoreBreakdownResponse;
 import com.finance.core.dto.UserProfileResponse;
 import com.finance.core.repository.FollowRepository;
 import com.finance.core.repository.PortfolioRepository;
@@ -36,7 +37,7 @@ public class UserProfileService {
         private final FollowRepository followRepository;
         private final PortfolioRepository portfolioRepository;
         private final ActivityFeedService activityFeedService;
-        private final PerformanceAnalyticsService performanceAnalyticsService;
+        private final TrustScoreService trustScoreService;
         private final ApplicationEventPublisher eventPublisher;
         private final AuditLogService auditLogService;
 
@@ -53,6 +54,9 @@ public class UserProfileService {
                 boolean isFollowing = requesterId != null &&
                                 followRepository.existsByFollowerIdAndFollowingId(requesterId, userId);
 
+                TrustScoreBreakdownResponse trustBreakdown = trustScoreService.buildTrustScoreBreakdown(userId);
+                double trustScore = trustScoreService.calculateTrustScore(trustBreakdown);
+
                 return UserProfileResponse.builder()
                                 .id(user.getId())
                                 .username(user.getUsername())
@@ -64,8 +68,9 @@ public class UserProfileService {
                                 .followingCount(user.getFollowingCount())
                                 .portfolioCount((int) portfolioCount)
                                 .isFollowing(isFollowing)
-                                .trustScore(user.getTrustScore())
-                                .winRate(performanceAnalyticsService.calculateWinRate(userId))
+                                .trustScore(trustScore)
+                                .winRate(trustBreakdown.getPredictionWinRate())
+                                .trustBreakdown(trustBreakdown)
                                 .memberSince(user.getCreatedAt())
                                 .build();
         }

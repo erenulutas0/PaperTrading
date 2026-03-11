@@ -20,5 +20,6 @@ public class UserProfileResponse {
     private boolean isFollowing; // Whether the requesting user is following this user
     private double trustScore;
     private double winRate;
+    private TrustScoreBreakdownResponse trustBreakdown;
     private LocalDateTime memberSince;
 }

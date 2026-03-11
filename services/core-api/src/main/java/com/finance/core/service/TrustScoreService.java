@@ -1,6 +1,10 @@
 package com.finance.core.service;
 
 import com.finance.core.domain.AppUser;
+import com.finance.core.domain.Portfolio;
+import com.finance.core.dto.TrustScoreBreakdownResponse;
+import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.TradeActivityRepository;
 import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Service
 @RequiredArgsConstructor
@@ -22,13 +31,24 @@ public class TrustScoreService {
     private static final int TRUST_SCORE_BATCH_SIZE = 250;
     private static final double BASELINE_SCORE = 50.0;
     private static final double PRIOR_WIN_RATE = 0.50;
-    private static final double PRIOR_WEIGHT = 8.0;
-    private static final double ACCURACY_MULTIPLIER = 120.0;
-    private static final double EXPERIENCE_BONUS_PER_RESOLVED_POST = 0.75;
-    private static final double MAX_EXPERIENCE_BONUS = 15.0;
-
+    private static final double PREDICTION_PRIOR_WEIGHT = 8.0;
+    private static final double TRADE_PRIOR_WEIGHT = 10.0;
+    private static final double PORTFOLIO_PRIOR_WEIGHT = 6.0;
+    private static final double PREDICTION_MULTIPLIER = 24.0;
+    private static final double TRADE_MULTIPLIER = 20.0;
+    private static final double PORTFOLIO_MULTIPLIER = 18.0;
+    private static final double MAX_RETURN_ABS_PERCENT = 25.0;
+    private static final double RETURN_MULTIPLIER = 8.0;
+    private static final double EXPERIENCE_PER_RESOLVED_POST = 0.35;
+    private static final double EXPERIENCE_PER_RESOLVED_TRADE = 0.15;
+    private static final double EXPERIENCE_PER_PORTFOLIO = 0.60;
+    private static final double MAX_EXPERIENCE_BONUS = 10.0;
     private final UserRepository userRepository;
     private final PerformanceAnalyticsService analyticsService;
+    private final PortfolioRepository portfolioRepository;
+    private final TradeActivityRepository tradeActivityRepository;
+    private final PerformanceCalculationService performanceCalculationService;
+    private final BinanceService binanceService;
 
     /**
      * Compute trust scores for all accounts hourly.
@@ -48,9 +68,8 @@ public class TrustScoreService {
             List<AppUser> batch = new ArrayList<>(userPage.getNumberOfElements());
 
             for (AppUser user : userPage.getContent()) {
-                double winRate = analyticsService.calculateWinRate(user.getId());
-                long resolvedPredictions = analyticsService.countResolvedPredictions(user.getId());
-                double score = calculateTrustScore(winRate, resolvedPredictions);
+                TrustScoreBreakdownResponse breakdown = buildTrustScoreBreakdown(user.getId());
+                double score = calculateTrustScore(breakdown);
 
                 user.setTrustScore(score);
                 batch.add(user);
@@ -66,13 +85,77 @@ public class TrustScoreService {
         log.info("Trust scores computed for {} users.", processed);
     }
 
-    double calculateTrustScore(double winRate, long resolvedPredictions) {
-        double normalizedWinRate = Math.max(0.0, Math.min(100.0, winRate)) / 100.0;
-        double posteriorWinRate = ((normalizedWinRate * resolvedPredictions) + (PRIOR_WIN_RATE * PRIOR_WEIGHT))
-                / (resolvedPredictions + PRIOR_WEIGHT);
-        double accuracyComponent = (posteriorWinRate - PRIOR_WIN_RATE) * ACCURACY_MULTIPLIER;
-        double experienceBonus = Math.min(MAX_EXPERIENCE_BONUS, resolvedPredictions * EXPERIENCE_BONUS_PER_RESOLVED_POST);
-        double score = BASELINE_SCORE + accuracyComponent + experienceBonus;
+    public TrustScoreBreakdownResponse buildTrustScoreBreakdown(UUID userId) {
+        double predictionWinRate = analyticsService.calculateWinRate(userId);
+        long resolvedPredictionCount = analyticsService.countResolvedPredictions(userId);
+
+        List<Portfolio> portfolios = portfolioRepository.findByOwnerId(userId.toString());
+        List<UUID> portfolioIds = portfolios.stream().map(Portfolio::getId).toList();
+
+        long profitableTrades = portfolioIds.isEmpty()
+                ? 0
+                : tradeActivityRepository.countProfitableRealizedTrades(portfolioIds);
+        long losingTrades = portfolioIds.isEmpty()
+                ? 0
+                : tradeActivityRepository.countLosingRealizedTrades(portfolioIds);
+        long resolvedTradeCount = profitableTrades + losingTrades;
+        double tradeWinRate = resolvedTradeCount == 0 ? 0.0 : ((double) profitableTrades / resolvedTradeCount) * 100.0;
+        BigDecimal aggregateRealizedPnl = portfolioIds.isEmpty()
+                ? BigDecimal.ZERO
+                : tradeActivityRepository.sumRealizedPnl(portfolioIds);
+
+        PortfolioSignals portfolioSignals = buildPortfolioSignals(portfolios);
+
+        double predictionComponent = calculatePosteriorComponent(
+                predictionWinRate,
+                resolvedPredictionCount,
+                PREDICTION_PRIOR_WEIGHT,
+                PREDICTION_MULTIPLIER);
+        double tradeComponent = calculatePosteriorComponent(
+                tradeWinRate,
+                resolvedTradeCount,
+                TRADE_PRIOR_WEIGHT,
+                TRADE_MULTIPLIER);
+        double portfolioComponent = calculatePosteriorComponent(
+                portfolioSignals.portfolioWinRate,
+                portfolioSignals.totalPortfolioCount,
+                PORTFOLIO_PRIOR_WEIGHT,
+                PORTFOLIO_MULTIPLIER);
+
+        double clampedAverageReturn = Math.max(-MAX_RETURN_ABS_PERCENT,
+                Math.min(MAX_RETURN_ABS_PERCENT, portfolioSignals.averagePortfolioReturn.doubleValue()));
+        double returnComponent = (clampedAverageReturn / MAX_RETURN_ABS_PERCENT) * RETURN_MULTIPLIER;
+        double experienceComponent = Math.min(
+                MAX_EXPERIENCE_BONUS,
+                (resolvedPredictionCount * EXPERIENCE_PER_RESOLVED_POST)
+                        + (resolvedTradeCount * EXPERIENCE_PER_RESOLVED_TRADE)
+                        + (portfolioSignals.totalPortfolioCount * EXPERIENCE_PER_PORTFOLIO));
+
+        return TrustScoreBreakdownResponse.builder()
+                .predictionWinRate(roundDouble(predictionWinRate))
+                .resolvedPredictionCount(resolvedPredictionCount)
+                .tradeWinRate(roundDouble(tradeWinRate))
+                .resolvedTradeCount(resolvedTradeCount)
+                .profitablePortfolioCount(portfolioSignals.profitablePortfolioCount)
+                .totalPortfolioCount(portfolioSignals.totalPortfolioCount)
+                .portfolioWinRate(roundDouble(portfolioSignals.portfolioWinRate))
+                .averagePortfolioReturn(portfolioSignals.averagePortfolioReturn)
+                .aggregateRealizedPnl(aggregateRealizedPnl.setScale(2, RoundingMode.HALF_UP))
+                .predictionComponent(roundDouble(predictionComponent))
+                .tradeComponent(roundDouble(tradeComponent))
+                .portfolioComponent(roundDouble(portfolioComponent))
+                .returnComponent(roundDouble(returnComponent))
+                .experienceComponent(roundDouble(experienceComponent))
+                .build();
+    }
+
+    double calculateTrustScore(TrustScoreBreakdownResponse breakdown) {
+        double score = BASELINE_SCORE
+                + breakdown.getPredictionComponent()
+                + breakdown.getTradeComponent()
+                + breakdown.getPortfolioComponent()
+                + breakdown.getReturnComponent()
+                + breakdown.getExperienceComponent();
 
         if (score > 100.0) {
             return 100.0;
@@ -81,5 +164,64 @@ public class TrustScoreService {
             return 0.0;
         }
         return Math.round(score * 100.0) / 100.0;
+    }
+
+    private double calculatePosteriorComponent(double ratePercent, long sampleSize, double priorWeight, double multiplier) {
+        double normalizedRate = Math.max(0.0, Math.min(100.0, ratePercent)) / 100.0;
+        double posteriorRate = ((normalizedRate * sampleSize) + (PRIOR_WIN_RATE * priorWeight))
+                / (sampleSize + priorWeight);
+        return (posteriorRate - PRIOR_WIN_RATE) * multiplier;
+    }
+
+    private PortfolioSignals buildPortfolioSignals(List<Portfolio> portfolios) {
+        if (portfolios == null || portfolios.isEmpty()) {
+            return new PortfolioSignals(0, 0, 0.0, BigDecimal.ZERO);
+        }
+
+        Map<String, Double> prices = safePrices();
+        int profitablePortfolioCount = 0;
+        BigDecimal totalReturn = BigDecimal.ZERO;
+
+        for (Portfolio portfolio : portfolios) {
+            PerformanceCalculationService.PerformanceMetrics metrics = performanceCalculationService.calculateMetrics(
+                    portfolio,
+                    performanceCalculationService.getStartTimeForPeriod("ALL"),
+                    "ALL",
+                    prices);
+            if (metrics.getProfitLoss().compareTo(BigDecimal.ZERO) > 0) {
+                profitablePortfolioCount++;
+            }
+            totalReturn = totalReturn.add(metrics.getReturnPercentage());
+        }
+
+        int totalPortfolioCount = portfolios.size();
+        double portfolioWinRate = totalPortfolioCount == 0
+                ? 0.0
+                : ((double) profitablePortfolioCount / totalPortfolioCount) * 100.0;
+        BigDecimal averagePortfolioReturn = totalPortfolioCount == 0
+                ? BigDecimal.ZERO
+                : totalReturn.divide(BigDecimal.valueOf(totalPortfolioCount), 2, RoundingMode.HALF_UP);
+
+        return new PortfolioSignals(
+                profitablePortfolioCount,
+                totalPortfolioCount,
+                portfolioWinRate,
+                averagePortfolioReturn);
+    }
+
+    private Map<String, Double> safePrices() {
+        Map<String, Double> prices = binanceService.getPrices();
+        return prices != null ? prices : Collections.emptyMap();
+    }
+
+    private double roundDouble(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private record PortfolioSignals(
+            int profitablePortfolioCount,
+            int totalPortfolioCount,
+            double portfolioWinRate,
+            BigDecimal averagePortfolioReturn) {
     }
 }

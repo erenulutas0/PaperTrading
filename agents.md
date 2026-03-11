@@ -33,11 +33,36 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
-| Trust/Credibility Scores | 🔨 Building | Bayesian/sample-size-aware scoring now replaces raw linear win-rate weighting; rollout/UI verification still pending |
+| Trust/Credibility Scores | 🔨 Building | Bayesian multi-signal scoring now blends resolved analysis accuracy, realized trade quality, profitable portfolio ratio, and average portfolio return; profile breakdown + user docs added, rollout verification pending |
 | Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; read/export tooling still pending |
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Trust Score Expanded to Multi-Signal Portfolio-Aware Credibility Model (One Hundred First Pass)**
+  - **Problem observed**:
+    - Prediction-only trust scoring was still too narrow for the product vision.
+    - Users can demonstrate skill through portfolio behavior and realized trading outcomes, not only structured analysis posts.
+    - A bare score without explanation is also hard to trust as a product signal.
+  - **Implementation**:
+    - Trust score now blends:
+      - Bayesian-adjusted prediction win rate
+      - Bayesian-adjusted realized trade win rate
+      - profitable portfolio ratio
+      - average portfolio return
+      - capped experience bonus from evidence volume
+    - `UserProfileResponse` now includes a trust breakdown payload.
+    - Profile UI now surfaces:
+      - prediction win rate
+      - trade win rate
+      - profitable portfolios
+      - average portfolio return
+      - realized P/L
+    - Added user-facing methodology page:
+      - `/trust-score`
+  - **Operational impact**:
+    - trust score is now more aligned with actual on-platform behavior
+    - users can inspect why a score is high or low instead of treating it as a black box
+    - product can evolve the scoring weights without changing the principle: credibility must be evidence-based and explainable
 - **2026-03-11**: **Trust Score Moved from Linear Win-Rate to Bayesian Credibility Model (One Hundredth Pass)**
   - **Problem observed**:
     - The old trust score was almost a cosmetic transform of raw win rate.

@@ -20,6 +20,22 @@ interface UserProfile {
     following: boolean;
     trustScore?: number;
     winRate?: number;
+    trustBreakdown?: {
+        predictionWinRate: number;
+        resolvedPredictionCount: number;
+        tradeWinRate: number;
+        resolvedTradeCount: number;
+        profitablePortfolioCount: number;
+        totalPortfolioCount: number;
+        portfolioWinRate: number;
+        averagePortfolioReturn: number;
+        aggregateRealizedPnl: number;
+        predictionComponent: number;
+        tradeComponent: number;
+        portfolioComponent: number;
+        returnComponent: number;
+        experienceComponent: number;
+    };
     memberSince: string;
 }
 
@@ -323,9 +339,12 @@ export default function ProfilePage() {
                         <p className={`mt-2 text-2xl font-bold ${trustScoreColor}`}>
                             {profile.trustScore !== undefined ? profile.trustScore.toFixed(1) : 'N/A'}
                         </p>
+                        <Link href="/trust-score" className="mt-3 inline-block text-xs text-primary hover:text-primary/80 transition-colors">
+                            How it works
+                        </Link>
                     </article>
                     <article className="glass-panel rounded-xl border border-border/80 p-4">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Win Rate</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Prediction Win Rate</p>
                         <p className="mt-2 text-2xl font-bold text-secondary">
                             {profile.winRate !== undefined && profile.winRate > 0 ? `${profile.winRate.toFixed(1)}%` : 'N/A'}
                         </p>
@@ -341,6 +360,52 @@ export default function ProfilePage() {
                         </p>
                     </article>
                 </section>
+
+                {profile.trustBreakdown && (
+                    <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                        <article className="glass-panel rounded-xl border border-border/80 p-4">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Resolved Calls</p>
+                            <p className="mt-2 text-2xl font-bold">{profile.trustBreakdown.resolvedPredictionCount}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">Target/stop/expiry resolved analysis posts</p>
+                        </article>
+                        <article className="glass-panel rounded-xl border border-border/80 p-4">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Trade Win Rate</p>
+                            <p className="mt-2 text-2xl font-bold text-secondary">
+                                {profile.trustBreakdown.resolvedTradeCount > 0
+                                    ? `${profile.trustBreakdown.tradeWinRate.toFixed(1)}%`
+                                    : 'N/A'}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">{profile.trustBreakdown.resolvedTradeCount} resolved closing trades</p>
+                        </article>
+                        <article className="glass-panel rounded-xl border border-border/80 p-4">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Profitable Portfolios</p>
+                            <p className="mt-2 text-2xl font-bold">
+                                {profile.trustBreakdown.profitablePortfolioCount}/{profile.trustBreakdown.totalPortfolioCount}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {profile.trustBreakdown.totalPortfolioCount > 0
+                                    ? `${profile.trustBreakdown.portfolioWinRate.toFixed(1)}% currently positive`
+                                    : 'No portfolios yet'}
+                            </p>
+                        </article>
+                        <article className="glass-panel rounded-xl border border-border/80 p-4">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Avg Portfolio Return</p>
+                            <p className={`mt-2 text-2xl font-bold ${profile.trustBreakdown.averagePortfolioReturn >= 0 ? 'text-success' : 'text-destructive'}`}>
+                                {profile.trustBreakdown.averagePortfolioReturn >= 0 ? '+' : ''}
+                                {profile.trustBreakdown.averagePortfolioReturn.toFixed(2)}%
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">Current average all-time return across portfolios</p>
+                        </article>
+                        <article className="glass-panel rounded-xl border border-border/80 p-4">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Realized P/L</p>
+                            <p className={`mt-2 text-2xl font-bold ${profile.trustBreakdown.aggregateRealizedPnl >= 0 ? 'text-success' : 'text-destructive'}`}>
+                                {profile.trustBreakdown.aggregateRealizedPnl >= 0 ? '+' : ''}
+                                ${Math.abs(profile.trustBreakdown.aggregateRealizedPnl).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">Closed-trade realized profit/loss</p>
+                        </article>
+                    </section>
+                )}
 
                 <section className="glass-panel rounded-2xl border border-border/80 p-5">
                     <div className="mb-5 flex flex-wrap gap-2">

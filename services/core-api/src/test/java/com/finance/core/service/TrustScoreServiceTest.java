@@ -1,6 +1,10 @@
 package com.finance.core.service;
 
 import com.finance.core.domain.AppUser;
+import com.finance.core.domain.Portfolio;
+import com.finance.core.dto.TrustScoreBreakdownResponse;
+import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.TradeActivityRepository;
 import com.finance.core.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +16,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.ArrayList;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +31,18 @@ class TrustScoreServiceTest {
 
     @Mock
     private PerformanceAnalyticsService analyticsService;
+
+    @Mock
+    private PortfolioRepository portfolioRepository;
+
+    @Mock
+    private TradeActivityRepository tradeActivityRepository;
+
+    @Mock
+    private PerformanceCalculationService performanceCalculationService;
+
+    @Mock
+    private BinanceService binanceService;
 
     @InjectMocks
     private TrustScoreService trustScoreService;
@@ -60,6 +77,7 @@ class TrustScoreServiceTest {
         // Arrange
         when(userRepository.findAll(PageRequest.of(0, 250)))
                 .thenReturn(new PageImpl<>(java.util.List.of(userA, userB, userC, userD), PageRequest.of(0, 250), 4));
+        when(portfolioRepository.findByOwnerId(anyString())).thenReturn(List.of());
 
         when(analyticsService.calculateWinRate(userA.getId())).thenReturn(80.0);
         when(analyticsService.countResolvedPredictions(userA.getId())).thenReturn(20L);
@@ -74,10 +92,10 @@ class TrustScoreServiceTest {
 
         verify(userRepository, times(1)).saveAll(any(java.util.List.class));
 
-        assertEquals(76.71, userA.getTrustScore(), 0.001);
-        assertEquals(48.14, userB.getTrustScore(), 0.001);
+        assertEquals(62.14, userA.getTrustScore(), 0.001);
+        assertEquals(55.29, userB.getTrustScore(), 0.001);
         assertEquals(50.0, userC.getTrustScore(), 0.001);
-        assertEquals(63.5, userD.getTrustScore(), 0.001);
+        assertEquals(53.1, userD.getTrustScore(), 0.001);
     }
 
     @Test
@@ -90,6 +108,7 @@ class TrustScoreServiceTest {
 
         when(userRepository.findAll(PageRequest.of(0, 250))).thenReturn(
                 new PageImpl<>(java.util.List.of(userExtremeUpper, userExtremeLower), PageRequest.of(0, 250), 2));
+        when(portfolioRepository.findByOwnerId(anyString())).thenReturn(List.of());
 
         when(analyticsService.calculateWinRate(userExtremeUpper.getId())).thenReturn(150.0);
         when(analyticsService.countResolvedPredictions(userExtremeUpper.getId())).thenReturn(200L);
@@ -98,8 +117,8 @@ class TrustScoreServiceTest {
 
         trustScoreService.computeTrustScores();
 
-        assertEquals(100.0, userExtremeUpper.getTrustScore(), 0.001);
-        assertEquals(5.9, userExtremeLower.getTrustScore(), 0.001);
+        assertEquals(71.54, userExtremeUpper.getTrustScore(), 0.001);
+        assertEquals(48.69, userExtremeLower.getTrustScore(), 0.001);
     }
 
     @Test
@@ -121,11 +140,58 @@ class TrustScoreServiceTest {
 
         when(analyticsService.calculateWinRate(any(UUID.class))).thenReturn(50.0);
         when(analyticsService.countResolvedPredictions(any(UUID.class))).thenReturn(10L);
+        when(portfolioRepository.findByOwnerId(anyString())).thenReturn(List.of());
 
         trustScoreService.computeTrustScores();
 
         verify(userRepository, times(1)).findAll(PageRequest.of(0, 250));
         verify(userRepository, times(1)).findAll(PageRequest.of(1, 250));
         verify(userRepository, times(2)).saveAll(any(java.util.List.class));
+    }
+
+    @Test
+    void buildTrustScoreBreakdown_rewardsProfitablePortfoliosAndTrades() {
+        UUID userId = UUID.randomUUID();
+        Portfolio profitablePortfolio = Portfolio.builder()
+                .id(UUID.randomUUID())
+                .ownerId(userId.toString())
+                .name("Profitable")
+                .build();
+        Portfolio losingPortfolio = Portfolio.builder()
+                .id(UUID.randomUUID())
+                .ownerId(userId.toString())
+                .name("Losing")
+                .build();
+
+        when(analyticsService.calculateWinRate(userId)).thenReturn(75.0);
+        when(analyticsService.countResolvedPredictions(userId)).thenReturn(12L);
+        when(portfolioRepository.findByOwnerId(userId.toString())).thenReturn(List.of(profitablePortfolio, losingPortfolio));
+        when(tradeActivityRepository.countProfitableRealizedTrades(List.of(profitablePortfolio.getId(), losingPortfolio.getId()))).thenReturn(6L);
+        when(tradeActivityRepository.countLosingRealizedTrades(List.of(profitablePortfolio.getId(), losingPortfolio.getId()))).thenReturn(2L);
+        when(tradeActivityRepository.sumRealizedPnl(List.of(profitablePortfolio.getId(), losingPortfolio.getId()))).thenReturn(BigDecimal.valueOf(4200));
+        when(binanceService.getPrices()).thenReturn(java.util.Map.of("BTCUSDT", 50000.0));
+        when(performanceCalculationService.getStartTimeForPeriod("ALL")).thenReturn(java.time.LocalDateTime.now());
+        when(performanceCalculationService.calculateMetrics(eq(profitablePortfolio), any(), eq("ALL"), any()))
+                .thenReturn(PerformanceCalculationService.PerformanceMetrics.builder()
+                        .profitLoss(BigDecimal.valueOf(1800))
+                        .returnPercentage(BigDecimal.valueOf(12.5))
+                        .build());
+        when(performanceCalculationService.calculateMetrics(eq(losingPortfolio), any(), eq("ALL"), any()))
+                .thenReturn(PerformanceCalculationService.PerformanceMetrics.builder()
+                        .profitLoss(BigDecimal.valueOf(-400))
+                        .returnPercentage(BigDecimal.valueOf(-2.5))
+                        .build());
+
+        TrustScoreBreakdownResponse breakdown = trustScoreService.buildTrustScoreBreakdown(userId);
+
+        assertEquals(75.0, breakdown.getPredictionWinRate(), 0.001);
+        assertEquals(12L, breakdown.getResolvedPredictionCount());
+        assertEquals(75.0, breakdown.getTradeWinRate(), 0.001);
+        assertEquals(8L, breakdown.getResolvedTradeCount());
+        assertEquals(1, breakdown.getProfitablePortfolioCount());
+        assertEquals(2, breakdown.getTotalPortfolioCount());
+        assertEquals(50.0, breakdown.getPortfolioWinRate(), 0.001);
+        assertEquals(5.0, breakdown.getAveragePortfolioReturn().doubleValue(), 0.001);
+        assertTrue(trustScoreService.calculateTrustScore(breakdown) > 50.0);
     }
 }

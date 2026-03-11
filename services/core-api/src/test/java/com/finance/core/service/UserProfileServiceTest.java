@@ -3,6 +3,7 @@ package com.finance.core.service;
 import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Follow;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.dto.TrustScoreBreakdownResponse;
 import com.finance.core.dto.UpdateProfileRequest;
 import com.finance.core.dto.UserProfileResponse;
 import com.finance.core.repository.FollowRepository;
@@ -42,7 +43,7 @@ class UserProfileServiceTest {
         @Mock
         private ActivityFeedService activityFeedService;
         @Mock
-        private PerformanceAnalyticsService performanceAnalyticsService;
+        private TrustScoreService trustScoreService;
         @Mock
         private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
@@ -82,6 +83,25 @@ class UserProfileServiceTest {
                                 .verified(true)
                                 .createdAt(LocalDateTime.now())
                                 .build();
+
+                TrustScoreBreakdownResponse neutralBreakdown = TrustScoreBreakdownResponse.builder()
+                                .predictionWinRate(0.0)
+                                .resolvedPredictionCount(0)
+                                .tradeWinRate(0.0)
+                                .resolvedTradeCount(0)
+                                .profitablePortfolioCount(0)
+                                .totalPortfolioCount(0)
+                                .portfolioWinRate(0.0)
+                                .averagePortfolioReturn(java.math.BigDecimal.ZERO)
+                                .aggregateRealizedPnl(java.math.BigDecimal.ZERO)
+                                .predictionComponent(0.0)
+                                .tradeComponent(0.0)
+                                .portfolioComponent(0.0)
+                                .returnComponent(0.0)
+                                .experienceComponent(0.0)
+                                .build();
+                when(trustScoreService.buildTrustScoreBreakdown(any(UUID.class))).thenReturn(neutralBreakdown);
+                when(trustScoreService.calculateTrustScore(any(TrustScoreBreakdownResponse.class))).thenReturn(50.0);
         }
 
         // ===== PROFILE RETRIEVAL =====
@@ -103,6 +123,7 @@ class UserProfileServiceTest {
                 assertEquals(0, response.getFollowerCount());
                 assertEquals(0, response.getPortfolioCount());
                 assertFalse(response.isFollowing());
+                assertEquals(50.0, response.getTrustScore());
         }
 
         @Test

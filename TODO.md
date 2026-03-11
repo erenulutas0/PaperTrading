@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend/frontend after trust score breakdown rollout and verify profile pages show prediction/trade/portfolio signals plus methodology page links
 - [ ] Redeploy backend after Bayesian/sample-size-aware trust score rollout and verify profile trust scores no longer overreact to tiny resolved-post samples while experienced authors gain gradual credibility lift
 - [ ] Redeploy backend after bypassing rate limiting for `/actuator/**` and re-run `run_auth_attack_scenarios.ps1` to confirm health probes no longer fail with `429`
 - [ ] Redeploy backend after auth attack script warmup probe tolerates `429/503` health states and verify strict-mode attack run no longer exits early as `UNAVAILABLE`
@@ -66,6 +67,21 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Expanded trust score from prediction-only signal to multi-signal credibility model:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/TrustScoreService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/UserProfileService.java`
+    - `services/core-api/src/main/java/com/finance/core/repository/TradeActivityRepository.java`
+    - `services/core-api/src/main/java/com/finance/core/dto/TrustScoreBreakdownResponse.java`
+    - `services/core-api/src/main/java/com/finance/core/dto/UserProfileResponse.java`
+    - `apps/web/app/profile/[userId]/page.tsx`
+    - `apps/web/app/trust-score/page.tsx`
+  - Behavior:
+    - trust score now blends resolved prediction accuracy, realized trade quality, profitable-portfolio ratio, and average portfolio return
+    - profile now exposes a user-facing breakdown instead of a bare score
+    - methodology page documents the scoring logic for end users
+  - Goal:
+    - make trust score dynamic, explainable, and grounded in portfolio behavior instead of only resolved analysis outcomes
 - [x] Exposed profile/trust-score entry points in dashboard shell:
   - Updated:
     - `apps/web/app/dashboard/layout.tsx`
