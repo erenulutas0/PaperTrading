@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 @Repository
 public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
@@ -20,6 +21,10 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
 
     @EntityGraph(attributePaths = "items")
     Page<Portfolio> findAllBy(Pageable pageable);
+
+    @Query(value = "SELECT p.id FROM Portfolio p",
+            countQuery = "SELECT COUNT(p) FROM Portfolio p")
+    Page<UUID> findAllIds(Pageable pageable);
 
     @EntityGraph(attributePaths = "items")
     List<Portfolio> findByOwnerId(String ownerId);
@@ -33,11 +38,18 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
     @EntityGraph(attributePaths = "items")
     Page<Portfolio> findByVisibility(Portfolio.Visibility visibility, Pageable pageable);
 
+    @Query(value = "SELECT p.id FROM Portfolio p WHERE p.visibility = :visibility",
+            countQuery = "SELECT COUNT(p) FROM Portfolio p WHERE p.visibility = :visibility")
+    Page<UUID> findIdsByVisibility(@Param("visibility") Portfolio.Visibility visibility, Pageable pageable);
+
     @EntityGraph(attributePaths = "items")
     List<Portfolio> findByOwnerIdAndVisibility(String ownerId, Portfolio.Visibility visibility);
 
     @EntityGraph(attributePaths = "items")
     List<Portfolio> findByIdInAndVisibility(Collection<UUID> ids, Portfolio.Visibility visibility);
+
+    @EntityGraph(attributePaths = "items")
+    List<Portfolio> findByIdIn(Collection<UUID> ids);
 
     @EntityGraph(attributePaths = "items")
     Page<Portfolio> findByOwnerIdAndVisibility(String ownerId, Portfolio.Visibility visibility, Pageable pageable);

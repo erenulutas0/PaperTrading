@@ -151,11 +151,13 @@ class LeaderboardServiceTest {
 
         @Test
         void refreshLeaderboardJob_shouldClearStaleKeysAndProcessPagedPortfolios() {
-                Page<Portfolio> firstPage = new PageImpl<>(List.of(portfolioA), PageRequest.of(0, 250), 1);
+                Page<UUID> firstPage = new PageImpl<>(List.of(portfolioA.getId()), PageRequest.of(0, 250), 1);
 
                 when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 55000.0));
-                when(portfolioRepository.findByVisibility(eq(Portfolio.Visibility.PUBLIC), eq(PageRequest.of(0, 250))))
+                when(portfolioRepository.findIdsByVisibility(eq(Portfolio.Visibility.PUBLIC), eq(PageRequest.of(0, 250))))
                                 .thenReturn(firstPage);
+                when(portfolioRepository.findByIdInAndVisibility(eq(List.of(portfolioA.getId())), eq(Portfolio.Visibility.PUBLIC)))
+                                .thenReturn(List.of(portfolioA));
                 when(performanceCalculationService.getStartTimeForPeriod(anyString()))
                                 .thenReturn(LocalDateTime.of(2026, 2, 1, 0, 0));
                 when(performanceCalculationService.calculateMetrics(eq(portfolioA), any(LocalDateTime.class), anyString(),

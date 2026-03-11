@@ -189,13 +189,13 @@ public class LeaderboardService {
         int updatedCount = 0;
 
         int page = 0;
-        Page<Portfolio> portfolioPage;
+        Page<UUID> portfolioPage;
         do {
-            portfolioPage = portfolioRepository.findByVisibility(
+            portfolioPage = portfolioRepository.findIdsByVisibility(
                     Portfolio.Visibility.PUBLIC,
                     PageRequest.of(page, LEADERBOARD_REFRESH_BATCH_SIZE));
 
-            for (Portfolio portfolio : portfolioPage.getContent()) {
+            for (Portfolio portfolio : loadPortfoliosWithItems(portfolioPage.getContent())) {
                 try {
                     PerformanceCalculationService.PerformanceMetrics metrics = performanceCalculationService
                             .calculateMetrics(portfolio, startTime, period, prices);
@@ -216,6 +216,20 @@ public class LeaderboardService {
         cacheService.expire(returnCacheKey, CACHE_TTL.multipliedBy(2));
         cacheService.expire(profitCacheKey, CACHE_TTL.multipliedBy(2));
         return updatedCount;
+    }
+
+    private List<Portfolio> loadPortfoliosWithItems(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        List<Portfolio> loaded = new ArrayList<>(portfolioRepository.findByIdInAndVisibility(ids, Portfolio.Visibility.PUBLIC));
+        Map<UUID, Integer> order = new HashMap<>();
+        for (int i = 0; i < ids.size(); i++) {
+            order.put(ids.get(i), i);
+        }
+        loaded.sort(Comparator.comparingInt(p -> order.getOrDefault(p.getId(), Integer.MAX_VALUE)));
+        return loaded;
     }
 
     private String normalizePeriod(String period) {

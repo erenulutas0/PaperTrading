@@ -18,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -76,8 +77,10 @@ class PerformanceTrackingServiceTest {
         when(binanceService.getPrices()).thenReturn(Map.of(
                 "BTCUSDT", 52000.0,
                 "ETHUSDT", 2900.0));
-        when(portfolioRepository.findAllBy(PageRequest.of(0, 250)))
-                .thenReturn(new PageImpl<>(java.util.List.of(portfolio), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findAllIds(PageRequest.of(0, 250)))
+                .thenReturn(new PageImpl<>(List.of(portfolio.getId()), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findByIdIn(List.of(portfolio.getId())))
+                .thenReturn(List.of(portfolio));
 
         performanceTrackingService.captureSnapshots();
 
@@ -101,7 +104,7 @@ class PerformanceTrackingServiceTest {
         performanceTrackingService.captureSnapshots();
 
         verify(snapshotRepository, never()).save(any());
-        verify(portfolioRepository, never()).findAllBy(any());
+        verify(portfolioRepository, never()).findAllIds(any());
     }
 
     @Test
@@ -121,15 +124,20 @@ class PerformanceTrackingServiceTest {
         secondPagePortfolio.setItems(new ArrayList<>());
 
         when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 50000.0));
-        when(portfolioRepository.findAllBy(PageRequest.of(0, 250)))
-                .thenReturn(new PageImpl<>(firstPagePortfolios, PageRequest.of(0, 250), 251));
-        when(portfolioRepository.findAllBy(PageRequest.of(1, 250)))
-                .thenReturn(new PageImpl<>(java.util.List.of(secondPagePortfolio), PageRequest.of(1, 250), 251));
+        List<UUID> firstIds = firstPagePortfolios.stream().map(Portfolio::getId).toList();
+        when(portfolioRepository.findAllIds(PageRequest.of(0, 250)))
+                .thenReturn(new PageImpl<>(firstIds, PageRequest.of(0, 250), 251));
+        when(portfolioRepository.findByIdIn(firstIds))
+                .thenReturn(firstPagePortfolios);
+        when(portfolioRepository.findAllIds(PageRequest.of(1, 250)))
+                .thenReturn(new PageImpl<>(java.util.List.of(secondPagePortfolio.getId()), PageRequest.of(1, 250), 251));
+        when(portfolioRepository.findByIdIn(List.of(secondPagePortfolio.getId())))
+                .thenReturn(List.of(secondPagePortfolio));
 
         performanceTrackingService.captureSnapshots();
 
-        verify(portfolioRepository, times(1)).findAllBy(PageRequest.of(0, 250));
-        verify(portfolioRepository, times(1)).findAllBy(PageRequest.of(1, 250));
+        verify(portfolioRepository, times(1)).findAllIds(PageRequest.of(0, 250));
+        verify(portfolioRepository, times(1)).findAllIds(PageRequest.of(1, 250));
         verify(snapshotRepository, times(251)).save(any(PortfolioSnapshot.class));
     }
 

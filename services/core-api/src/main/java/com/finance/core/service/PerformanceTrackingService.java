@@ -15,7 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -42,11 +46,11 @@ public class PerformanceTrackingService {
 
         long processed = 0;
         int page = 0;
-        Page<Portfolio> portfolioPage;
+        Page<UUID> portfolioPage;
 
         do {
-            portfolioPage = portfolioRepository.findAllBy(PageRequest.of(page, SNAPSHOT_BATCH_SIZE));
-            for (Portfolio portfolio : portfolioPage.getContent()) {
+            portfolioPage = portfolioRepository.findAllIds(PageRequest.of(page, SNAPSHOT_BATCH_SIZE));
+            for (Portfolio portfolio : loadPortfoliosWithItems(portfolioPage.getContent())) {
                 BigDecimal equity = calculateTotalEquity(portfolio, prices);
                 snapshotRepository.save(PortfolioSnapshot.builder()
                         .portfolioId(portfolio.getId())
@@ -58,6 +62,20 @@ public class PerformanceTrackingService {
         } while (portfolioPage.hasNext());
 
         log.info("Captured snapshots for {} portfolios.", processed);
+    }
+
+    private List<Portfolio> loadPortfoliosWithItems(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        List<Portfolio> loaded = new ArrayList<>(portfolioRepository.findByIdIn(ids));
+        Map<UUID, Integer> order = new java.util.HashMap<>();
+        for (int i = 0; i < ids.size(); i++) {
+            order.put(ids.get(i), i);
+        }
+        loaded.sort(Comparator.comparingInt(p -> order.getOrDefault(p.getId(), Integer.MAX_VALUE)));
+        return loaded;
     }
 
     public static BigDecimal calculateTotalEquity(Portfolio portfolio, Map<String, Double> prices) {

@@ -38,6 +38,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Two-Step Paged Portfolio Hydration for Scheduler Paths (Eighty-Fourth Pass)**
+  - **Problem observed**:
+    - Staging logs repeatedly emitted:
+      - `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory`
+    - Root cause was pageable portfolio scans combined with `items` collection eager loading through `@EntityGraph`, which forces Hibernate to paginate in memory.
+  - **Implementation**:
+    - Added ID-only pageable repository queries:
+      - `findAllIds(Pageable)`
+      - `findIdsByVisibility(visibility, Pageable)`
+    - Scheduler services now use two-step hydration:
+      - page only `portfolio.id`
+      - then bulk load those ids with `items`
+      - restore original page order in memory
+    - Updated scheduler paths:
+      - `PerformanceTrackingService`
+      - `LiquidationService`
+      - `LeaderboardService.refreshLeaderboardJob`
+    - Updated regression coverage:
+      - `PerformanceTrackingServiceTest`
+      - `LeaderboardServiceTest`
+  - **Operational impact**:
+    - scheduled portfolio scans no longer rely on collection-fetch pagination semantics
+    - this removes a scale footgun and keeps DB paging honest under larger portfolio counts
 - **2026-03-11**: **Binance REST Fallback Query Hardening (Eighty-Third Pass)**
   - **Problem observed**:
     - Staging logs showed Binance REST fallback failing on both startup and stale-read paths with:

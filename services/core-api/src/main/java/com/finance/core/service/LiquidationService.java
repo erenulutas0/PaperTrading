@@ -15,8 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -39,12 +42,12 @@ public class LiquidationService {
             return;
 
         int page = 0;
-        Page<Portfolio> portfolioPage;
+        Page<UUID> portfolioPage;
 
         do {
-            portfolioPage = portfolioRepository.findAllBy(PageRequest.of(page, LIQUIDATION_BATCH_SIZE));
+            portfolioPage = portfolioRepository.findAllIds(PageRequest.of(page, LIQUIDATION_BATCH_SIZE));
 
-            for (Portfolio portfolio : portfolioPage.getContent()) {
+            for (Portfolio portfolio : loadPortfoliosWithItems(portfolioPage.getContent())) {
                 boolean changed = false;
                 // Iterate over items to check for liquidation
                 List<PortfolioItem> items = portfolio.getItems();
@@ -116,5 +119,19 @@ public class LiquidationService {
 
             page++;
         } while (portfolioPage.hasNext());
+    }
+
+    private List<Portfolio> loadPortfoliosWithItems(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        List<Portfolio> loaded = new ArrayList<>(portfolioRepository.findByIdIn(ids));
+        Map<UUID, Integer> order = new java.util.HashMap<>();
+        for (int i = 0; i < ids.size(); i++) {
+            order.put(ids.get(i), i);
+        }
+        loaded.sort(Comparator.comparingInt(p -> order.getOrDefault(p.getId(), Integer.MAX_VALUE)));
+        return loaded;
     }
 }
