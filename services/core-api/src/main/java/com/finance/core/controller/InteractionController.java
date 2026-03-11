@@ -3,6 +3,7 @@ package com.finance.core.controller;
 import com.finance.core.domain.Interaction;
 import com.finance.core.dto.CommentResponse;
 import com.finance.core.dto.InteractionRequest;
+import com.finance.core.dto.InteractionSummaryResponse;
 import com.finance.core.service.InteractionService;
 import com.finance.core.web.CurrentUserId;
 import lombok.RequiredArgsConstructor;
@@ -62,5 +63,13 @@ public class InteractionController {
         }
 
         return ResponseEntity.ok(Map.of("count", count, "hasLiked", hasLiked));
+    }
+
+    @GetMapping("/{targetId}/summary")
+    public ResponseEntity<InteractionSummaryResponse> getSummary(
+            @PathVariable UUID targetId,
+            @RequestParam String type,
+            @CurrentUserId(required = false) UUID userId) {
+        return ResponseEntity.ok(interactionService.getSummary(targetId, type, userId));
     }
 }

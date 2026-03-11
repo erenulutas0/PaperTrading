@@ -28,6 +28,12 @@ interface InteractionCreateResponse {
     createdAt: string;
 }
 
+interface InteractionSummary {
+    likeCount: number;
+    hasLiked: boolean;
+    commentCount: number;
+}
+
 function formatRelativeTime(createdAt: string): string {
     const ts = new Date(createdAt).getTime();
     if (!Number.isFinite(ts)) return '';
@@ -235,24 +241,16 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
     const [newComment, setNewComment] = useState('');
     const [showComments, setShowComments] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [commentsLoading, setCommentsLoading] = useState(false);
 
-    const fetchInteractionData = useCallback(async () => {
+    const fetchSummary = useCallback(async () => {
         try {
-            const [likeRes, commentRes] = await Promise.all([
-                apiFetch(`/api/v1/interactions/${targetId}/likes/count?type=${targetType}`, { cache: 'no-store' }),
-                apiFetch(`/api/v1/interactions/${targetId}/comments?type=${targetType}`, { cache: 'no-store' }),
-            ]);
-
-            if (likeRes.ok) {
-                const likeData = await likeRes.json();
-                setLikes(likeData.count);
-                setHasLiked(likeData.hasLiked);
-            }
-
-            if (commentRes.ok) {
-                const commentData = await commentRes.json();
-                setComments(commentData.content ?? []);
-                setCommentCount(commentData.page?.totalElements ?? commentData.content?.length ?? 0);
+            const res = await apiFetch(`/api/v1/interactions/${targetId}/summary?type=${targetType}`, { cache: 'no-store' });
+            if (res.ok) {
+                const summary = await res.json() as InteractionSummary;
+                setLikes(summary.likeCount ?? 0);
+                setHasLiked(Boolean(summary.hasLiked));
+                setCommentCount(summary.commentCount ?? 0);
             }
         } catch (error) {
             console.error(error);
@@ -261,9 +259,26 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
         }
     }, [targetId, targetType]);
 
+    const fetchComments = useCallback(async () => {
+        setCommentsLoading(true);
+        try {
+            const res = await apiFetch(`/api/v1/interactions/${targetId}/comments?type=${targetType}`, { cache: 'no-store' });
+            if (!res.ok) {
+                return;
+            }
+            const commentData = await res.json();
+            setComments(commentData.content ?? []);
+            setCommentCount(commentData.page?.totalElements ?? commentData.content?.length ?? 0);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setCommentsLoading(false);
+        }
+    }, [targetId, targetType]);
+
     useEffect(() => {
-        void fetchInteractionData();
-    }, [fetchInteractionData]);
+        void fetchSummary();
+    }, [fetchSummary]);
 
     useEffect(() => {
         if (!showComments) {
@@ -271,7 +286,8 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
         }
 
         const syncNow = () => {
-            void fetchInteractionData();
+            void fetchComments();
+            void fetchSummary();
         };
 
         syncNow();
@@ -291,7 +307,7 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
             window.removeEventListener('focus', handleFocus);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [fetchInteractionData, showComments]);
+    }, [fetchComments, fetchSummary, showComments]);
 
     const toggleLike = async () => {
         const previousState = hasLiked;
@@ -312,7 +328,9 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
         } catch {
             setHasLiked(previousState);
             setLikes(previousLikes);
+            return;
         }
+        void fetchSummary();
     };
 
     const postComment = async (e: React.FormEvent) => {
@@ -350,7 +368,8 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
                 setShowComments(true);
                 setCommentCount(prev => prev + 1);
                 setComments(prev => [optimisticComment, ...prev.filter(comment => comment.id !== optimisticComment.id)]);
-                await fetchInteractionData();
+                await fetchComments();
+                await fetchSummary();
             }
         } catch (error) {
             console.error(error);
@@ -376,7 +395,13 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
                 </button>
 
                 <button
-                    onClick={() => setShowComments(!showComments)}
+                    onClick={() => {
+                        const next = !showComments;
+                        setShowComments(next);
+                        if (next) {
+                            void fetchComments();
+                        }
+                    }}
                     className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-bold text-zinc-400 transition-all hover:bg-zinc-800 hover:text-white"
                 >
                     <svg className="h-4 w-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -406,14 +431,19 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
                     </form>
 
                     <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-2 custom-scrollbar">
-                        {comments.length === 0 ? (
+                        {commentsLoading ? (
+                            <p className="py-2 text-center text-[10px] italic text-zinc-600">Loading comments...</p>
+                        ) : comments.length === 0 ? (
                             <p className="py-2 text-center text-[10px] italic text-zinc-600">No comments yet. Be the first!</p>
                         ) : (
                             comments.map((comment) => (
                                 <CommentThread
                                     key={comment.id}
                                     comment={comment}
-                                    onRefresh={fetchInteractionData}
+                                    onRefresh={async () => {
+                                        await fetchComments();
+                                        await fetchSummary();
+                                    }}
                                 />
                             ))
                         )}

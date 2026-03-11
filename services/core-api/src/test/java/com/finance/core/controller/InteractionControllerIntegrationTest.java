@@ -117,6 +117,14 @@ class InteractionControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.hasLiked").value(true));
+
+        mockMvc.perform(get("/api/v1/interactions/{targetId}/summary", portfolio.getId())
+                .param("type", "PORTFOLIO")
+                .header("X-User-Id", actor.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likeCount").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.hasLiked").value(true))
+                .andExpect(jsonPath("$.commentCount").value(0));
     }
 
     @Test
@@ -141,6 +149,14 @@ class InteractionControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].content").value("Clean execution."))
                 .andExpect(jsonPath("$.content[0].actorUsername", notNullValue()))
                 .andExpect(jsonPath("$.content[0].replyCount").value(0));
+
+        mockMvc.perform(get("/api/v1/interactions/{targetId}/summary", portfolio.getId())
+                .param("type", "PORTFOLIO")
+                .header("X-User-Id", actor.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.commentCount").value(1))
+                .andExpect(jsonPath("$.likeCount").value(0))
+                .andExpect(jsonPath("$.hasLiked").value(false));
     }
 
     @Test

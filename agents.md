@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Interaction Widgets Now Use Atomic Summary + Lazy Comment Loading (Ninety-Seventh Pass)**
+  - **Problem observed**:
+    - On initial open, widgets could momentarily show `0 likes / 0 comments` and then converge in steps.
+    - Even after batching comment metadata, collapsed widgets were still over-fetching full comment pages just to render counters.
+  - **Implementation**:
+    - Added backend summary endpoint:
+      - `GET /api/v1/interactions/{targetId}/summary?type=...`
+      - returns `likeCount`, `hasLiked`, `commentCount`
+    - `LikeCommentWidget` now:
+      - fetches only the summary when collapsed
+      - lazily fetches full comments page only when the panel opens
+      - refreshes summary and comment list independently after optimistic writes
+  - **Operational impact**:
+    - collapsed interaction widgets render from one atomic read model instead of racing separate count/list calls
+    - comment-heavy targets no longer pay full comment-page cost just to render summary counters
 - **2026-03-11**: **Comment Notifications Split Into Like vs Reply Semantics (Ninety-Sixth Pass)**
   - **Problem observed**:
     - Portfolio/post comment activity could notify the owner, but the message was too generic:

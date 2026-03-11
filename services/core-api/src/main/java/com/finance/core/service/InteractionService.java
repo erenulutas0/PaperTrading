@@ -9,6 +9,7 @@ import com.finance.core.domain.Notification.NotificationType;
 import com.finance.core.domain.event.NotificationEvent;
 import com.finance.core.dto.CommentResponse;
 import com.finance.core.dto.InteractionRequest;
+import com.finance.core.dto.InteractionSummaryResponse;
 import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.InteractionRepository;
 import com.finance.core.repository.PortfolioRepository;
@@ -182,6 +183,22 @@ public class InteractionService {
         Interaction.TargetType targetType = parseTargetType(targetTypeStr);
         return interactionRepository.existsByActorIdAndTargetTypeAndTargetIdAndInteractionType(
                 actorId, targetType, targetId, Interaction.InteractionType.LIKE);
+    }
+
+    public InteractionSummaryResponse getSummary(UUID targetId, String targetTypeStr, UUID requesterId) {
+        Interaction.TargetType targetType = parseTargetType(targetTypeStr);
+        long likeCount = interactionRepository.countByTargetTypeAndTargetIdAndInteractionType(
+                targetType, targetId, Interaction.InteractionType.LIKE);
+        long commentCount = interactionRepository.countByTargetTypeAndTargetIdAndInteractionType(
+                targetType, targetId, Interaction.InteractionType.COMMENT);
+        boolean hasLiked = requesterId != null && interactionRepository.existsByActorIdAndTargetTypeAndTargetIdAndInteractionType(
+                requesterId, targetType, targetId, Interaction.InteractionType.LIKE);
+
+        return InteractionSummaryResponse.builder()
+                .likeCount(likeCount)
+                .hasLiked(hasLiked)
+                .commentCount(commentCount)
+                .build();
     }
 
     private Interaction.TargetType parseTargetType(String typeStr) {
