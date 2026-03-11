@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **JDBC-Based Audit Inspection to Decouple Ops Reads from ORM Drift (Eighty-Eighth Pass)**
+  - **Problem observed**:
+    - Both `/actuator/auditlog` and `/api/v1/ops/auditlog` were still failing with `internal_error` in staging even after endpoint hardening.
+    - Since both paths shared the same inspection service, the likely fault domain was JPA/entity hydration of append-only `audit_logs` rows rather than endpoint binding itself.
+  - **Implementation**:
+    - Reworked `AuditLogInspectionService` to query `audit_logs` directly with `JdbcTemplate`.
+    - Inspection payload now maps DB columns manually:
+      - `id`, `actor_id`, `resource_id` -> `UUID`
+      - `action_type`, `resource_type` -> raw string
+      - `details` -> parsed JSON if possible, raw text otherwise
+      - `created_at` -> `LocalDateTime`
+    - This keeps both actuator and REST inspection paths on the same robust read primitive while leaving transactional audit writes on JPA.
+  - **Operational impact**:
+    - append-only audit inspection no longer depends on Java enum/entity mappings staying perfectly aligned with every persisted row
+    - ops/debug reads are now intentionally more tolerant than write-path domain mapping, which is the correct tradeoff for observability endpoints
 - **2026-03-11**: **REST Audit Inspection Fallback to Unblock Staging Validation (Eighty-Seventh Pass)**
   - **Problem observed**:
     - Custom actuator inspection for audit logs remained unstable in the current runtime even after hardening and compiler parameter metadata fixes.

@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend after JDBC-based audit inspection rewrite and verify both `/api/v1/ops/auditlog` and `/actuator/auditlog` return recent rows instead of `internal_error`
 - [ ] Redeploy backend after REST audit ops endpoint rollout and verify `/api/v1/ops/auditlog` exposes recent audit rows even if custom actuator inspection remains unstable in this runtime
 - [ ] Redeploy backend after enabling Java `-parameters` metadata and verify `/actuator/auditlog` no longer fails when optional query params (`limit`, `requestId`) are present or omitted
 - [ ] Redeploy backend after audit log inspection endpoint rollout and verify `/actuator/auditlog` shows recent write events plus `requestId` filtering for follow/trade/comment smoke actions
@@ -52,6 +53,15 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Reworked audit inspection reads to bypass JPA entity hydration:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/AuditLogInspectionService.java`
+  - Behavior:
+    - audit inspection now reads `audit_logs` via `JdbcTemplate` instead of JPA entity/repository hydration
+    - returns raw `action_type` / `resource_type` strings plus parsed JSON `details`
+    - avoids runtime failures caused by ORM mapping drift in append-only audit tables
+  - Goal:
+    - make ops/audit inspection resilient even if persisted audit rows evolve faster than enum/entity mappings
 - [x] Added REST audit inspection fallback path for staging verification:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/service/AuditLogInspectionService.java`
