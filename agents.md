@@ -38,6 +38,35 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Interaction Read Path Batched and UI Made Optimistic (Ninety-Fourth Pass)**
+  - **Problem observed**:
+    - Portfolio/post comment panels could feel inconsistent under live use:
+      - likes/comments appeared late
+      - replies sometimes seemed missing until a later refresh
+      - counts could temporarily disagree with visible rows
+    - Root cause was split between a chatty client refresh pattern and backend N+1 comment metadata reads (`likeCount`, `hasLiked`, `replyCount` per row).
+  - **Implementation**:
+    - `InteractionService.getComments(...)` now batches comment metadata hydration:
+      - grouped like counts by comment id
+      - grouped reply counts by comment id
+      - requester liked-comment ids in a single query
+    - `InteractionRepository` gained aggregate/read helpers for comment metadata fan-in.
+    - `LikeCommentWidget` now:
+      - inserts optimistic comments/replies immediately after successful POST
+      - fetches likes + comments in parallel with `cache: 'no-store'`
+      - syncs immediately when the panel opens and on focus/visibility return
+  - **Operational impact**:
+    - comment/reply UI converges much faster under multi-user traffic
+    - backend read cost scales with the page, not with per-comment metadata round-trips
+- **2026-03-11**: **Auth Attack Script No Longer Treats Degraded Health as Total Unavailability (Ninety-Fifth Pass)**
+  - **Problem observed**:
+    - strict-mode attack runs still reported `UNAVAILABLE` because startup availability gating used `/actuator/health` too literally.
+    - In staging, auth paths could be reachable while overall health returned `429` or `503` due rate limiting or non-auth contributors.
+  - **Implementation**:
+    - `run_auth_attack_scenarios.ps1` now retries the health probe and treats warmup `429/503` as degradations to note, not automatic abort conditions.
+  - **Operational impact**:
+    - auth attack reports stay focused on auth regressions instead of unrelated global health contributor state
+    - staging verification continues even when the app is reachable but not globally `UP`
 - **2026-03-11**: **Actuator Endpoints Excluded from Application Rate Limits (Ninety-Second Pass)**
   - **Problem observed**:
     - strict-mode auth attack script reported `UNAVAILABLE` because its startup health probe hit `429`.

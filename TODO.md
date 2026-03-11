@@ -4,7 +4,10 @@ Last updated: 2026-03-11
 
 ## In Progress
 - [ ] Redeploy backend after bypassing rate limiting for `/actuator/**` and re-run `run_auth_attack_scenarios.ps1` to confirm health probes no longer fail with `429`
+- [ ] Redeploy backend after auth attack script warmup probe tolerates `429/503` health states and verify strict-mode attack run no longer exits early as `UNAVAILABLE`
+- [ ] Redeploy backend after interaction read-path batching and verify portfolio/post comment lists no longer lag or appear partially populated under concurrent like/reply traffic
 - [ ] Redeploy frontend after interaction widget live-refresh hardening and verify portfolio comments/likes stay visible across tab focus changes and shortly after posting without manual refresh
+- [ ] Redeploy frontend after optimistic comment/reply insertion + inline notification `Mark read` action and verify comment panels converge immediately while notifications can be marked read without navigation
 - [ ] Redeploy frontend after auth-state-aware notification reconnect + polling fallback and verify receiver gets follow/like/comment notifications without manual refresh after login or transient WS/SSE stalls
 - [ ] Re-run `run_auth_attack_scenarios.ps1` after accepting rate-limit `429` on invalid refresh flood and making websocket canary parsing schema-tolerant for current endpoint payloads
 - [ ] Redeploy backend after simplifying custom actuator audit endpoint to zero-argument snapshot mode and verify `/actuator/auditlog` returns recent rows without relying on optional parameter binding

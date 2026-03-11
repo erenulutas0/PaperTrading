@@ -200,20 +200,35 @@ export default function NotificationBell() {
                                             </div>
                                             {!n.read && <div className="w-2 h-2 rounded-full bg-green-500 ml-auto shrink-0 mt-1"></div>}
                                         </Link>
-                                        {canFollowBack(n) && (
-                                            <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                    event.preventDefault();
-                                                    event.stopPropagation();
-                                                    void handleFollowBack(n);
-                                                }}
-                                                disabled={followBackLoadingId === n.id}
-                                                className="self-start shrink-0 rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-300 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                            >
-                                                {followBackLoadingId === n.id ? 'Following...' : 'Follow back'}
-                                            </button>
-                                        )}
+                                        <div className="flex shrink-0 flex-col items-end gap-2">
+                                            {!n.read && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.preventDefault();
+                                                        event.stopPropagation();
+                                                        void markRead(n.id);
+                                                    }}
+                                                    className="self-start rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
+                                                >
+                                                    Mark read
+                                                </button>
+                                            )}
+                                            {canFollowBack(n) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.preventDefault();
+                                                        event.stopPropagation();
+                                                        void handleFollowBack(n);
+                                                    }}
+                                                    disabled={followBackLoadingId === n.id}
+                                                    className="self-start rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-300 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                    {followBackLoadingId === n.id ? 'Following...' : 'Follow back'}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 ))
                             )}

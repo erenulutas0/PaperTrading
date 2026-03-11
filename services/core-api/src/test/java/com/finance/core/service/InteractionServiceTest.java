@@ -20,6 +20,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -221,15 +222,22 @@ class InteractionServiceTest {
                 eq(Interaction.TargetType.PORTFOLIO), eq(targetId), eq(Interaction.InteractionType.COMMENT), any()))
                 .thenReturn(new PageImpl<>(List.of(comment)));
         when(userRepository.findByIdIn(any())).thenReturn(List.of(actor));
-        when(interactionRepository.countByTargetTypeAndTargetIdAndInteractionType(
-                Interaction.TargetType.COMMENT, commentId, Interaction.InteractionType.LIKE))
-                .thenReturn(2L);
-        when(interactionRepository.existsByActorIdAndTargetTypeAndTargetIdAndInteractionType(
-                actorId, Interaction.TargetType.COMMENT, commentId, Interaction.InteractionType.LIKE))
-                .thenReturn(true);
-        when(interactionRepository.countByTargetTypeAndTargetIdAndInteractionType(
-                Interaction.TargetType.COMMENT, commentId, Interaction.InteractionType.COMMENT))
-                .thenReturn(1L);
+        when(interactionRepository.aggregateCountsByTargetIds(
+                Interaction.TargetType.COMMENT,
+                Set.of(commentId),
+                Interaction.InteractionType.LIKE))
+                .thenReturn(List.of(aggregate(commentId, 2L)));
+        when(interactionRepository.findTargetIdsLikedByActor(
+                actorId,
+                Interaction.TargetType.COMMENT,
+                Set.of(commentId),
+                Interaction.InteractionType.LIKE))
+                .thenReturn(List.of(commentId));
+        when(interactionRepository.aggregateCountsByTargetIds(
+                Interaction.TargetType.COMMENT,
+                Set.of(commentId),
+                Interaction.InteractionType.COMMENT))
+                .thenReturn(List.of(aggregate(commentId, 1L)));
 
         var page = interactionService.getComments(targetId, "PORTFOLIO", actorId, PageRequest.of(0, 20));
 
@@ -238,6 +246,20 @@ class InteractionServiceTest {
         assertEquals(2L, page.getContent().get(0).getLikeCount());
         assertEquals(1L, page.getContent().get(0).getReplyCount());
         assertTrue(page.getContent().get(0).isHasLiked());
+    }
+
+    private InteractionRepository.InteractionAggregateView aggregate(UUID targetId, long totalCount) {
+        return new InteractionRepository.InteractionAggregateView() {
+            @Override
+            public UUID getTargetId() {
+                return targetId;
+            }
+
+            @Override
+            public long getTotalCount() {
+                return totalCount;
+            }
+        };
     }
 
     private Portfolio portfolio(String name) {

@@ -21,6 +21,13 @@ interface CommentItem {
     replyCount: number;
 }
 
+interface InteractionCreateResponse {
+    id: string;
+    actorId: string;
+    content: string;
+    createdAt: string;
+}
+
 function formatRelativeTime(createdAt: string): string {
     const ts = new Date(createdAt).getTime();
     if (!Number.isFinite(ts)) return '';
@@ -57,7 +64,7 @@ function CommentThread({
     const fetchReplies = async () => {
         setLoadingReplies(true);
         try {
-            const res = await apiFetch(`/api/v1/interactions/${comment.id}/comments?type=COMMENT`);
+            const res = await apiFetch(`/api/v1/interactions/${comment.id}/comments?type=COMMENT`, { cache: 'no-store' });
             if (!res.ok) return;
             const data = await res.json();
             setReplies(data.content ?? []);
@@ -116,8 +123,26 @@ function CommentThread({
                 throw new Error('Reply failed');
             }
 
+            const created = await res.json() as InteractionCreateResponse;
+            const currentUserId = localStorage.getItem('userId') ?? '';
+            const currentUsername = localStorage.getItem('username') ?? 'you';
+            const optimisticReply: CommentItem = {
+                id: created.id,
+                actorId: created.actorId ?? currentUserId,
+                actorUsername: currentUsername,
+                actorDisplayName: currentUsername,
+                actorAvatarUrl: null,
+                content: created.content ?? trimmed,
+                createdAt: created.createdAt ?? new Date().toISOString(),
+                likeCount: 0,
+                hasLiked: false,
+                replyCount: 0,
+            };
+
             setReplyDraft('');
             setShowReplies(true);
+            setReplies(prev => [optimisticReply, ...prev.filter(reply => reply.id !== optimisticReply.id)]);
+            setCommentState(prev => ({ ...prev, replyCount: prev.replyCount + 1 }));
             await fetchReplies();
             await onRefresh();
         } catch (error) {
@@ -202,7 +227,7 @@ function CommentThread({
 }
 
 export default function LikeCommentWidget({ targetId, targetType }: LikeCommentWidgetProps) {
-    const COMMENT_SYNC_INTERVAL_MS = 10000;
+    const COMMENT_SYNC_INTERVAL_MS = 8000;
     const [likes, setLikes] = useState(0);
     const [hasLiked, setHasLiked] = useState(false);
     const [comments, setComments] = useState<CommentItem[]>([]);
@@ -212,14 +237,17 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
 
     const fetchInteractionData = useCallback(async () => {
         try {
-            const likeRes = await apiFetch(`/api/v1/interactions/${targetId}/likes/count?type=${targetType}`);
+            const [likeRes, commentRes] = await Promise.all([
+                apiFetch(`/api/v1/interactions/${targetId}/likes/count?type=${targetType}`, { cache: 'no-store' }),
+                apiFetch(`/api/v1/interactions/${targetId}/comments?type=${targetType}`, { cache: 'no-store' }),
+            ]);
+
             if (likeRes.ok) {
                 const likeData = await likeRes.json();
                 setLikes(likeData.count);
                 setHasLiked(likeData.hasLiked);
             }
 
-            const commentRes = await apiFetch(`/api/v1/interactions/${targetId}/comments?type=${targetType}`);
             if (commentRes.ok) {
                 const commentData = await commentRes.json();
                 setComments(commentData.content ?? []);
@@ -244,6 +272,7 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
             void fetchInteractionData();
         };
 
+        syncNow();
         const intervalId = window.setInterval(syncNow, COMMENT_SYNC_INTERVAL_MS);
         const handleFocus = () => syncNow();
         const handleVisibilityChange = () => {
@@ -299,8 +328,25 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
             });
 
             if (res.ok) {
+                const created = await res.json() as InteractionCreateResponse;
+                const currentUserId = localStorage.getItem('userId') ?? '';
+                const currentUsername = localStorage.getItem('username') ?? 'you';
+                const optimisticComment: CommentItem = {
+                    id: created.id,
+                    actorId: created.actorId ?? currentUserId,
+                    actorUsername: currentUsername,
+                    actorDisplayName: currentUsername,
+                    actorAvatarUrl: null,
+                    content: created.content ?? trimmed,
+                    createdAt: created.createdAt ?? new Date().toISOString(),
+                    likeCount: 0,
+                    hasLiked: false,
+                    replyCount: 0,
+                };
+
                 setNewComment('');
                 setShowComments(true);
+                setComments(prev => [optimisticComment, ...prev.filter(comment => comment.id !== optimisticComment.id)]);
                 await fetchInteractionData();
             }
         } catch (error) {

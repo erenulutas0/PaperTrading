@@ -111,6 +111,26 @@ function Invoke-Request {
   }
 }
 
+function Invoke-HealthProbe {
+  param(
+    [string]$BaseUrl,
+    [int]$TimeoutSec
+  )
+
+  $attempts = 5
+  for ($i = 1; $i -le $attempts; $i++) {
+    $response = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health" -TimeoutSec $TimeoutSec
+    if ($response.status -ne 429 -and $response.status -ne 503) {
+      return $response
+    }
+    if ($i -lt $attempts) {
+      Start-Sleep -Seconds 2
+    }
+  }
+
+  return $response
+}
+
 function Get-MetricValue {
   param(
     [string]$BaseUrl,
@@ -191,8 +211,8 @@ $null = New-Item -ItemType Directory -Path $reportsDir -Force
 $reportPath = Join-Path $reportsDir "auth-attack-scenarios-$timestamp.md"
 $notes = New-Object System.Collections.Generic.List[string]
 
-$health = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health" -TimeoutSec $RequestTimeoutSec
-if ($health.status -lt 200 -or $health.status -ge 300) {
+$health = Invoke-HealthProbe -BaseUrl $BaseUrl -TimeoutSec $RequestTimeoutSec
+if (($health.status -lt 200 -or $health.status -ge 300) -and $health.status -ne 429 -and $health.status -ne 503) {
   $notes.Add("Health endpoint unavailable: status=$($health.status), error=$($health.error)")
   $status = "UNAVAILABLE"
   $report = @(
@@ -211,6 +231,12 @@ if ($health.status -lt 200 -or $health.status -ge 300) {
   Write-Output "Status: $status"
   if (-not $NoFail) { exit 2 }
   return
+}
+if ($health.status -eq 429) {
+  $notes.Add("Health endpoint returned 429 during warmup; continuing attack run because app-level rate limiting is active on the deployed instance.")
+}
+if ($health.status -eq 503) {
+  $notes.Add("Health endpoint returned 503 during warmup; continuing attack run because non-auth health contributors may be degraded while auth paths remain reachable.")
 }
 
 $suffix = "$(Get-Date -Format 'yyyyMMddHHmmss')_$([guid]::NewGuid().ToString('N').Substring(0,8))"

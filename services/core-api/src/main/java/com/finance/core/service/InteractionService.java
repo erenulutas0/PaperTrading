@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -131,13 +132,44 @@ public class InteractionService {
         Page<Interaction> comments = interactionRepository.findByTargetTypeAndTargetIdAndInteractionTypeOrderByCreatedAtDesc(
                 targetType, targetId, Interaction.InteractionType.COMMENT, pageable);
 
+        List<Interaction> commentItems = comments.getContent();
+        if (commentItems.isEmpty()) {
+            return comments.map(comment -> toCommentResponse(comment, Map.of(), Set.of(), Map.of(), Map.of()));
+        }
+
+        Set<UUID> commentIds = commentItems.stream()
+                .map(Interaction::getId)
+                .collect(Collectors.toSet());
         Set<UUID> actorIds = comments.getContent().stream()
                 .map(Interaction::getActorId)
                 .collect(Collectors.toSet());
         Map<UUID, AppUser> actorMap = userRepository.findByIdIn(actorIds).stream()
                 .collect(Collectors.toMap(AppUser::getId, Function.identity()));
+        Map<UUID, Long> likeCounts = interactionRepository.aggregateCountsByTargetIds(
+                        Interaction.TargetType.COMMENT,
+                        commentIds,
+                        Interaction.InteractionType.LIKE)
+                .stream()
+                .collect(Collectors.toMap(
+                        InteractionRepository.InteractionAggregateView::getTargetId,
+                        InteractionRepository.InteractionAggregateView::getTotalCount));
+        Map<UUID, Long> replyCounts = interactionRepository.aggregateCountsByTargetIds(
+                        Interaction.TargetType.COMMENT,
+                        commentIds,
+                        Interaction.InteractionType.COMMENT)
+                .stream()
+                .collect(Collectors.toMap(
+                        InteractionRepository.InteractionAggregateView::getTargetId,
+                        InteractionRepository.InteractionAggregateView::getTotalCount));
+        Set<UUID> likedCommentIds = requesterId == null
+                ? Set.of()
+                : Set.copyOf(interactionRepository.findTargetIdsLikedByActor(
+                        requesterId,
+                        Interaction.TargetType.COMMENT,
+                        commentIds,
+                        Interaction.InteractionType.LIKE));
 
-        return comments.map(comment -> toCommentResponse(comment, requesterId, actorMap));
+        return comments.map(comment -> toCommentResponse(comment, likeCounts, likedCommentIds, replyCounts, actorMap));
     }
 
     public long getLikeCount(UUID targetId, String targetTypeStr) {
@@ -278,12 +310,16 @@ public class InteractionService {
                 target.label());
     }
 
-    private CommentResponse toCommentResponse(Interaction comment, UUID requesterId, Map<UUID, AppUser> actorMap) {
+    private CommentResponse toCommentResponse(
+            Interaction comment,
+            Map<UUID, Long> likeCounts,
+            Set<UUID> likedCommentIds,
+            Map<UUID, Long> replyCounts,
+            Map<UUID, AppUser> actorMap) {
         AppUser actor = actorMap.get(comment.getActorId());
-        long likeCount = getLikeCount(comment.getId(), Interaction.TargetType.COMMENT.name());
-        boolean hasLiked = requesterId != null && hasLiked(requesterId, comment.getId(), Interaction.TargetType.COMMENT.name());
-        long replyCount = interactionRepository.countByTargetTypeAndTargetIdAndInteractionType(
-                Interaction.TargetType.COMMENT, comment.getId(), Interaction.InteractionType.COMMENT);
+        long likeCount = likeCounts.getOrDefault(comment.getId(), 0L);
+        boolean hasLiked = likedCommentIds.contains(comment.getId());
+        long replyCount = replyCounts.getOrDefault(comment.getId(), 0L);
 
         return CommentResponse.builder()
                 .id(comment.getId())
