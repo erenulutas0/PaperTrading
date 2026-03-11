@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **REST Audit Inspection Fallback to Unblock Staging Validation (Eighty-Seventh Pass)**
+  - **Problem observed**:
+    - Custom actuator inspection for audit logs remained unstable in the current runtime even after hardening and compiler parameter metadata fixes.
+    - That was blocking validation of append-only audit writes.
+  - **Implementation**:
+    - Extracted shared inspection logic into:
+      - `AuditLogInspectionService`
+    - Added REST ops endpoint:
+      - `GET /api/v1/ops/auditlog`
+    - Added regression coverage:
+      - `AuditOpsControllerIntegrationTest`
+  - **Operational impact**:
+    - audit write verification no longer depends on actuator-specific argument binding/runtime behavior
+    - staging can inspect recent audit rows immediately while actuator path is treated as secondary
 - **2026-03-11**: **Compiler Parameter Metadata Enabled for Reflection-Based Endpoints (Eighty-Sixth Pass)**
   - **Problem observed**:
     - `auditlog` actuator endpoint continued to fail even after local exception hardening.

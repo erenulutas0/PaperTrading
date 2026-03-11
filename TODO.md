@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend after REST audit ops endpoint rollout and verify `/api/v1/ops/auditlog` exposes recent audit rows even if custom actuator inspection remains unstable in this runtime
 - [ ] Redeploy backend after enabling Java `-parameters` metadata and verify `/actuator/auditlog` no longer fails when optional query params (`limit`, `requestId`) are present or omitted
 - [ ] Redeploy backend after audit log inspection endpoint rollout and verify `/actuator/auditlog` shows recent write events plus `requestId` filtering for follow/trade/comment smoke actions
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
@@ -51,6 +52,16 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added REST audit inspection fallback path for staging verification:
+  - Added:
+    - `services/core-api/src/main/java/com/finance/core/service/AuditLogInspectionService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/AuditOpsController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/AuditOpsControllerIntegrationTest.java`
+  - Behavior:
+    - `/api/v1/ops/auditlog` exposes the same recent audit snapshot used by actuator inspection
+    - keeps audit verification unblocked even if custom actuator endpoint resolution is unstable in the current runtime
+  - Goal:
+    - keep staging audit validation moving without depending on actuator-specific argument binding behavior
 - [x] Enabled compiler parameter-name retention for Spring/Actuator reflection paths:
   - Updated:
     - `services/core-api/pom.xml`
