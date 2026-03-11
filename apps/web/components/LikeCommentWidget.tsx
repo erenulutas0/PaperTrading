@@ -277,10 +277,10 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
                 setCommentCount(summary.commentCount ?? 0);
                 return;
             }
-            await fetchLegacySummary(false);
+            await fetchLegacySummary(true);
         } catch (error) {
             console.error(error);
-            await fetchLegacySummary(false);
+            await fetchLegacySummary(true);
         } finally {
             setLoading(false);
         }
