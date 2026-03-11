@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import type { IMessage } from '@stomp/stompjs';
 import { wsHttpUrl } from '../lib/network';
 import { apiFetch } from '../lib/api-client';
+import { AUTH_STATE_CHANGED_EVENT } from '../lib/auth-storage';
 
 interface NotificationPayload {
     id: string;
@@ -72,10 +73,12 @@ function getNotifIcon(type: string): string {
 
 export function LiveNotificationProvider({ children }: { children: ReactNode }) {
     const WS_CONNECT_WATCHDOG_MS = 7000;
+    const POLL_INTERVAL_MS = 15000;
     const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [connected, setConnected] = useState(false);
+    const [authRevision, setAuthRevision] = useState(0);
     const knownNotificationIdsRef = useRef<Set<string>>(new Set());
 
     const addToast = useCallback((notif: NotificationPayload) => {
@@ -162,24 +165,84 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
     }, []);
 
     useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const notifyChange = () => setAuthRevision(prev => prev + 1);
+        const handleStorage = (event: StorageEvent) => {
+            if (!event.key || ['accessToken', 'refreshToken', 'userId', 'username'].includes(event.key)) {
+                notifyChange();
+            }
+        };
+
+        window.addEventListener(AUTH_STATE_CHANGED_EVENT, notifyChange);
+        window.addEventListener('storage', handleStorage);
+
+        return () => {
+            window.removeEventListener(AUTH_STATE_CHANGED_EVENT, notifyChange);
+            window.removeEventListener('storage', handleStorage);
+        };
+    }, []);
+
+    useEffect(() => {
         const userId = localStorage.getItem('userId');
         const accessToken = localStorage.getItem('accessToken');
-        if (!userId || !accessToken) return;
+        if (!userId || !accessToken) {
+            knownNotificationIdsRef.current = new Set();
+            setNotifications([]);
+            setUnreadCount(0);
+            setConnected(false);
+            return;
+        }
 
-        // Fetch initial notifications
-        apiFetch('/api/v1/notifications').then(res => res.json()).then(data => {
-            if (data.content) {
-                knownNotificationIdsRef.current = new Set(
-                    (data.content as NotificationPayload[])
-                        .map(notification => notification.id)
-                        .filter((id): id is string => Boolean(id))
-                );
-                setNotifications(data.content);
-                setUnreadCount(data.content.filter((n: NotificationPayload) => !n.read).length);
-            }
-        }).catch(() => { });
+        const syncNotifications = async (seedKnown: boolean) => {
+            try {
+                const notificationsResponse = await apiFetch('/api/v1/notifications');
+                if (notificationsResponse.ok) {
+                    const data = await notificationsResponse.json();
+                    const fetched = Array.isArray(data.content) ? data.content as NotificationPayload[] : [];
+
+                    if (seedKnown) {
+                        knownNotificationIdsRef.current = new Set(
+                            fetched
+                                .map(notification => notification.id)
+                                .filter((id): id is string => Boolean(id))
+                        );
+                    } else {
+                        const unseen = fetched.filter(notification =>
+                            Boolean(notification.id) && !knownNotificationIdsRef.current.has(notification.id)
+                        );
+
+                        fetched.forEach(notification => {
+                            if (notification.id) {
+                                knownNotificationIdsRef.current.add(notification.id);
+                            }
+                        });
+
+                        unseen
+                            .slice()
+                            .reverse()
+                            .forEach(notification => handleIncomingNotification(notification));
+                    }
+
+                    setNotifications(fetched);
+                }
+
+                const unreadResponse = await apiFetch('/api/v1/notifications/unread-count');
+                if (unreadResponse.ok) {
+                    const payload = await unreadResponse.json();
+                    if (typeof payload.count === 'number') {
+                        setUnreadCount(payload.count);
+                    }
+                }
+            } catch { }
+        };
+
+        void syncNotifications(true);
 
         let transportCleanup: (() => void) | null = null;
+        let pollingInterval: ReturnType<typeof setInterval> | null = null;
         let connectWatchdog: ReturnType<typeof setTimeout> | null = null;
         let fallbackStarted = false;
         let wsConnected = false;
@@ -313,13 +376,19 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
         };
 
         void connectStomp();
+        pollingInterval = setInterval(() => {
+            void syncNotifications(false);
+        }, POLL_INTERVAL_MS);
 
         return () => {
             disposed = true;
             clearWatchdog();
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
             transportCleanup?.();
         };
-    }, [addToast, handleIncomingNotification]);
+    }, [addToast, authRevision, handleIncomingNotification]);
 
     return (
         <LiveNotificationContext.Provider value={{ notifications, toasts, unreadCount, dismissToast, markRead, markAllRead, connected }}>

@@ -38,6 +38,35 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Notification Transport Now Reacts to Auth State and Falls Back to Polling (Ninetieth Pass)**
+  - **Problem observed**:
+    - Receivers sometimes saw notifications only after manually refreshing the page.
+    - Root cause was that `LiveNotificationProvider` initialized once at app mount, returned early if no token existed yet, and did not automatically re-run after login in the same tab.
+    - Even when transport connected, silent WS/SSE stalls still left no eventual reconciliation path.
+  - **Implementation**:
+    - Added shared client auth storage helper:
+      - `apps/web/lib/auth-storage.ts`
+    - Login/register/token-refresh/logout paths now emit a same-tab auth-state change event.
+    - `LiveNotificationProvider` now:
+      - re-initializes when auth storage changes
+      - clears state on logout/no-token
+      - runs periodic notification/unread polling as an eventual-delivery fallback
+  - **Operational impact**:
+    - users no longer need a manual refresh before the receiver-side notification stream starts after login
+    - transient realtime transport stalls degrade to delayed delivery instead of silent notification loss
+- **2026-03-11**: **Auth Attack Script Aligned with Strict-Mode and Rate-Limit Semantics (Ninety-First Pass)**
+  - **Problem observed**:
+    - strict-mode auth attack run failed despite auth rejections behaving correctly because:
+      - invalid refresh flood hit rate limiting (`429`) after repeated invalid attempts
+      - websocket canary parsing assumed a single payload shape for `alertState`
+    - Those produced false negatives in the attack report.
+  - **Implementation**:
+    - Updated `run_auth_attack_scenarios.ps1`:
+      - invalid refresh scenario now treats `401` and `429` as expected outcomes
+      - websocket canary probe now reads `alertState` defensively from direct or nested payload shapes
+  - **Operational impact**:
+    - attack reports now fail on real auth regressions rather than expected throttling behavior
+    - websocket canary validation is less brittle against endpoint payload-shape drift
 - **2026-03-11**: **Actuator Audit Endpoint Reduced to Snapshot-Only Mode (Eighty-Ninth Pass)**
   - **Problem observed**:
     - Even after compiler metadata and shared-service hardening, `/actuator/auditlog` still failed while the REST ops endpoint succeeded.

@@ -1,4 +1,5 @@
 import { apiPath } from "./network";
+import { clearAuthSession, storeAuthSession } from "./auth-storage";
 
 let refreshInFlight: Promise<boolean> | null = null;
 
@@ -126,15 +127,7 @@ async function attemptTokenRefresh(): Promise<boolean> {
         return false;
       }
 
-      window.localStorage.setItem("accessToken", payload.accessToken);
-      window.localStorage.setItem("refreshToken", payload.refreshToken);
-      const idValue = payload.id ?? payload.userId;
-      if (idValue) {
-        window.localStorage.setItem("userId", idValue);
-      }
-      if (payload.username) {
-        window.localStorage.setItem("username", payload.username);
-      }
+      storeAuthSession(payload);
       return true;
     } catch {
       clearStoredTokens();
@@ -150,11 +143,5 @@ async function attemptTokenRefresh(): Promise<boolean> {
 }
 
 function clearStoredTokens() {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.localStorage.removeItem("accessToken");
-  window.localStorage.removeItem("refreshToken");
-  window.localStorage.removeItem("userId");
-  window.localStorage.removeItem("username");
+  clearAuthSession();
 }

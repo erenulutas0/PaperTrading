@@ -41,6 +41,29 @@ function To-DoubleSafe {
   }
 }
 
+function Get-CanaryAlertState {
+  param([object]$Payload)
+
+  if ($null -eq $Payload) {
+    return ""
+  }
+
+  $direct = $Payload.PSObject.Properties["alertState"]
+  if ($null -ne $direct) {
+    return [string]$direct.Value
+  }
+
+  $details = $Payload.PSObject.Properties["details"]
+  if ($null -ne $details -and $null -ne $details.Value) {
+    $nested = $details.Value.PSObject.Properties["alertState"]
+    if ($null -ne $nested) {
+      return [string]$nested.Value
+    }
+  }
+
+  return ""
+}
+
 function Invoke-Request {
   param(
     [string]$Method,
@@ -213,7 +236,7 @@ function Run-StatusScenario {
   param(
     [string]$Name,
     [int]$Attempts,
-    [int]$ExpectedStatus,
+    [int[]]$ExpectedStatuses,
     [scriptblock]$RequestFactory
   )
 
@@ -226,7 +249,7 @@ function Run-StatusScenario {
     $response = & $RequestFactory $i
     $latencies.Add([double]$response.latencyMs)
 
-    if ($response.status -eq $ExpectedStatus) {
+    if ($ExpectedStatuses -contains $response.status) {
       $expectedCount++
     } else {
       $unexpectedCount++
@@ -239,7 +262,7 @@ function Run-StatusScenario {
   return [pscustomobject]@{
     name            = $Name
     attempts        = $Attempts
-    expectedStatus  = $ExpectedStatus
+    expectedStatus  = ($ExpectedStatuses -join "/")
     expectedCount   = $expectedCount
     unexpectedCount = $unexpectedCount
     avgLatencyMs    = [Math]::Round((($latencies | Measure-Object -Average).Average), 2)
@@ -249,7 +272,7 @@ function Run-StatusScenario {
   }
 }
 
-$invalidJwtScenario = Run-StatusScenario -Name "invalid-jwt-flood" -Attempts $InvalidJwtAttempts -ExpectedStatus 401 -RequestFactory {
+$invalidJwtScenario = Run-StatusScenario -Name "invalid-jwt-flood" -Attempts $InvalidJwtAttempts -ExpectedStatuses @(401) -RequestFactory {
   param($i)
   Invoke-Request -Method "GET" `
     -Url "$BaseUrl/api/v1/users/me/preferences" `
@@ -258,7 +281,7 @@ $invalidJwtScenario = Run-StatusScenario -Name "invalid-jwt-flood" -Attempts $In
 }
 $scenarioRows.Add($invalidJwtScenario)
 
-$mismatchScenario = Run-StatusScenario -Name "bearer-header-mismatch-flood" -Attempts $HeaderMismatchAttempts -ExpectedStatus 401 -RequestFactory {
+$mismatchScenario = Run-StatusScenario -Name "bearer-header-mismatch-flood" -Attempts $HeaderMismatchAttempts -ExpectedStatuses @(401) -RequestFactory {
   param($i)
   Invoke-Request -Method "GET" `
     -Url "$BaseUrl/api/v1/users/me/preferences" `
@@ -270,7 +293,7 @@ $mismatchScenario = Run-StatusScenario -Name "bearer-header-mismatch-flood" -Att
 }
 $scenarioRows.Add($mismatchScenario)
 
-$invalidRefreshScenario = Run-StatusScenario -Name "invalid-refresh-flood" -Attempts $InvalidRefreshAttempts -ExpectedStatus 401 -RequestFactory {
+$invalidRefreshScenario = Run-StatusScenario -Name "invalid-refresh-flood" -Attempts $InvalidRefreshAttempts -ExpectedStatuses @(401, 429) -RequestFactory {
   param($i)
   Invoke-Request -Method "POST" `
     -Url "$BaseUrl/api/v1/auth/refresh" `
@@ -306,8 +329,9 @@ if ($canaryWarmup.status -lt 200 -or $canaryWarmup.status -ge 300) {
     } else {
       try {
         $payload = $probe.content | ConvertFrom-Json
-        if ($payload.alertState -eq "WARNING") { $canaryStateWarnings++ }
-        if ($payload.alertState -eq "CRITICAL") { $canaryStateCritical++ }
+        $alertState = Get-CanaryAlertState -Payload $payload
+        if ($alertState -eq "WARNING") { $canaryStateWarnings++ }
+        if ($alertState -eq "CRITICAL") { $canaryStateCritical++ }
       } catch {
         $canaryProbeFailures++
         if ([string]::IsNullOrWhiteSpace($canaryFirstError)) {

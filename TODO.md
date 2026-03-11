@@ -3,6 +3,8 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after auth-state-aware notification reconnect + polling fallback and verify receiver gets follow/like/comment notifications without manual refresh after login or transient WS/SSE stalls
+- [ ] Re-run `run_auth_attack_scenarios.ps1` after accepting rate-limit `429` on invalid refresh flood and making websocket canary parsing schema-tolerant for current endpoint payloads
 - [ ] Redeploy backend after simplifying custom actuator audit endpoint to zero-argument snapshot mode and verify `/actuator/auditlog` returns recent rows without relying on optional parameter binding
 - [ ] Redeploy backend after JDBC-based audit inspection rewrite and verify both `/api/v1/ops/auditlog` and `/actuator/auditlog` return recent rows instead of `internal_error`
 - [ ] Redeploy backend after REST audit ops endpoint rollout and verify `/api/v1/ops/auditlog` exposes recent audit rows even if custom actuator inspection remains unstable in this runtime
@@ -54,6 +56,28 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Hardened live notification delivery against post-login stale provider state and silent transport stalls:
+  - Added:
+    - `apps/web/lib/auth-storage.ts`
+  - Updated:
+    - `apps/web/app/auth/login/page.tsx`
+    - `apps/web/app/auth/register/page.tsx`
+    - `apps/web/lib/api-client.ts`
+    - `apps/web/components/LiveNotificationProvider.tsx`
+  - Behavior:
+    - login/register/refresh/logout paths now publish a shared auth-state change event
+    - notification provider re-initializes when auth storage changes in the same tab
+    - provider also polls notifications/unread-count periodically as an eventual-delivery fallback if WS/SSE transport silently stalls
+  - Goal:
+    - remove the need for manual page refresh before the receiver starts seeing notifications
+- [x] Updated auth attack script for strict-mode + rate-limit reality:
+  - Updated:
+    - `infra/load-test/run_auth_attack_scenarios.ps1`
+  - Behavior:
+    - invalid refresh flood now accepts `401` or `429`
+    - websocket canary parsing tolerates both direct and nested `alertState` payload shapes
+  - Goal:
+    - keep the attack report focused on real auth regressions instead of expected throttling or payload-shape drift
 - [x] Simplified custom actuator audit endpoint to zero-arg snapshot mode:
   - Updated:
     - `services/core-api/src/main/java/com/finance/core/observability/AuditLogEndpoint.java`

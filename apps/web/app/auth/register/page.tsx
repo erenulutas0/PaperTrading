@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../../lib/api-client';
+import { storeAuthSession } from '../../../lib/auth-storage';
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -38,14 +39,7 @@ export default function RegisterPage() {
             }
 
             const user = await res.json();
-            localStorage.setItem('userId', user.id);
-            localStorage.setItem('username', user.username);
-            if (user.accessToken) {
-                localStorage.setItem('accessToken', user.accessToken);
-            }
-            if (user.refreshToken) {
-                localStorage.setItem('refreshToken', user.refreshToken);
-            }
+            storeAuthSession(user);
             router.push('/dashboard');
         } catch {
             setError('Something went wrong');
