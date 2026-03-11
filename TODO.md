@@ -3,6 +3,8 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend after bypassing rate limiting for `/actuator/**` and re-run `run_auth_attack_scenarios.ps1` to confirm health probes no longer fail with `429`
+- [ ] Redeploy frontend after interaction widget live-refresh hardening and verify portfolio comments/likes stay visible across tab focus changes and shortly after posting without manual refresh
 - [ ] Redeploy frontend after auth-state-aware notification reconnect + polling fallback and verify receiver gets follow/like/comment notifications without manual refresh after login or transient WS/SSE stalls
 - [ ] Re-run `run_auth_attack_scenarios.ps1` after accepting rate-limit `429` on invalid refresh flood and making websocket canary parsing schema-tolerant for current endpoint payloads
 - [ ] Redeploy backend after simplifying custom actuator audit endpoint to zero-argument snapshot mode and verify `/actuator/auditlog` returns recent rows without relying on optional parameter binding
@@ -56,6 +58,24 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Excluded actuator endpoints from app rate limiting:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/config/RateLimitFilter.java`
+    - `services/core-api/src/test/java/com/finance/core/config/RateLimitFilterTest.java`
+  - Behavior:
+    - `/actuator/**` requests bypass Bucket4j throttling
+    - ops/health/canary scripts are no longer distorted by normal application request pressure
+  - Goal:
+    - keep observability endpoints usable during attack/load verification
+- [x] Hardened interaction widget refresh behavior for volatile comment/like state:
+  - Updated:
+    - `apps/web/components/LikeCommentWidget.tsx`
+  - Behavior:
+    - when comment panel is open, the widget now re-syncs periodically
+    - tab focus / visibility return triggers a refresh
+    - posting a comment forces panel open and immediate data refresh
+  - Goal:
+    - reduce “comment disappeared / old comments missing until refresh” symptoms caused by stale client state
 - [x] Hardened live notification delivery against post-login stale provider state and silent transport stalls:
   - Added:
     - `apps/web/lib/auth-storage.ts`

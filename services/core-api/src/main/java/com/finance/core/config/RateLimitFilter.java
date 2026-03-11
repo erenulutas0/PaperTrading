@@ -92,6 +92,11 @@ public class RateLimitFilter implements Filter {
         return BucketProfile.DEFAULT;
     }
 
+    boolean shouldBypass(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path != null && path.startsWith("/actuator/");
+    }
+
     String resolveClientIp(HttpServletRequest request) {
         String forwardedFor = request.getHeader(X_FORWARDED_FOR);
         if (forwardedFor != null && !forwardedFor.isBlank()) {
@@ -148,6 +153,11 @@ public class RateLimitFilter implements Filter {
             throws IOException, ServletException {
         HttpServletRequest request = (HttpServletRequest) servletRequest;
         HttpServletResponse response = (HttpServletResponse) servletResponse;
+
+        if (shouldBypass(request)) {
+            filterChain.doFilter(servletRequest, servletResponse);
+            return;
+        }
 
         BucketProfile profile = resolveProfile(request);
         String bucketKey = resolveBucketKey(request, profile);

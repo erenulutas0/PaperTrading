@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api-client';
 
 interface LikeCommentWidgetProps {
@@ -202,6 +202,7 @@ function CommentThread({
 }
 
 export default function LikeCommentWidget({ targetId, targetType }: LikeCommentWidgetProps) {
+    const COMMENT_SYNC_INTERVAL_MS = 10000;
     const [likes, setLikes] = useState(0);
     const [hasLiked, setHasLiked] = useState(false);
     const [comments, setComments] = useState<CommentItem[]>([]);
@@ -209,11 +210,7 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
     const [showComments, setShowComments] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        void fetchInteractionData();
-    }, [targetId, targetType]);
-
-    const fetchInteractionData = async () => {
+    const fetchInteractionData = useCallback(async () => {
         try {
             const likeRes = await apiFetch(`/api/v1/interactions/${targetId}/likes/count?type=${targetType}`);
             if (likeRes.ok) {
@@ -232,7 +229,38 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
         } finally {
             setLoading(false);
         }
-    };
+    }, [targetId, targetType]);
+
+    useEffect(() => {
+        void fetchInteractionData();
+    }, [fetchInteractionData]);
+
+    useEffect(() => {
+        if (!showComments) {
+            return;
+        }
+
+        const syncNow = () => {
+            void fetchInteractionData();
+        };
+
+        const intervalId = window.setInterval(syncNow, COMMENT_SYNC_INTERVAL_MS);
+        const handleFocus = () => syncNow();
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                syncNow();
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [fetchInteractionData, showComments]);
 
     const toggleLike = async () => {
         const previousState = hasLiked;
@@ -258,7 +286,8 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
 
     const postComment = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newComment.trim()) return;
+        const trimmed = newComment.trim();
+        if (!trimmed) return;
 
         try {
             const res = await apiFetch(`/api/v1/interactions/${targetId}/comments`, {
@@ -266,11 +295,12 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ targetType, content: newComment })
+                body: JSON.stringify({ targetType, content: trimmed })
             });
 
             if (res.ok) {
                 setNewComment('');
+                setShowComments(true);
                 await fetchInteractionData();
             }
         } catch (error) {

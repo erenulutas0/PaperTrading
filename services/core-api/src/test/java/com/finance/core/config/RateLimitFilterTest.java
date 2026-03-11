@@ -84,6 +84,12 @@ class RateLimitFilterTest {
         assertEquals("198.51.100.3", key);
     }
 
+    @Test
+    void shouldBypass_shouldSkipActuatorEndpoints() {
+        assertEquals(true, filter.shouldBypass(request("GET", "/actuator/health")));
+        assertEquals(false, filter.shouldBypass(request("GET", "/api/v1/leaderboards")));
+    }
+
     private MockHttpServletRequest request(String method, String uri) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, uri);
         request.setRemoteAddr("127.0.0.1");

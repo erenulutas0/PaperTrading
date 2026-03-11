@@ -38,6 +38,31 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Actuator Endpoints Excluded from Application Rate Limits (Ninety-Second Pass)**
+  - **Problem observed**:
+    - strict-mode auth attack script reported `UNAVAILABLE` because its startup health probe hit `429`.
+    - That means normal application rate limiting was also throttling observability endpoints.
+  - **Implementation**:
+    - `RateLimitFilter` now bypasses `/actuator/**`.
+    - Added regression coverage in `RateLimitFilterTest`.
+  - **Operational impact**:
+    - health, metrics, idempotency, canary, and other actuator endpoints remain usable under attack/load verification
+    - ops visibility no longer collapses under the same pressure we are trying to measure
+- **2026-03-11**: **Interaction Widget Now Re-Syncs While Visible (Ninety-Third Pass)**
+  - **Problem observed**:
+    - Portfolio comment/like UI could appear inconsistent:
+      - newly posted comments seemed missing
+      - older comments/likes sometimes appeared only after manual refresh
+    - The client widget fetched on mount, but had weak re-sync behavior afterward.
+  - **Implementation**:
+    - Updated `LikeCommentWidget` to:
+      - re-fetch periodically while comments are visible
+      - refresh on tab focus
+      - refresh on visibility return
+      - automatically open comment panel and refresh immediately after posting
+  - **Operational impact**:
+    - interaction UI is more tolerant of transient stale state and background-tab drift
+    - users should see comment/like state converge without manual page reload
 - **2026-03-11**: **Notification Transport Now Reacts to Auth State and Falls Back to Polling (Ninetieth Pass)**
   - **Problem observed**:
     - Receivers sometimes saw notifications only after manually refreshing the page.
