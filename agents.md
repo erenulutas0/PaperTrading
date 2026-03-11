@@ -38,6 +38,16 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Compiler Parameter Metadata Enabled for Reflection-Based Endpoints (Eighty-Sixth Pass)**
+  - **Problem observed**:
+    - `auditlog` actuator endpoint continued to fail even after local exception hardening.
+    - Unlike zero-argument endpoints, it accepts optional operation parameters (`limit`, `requestId`), which rely on Java parameter-name metadata in Spring 6 reflection paths.
+  - **Implementation**:
+    - Enabled compiler parameter-name retention in Maven:
+      - `maven-compiler-plugin -> <parameters>true</parameters>`
+  - **Operational impact**:
+    - custom actuator operations and other reflection-driven method parameter paths are less brittle at runtime
+    - removes a class of failures where endpoint/query arguments cannot be resolved because bytecode lacks parameter names
 - **2026-03-11**: **Audit Log Inspection Endpoint for Staging Verification (Eighty-Fifth Pass)**
   - **Problem observed**:
     - Audit rows were being written, but there was no built-in way to inspect them in staging without opening the database directly.

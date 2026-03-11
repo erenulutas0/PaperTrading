@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend after enabling Java `-parameters` metadata and verify `/actuator/auditlog` no longer fails when optional query params (`limit`, `requestId`) are present or omitted
 - [ ] Redeploy backend after audit log inspection endpoint rollout and verify `/actuator/auditlog` shows recent write events plus `requestId` filtering for follow/trade/comment smoke actions
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
 - [ ] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
@@ -50,6 +51,14 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Enabled compiler parameter-name retention for Spring/Actuator reflection paths:
+  - Updated:
+    - `services/core-api/pom.xml`
+  - Behavior:
+    - Maven compiler now emits Java parameter metadata via `-parameters`
+    - improves compatibility for Actuator operation parameters and Spring 6 reflection-based argument resolution
+  - Goal:
+    - avoid endpoint/runtime failures caused by missing method parameter names
 - [x] Added audit log inspection actuator endpoint:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/observability/AuditLogEndpoint.java`
