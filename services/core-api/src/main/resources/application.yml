@@ -173,7 +173,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE:health,info,metrics,shedlock,feedlatency,websocket,websocketcanary,authsessions,idempotency}
+        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE:health,info,metrics,shedlock,feedlatency,websocket,websocketcanary,authsessions,idempotency,auditlog}
   metrics:
     distribution:
       percentiles-histogram:

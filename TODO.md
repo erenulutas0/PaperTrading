@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend after audit log inspection endpoint rollout and verify `/actuator/auditlog` shows recent write events plus `requestId` filtering for follow/trade/comment smoke actions
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
 - [ ] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [ ] Redeploy backend after idempotency cleanup/inspection rollout and verify `/actuator/idempotency` reports sane counts while scheduled purge removes expired keys without breaking replay semantics
@@ -49,6 +50,19 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added audit log inspection actuator endpoint:
+  - Added:
+    - `services/core-api/src/main/java/com/finance/core/observability/AuditLogEndpoint.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/AuditLogEndpointIntegrationTest.java`
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/repository/AuditLogRepository.java`
+    - `services/core-api/src/main/resources/application.yml`
+  - Behavior:
+    - `/actuator/auditlog` exposes recent audit rows
+    - supports `limit` and `requestId` filter
+    - parses stored JSON `details` for easier inspection
+  - Goal:
+    - make audit write-path verification observable in staging before adding broader admin/export tooling
 - [x] Fixed Binance REST fallback query formatting for startup/stale-read hydration:
   - Updated:
     - `services/core-api/src/main/java/com/finance/core/service/BinanceService.java`

@@ -38,6 +38,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Audit Log Inspection Endpoint for Staging Verification (Eighty-Fifth Pass)**
+  - **Problem observed**:
+    - Audit rows were being written, but there was no built-in way to inspect them in staging without opening the database directly.
+    - That made audit verification indirect and slowed smoke validation of request correlation.
+  - **Implementation**:
+    - Added actuator endpoint:
+      - `GET /actuator/auditlog`
+    - Supports:
+      - `limit`
+      - `requestId`
+    - Added repository read helpers for:
+      - recent audit rows ordered by `createdAt desc`
+      - request-id-specific row lookup
+    - Endpoint payload includes:
+      - actor/resource metadata
+      - request metadata
+      - parsed JSON `details`
+      - created timestamp
+    - Added regression coverage:
+      - `AuditLogEndpointIntegrationTest`
+  - **Operational impact**:
+    - staging can now verify append-only audit writes and correlate them with `X-Request-Id` without DB shell access
+    - this is enough for smoke validation before adding broader admin/export tooling
 - **2026-03-11**: **Two-Step Paged Portfolio Hydration for Scheduler Paths (Eighty-Fourth Pass)**
   - **Problem observed**:
     - Staging logs repeatedly emitted:
