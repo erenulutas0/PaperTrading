@@ -33,11 +33,32 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
-| Trust/Credibility Scores | ⬜ Planned | Auto-computed from track record |
+| Trust/Credibility Scores | 🔨 Building | Bayesian/sample-size-aware scoring now replaces raw linear win-rate weighting; rollout/UI verification still pending |
 | Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; read/export tooling still pending |
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Trust Score Moved from Linear Win-Rate to Bayesian Credibility Model (One Hundredth Pass)**
+  - **Problem observed**:
+    - The old trust score was almost a cosmetic transform of raw win rate.
+    - Small samples were over-weighted:
+      - `2/2` resolved posts looked unrealistically authoritative
+      - `0/1` or `1/1` could swing trust too far relative to evidence
+    - That is not defensible for a proof-of-performance product.
+  - **Implementation**:
+    - `TrustScoreService` now computes score from:
+      - neutral baseline `50`
+      - Bayesian win-rate posterior with prior weight
+      - capped experience bonus from resolved prediction count
+    - `PerformanceAnalyticsService` now exposes:
+      - `countResolvedPredictions(authorId)`
+    - Regression expectations were updated in:
+      - `TrustScoreServiceTest`
+      - `TrustScoreIntegrationTest`
+  - **Operational impact**:
+    - early lucky streaks no longer look like strong credibility
+    - authors need both accuracy and enough resolved calls to build trust
+    - trust score becomes a credibility signal, not just a raw success-rate mirror
 - **2026-03-11**: **Interaction Widget Summary Fallback and Reduced Comment Auto-Refresh (Ninety-Eighth Pass)**
   - **Problem observed**:
     - Even after adding the summary endpoint, some staged clients still rendered `0 likes / 0 comments` until the comment panel opened.

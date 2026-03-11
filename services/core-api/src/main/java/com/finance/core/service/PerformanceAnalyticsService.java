@@ -58,6 +58,15 @@ public class PerformanceAnalyticsService {
         return total == 0 ? 0.0 : ((double) hits / total) * 100.0;
     }
 
+    public long countResolvedPredictions(UUID authorId) {
+        long hits = analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(authorId, AnalysisPost.Outcome.HIT);
+        long missed = analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(authorId,
+                AnalysisPost.Outcome.MISSED);
+        long expired = analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(authorId,
+                AnalysisPost.Outcome.EXPIRED);
+        return hits + missed + expired;
+    }
+
     /**
      * Sharpe Ratio (risk-free rate = 0).
      */

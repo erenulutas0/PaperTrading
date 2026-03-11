@@ -20,6 +20,12 @@ import java.util.List;
 public class TrustScoreService {
 
     private static final int TRUST_SCORE_BATCH_SIZE = 250;
+    private static final double BASELINE_SCORE = 50.0;
+    private static final double PRIOR_WIN_RATE = 0.50;
+    private static final double PRIOR_WEIGHT = 8.0;
+    private static final double ACCURACY_MULTIPLIER = 120.0;
+    private static final double EXPERIENCE_BONUS_PER_RESOLVED_POST = 0.75;
+    private static final double MAX_EXPERIENCE_BONUS = 15.0;
 
     private final UserRepository userRepository;
     private final PerformanceAnalyticsService analyticsService;
@@ -43,26 +49,8 @@ public class TrustScoreService {
 
             for (AppUser user : userPage.getContent()) {
                 double winRate = analyticsService.calculateWinRate(user.getId());
-
-                // Baseline 50.0
-                double score = 50.0;
-
-                if (winRate > 0) {
-                    if (winRate >= 50) {
-                        // 50 to 100 win rate gives +0 to +40 score
-                        score += (winRate - 50) * 0.8;
-                    } else {
-                        // 0 to 49 win rate removes up to -25 score
-                        score -= (50 - winRate) * 0.5;
-                    }
-                }
-
-                // A tiny premium for just being verified/having followers can be added later
-                // Cap at 0-100
-                if (score > 100)
-                    score = 100;
-                if (score < 0)
-                    score = 0;
+                long resolvedPredictions = analyticsService.countResolvedPredictions(user.getId());
+                double score = calculateTrustScore(winRate, resolvedPredictions);
 
                 user.setTrustScore(score);
                 batch.add(user);
@@ -76,5 +64,22 @@ public class TrustScoreService {
         } while (userPage.hasNext());
 
         log.info("Trust scores computed for {} users.", processed);
+    }
+
+    double calculateTrustScore(double winRate, long resolvedPredictions) {
+        double normalizedWinRate = Math.max(0.0, Math.min(100.0, winRate)) / 100.0;
+        double posteriorWinRate = ((normalizedWinRate * resolvedPredictions) + (PRIOR_WIN_RATE * PRIOR_WEIGHT))
+                / (resolvedPredictions + PRIOR_WEIGHT);
+        double accuracyComponent = (posteriorWinRate - PRIOR_WIN_RATE) * ACCURACY_MULTIPLIER;
+        double experienceBonus = Math.min(MAX_EXPERIENCE_BONUS, resolvedPredictions * EXPERIENCE_BONUS_PER_RESOLVED_POST);
+        double score = BASELINE_SCORE + accuracyComponent + experienceBonus;
+
+        if (score > 100.0) {
+            return 100.0;
+        }
+        if (score < 0.0) {
+            return 0.0;
+        }
+        return Math.round(score * 100.0) / 100.0;
     }
 }

@@ -71,11 +71,11 @@ class TrustScoreIntegrationTest {
         AppUser updatedGoodUser = userRepository.findById(goodUser.getId()).orElseThrow();
         AppUser updatedBadUser = userRepository.findById(badUser.getId()).orElseThrow();
 
-        // Good user: 100% win rate -> 50 + (100 - 50) * 0.8 = 90.0
-        assertEquals(90.0, updatedGoodUser.getTrustScore(), 0.001);
+        // Good user: 2/2 resolved predictions -> Bayesian-adjusted score
+        assertEquals(63.5, updatedGoodUser.getTrustScore(), 0.001);
 
-        // Bad user: 25% win rate -> 50 - (50 - 25) * 0.5 = 50 - 12.5 = 37.5
-        assertEquals(37.5, updatedBadUser.getTrustScore(), 0.001);
+        // Bad user: 1/4 resolved predictions -> Bayesian-adjusted score
+        assertEquals(43.0, updatedBadUser.getTrustScore(), 0.001);
     }
 
     private void savePost(AppUser author, AnalysisPost.Outcome outcome) {

@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend after Bayesian/sample-size-aware trust score rollout and verify profile trust scores no longer overreact to tiny resolved-post samples while experienced authors gain gradual credibility lift
 - [ ] Redeploy backend after bypassing rate limiting for `/actuator/**` and re-run `run_auth_attack_scenarios.ps1` to confirm health probes no longer fail with `429`
 - [ ] Redeploy backend after auth attack script warmup probe tolerates `429/503` health states and verify strict-mode attack run no longer exits early as `UNAVAILABLE`
 - [ ] Redeploy backend after interaction read-path batching and verify portfolio/post comment lists no longer lag or appear partially populated under concurrent like/reply traffic
@@ -65,6 +66,18 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Replaced linear trust score formula with Bayesian/sample-size-aware scoring:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/TrustScoreService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/PerformanceAnalyticsService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/TrustScoreServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/TrustScoreIntegrationTest.java`
+  - Behavior:
+    - trust score now starts from a neutral prior instead of overreacting to very small sample sizes
+    - resolved prediction count is part of the score, so consistent authors accumulate credibility more gradually
+    - score remains clamped to `0..100`
+  - Goal:
+    - make trust more defensible as a credibility signal instead of a thin wrapper around raw win rate
 - [x] Excluded actuator endpoints from app rate limiting:
   - Updated:
     - `services/core-api/src/main/java/com/finance/core/config/RateLimitFilter.java`
