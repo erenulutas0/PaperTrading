@@ -66,6 +66,15 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Exposed profile/trust-score entry points in dashboard shell:
+  - Updated:
+    - `apps/web/app/dashboard/layout.tsx`
+    - `apps/web/app/dashboard/page.tsx`
+  - Behavior:
+    - dashboard nav now links directly to the current user's profile
+    - terminal header now shows a quick trust-score pill that opens the profile page
+  - Goal:
+    - make trust/profile features discoverable instead of leaving them hidden behind an unlinked route
 - [x] Replaced linear trust score formula with Bayesian/sample-size-aware scoring:
   - Updated:
     - `services/core-api/src/main/java/com/finance/core/service/TrustScoreService.java`

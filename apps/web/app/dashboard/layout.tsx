@@ -19,6 +19,7 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
     return (
         <div className="min-h-screen bg-background text-foreground noise-bg">
@@ -51,6 +52,11 @@ export default function DashboardLayout({
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    {currentUserId && (
+                        <Link href={`/profile/${currentUserId}`} className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent text-sm">
+                            Profile
+                        </Link>
+                    )}
                     <NotificationBell />
                     <Link href="/notifications" className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent text-sm">
                         Inbox

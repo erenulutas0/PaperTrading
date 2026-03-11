@@ -25,11 +25,20 @@ interface Portfolio {
     createdAt: string;
 }
 
+interface CurrentUserProfile {
+    id: string;
+    displayName: string;
+    username: string;
+    trustScore?: number;
+}
+
 export default function Dashboard() {
     const router = useRouter();
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [prices, setPrices] = useState<Record<string, number>>({});
     const [name, setName] = useState('');
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [visibilityUpdatingId, setVisibilityUpdatingId] = useState<string | null>(null);
 
@@ -43,11 +52,25 @@ export default function Dashboard() {
             return;
         }
 
+        setCurrentUserId(userId);
         fetchPortfolios(userId);
+        fetchCurrentProfile(userId);
         const interval = setInterval(fetchPrices, 3000);
         fetchPrices();
         return () => clearInterval(interval);
     }, []);
+
+    const fetchCurrentProfile = async (userId: string) => {
+        try {
+            const res = await apiFetch(`/api/v1/users/${userId}/profile`);
+            if (!res.ok) {
+                return;
+            }
+            setCurrentProfile(await res.json());
+        } catch (error) {
+            console.error('Error fetching profile:', error);
+        }
+    };
 
     const fetchPrices = async () => {
         try {
@@ -150,8 +173,31 @@ export default function Dashboard() {
     return (
         <div className="p-8 pb-20 relative z-10">
             <header className="mb-10 flex justify-between items-center bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-2xl">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500 bg-clip-text text-transparent">Terminal</h1>
+                <div>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500 bg-clip-text text-transparent">Terminal</h1>
+                    {currentProfile && (
+                        <Link
+                            href={`/profile/${currentProfile.id}`}
+                            className="mt-2 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 hover:border-emerald-500/40 hover:text-white transition-colors"
+                        >
+                            <span>@{currentProfile.username}</span>
+                            <span className="text-zinc-600">|</span>
+                            <span className="uppercase tracking-[0.2em] text-zinc-500">Trust</span>
+                            <span className={`font-bold ${currentProfile.trustScore !== undefined && currentProfile.trustScore >= 70
+                                    ? 'text-emerald-400'
+                                    : currentProfile.trustScore !== undefined && currentProfile.trustScore >= 40
+                                        ? 'text-amber-400'
+                                        : 'text-red-400'
+                                }`}>
+                                {currentProfile.trustScore !== undefined ? currentProfile.trustScore.toFixed(1) : 'N/A'}
+                            </span>
+                        </Link>
+                    )}
+                </div>
                 <div className="flex gap-6 items-center">
+                    {currentUserId && (
+                        <Link href={`/profile/${currentUserId}`} className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-cyan-400 transition-colors">Profile</Link>
+                    )}
                     <Link href="/dashboard/analysis" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-green-400 transition-colors">Analyses</Link>
                     <Link href="/dashboard/leaderboard" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-green-400 transition-colors">Leaderboard</Link>
                     <Link href="/discover" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-blue-400 transition-colors">Discover</Link>
