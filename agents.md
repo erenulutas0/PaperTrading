@@ -14,13 +14,13 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-10)
+### Progress Tracker (updated 2026-03-11)
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
 | Portfolio CRUD | ✅ Done | Create, delete, deposit |
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
-| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling |
+| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
 | Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-11**: **Binance REST Fallback Query Hardening (Eighty-Third Pass)**
+  - **Problem observed**:
+    - Staging logs showed Binance REST fallback failing on both startup and stale-read paths with:
+      - `Illegal characters found in parameter 'symbols'`
+    - That left the system fully dependent on live WebSocket prices and weakened the cold-cache recovery path.
+  - **Implementation**:
+    - Removed fragile hardcoded encoded ticker-price URL from `BinanceService`.
+    - Added tracked-symbol-driven URI construction for REST fallback:
+      - serializes the symbol allowlist to JSON
+      - uses framework URI encoding rather than embedded percent-encoded literals
+    - Added regression coverage:
+      - `BinanceServiceTest`
+  - **Operational impact**:
+    - startup and stale-read price hydration now have a deterministic REST request format
+    - leaderboard/performance fallback path no longer depends entirely on WS cache freshness
 - **2026-03-10**: **Idempotency Cleanup + Ops Inspection Endpoint (Eighty-Second Pass)**
   - **Problem observed**:
     - First-pass idempotency support blocked duplicate writes, but there was no built-in cleanup or visibility into record accumulation.

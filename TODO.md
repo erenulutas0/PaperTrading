@@ -1,8 +1,9 @@
 # TODO - Core API Reliability & Scalability Sweep
 
-Last updated: 2026-03-10
+Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [ ] Redeploy backend after idempotency cleanup/inspection rollout and verify `/actuator/idempotency` reports sane counts while scheduled purge removes expired keys without breaking replay semantics
 - [ ] Redeploy backend after idempotency-key rollout and verify duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
 - [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
@@ -47,6 +48,16 @@ Last updated: 2026-03-10
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Fixed Binance REST fallback query formatting for startup/stale-read hydration:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/BinanceService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/BinanceServiceTest.java`
+  - Behavior:
+    - removed fragile hardcoded encoded REST URL
+    - ticker-price request URI is now generated from the tracked symbol list via encoded JSON query param
+    - protects fallback price hydration path when WS cache is cold or stale
+  - Goal:
+    - stop Binance `symbols` parameter validation errors from silently disabling REST fallback
 - [x] Added idempotency cleanup + actuator inspection:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/observability/IdempotencySnapshot.java`

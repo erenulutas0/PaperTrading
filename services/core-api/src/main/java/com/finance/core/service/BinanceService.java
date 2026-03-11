@@ -6,13 +6,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.TextMessage;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,8 +26,9 @@ public class BinanceService extends TextWebSocketHandler {
     private final Map<String, Double> prices = new ConcurrentHashMap<>();
     private final ObjectMapper mapper = new ObjectMapper();
     private final RestClient restClient = RestClient.create();
+    private static final List<String> TRACKED_SYMBOLS = List.of("BTCUSDT", "ETHUSDT", "SOLUSDT", "AVAXUSDT", "BNBUSDT");
     private static final String BINANCE_WS_URL = "wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/avaxusdt@ticker/bnbusdt@ticker";
-    private static final String BINANCE_REST_URL = "https://api.binance.com/api/v3/ticker/price?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22SOLUSDT%22,%22AVAXUSDT%22,%22BNBUSDT%22%5D";
+    private static final String BINANCE_REST_BASE_URL = "https://api.binance.com/api/v3/ticker/price";
     private static final Duration PRICE_STALE_AFTER = Duration.ofSeconds(20);
     private static final Duration FAILED_REFRESH_BACKOFF = Duration.ofSeconds(5);
     @Value("${app.market.ws.enabled:true}")
@@ -112,7 +116,7 @@ public class BinanceService extends TextWebSocketHandler {
         lastRestAttemptAt = Instant.now();
         try {
             JsonNode response = restClient.get()
-                    .uri(BINANCE_REST_URL)
+                    .uri(buildTickerPriceUri())
                     .retrieve()
                     .body(JsonNode.class);
 
@@ -142,6 +146,19 @@ public class BinanceService extends TextWebSocketHandler {
             }
         } catch (Exception e) {
             log.warn("Binance REST refresh failed on trigger={}: {}", trigger, e.getMessage());
+        }
+    }
+
+    static URI buildTickerPriceUri() {
+        try {
+            String symbolsJson = new ObjectMapper().writeValueAsString(TRACKED_SYMBOLS);
+            return UriComponentsBuilder.fromHttpUrl(BINANCE_REST_BASE_URL)
+                    .queryParam("symbols", symbolsJson)
+                    .build()
+                    .encode()
+                    .toUri();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to build Binance ticker price URI", e);
         }
     }
 }
