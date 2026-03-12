@@ -1,5 +1,6 @@
 'use client';
 
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/api-client';
@@ -42,18 +43,39 @@ interface CandlePoint {
     volume: number;
 }
 
-type ChartRange = '1D' | '1W' | '1M';
+type ChartRange = '1D' | '1W' | '1M' | 'ALL';
+type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
+
+const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', 'ALL'];
+const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
+const ALL_HISTORY_CHUNK = 500;
+
+function formatMoney(value: number) {
+    return `$${Number(value).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
+}
+
+function formatPercent(value: number) {
+    const normalized = Number(value ?? 0);
+    return `${normalized >= 0 ? '+' : ''}${normalized.toFixed(2)}%`;
+}
 
 export default function WatchlistPage() {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(null);
     const [enrichedItems, setEnrichedItems] = useState<WatchlistItem[]>([]);
     const [instrumentUniverse, setInstrumentUniverse] = useState<InstrumentOption[]>([]);
+    const [instrumentQuery, setInstrumentQuery] = useState('');
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
     const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
+    const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(false);
+    const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
 
     const [newName, setNewName] = useState('');
     const [addSymbol, setAddSymbol] = useState('BTCUSDT');
@@ -63,6 +85,27 @@ export default function WatchlistPage() {
     const [showAddForm, setShowAddForm] = useState(false);
 
     const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+
+    const selectedInstrument = useMemo(() => {
+        return instrumentUniverse.find((item) => item.symbol === selectedSymbol)
+            ?? enrichedItems.find((item) => item.symbol === selectedSymbol)
+            ?? null;
+    }, [enrichedItems, instrumentUniverse, selectedSymbol]);
+
+    const filteredInstruments = useMemo(() => {
+        const query = instrumentQuery.trim().toLowerCase();
+        if (!query) {
+            return instrumentUniverse;
+        }
+        return instrumentUniverse.filter((instrument) =>
+            instrument.symbol.toLowerCase().includes(query)
+            || instrument.displayName.toLowerCase().includes(query));
+    }, [instrumentQuery, instrumentUniverse]);
+
+    const availableSymbols = useMemo(() => {
+        const existingSymbols = new Set(enrichedItems.map((item) => item.symbol));
+        return instrumentUniverse.filter((item) => !existingSymbols.has(item.symbol) || item.symbol === addSymbol);
+    }, [addSymbol, enrichedItems, instrumentUniverse]);
 
     const fetchWatchlists = useCallback(async () => {
         if (!currentUserId) {
@@ -87,7 +130,7 @@ export default function WatchlistPage() {
 
     const fetchInstrumentUniverse = useCallback(async () => {
         try {
-            const res = await apiFetch('/api/v1/market/instruments');
+            const res = await apiFetch('/api/v1/market/instruments', { cache: 'no-store' });
             if (!res.ok) {
                 return;
             }
@@ -107,42 +150,84 @@ export default function WatchlistPage() {
             return;
         }
         try {
-            const res = await apiFetch(`/api/v1/watchlists/${selectedWatchlist}/items`);
+            const res = await apiFetch(`/api/v1/watchlists/${selectedWatchlist}/items`, { cache: 'no-store' });
             if (!res.ok) {
                 return;
             }
             const data = await res.json();
             setEnrichedItems(data);
-            if (Array.isArray(data) && data.length > 0) {
-                setSelectedSymbol((current) => current || data[0].symbol);
-            }
         } catch (error) {
             console.error(error);
         }
     }, [currentUserId, selectedWatchlist]);
 
-    const fetchCandles = useCallback(async (symbol: string, range: ChartRange) => {
+    const fetchCandles = useCallback(async (
+        symbol: string,
+        range: ChartRange,
+        interval: ChartInterval,
+        mode: 'reset' | 'prepend' = 'reset',
+    ) => {
         if (!symbol) {
             return;
         }
-        setChartLoading(true);
+
+        const beforeOpenTime = mode === 'prepend' && candles.length > 0 ? candles[0].openTime : null;
+        const url = new URL('/api/v1/market/candles', window.location.origin);
+        url.searchParams.set('symbol', symbol);
+        url.searchParams.set('range', range);
+        url.searchParams.set('interval', interval);
+        if (range === 'ALL') {
+            url.searchParams.set('limit', String(ALL_HISTORY_CHUNK));
+        }
+        if (beforeOpenTime) {
+            url.searchParams.set('beforeOpenTime', String(beforeOpenTime));
+        }
+
+        if (mode === 'prepend') {
+            setLoadingMoreHistory(true);
+        } else {
+            setChartLoading(true);
+        }
+
         try {
-            const res = await apiFetch(`/api/v1/market/candles?symbol=${symbol}&range=${range}`);
+            const res = await apiFetch(`${url.pathname}${url.search}`, { cache: 'no-store' });
             if (!res.ok) {
                 return;
             }
-            setCandles(await res.json());
+            const nextCandles: CandlePoint[] = await res.json();
+            if (range === 'ALL') {
+                setHasMoreHistory(nextCandles.length === ALL_HISTORY_CHUNK);
+            } else {
+                setHasMoreHistory(false);
+            }
+
+            if (mode === 'prepend') {
+                setCandles((current) => {
+                    const deduped = new Map<number, CandlePoint>();
+                    [...nextCandles, ...current].forEach((candle) => deduped.set(candle.openTime, candle));
+                    return Array.from(deduped.values()).sort((a, b) => a.openTime - b.openTime);
+                });
+                return;
+            }
+
+            setCandles(nextCandles);
         } catch (error) {
             console.error(error);
         } finally {
             setChartLoading(false);
+            setLoadingMoreHistory(false);
         }
-    }, []);
+    }, [candles]);
 
     useEffect(() => {
         fetchWatchlists();
         fetchInstrumentUniverse();
     }, [fetchInstrumentUniverse, fetchWatchlists]);
+
+    useEffect(() => {
+        const interval = setInterval(fetchInstrumentUniverse, 10000);
+        return () => clearInterval(interval);
+    }, [fetchInstrumentUniverse]);
 
     useEffect(() => {
         if (!selectedWatchlist) {
@@ -154,8 +239,14 @@ export default function WatchlistPage() {
     }, [fetchItems, selectedWatchlist]);
 
     useEffect(() => {
-        fetchCandles(selectedSymbol, selectedRange);
-    }, [fetchCandles, selectedRange, selectedSymbol]);
+        if (selectedRange === 'ALL' && selectedInterval === '1m') {
+            setSelectedInterval('15m');
+        }
+    }, [selectedInterval, selectedRange]);
+
+    useEffect(() => {
+        fetchCandles(selectedSymbol, selectedRange, selectedInterval, 'reset');
+    }, [fetchCandles, selectedInterval, selectedRange, selectedSymbol]);
 
     const handleCreateWatchlist = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -239,20 +330,16 @@ export default function WatchlistPage() {
         }
     };
 
-    const selectedInstrument = useMemo(() => {
-        return instrumentUniverse.find((item) => item.symbol === selectedSymbol)
-            ?? enrichedItems.find((item) => item.symbol === selectedSymbol)
-            ?? null;
-    }, [enrichedItems, instrumentUniverse, selectedSymbol]);
-
-    const availableSymbols = useMemo(() => {
-        const existingSymbols = new Set(enrichedItems.map((item) => item.symbol));
-        return instrumentUniverse.filter((item) => !existingSymbols.has(item.symbol) || item.symbol === addSymbol);
-    }, [addSymbol, enrichedItems, instrumentUniverse]);
+    const handleLoadMoreHistory = useCallback((oldestOpenTime: number) => {
+        if (selectedRange !== 'ALL' || loadingMoreHistory || !hasMoreHistory || oldestOpenTime <= 0) {
+            return;
+        }
+        fetchCandles(selectedSymbol, selectedRange, selectedInterval, 'prepend');
+    }, [fetchCandles, hasMoreHistory, loadingMoreHistory, selectedInterval, selectedRange, selectedSymbol]);
 
     return (
-        <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.12),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(34,197,94,0.12),_transparent_28%),#050505] text-white">
-            <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-white/10 bg-black/50 px-6 py-4 backdrop-blur-md">
+        <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.10),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(34,197,94,0.10),_transparent_28%),#040404] text-white">
+            <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-white/10 bg-black/55 px-6 py-4 backdrop-blur-md">
                 <Link href="/dashboard" className="flex items-center gap-2 text-xl font-bold tracking-tight">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500 font-bold text-black">P</div>
                     <span>PaperTrade<span className="text-green-500">Pro</span></span>
@@ -265,14 +352,14 @@ export default function WatchlistPage() {
                 </div>
             </nav>
 
-            <div className="mx-auto max-w-[1500px] px-6 py-10">
-                <div className="mb-8 flex items-center justify-between gap-6">
+            <div className="mx-auto max-w-[1600px] px-6 py-8">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
                     <div>
-                        <h1 className="mb-2 text-3xl font-bold">
-                            <span className="bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-500 bg-clip-text text-transparent">Markets</span> Workspace
+                        <h1 className="text-3xl font-bold">
+                            <span className="bg-gradient-to-r from-amber-400 via-yellow-300 to-orange-500 bg-clip-text text-transparent">Markets</span> Terminal
                         </h1>
-                        <p className="text-sm text-zinc-400">
-                            Build a right-side watch basket, click any supported instrument, and inspect a candlestick panel with `1D`, `1W`, and `1M` ranges.
+                        <p className="mt-2 text-sm text-zinc-400">
+                            Enstruman degistir, interval sec, `ALL` history modunda sola kaydirarak daha eski mumlari yukle.
                         </p>
                     </div>
                     <form onSubmit={handleCreateWatchlist} className="flex gap-2">
@@ -281,7 +368,7 @@ export default function WatchlistPage() {
                             value={newName}
                             onChange={(event) => setNewName(event.target.value)}
                             placeholder="New watchlist name..."
-                            className="w-48 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-amber-500"
+                            className="w-52 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-amber-500"
                         />
                         <button type="submit" className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm font-bold text-amber-400 transition-all hover:bg-amber-500/20">
                             + Create
@@ -294,72 +381,137 @@ export default function WatchlistPage() {
                         <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
                         <section className="space-y-5">
                             <div className="rounded-3xl border border-white/10 bg-black/40 p-5 shadow-[0_0_60px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-                                <div className="flex flex-wrap items-start justify-between gap-4">
-                                    <div>
-                                        <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument</p>
-                                        <h2 className="mt-2 text-3xl font-bold text-white">
-                                            {selectedInstrument ? ('displayName' in selectedInstrument ? selectedInstrument.displayName : selectedInstrument.symbol) : selectedSymbol}
-                                        </h2>
-                                        <p className="mt-1 text-sm text-zinc-500">
-                                            {selectedSymbol} · {selectedInstrument && 'assetType' in selectedInstrument ? selectedInstrument.assetType : 'WATCHLIST'}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Spot</p>
-                                        <p className="mt-2 font-mono text-3xl font-bold text-white">
-                                            ${Number(selectedInstrument?.currentPrice ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </p>
-                                        <p className={`mt-1 text-sm font-semibold ${Number(selectedInstrument?.changePercent24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                            {Number(selectedInstrument?.changePercent24h ?? 0) >= 0 ? '+' : ''}{Number(selectedInstrument?.changePercent24h ?? 0).toFixed(2)}% 24h
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="mt-5 flex flex-wrap gap-2">
-                                    {(['1D', '1W', '1M'] as ChartRange[]).map((range) => (
-                                        <button
-                                            key={range}
-                                            onClick={() => setSelectedRange(range)}
-                                            className={`rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] transition ${selectedRange === range
-                                                ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
-                                                : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'
-                                                }`}
-                                        >
-                                            {range}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="mt-6 rounded-3xl border border-white/8 bg-zinc-950/60 p-4">
-                                    {chartLoading ? (
-                                        <div className="flex h-[420px] items-center justify-center">
-                                            <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                                <div className="flex flex-col gap-5">
+                                    <div className="flex flex-wrap items-start justify-between gap-4">
+                                        <div>
+                                            <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument</p>
+                                            <h2 className="mt-2 text-3xl font-bold text-white">{selectedInstrument?.displayName ?? selectedSymbol}</h2>
+                                            <p className="mt-1 text-sm text-zinc-500">{selectedSymbol} · {selectedInstrument?.assetType ?? 'CRYPTO'}</p>
                                         </div>
-                                    ) : (
-                                        <MarketWorkspaceChart data={candles} />
-                                    )}
-                                </div>
-                            </div>
+                                        <div className="text-right">
+                                            <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Spot</p>
+                                            <p className="mt-2 font-mono text-3xl font-bold text-white">{formatMoney(Number(selectedInstrument?.currentPrice ?? 0))}</p>
+                                            <p className={`mt-1 text-sm font-semibold ${Number(selectedInstrument?.changePercent24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                {formatPercent(Number(selectedInstrument?.changePercent24h ?? 0))} 24h
+                                            </p>
+                                        </div>
+                                    </div>
 
-                            <div className="grid gap-4 md:grid-cols-3">
-                                <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
-                                    <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Selected Range</p>
-                                    <p className="mt-2 text-xl font-semibold text-white">{selectedRange}</p>
-                                    <p className="mt-1 text-xs text-zinc-500">Quickly switch between intraday, weekly, and monthly candlestick windows.</p>
-                                </article>
-                                <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
-                                    <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Watchlists</p>
-                                    <p className="mt-2 text-xl font-semibold text-white">{watchlists.length}</p>
-                                    <p className="mt-1 text-xs text-zinc-500">Use separate baskets for macro, majors, or experimental setups.</p>
-                                </article>
-                                <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
-                                    <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Tracked Symbols</p>
-                                    <p className="mt-2 text-xl font-semibold text-white">{enrichedItems.length}</p>
-                                    <p className="mt-1 text-xs text-zinc-500">Each watchlist item can drive the main chart with a single click.</p>
-                                </article>
+                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+                                        <input
+                                            type="text"
+                                            value={instrumentQuery}
+                                            onChange={(event) => setInstrumentQuery(event.target.value)}
+                                            placeholder="Search BTC, ETH, Solana..."
+                                            className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-amber-400"
+                                        />
+                                        <div className="flex flex-wrap gap-2">
+                                            {RANGE_OPTIONS.map((range) => (
+                                                <button
+                                                    key={range}
+                                                    onClick={() => setSelectedRange(range)}
+                                                    className={`rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] transition ${selectedRange === range
+                                                        ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+                                                        : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'}`}
+                                                >
+                                                    {range}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {INTERVAL_OPTIONS.map((interval) => {
+                                                const disabled = selectedRange === 'ALL' && interval === '1m';
+                                                return (
+                                                    <button
+                                                        key={interval}
+                                                        onClick={() => setSelectedInterval(interval)}
+                                                        disabled={disabled}
+                                                        className={`rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] transition ${selectedInterval === interval
+                                                            ? 'border-green-400/40 bg-green-400/10 text-green-300'
+                                                            : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'} ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
+                                                    >
+                                                        {interval}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+                                        <div className="rounded-3xl border border-white/8 bg-zinc-950/60 p-4">
+                                            {(chartLoading && candles.length === 0) ? (
+                                                <div className="flex h-[520px] items-center justify-center">
+                                                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                                                </div>
+                                            ) : (
+                                                <MarketWorkspaceChart
+                                                    data={candles}
+                                                    resetKey={`${selectedSymbol}-${selectedRange}-${selectedInterval}`}
+                                                    onReachStart={handleLoadMoreHistory}
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div className="rounded-3xl border border-white/8 bg-zinc-950/55 p-4">
+                                            <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument Universe</p>
+                                            <p className="mt-2 text-sm text-zinc-400">Chart sembolunu watchlist'e eklemeden de dogrudan degistirebilirsin.</p>
+                                            <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+                                                {filteredInstruments.map((instrument) => (
+                                                    <button
+                                                        key={instrument.symbol}
+                                                        onClick={() => setSelectedSymbol(instrument.symbol)}
+                                                        className={`w-full rounded-2xl border p-3 text-left transition ${selectedSymbol === instrument.symbol
+                                                            ? 'border-amber-400/35 bg-amber-400/10'
+                                                            : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div>
+                                                                <p className="text-sm font-semibold text-white">{instrument.displayName}</p>
+                                                                <p className="text-[11px] font-mono text-zinc-500">{instrument.symbol}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="font-mono text-sm text-white">{formatMoney(instrument.currentPrice)}</p>
+                                                                <p className={`text-[11px] font-semibold ${instrument.changePercent24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    {formatPercent(instrument.changePercent24h)}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-4 md:grid-cols-4">
+                                        <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
+                                            <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Range</p>
+                                            <p className="mt-2 text-xl font-semibold text-white">{selectedRange}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Quick window switch.</p>
+                                        </article>
+                                        <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
+                                            <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Interval</p>
+                                            <p className="mt-2 text-xl font-semibold text-white">{selectedInterval}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">TradingView-style resolution control.</p>
+                                        </article>
+                                        <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
+                                            <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Watchlists</p>
+                                            <p className="mt-2 text-xl font-semibold text-white">{watchlists.length}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Separate baskets by thesis or regime.</p>
+                                        </article>
+                                        <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
+                                            <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">History</p>
+                                            <p className="mt-2 text-xl font-semibold text-white">{candles.length}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">
+                                                {selectedRange === 'ALL'
+                                                    ? (hasMoreHistory ? 'Scroll left to load older candles.' : 'Loaded oldest available chunk.')
+                                                    : 'Window sized to selected range.'}
+                                            </p>
+                                        </article>
+                                    </div>
+                                </div>
                             </div>
                         </section>
 
@@ -386,8 +538,7 @@ export default function WatchlistPage() {
                                             key={watchlist.id}
                                             className={`group flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition ${selectedWatchlist === watchlist.id
                                                 ? 'border-amber-400/30 bg-amber-400/10'
-                                                : 'border-white/10 hover:border-white/20 hover:bg-white/[0.03]'
-                                                }`}
+                                                : 'border-white/10 hover:border-white/20 hover:bg-white/[0.03]'}`}
                                             onClick={() => setSelectedWatchlist(watchlist.id)}
                                         >
                                             <div>
@@ -401,7 +552,7 @@ export default function WatchlistPage() {
                                                 }}
                                                 className="text-xs text-red-500 opacity-0 transition group-hover:opacity-100 hover:text-red-400"
                                             >
-                                                ✕
+                                                X
                                             </button>
                                         </div>
                                     ))
@@ -461,8 +612,7 @@ export default function WatchlistPage() {
                                                 onClick={() => setSelectedSymbol(item.symbol)}
                                                 className={`w-full rounded-2xl border p-4 text-left transition ${selectedSymbol === item.symbol
                                                     ? 'border-amber-400/35 bg-amber-400/10'
-                                                    : 'border-white/10 bg-white/[0.02] hover:border-white/20'
-                                                    }`}
+                                                    : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}
                                             >
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div>
@@ -481,16 +631,14 @@ export default function WatchlistPage() {
                                                 </div>
                                                 <div className="mt-4 flex items-end justify-between gap-3">
                                                     <div>
-                                                        <p className="font-mono text-lg font-bold text-white">
-                                                            ${Number(item.currentPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </p>
+                                                        <p className="font-mono text-lg font-bold text-white">{formatMoney(Number(item.currentPrice))}</p>
                                                         <p className={`text-xs font-semibold ${Number(item.changePercent24h) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                            {Number(item.changePercent24h) >= 0 ? '+' : ''}{Number(item.changePercent24h).toFixed(2)}% today
+                                                            {formatPercent(Number(item.changePercent24h))} today
                                                         </p>
                                                     </div>
                                                     <div className="text-right text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                                                        {item.alertPriceAbove ? <p>↑ {item.alertPriceAbove}</p> : <p>↑ —</p>}
-                                                        {item.alertPriceBelow ? <p className="mt-1">↓ {item.alertPriceBelow}</p> : <p className="mt-1">↓ —</p>}
+                                                        {item.alertPriceAbove ? <p>UP {item.alertPriceAbove}</p> : <p>UP -</p>}
+                                                        {item.alertPriceBelow ? <p className="mt-1">DOWN {item.alertPriceBelow}</p> : <p className="mt-1">DOWN -</p>}
                                                     </div>
                                                 </div>
                                             </button>
@@ -507,6 +655,12 @@ export default function WatchlistPage() {
                                     </div>
                                 )}
                             </div>
+
+                            {loadingMoreHistory && (
+                                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-zinc-400">
+                                    Loading older candles...
+                                </div>
+                            )}
                         </aside>
                     </div>
                 )}

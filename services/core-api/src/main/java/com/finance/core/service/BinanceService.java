@@ -41,6 +41,7 @@ public class BinanceService extends TextWebSocketHandler {
     private static final String BINANCE_REST_BASE_URL = "https://api.binance.com/api/v3/ticker/price";
     private static final String BINANCE_REST_24H_BASE_URL = "https://api.binance.com/api/v3/ticker/24hr";
     private static final String BINANCE_REST_KLINES_BASE_URL = "https://api.binance.com/api/v3/klines";
+    private static final List<String> SUPPORTED_INTERVALS = List.of("1m", "15m", "30m", "1h", "4h", "1d");
     private static final Duration PRICE_STALE_AFTER = Duration.ofSeconds(20);
     private static final Duration FAILED_REFRESH_BACKOFF = Duration.ofSeconds(5);
     @Value("${app.market.ws.enabled:true}")
@@ -118,12 +119,18 @@ public class BinanceService extends TextWebSocketHandler {
         return instruments;
     }
 
-    public List<MarketCandleResponse> getCandles(String symbol, String range) {
+    public List<MarketCandleResponse> getCandles(
+            String symbol,
+            String range,
+            String interval,
+            Long beforeOpenTime,
+            Integer limit) {
         String normalizedSymbol = normalizeTrackedSymbol(symbol);
-        RangeConfig config = mapRange(range);
+        String normalizedInterval = normalizeInterval(interval);
+        CandleQueryConfig config = mapCandleQuery(range, normalizedInterval, beforeOpenTime, limit);
 
         JsonNode response = restClient.get()
-                .uri(buildKlinesUri(normalizedSymbol, config.interval(), config.limit()))
+                .uri(buildKlinesUri(normalizedSymbol, config.interval(), config.limit(), config.endTime()))
                 .retrieve()
                 .body(JsonNode.class);
 
@@ -262,14 +269,15 @@ public class BinanceService extends TextWebSocketHandler {
         }
     }
 
-    private URI buildKlinesUri(String symbol, String interval, int limit) {
-        return UriComponentsBuilder.fromHttpUrl(BINANCE_REST_KLINES_BASE_URL)
+    private URI buildKlinesUri(String symbol, String interval, int limit, Long endTime) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(BINANCE_REST_KLINES_BASE_URL)
                 .queryParam("symbol", symbol)
                 .queryParam("interval", interval)
-                .queryParam("limit", limit)
-                .build()
-                .encode()
-                .toUri();
+                .queryParam("limit", limit);
+        if (endTime != null) {
+            builder.queryParam("endTime", endTime);
+        }
+        return builder.build().encode().toUri();
     }
 
     private String normalizeTrackedSymbol(String symbol) {
@@ -280,14 +288,51 @@ public class BinanceService extends TextWebSocketHandler {
         return normalized;
     }
 
-    private RangeConfig mapRange(String range) {
-        return switch (range == null ? "1D" : range.toUpperCase()) {
-            case "1W" -> new RangeConfig("4h", 42);
-            case "1M" -> new RangeConfig("1d", 30);
-            default -> new RangeConfig("15m", 96);
-        };
+    private String normalizeInterval(String interval) {
+        String normalized = interval == null ? "1h" : interval.trim().toLowerCase();
+        if (!SUPPORTED_INTERVALS.contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported interval: " + interval);
+        }
+        return normalized;
     }
 
-    private record RangeConfig(String interval, int limit) {
+    private CandleQueryConfig mapCandleQuery(String range, String interval, Long beforeOpenTime, Integer limit) {
+        if (beforeOpenTime != null) {
+            return new CandleQueryConfig(interval, normalizeLimit(limit, 500), beforeOpenTime - 1);
+        }
+
+        String normalizedRange = range == null ? "1D" : range.trim().toUpperCase();
+        if ("ALL".equals(normalizedRange)) {
+            return new CandleQueryConfig(interval, normalizeLimit(limit, 500), null);
+        }
+
+        int intervalMinutes = switch (interval) {
+            case "1m" -> 1;
+            case "15m" -> 15;
+            case "30m" -> 30;
+            case "1h" -> 60;
+            case "4h" -> 240;
+            case "1d" -> 1440;
+            default -> throw new IllegalArgumentException("Unsupported interval: " + interval);
+        };
+
+        int rangeMinutes = switch (normalizedRange) {
+            case "1W" -> 7 * 24 * 60;
+            case "1M" -> 30 * 24 * 60;
+            default -> 24 * 60;
+        };
+
+        int computedLimit = (int) Math.ceil((double) rangeMinutes / intervalMinutes);
+        return new CandleQueryConfig(interval, Math.max(30, Math.min(1000, computedLimit)), null);
+    }
+
+    private int normalizeLimit(Integer requested, int fallback) {
+        if (requested == null) {
+            return fallback;
+        }
+        return Math.max(100, Math.min(1000, requested));
+    }
+
+    private record CandleQueryConfig(String interval, int limit, Long endTime) {
     }
 }

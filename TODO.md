@@ -3,6 +3,11 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend/frontend after advanced market terminal rollout and verify:
+  - `/watchlist` supports direct instrument switching from the universe rail without requiring watchlist insertion
+  - chart supports intervals (`1m`, `15m`, `30m`, `1h`, `4h`, `1d`)
+  - `ALL` mode can pull older candles incrementally as the chart is scrolled left
+  - selected watchlist items still drive the same chart surface
 - [ ] Redeploy backend/frontend after market workspace rollout and verify `/watchlist` now behaves as a TradingView-style markets surface with:
   - supported instrument universe from backend
   - right-rail watchlists with add/remove flows
@@ -76,6 +81,20 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Upgraded market workspace into a terminal-style chart surface with interval switching and lazy history loading:
+  - Backend candle API now accepts:
+    - `symbol`
+    - `range`
+    - `interval`
+    - `beforeOpenTime`
+    - `limit`
+  - Supported intervals:
+    - `1m`, `15m`, `30m`, `1h`, `4h`, `1d`
+  - `ALL` history mode now uses chunked backfill instead of a single fixed window request
+  - Frontend terminal now separates:
+    - instrument universe browsing
+    - watch basket management
+    - chart interval/range control
 - [x] Added TradingView-style market workspace over the existing watchlist route:
   - Backend:
     - Added market instrument + candle DTOs:

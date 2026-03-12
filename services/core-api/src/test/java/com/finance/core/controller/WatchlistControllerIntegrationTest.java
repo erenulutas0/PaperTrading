@@ -124,7 +124,7 @@ class WatchlistControllerIntegrationTest {
 
         @Test
         void testGetCandles() throws Exception {
-                when(binanceService.getCandles("BTCUSDT", "1D")).thenReturn(java.util.List.of(
+                when(binanceService.getCandles("BTCUSDT", "ALL", "15m", null, 500)).thenReturn(java.util.List.of(
                                 MarketCandleResponse.builder()
                                                 .openTime(1710000000000L)
                                                 .open(60000.0)
@@ -136,7 +136,9 @@ class WatchlistControllerIntegrationTest {
 
                 mockMvc.perform(get("/api/v1/market/candles")
                                 .param("symbol", "BTCUSDT")
-                                .param("range", "1D"))
+                                .param("range", "ALL")
+                                .param("interval", "15m")
+                                .param("limit", "500"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$", hasSize(1)))
                                 .andExpect(jsonPath("$[0].close").value(60300.0));

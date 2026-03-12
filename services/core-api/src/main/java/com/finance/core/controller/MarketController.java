@@ -31,7 +31,10 @@ public class MarketController {
     @GetMapping("/candles")
     public ResponseEntity<List<?>> getCandles(
             @RequestParam String symbol,
-            @RequestParam(defaultValue = "1D") String range) {
-        return ResponseEntity.ok(binanceService.getCandles(symbol, range));
+            @RequestParam(defaultValue = "1D") String range,
+            @RequestParam(defaultValue = "1h") String interval,
+            @RequestParam(required = false) Long beforeOpenTime,
+            @RequestParam(required = false) Integer limit) {
+        return ResponseEntity.ok(binanceService.getCandles(symbol, range, interval, beforeOpenTime, limit));
     }
 }

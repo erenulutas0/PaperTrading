@@ -61,6 +61,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - exchange integration stays server-owned
     - watchlist and chart experiences are unified instead of split across separate pages/components
     - future non-crypto providers can plug into the same market-workspace contract
+- **2026-03-13**: **Market Workspace Upgraded to Interval-Driven Terminal With Chunked `ALL` History**
+  - **Problem observed**:
+    - The first market workspace pass still had two structural gaps:
+      - instrument switching was effectively coupled to watchlist insertion
+      - chart history windows were fixed (`1D/1W/1M`) and did not behave like a terminal with interval control
+  - **Implementation**:
+    - Candle API now supports:
+      - `interval`
+      - `beforeOpenTime`
+      - `limit`
+    - Supported chart intervals:
+      - `1m`, `15m`, `30m`, `1h`, `4h`, `1d`
+    - Added `ALL` mode with chunked backfill semantics so the frontend can request older history incrementally.
+    - Frontend `/watchlist` page now separates:
+      - instrument universe browser
+      - chart surface
+      - watch basket
+    - Result:
+      - users can change the viewed instrument without mutating the watchlist
+      - chart resolution behaves more like a desktop terminal
+  - **Operational impact**:
+    - avoids forcing massive all-history payloads through a single response
+    - keeps the chart contract extensible for future scroll-triggered or provider-specific history policies
 - **2026-03-12**: **Trust Score Snapshot History Added**
   - **Problem observed**:
     - Trust score and platform win rate were visible only as current values, making it hard for users to understand whether credibility was improving, deteriorating, or simply unproven.

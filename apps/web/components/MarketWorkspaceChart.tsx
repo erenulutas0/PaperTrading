@@ -1,6 +1,13 @@
 'use client';
 
-import { CandlestickData, CandlestickSeries, ColorType, IChartApi, UTCTimestamp, createChart } from 'lightweight-charts';
+import {
+    CandlestickData,
+    CandlestickSeries,
+    ColorType,
+    IChartApi,
+    UTCTimestamp,
+    createChart,
+} from 'lightweight-charts';
 import { useEffect, useMemo, useRef } from 'react';
 
 interface CandlePoint {
@@ -12,9 +19,17 @@ interface CandlePoint {
     volume: number;
 }
 
-export default function MarketWorkspaceChart({ data }: { data: CandlePoint[] }) {
+interface MarketWorkspaceChartProps {
+    data: CandlePoint[];
+    resetKey: string;
+    onReachStart?: (oldestOpenTime: number) => void;
+}
+
+export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: MarketWorkspaceChartProps) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
+    const seriesRef = useRef<any>(null);
+    const lastRequestedOldestRef = useRef<number | null>(null);
 
     const seriesData = useMemo<CandlestickData[]>(() => {
         return data.map((point) => ({
@@ -27,7 +42,7 @@ export default function MarketWorkspaceChart({ data }: { data: CandlePoint[] }) 
     }, [data]);
 
     useEffect(() => {
-        if (!chartContainerRef.current) {
+        if (!chartContainerRef.current || chartRef.current) {
             return;
         }
 
@@ -37,13 +52,14 @@ export default function MarketWorkspaceChart({ data }: { data: CandlePoint[] }) 
                 textColor: '#a1a1aa',
             },
             width: chartContainerRef.current.clientWidth,
-            height: 420,
+            height: 520,
             rightPriceScale: {
                 borderColor: 'rgba(255,255,255,0.08)',
             },
             timeScale: {
                 borderColor: 'rgba(255,255,255,0.08)',
                 timeVisible: true,
+                secondsVisible: false,
             },
             grid: {
                 vertLines: { color: 'rgba(255,255,255,0.05)' },
@@ -62,24 +78,59 @@ export default function MarketWorkspaceChart({ data }: { data: CandlePoint[] }) 
             wickUpColor: '#22c55e',
             wickDownColor: '#ef4444',
         });
-        series.setData(seriesData);
-        chart.timeScale().fitContent();
-        chartRef.current = chart;
 
         const handleResize = () => {
             if (!chartContainerRef.current) {
                 return;
             }
             chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-            chart.timeScale().fitContent();
         };
 
+        const handleVisibleRangeChange = (range: any) => {
+            if (!range || !onReachStart || data.length === 0) {
+                return;
+            }
+            if (range.from > 25) {
+                return;
+            }
+
+            const oldestOpenTime = data[0].openTime;
+            if (lastRequestedOldestRef.current === oldestOpenTime) {
+                return;
+            }
+            lastRequestedOldestRef.current = oldestOpenTime;
+            onReachStart(oldestOpenTime);
+        };
+
+        chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
         window.addEventListener('resize', handleResize);
+
+        chartRef.current = chart;
+        seriesRef.current = series;
+
         return () => {
+            chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
             window.removeEventListener('resize', handleResize);
             chart.remove();
+            chartRef.current = null;
+            seriesRef.current = null;
         };
+    }, [data, onReachStart]);
+
+    useEffect(() => {
+        if (!seriesRef.current || !chartRef.current) {
+            return;
+        }
+        seriesRef.current.setData(seriesData);
     }, [seriesData]);
 
-    return <div ref={chartContainerRef} className="h-[420px] w-full" />;
+    useEffect(() => {
+        if (!chartRef.current) {
+            return;
+        }
+        lastRequestedOldestRef.current = null;
+        chartRef.current.timeScale().fitContent();
+    }, [resetKey]);
+
+    return <div ref={chartContainerRef} className="h-[520px] w-full" />;
 }
