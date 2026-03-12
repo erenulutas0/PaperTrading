@@ -1,7 +1,7 @@
 'use client';
 
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/api-client';
 import MarketWorkspaceChart from '../../components/MarketWorkspaceChart';
@@ -93,6 +93,7 @@ export default function WatchlistPage() {
     const [chartLoading, setChartLoading] = useState(false);
     const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
+    const candlesRef = useRef<CandlePoint[]>([]);
 
     const [newName, setNewName] = useState('');
     const [addSymbol, setAddSymbol] = useState('BTCUSDT');
@@ -136,6 +137,10 @@ export default function WatchlistPage() {
         const oldest = new Date(candles[0].openTime).toLocaleDateString();
         const newest = new Date(candles[candles.length - 1].openTime).toLocaleDateString();
         return `${oldest} → ${newest}`;
+    }, [candles]);
+
+    useEffect(() => {
+        candlesRef.current = candles;
     }, [candles]);
 
     const filteredInstruments = useMemo(() => {
@@ -241,7 +246,7 @@ export default function WatchlistPage() {
             return;
         }
 
-        const beforeOpenTime = mode === 'prepend' && candles.length > 0 ? candles[0].openTime : null;
+        const beforeOpenTime = mode === 'prepend' && candlesRef.current.length > 0 ? candlesRef.current[0].openTime : null;
 
         if (mode === 'prepend') {
             setLoadingMoreHistory(true);
@@ -298,7 +303,7 @@ export default function WatchlistPage() {
             setChartLoading(false);
             setLoadingMoreHistory(false);
         }
-    }, [candles, fetchCandleChunk]);
+    }, [fetchCandleChunk]);
 
     useEffect(() => {
         fetchWatchlists();

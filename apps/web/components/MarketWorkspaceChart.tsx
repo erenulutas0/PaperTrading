@@ -172,7 +172,7 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
         previousDataLengthRef.current = data.length;
         previousOldestTimeRef.current = data[0]?.openTime ?? null;
         chartRef.current.timeScale().fitContent();
-    }, [data, resetKey]);
+    }, [resetKey]);
 
     return <div ref={chartContainerRef} className="h-[520px] w-full" />;
 }
