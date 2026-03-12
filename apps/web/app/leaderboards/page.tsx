@@ -42,6 +42,9 @@ export default function LeaderboardPage() {
     const [entries, setEntries] = useState<(PortfolioLeaderboardEntry | AccountLeaderboardEntry)[]>([]);
     const [sortBy, setSortBy] = useState<LeaderboardSortBy>('RETURN_PERCENTAGE');
     const [direction, setDirection] = useState<LeaderboardDirection>('DESC');
+    const [page, setPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalElements, setTotalElements] = useState(0);
     const [preferencesReady, setPreferencesReady] = useState(false);
     const [loading, setLoading] = useState(true);
     const skipFirstPersistRef = useRef(true);
@@ -94,8 +97,8 @@ export default function LeaderboardPage() {
         try {
             const params = new URLSearchParams({
                 period: '1D',
-                page: '0',
-                size: '50',
+                page: page.toString(),
+                size: '20',
                 sortBy,
                 direction,
             });
@@ -104,13 +107,15 @@ export default function LeaderboardPage() {
             if (res.ok) {
                 const data = await res.json();
                 setEntries(data.content || []);
+                setTotalPages(data?.page?.totalPages || 1);
+                setTotalElements(data?.page?.totalElements || 0);
             }
         } catch (error) {
             console.error('Failed to fetch leaderboard:', error);
         } finally {
             setLoading(false);
         }
-    }, [isAccountMode, sortBy, direction]);
+    }, [isAccountMode, page, sortBy, direction]);
 
     useEffect(() => {
         if (!preferencesReady) {
@@ -120,6 +125,10 @@ export default function LeaderboardPage() {
         const interval = setInterval(fetchLeaderboard, 5000);
         return () => clearInterval(interval);
     }, [preferencesReady, fetchLeaderboard]);
+
+    useEffect(() => {
+        setPage(0);
+    }, [sortBy, direction]);
 
     useEffect(() => {
         if (!preferencesReady) {
@@ -178,6 +187,16 @@ export default function LeaderboardPage() {
             </header>
 
             <main className="max-w-6xl mx-auto">
+                <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em]">
+                        <span className={`rounded-full border px-3 py-1 ${isAccountMode ? 'border-blue-500/30 bg-blue-500/10 text-blue-300' : 'border-green-500/30 bg-green-500/10 text-green-300'}`}>
+                            {isAccountMode ? 'Account Mode' : 'Portfolio Mode'}
+                        </span>
+                        <span className="text-zinc-600">
+                            {totalElements} result{totalElements === 1 ? '' : 's'}
+                        </span>
+                    </div>
+                </div>
                 <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden backdrop-blur-sm">
                     {isAccountMode && (
                         <div className="px-4 py-3 border-b border-zinc-800 text-xs text-zinc-500">
@@ -282,6 +301,27 @@ export default function LeaderboardPage() {
                             );
                         })
                     )}
+                </div>
+                <div className="mt-4 flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                        Page {Math.min(page + 1, Math.max(totalPages, 1))} / {Math.max(totalPages, 1)}
+                    </p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
+                            disabled={page === 0}
+                            className="rounded-lg border border-zinc-700 bg-black/40 px-4 py-2 text-xs font-bold uppercase tracking-wide text-zinc-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            Previous
+                        </button>
+                        <button
+                            onClick={() => setPage((prev) => Math.min(prev + 1, Math.max(totalPages - 1, 0)))}
+                            disabled={page >= totalPages - 1}
+                            className="rounded-lg border border-zinc-700 bg-black/40 px-4 py-2 text-xs font-bold uppercase tracking-wide text-zinc-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
             </main>
         </div>

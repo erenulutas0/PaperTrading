@@ -47,6 +47,9 @@ export default function LeaderboardPage() {
     const [period, setPeriod] = useState<LeaderboardPeriod>('1D');
     const [sortBy, setSortBy] = useState<LeaderboardSortBy>('RETURN_PERCENTAGE');
     const [direction, setDirection] = useState<LeaderboardDirection>('DESC');
+    const [page, setPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalElements, setTotalElements] = useState(0);
     const [preferencesReady, setPreferencesReady] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -113,12 +116,16 @@ export default function LeaderboardPage() {
                 period,
                 sortBy,
                 direction,
+                page: page.toString(),
+                size: '20',
             });
             const endpoint = isAccountMode ? '/api/v1/leaderboards/accounts' : '/api/v1/leaderboards';
             const res = await apiFetch(`${endpoint}?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 setEntries(data.content || []);
+                setTotalPages(data?.page?.totalPages || 1);
+                setTotalElements(data?.page?.totalElements || 0);
             } else {
                 console.error('Failed to fetch leaderboard');
             }
@@ -127,7 +134,7 @@ export default function LeaderboardPage() {
         } finally {
             setLoading(false);
         }
-    }, [isAccountMode, period, sortBy, direction]);
+    }, [isAccountMode, page, period, sortBy, direction]);
 
     useEffect(() => {
         if (!preferencesReady) {
@@ -138,6 +145,10 @@ export default function LeaderboardPage() {
         const interval = setInterval(fetchLeaderboard, 10000);
         return () => clearInterval(interval);
     }, [preferencesReady, fetchLeaderboard]);
+
+    useEffect(() => {
+        setPage(0);
+    }, [period, sortBy, direction]);
 
     useEffect(() => {
         if (!preferencesReady) {
@@ -191,6 +202,14 @@ export default function LeaderboardPage() {
                             ? 'Top accounts ranked by trust score or platform win rate'
                             : 'Top public portfolios ranked by selected period performance'}
                     </p>
+                    <div className="mt-3 flex items-center gap-3 text-xs uppercase tracking-[0.2em]">
+                        <span className={`rounded-full border px-3 py-1 ${isAccountMode ? 'border-blue-500/30 bg-blue-500/10 text-blue-300' : 'border-green-500/30 bg-green-500/10 text-green-300'}`}>
+                            {isAccountMode ? 'Account Mode' : 'Portfolio Mode'}
+                        </span>
+                        <span className="text-zinc-600">
+                            {totalElements} result{totalElements === 1 ? '' : 's'}
+                        </span>
+                    </div>
                 </div>
                 <nav className="flex gap-4 items-center">
                     <button
@@ -339,6 +358,28 @@ export default function LeaderboardPage() {
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                    Page {Math.min(page + 1, Math.max(totalPages, 1))} / {Math.max(totalPages, 1)}
+                </p>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
+                        disabled={page === 0}
+                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-zinc-300 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                        Previous
+                    </button>
+                    <button
+                        onClick={() => setPage((prev) => Math.min(prev + 1, Math.max(totalPages - 1, 0)))}
+                        disabled={page >= totalPages - 1}
+                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-xs font-bold uppercase tracking-wide text-zinc-300 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                        Next
+                    </button>
+                </div>
             </div>
         </div>
     );
