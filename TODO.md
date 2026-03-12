@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after deeper `ALL` history preload + viewport-preserving prepend rollout and verify `/watchlist` now starts with materially deeper history while `Load Older` extends candles without jumping the visible chart window
 - [ ] Redeploy backend/frontend after advanced market terminal rollout and verify:
   - `/watchlist` supports direct instrument switching from the universe rail without requiring watchlist insertion
   - chart supports intervals (`1m`, `15m`, `30m`, `1h`, `4h`, `1d`)

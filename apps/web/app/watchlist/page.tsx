@@ -48,7 +48,24 @@ type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
-const ALL_HISTORY_CHUNK = 500;
+const ALL_HISTORY_CHUNK = 1000;
+
+function getInitialAllHistoryChunkCount(interval: ChartInterval) {
+    switch (interval) {
+        case '1d':
+            return 6;
+        case '4h':
+            return 5;
+        case '1h':
+            return 4;
+        case '30m':
+            return 3;
+        case '15m':
+            return 2;
+        default:
+            return 1;
+    }
+}
 
 function formatMoney(value: number) {
     return `$${Number(value).toLocaleString(undefined, {
@@ -111,6 +128,15 @@ export default function WatchlistPage() {
         }
         return 'WATCHLIST';
     }, [selectedInstrument]);
+
+    const loadedHistoryLabel = useMemo(() => {
+        if (candles.length === 0) {
+            return 'No candles loaded yet.';
+        }
+        const oldest = new Date(candles[0].openTime).toLocaleDateString();
+        const newest = new Date(candles[candles.length - 1].openTime).toLocaleDateString();
+        return `${oldest} → ${newest}`;
+    }, [candles]);
 
     const filteredInstruments = useMemo(() => {
         const query = instrumentQuery.trim().toLowerCase();
@@ -181,17 +207,12 @@ export default function WatchlistPage() {
         }
     }, [currentUserId, selectedWatchlist]);
 
-    const fetchCandles = useCallback(async (
+    const fetchCandleChunk = useCallback(async (
         symbol: string,
         range: ChartRange,
         interval: ChartInterval,
-        mode: 'reset' | 'prepend' = 'reset',
-    ) => {
-        if (!symbol) {
-            return;
-        }
-
-        const beforeOpenTime = mode === 'prepend' && candles.length > 0 ? candles[0].openTime : null;
+        beforeOpenTime?: number | null,
+    ): Promise<CandlePoint[]> => {
         const url = new URL('/api/v1/market/candles', window.location.origin);
         url.searchParams.set('symbol', symbol);
         url.searchParams.set('range', range);
@@ -203,6 +224,25 @@ export default function WatchlistPage() {
             url.searchParams.set('beforeOpenTime', String(beforeOpenTime));
         }
 
+        const res = await apiFetch(`${url.pathname}${url.search}`, { cache: 'no-store' });
+        if (!res.ok) {
+            return [];
+        }
+        return res.json();
+    }, []);
+
+    const fetchCandles = useCallback(async (
+        symbol: string,
+        range: ChartRange,
+        interval: ChartInterval,
+        mode: 'reset' | 'prepend' = 'reset',
+    ) => {
+        if (!symbol) {
+            return;
+        }
+
+        const beforeOpenTime = mode === 'prepend' && candles.length > 0 ? candles[0].openTime : null;
+
         if (mode === 'prepend') {
             setLoadingMoreHistory(true);
         } else {
@@ -210,11 +250,7 @@ export default function WatchlistPage() {
         }
 
         try {
-            const res = await apiFetch(`${url.pathname}${url.search}`, { cache: 'no-store' });
-            if (!res.ok) {
-                return;
-            }
-            const nextCandles: CandlePoint[] = await res.json();
+            const nextCandles = await fetchCandleChunk(symbol, range, interval, beforeOpenTime);
             if (range === 'ALL') {
                 setHasMoreHistory(nextCandles.length === ALL_HISTORY_CHUNK);
             } else {
@@ -230,14 +266,39 @@ export default function WatchlistPage() {
                 return;
             }
 
-            setCandles(nextCandles);
+            if (range !== 'ALL') {
+                setCandles(nextCandles);
+                return;
+            }
+
+            let merged = [...nextCandles];
+            let cursor = merged.length > 0 ? merged[0].openTime : null;
+            let hasMore = nextCandles.length === ALL_HISTORY_CHUNK;
+            let remainingChunks = getInitialAllHistoryChunkCount(interval) - 1;
+
+            while (hasMore && cursor && remainingChunks > 0) {
+                const olderChunk = await fetchCandleChunk(symbol, range, interval, cursor);
+                if (olderChunk.length === 0) {
+                    hasMore = false;
+                    break;
+                }
+                const deduped = new Map<number, CandlePoint>();
+                [...olderChunk, ...merged].forEach((candle) => deduped.set(candle.openTime, candle));
+                merged = Array.from(deduped.values()).sort((a, b) => a.openTime - b.openTime);
+                cursor = olderChunk[0]?.openTime ?? null;
+                hasMore = olderChunk.length === ALL_HISTORY_CHUNK;
+                remainingChunks -= 1;
+            }
+
+            setHasMoreHistory(hasMore);
+            setCandles(merged);
         } catch (error) {
             console.error(error);
         } finally {
             setChartLoading(false);
             setLoadingMoreHistory(false);
         }
-    }, [candles]);
+    }, [candles, fetchCandleChunk]);
 
     useEffect(() => {
         fetchWatchlists();
@@ -529,8 +590,27 @@ export default function WatchlistPage() {
                                                     ? (hasMoreHistory ? 'Scroll left to load older candles.' : 'Loaded oldest available chunk.')
                                                     : 'Window sized to selected range.'}
                                             </p>
+                                            <p className="mt-2 text-[11px] font-mono text-zinc-600">{loadedHistoryLabel}</p>
                                         </article>
                                     </div>
+
+                                    {selectedRange === 'ALL' && (
+                                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                            <div>
+                                                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">All History Mode</p>
+                                                <p className="mt-1 text-sm text-zinc-500">
+                                                    Finer intervals load progressively. Use `Load older` for deeper history when you need more candles.
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => fetchCandles(selectedSymbol, selectedRange, selectedInterval, 'prepend')}
+                                                disabled={loadingMoreHistory || !hasMoreHistory}
+                                                className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-300 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                            >
+                                                {loadingMoreHistory ? 'Loading...' : (hasMoreHistory ? 'Load Older' : 'No More Data')}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </section>
