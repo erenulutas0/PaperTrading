@@ -494,36 +494,42 @@ export default function WatchlistPage() {
                                             placeholder="Search BTC, ETH, Solana..."
                                             className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-amber-400"
                                         />
-                                        <div className="flex flex-wrap gap-2">
-                                            {RANGE_OPTIONS.map((range) => (
-                                                <button
-                                                    key={range}
-                                                    onClick={() => setSelectedRange(range)}
-                                                    className={`rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] transition ${selectedRange === range
-                                                        ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
-                                                        : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'}`}
-                                                >
-                                                    {range}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {INTERVAL_OPTIONS.map((interval) => {
-                                                const disabled = selectedRange === 'ALL' && interval === '1m';
-                                                return (
-                                                    <button
-                                                        key={interval}
-                                                        onClick={() => setSelectedInterval(interval)}
-                                                        disabled={disabled}
-                                                        className={`rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] transition ${selectedInterval === interval
-                                                            ? 'border-green-400/40 bg-green-400/10 text-green-300'
-                                                            : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'} ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
-                                                    >
-                                                        {interval}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
+                                        <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
+                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Range</p>
+                                            <select
+                                                value={selectedRange}
+                                                onChange={(event) => setSelectedRange(event.target.value as ChartRange)}
+                                                className="mt-2 w-full bg-transparent text-sm font-semibold text-amber-300 outline-none"
+                                            >
+                                                {RANGE_OPTIONS.map((range) => (
+                                                    <option key={range} value={range} className="bg-zinc-950 text-white">
+                                                        {range}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
+                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Interval</p>
+                                            <select
+                                                value={selectedInterval}
+                                                onChange={(event) => setSelectedInterval(event.target.value as ChartInterval)}
+                                                className="mt-2 w-full bg-transparent text-sm font-semibold text-green-300 outline-none"
+                                            >
+                                                {INTERVAL_OPTIONS.map((interval) => {
+                                                    const disabled = selectedRange === 'ALL' && interval === '1m';
+                                                    return (
+                                                        <option
+                                                            key={interval}
+                                                            value={interval}
+                                                            disabled={disabled}
+                                                            className="bg-zinc-950 text-white"
+                                                        >
+                                                            {interval}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </label>
                                     </div>
 
                                     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
