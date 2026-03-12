@@ -10,10 +10,12 @@ import {
     type LeaderboardSortBy,
 } from '../../lib/user-preferences';
 
-interface LeaderboardEntry {
-    portfolioId: string;
-    portfolioName: string;
+interface AccountLeaderboardEntry {
     ownerId: string;
+    ownerName: string;
+    publicPortfolioCount: number;
+    trustScore: number;
+    winRate: number;
     returnPercentage: number;
     totalEquity: number;
     profitLoss: number;
@@ -25,7 +27,7 @@ const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS'
 const SORT_DIRECTION_OPTIONS: LeaderboardDirection[] = ['DESC', 'ASC'];
 
 export default function LeaderboardPage() {
-    const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+    const [entries, setEntries] = useState<AccountLeaderboardEntry[]>([]);
     const [sortBy, setSortBy] = useState<LeaderboardSortBy>('RETURN_PERCENTAGE');
     const [direction, setDirection] = useState<LeaderboardDirection>('DESC');
     const [preferencesReady, setPreferencesReady] = useState(false);
@@ -84,7 +86,7 @@ export default function LeaderboardPage() {
                 sortBy,
                 direction,
             });
-            const res = await apiFetch(`/api/v1/leaderboards?${params.toString()}`);
+            const res = await apiFetch(`/api/v1/leaderboards/accounts?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 setEntries(data.content || []);
@@ -138,7 +140,7 @@ export default function LeaderboardPage() {
                 <div className="flex items-center gap-4">
                     <Link href="/" className="text-2xl font-bold tracking-tight">PaperTrade<span className="text-green-500">Pro</span></Link>
                     <span className="text-zinc-600">|</span>
-                    <h1 className="text-xl font-medium text-zinc-300">Leaderboards</h1>
+                    <h1 className="text-xl font-medium text-zinc-300">Account Leaderboards</h1>
                 </div>
                 <div className="flex gap-4">
                     <select
@@ -164,10 +166,12 @@ export default function LeaderboardPage() {
                     {/* Table Header */}
                     <div className="grid grid-cols-12 gap-4 p-4 border-b border-zinc-800 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                         <div className="col-span-1 text-center">Rank</div>
-                        <div className="col-span-11 md:col-span-4">Portfolio</div>
+                        <div className="col-span-11 md:col-span-3">Trader</div>
+                        <div className="hidden md:block col-span-2 text-right">Portfolios</div>
+                        <div className="hidden md:block col-span-2 text-right">Win Rate</div>
+                        <div className="hidden md:block col-span-1 text-right">Trust</div>
                         <div className="hidden md:block col-span-2 text-right">P/L ($)</div>
-                        <div className="hidden md:block col-span-2 text-right">Return %</div>
-                        <div className="hidden md:block col-span-3 text-right">Total Value</div>
+                        <div className="hidden md:block col-span-1 text-right">Return %</div>
                     </div>
 
                     {/* Table Body */}
@@ -187,16 +191,37 @@ export default function LeaderboardPage() {
                             if (index === 2) rankStyle = "bg-orange-700/20 text-orange-400 border border-orange-700/20";
 
                             return (
-                                <div key={entry.portfolioId} className="grid grid-cols-12 gap-4 p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors items-center">
+                                <div key={entry.ownerId} className="grid grid-cols-12 gap-4 p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors items-center">
                                     <div className="col-span-1 flex justify-center">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${rankStyle}`}>
                                             {index + 1}
                                         </div>
                                     </div>
 
-                                    <div className="col-span-11 md:col-span-4">
-                                        <h3 className="font-bold text-lg">{entry.portfolioName}</h3>
-                                        <p className="text-xs text-zinc-500 font-mono">ID: {entry.portfolioId.substring(0, 8)}...</p>
+                                    <div className="col-span-11 md:col-span-3">
+                                        <Link href={`/profile/${entry.ownerId}`} className="font-bold text-lg hover:text-green-400 transition-colors">
+                                            {entry.ownerName || `User ${entry.ownerId.substring(0, 8)}`}
+                                        </Link>
+                                        <p className="text-xs text-zinc-500 font-mono">ID: {entry.ownerId.substring(0, 8)}...</p>
+                                    </div>
+
+                                    <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
+                                        <span className="block md:hidden text-xs text-zinc-500 mb-1">Portfolios</span>
+                                        <span className="font-mono text-lg font-bold text-zinc-200">{entry.publicPortfolioCount}</span>
+                                    </div>
+
+                                    <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
+                                        <span className="block md:hidden text-xs text-zinc-500 mb-1">Win Rate</span>
+                                        <span className={`font-mono text-lg font-bold ${entry.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {entry.winRate.toFixed(1)}%
+                                        </span>
+                                    </div>
+
+                                    <div className="col-span-6 md:col-span-1 text-right flex flex-col justify-center">
+                                        <span className="block md:hidden text-xs text-zinc-500 mb-1">Trust</span>
+                                        <span className={`font-mono text-lg font-bold ${entry.trustScore >= 70 ? 'text-green-500' : entry.trustScore >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                            {entry.trustScore.toFixed(1)}
+                                        </span>
                                     </div>
 
                                     <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
@@ -206,15 +231,11 @@ export default function LeaderboardPage() {
                                         </span>
                                     </div>
 
-                                    <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
+                                    <div className="col-span-6 md:col-span-1 text-right flex flex-col justify-center">
                                         <span className="block md:hidden text-xs text-zinc-500 mb-1">ROI</span>
                                         <span className={`font-mono text-lg font-bold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                                             {isPositive ? '+' : ''}{roi.toFixed(2)}%
                                         </span>
-                                    </div>
-
-                                    <div className="hidden md:block col-span-3 text-right flex flex-col justify-center">
-                                        <span className="font-mono text-lg font-bold">${entry.totalEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
                             );

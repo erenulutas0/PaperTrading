@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend/frontend after account leaderboard rollout and verify both dashboard/public leaderboard pages rank users (not portfolios) while exposing trust score, platform win rate, and profile drill-down
 - [ ] Redeploy backend/frontend after trust score breakdown rollout and verify profile pages show prediction/trade/portfolio signals plus methodology page links
 - [ ] Redeploy backend after Bayesian/sample-size-aware trust score rollout and verify profile trust scores no longer overreact to tiny resolved-post samples while experienced authors gain gradual credibility lift
 - [ ] Redeploy backend after bypassing rate limiting for `/actuator/**` and re-run `run_auth_attack_scenarios.ps1` to confirm health probes no longer fail with `429`

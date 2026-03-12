@@ -2,7 +2,9 @@ package com.finance.core.service;
 
 import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.dto.AccountLeaderboardEntry;
 import com.finance.core.dto.LeaderboardEntry;
+import com.finance.core.dto.TrustScoreBreakdownResponse;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,10 +36,13 @@ public class LeaderboardService {
     private final BinanceService binanceService;
     private final CacheService cacheService;
     private final PerformanceCalculationService performanceCalculationService;
+    private final TrustScoreService trustScoreService;
 
     // Period leaderboard caches keep portfolioId -> metric score
     private static final String LEADERBOARD_RETURN_CACHE_KEY_PREFIX = "leaderboard_portfolios:";
     private static final String LEADERBOARD_PROFIT_CACHE_KEY_PREFIX = "leaderboard_portfolios_profit:";
+    private static final String ACCOUNT_LEADERBOARD_RETURN_CACHE_KEY_PREFIX = "leaderboard_accounts:";
+    private static final String ACCOUNT_LEADERBOARD_PROFIT_CACHE_KEY_PREFIX = "leaderboard_accounts_profit:";
     private static final Duration CACHE_TTL = Duration.ofSeconds(60);
     private static final int LEADERBOARD_REFRESH_BATCH_SIZE = 250;
     private static final List<String> SUPPORTED_PERIODS = List.of("1D", "1W", "1M", "ALL");
@@ -124,6 +129,102 @@ public class LeaderboardService {
         return new PageImpl<>(entries, pageable, total);
     }
 
+    public Page<AccountLeaderboardEntry> getAccountLeaderboard(
+            String period,
+            String sortBy,
+            String direction,
+            Pageable pageable) {
+        String safePeriod = normalizePeriod(period);
+        LeaderboardSortBy safeSortBy = normalizeSortBy(sortBy);
+        LeaderboardDirection safeDirection = normalizeDirection(direction);
+        String cacheKey = resolveAccountCacheKey(safePeriod, safeSortBy);
+
+        long start = pageable.getOffset();
+        long end = start + pageable.getPageSize() - 1;
+
+        Set<ZSetOperations.TypedTuple<Object>> range = loadLeaderboardRange(
+                cacheKey,
+                safePeriod,
+                safeDirection,
+                start,
+                end);
+        if (range == null || range.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        List<UUID> rankedOwnerIds = new ArrayList<>();
+        for (ZSetOperations.TypedTuple<Object> tuple : range) {
+            parseMemberAsUuid(tuple.getValue()).ifPresent(rankedOwnerIds::add);
+        }
+        if (rankedOwnerIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        List<String> ownerIds = rankedOwnerIds.stream().map(UUID::toString).toList();
+        List<Portfolio> publicPortfolios = portfolioRepository.findByOwnerIdInAndVisibility(
+                ownerIds,
+                Portfolio.Visibility.PUBLIC);
+        if (publicPortfolios.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        LocalDateTime startTime = performanceCalculationService.getStartTimeForPeriod(safePeriod);
+        Map<String, Double> prices = binanceService.getPrices();
+        Map<UUID, AppUser> userMap = userRepository.findAllById(rankedOwnerIds).stream()
+                .collect(Collectors.toMap(AppUser::getId, u -> u));
+
+        Map<UUID, AccountAggregate> aggregateByOwner = new HashMap<>();
+        for (Portfolio portfolio : publicPortfolios) {
+            UUID ownerUuid = parseOwnerUuid(portfolio);
+            if (ownerUuid == null) {
+                continue;
+            }
+            try {
+                PerformanceCalculationService.PerformanceMetrics metrics = performanceCalculationService.calculateMetrics(
+                        portfolio,
+                        startTime,
+                        safePeriod,
+                        prices);
+                aggregateByOwner.computeIfAbsent(ownerUuid, ignored -> new AccountAggregate())
+                        .accumulate(metrics);
+            } catch (Exception e) {
+                log.error("Failed to compute account leaderboard metrics for portfolio={} period={}",
+                        portfolio.getId(),
+                        safePeriod,
+                        e);
+            }
+        }
+
+        List<AccountLeaderboardEntry> entries = new ArrayList<>();
+        int rank = (int) start + 1;
+        for (UUID ownerId : rankedOwnerIds) {
+            AccountAggregate aggregate = aggregateByOwner.get(ownerId);
+            if (aggregate == null || aggregate.getPublicPortfolioCount() == 0) {
+                continue;
+            }
+
+            AppUser user = userMap.get(ownerId);
+            TrustScoreBreakdownResponse trustBreakdown = trustScoreService.buildTrustScoreBreakdown(ownerId);
+            double trustScore = trustScoreService.calculateTrustScore(trustBreakdown);
+
+            entries.add(AccountLeaderboardEntry.builder()
+                    .rank(rank++)
+                    .ownerId(ownerId)
+                    .ownerName(resolveOwnerName(user, ownerId))
+                    .returnPercentage(aggregate.getReturnPercentage())
+                    .totalEquity(aggregate.getTotalEquity())
+                    .profitLoss(aggregate.getProfitLoss())
+                    .startEquity(aggregate.getStartEquity())
+                    .publicPortfolioCount(aggregate.getPublicPortfolioCount())
+                    .trustScore(trustScore)
+                    .winRate(trustBreakdown.getBlendedWinRate())
+                    .build());
+        }
+
+        long total = Optional.ofNullable(cacheService.zCard(cacheKey)).orElse(0L);
+        return new PageImpl<>(entries, pageable, total);
+    }
+
     @Scheduled(fixedRate = 10000)
     @SchedulerLock(name = "LeaderboardService.refreshLeaderboardJob", lockAtMostFor = "PT1M", lockAtLeastFor = "PT2S")
     public void refreshLeaderboardJob() {
@@ -146,6 +247,8 @@ public class LeaderboardService {
     public void invalidateCache() {
         cacheService.deletePattern(LEADERBOARD_RETURN_CACHE_KEY_PREFIX + "*");
         cacheService.deletePattern(LEADERBOARD_PROFIT_CACHE_KEY_PREFIX + "*");
+        cacheService.deletePattern(ACCOUNT_LEADERBOARD_RETURN_CACHE_KEY_PREFIX + "*");
+        cacheService.deletePattern(ACCOUNT_LEADERBOARD_PROFIT_CACHE_KEY_PREFIX + "*");
     }
 
     private Set<ZSetOperations.TypedTuple<Object>> loadLeaderboardRange(
@@ -182,11 +285,16 @@ public class LeaderboardService {
     private int refreshPeriod(String period, Map<String, Double> prices) {
         String returnCacheKey = LEADERBOARD_RETURN_CACHE_KEY_PREFIX + period;
         String profitCacheKey = LEADERBOARD_PROFIT_CACHE_KEY_PREFIX + period;
+        String accountReturnCacheKey = ACCOUNT_LEADERBOARD_RETURN_CACHE_KEY_PREFIX + period;
+        String accountProfitCacheKey = ACCOUNT_LEADERBOARD_PROFIT_CACHE_KEY_PREFIX + period;
         cacheService.delete(returnCacheKey);
         cacheService.delete(profitCacheKey);
+        cacheService.delete(accountReturnCacheKey);
+        cacheService.delete(accountProfitCacheKey);
 
         LocalDateTime startTime = performanceCalculationService.getStartTimeForPeriod(period);
         int updatedCount = 0;
+        Map<UUID, AccountAggregate> accountAggregates = new HashMap<>();
 
         int page = 0;
         Page<UUID> portfolioPage;
@@ -202,6 +310,11 @@ public class LeaderboardService {
                     String member = portfolio.getId().toString();
                     cacheService.zAdd(returnCacheKey, member, metrics.getReturnPercentage().doubleValue());
                     cacheService.zAdd(profitCacheKey, member, metrics.getProfitLoss().doubleValue());
+                    UUID ownerUuid = parseOwnerUuid(portfolio);
+                    if (ownerUuid != null) {
+                        accountAggregates.computeIfAbsent(ownerUuid, ignored -> new AccountAggregate())
+                                .accumulate(metrics);
+                    }
                     updatedCount++;
                 } catch (Exception e) {
                     log.error("Failed to refresh leaderboard metrics for portfolio={} period={}",
@@ -215,6 +328,17 @@ public class LeaderboardService {
 
         cacheService.expire(returnCacheKey, CACHE_TTL.multipliedBy(2));
         cacheService.expire(profitCacheKey, CACHE_TTL.multipliedBy(2));
+        for (Map.Entry<UUID, AccountAggregate> entry : accountAggregates.entrySet()) {
+            AccountAggregate aggregate = entry.getValue();
+            if (aggregate.getPublicPortfolioCount() == 0) {
+                continue;
+            }
+            String member = entry.getKey().toString();
+            cacheService.zAdd(accountReturnCacheKey, member, aggregate.getReturnPercentage().doubleValue());
+            cacheService.zAdd(accountProfitCacheKey, member, aggregate.getProfitLoss().doubleValue());
+        }
+        cacheService.expire(accountReturnCacheKey, CACHE_TTL.multipliedBy(2));
+        cacheService.expire(accountProfitCacheKey, CACHE_TTL.multipliedBy(2));
         return updatedCount;
     }
 
@@ -288,6 +412,13 @@ public class LeaderboardService {
         return LEADERBOARD_RETURN_CACHE_KEY_PREFIX + period;
     }
 
+    private String resolveAccountCacheKey(String period, LeaderboardSortBy sortBy) {
+        if (sortBy == LeaderboardSortBy.PROFIT_LOSS) {
+            return ACCOUNT_LEADERBOARD_PROFIT_CACHE_KEY_PREFIX + period;
+        }
+        return ACCOUNT_LEADERBOARD_RETURN_CACHE_KEY_PREFIX + period;
+    }
+
     private Optional<UUID> parseMemberAsUuid(Object rawMember) {
         if (rawMember == null) {
             return Optional.empty();
@@ -311,20 +442,64 @@ public class LeaderboardService {
 
     private String resolveOwnerName(Portfolio portfolio, Map<UUID, AppUser> userMap) {
         UUID ownerUuid = parseOwnerUuid(portfolio);
-        if (ownerUuid != null) {
-            AppUser user = userMap.get(ownerUuid);
-            if (user != null) {
-                if (user.getDisplayName() != null && !user.getDisplayName().isBlank()) {
-                    return user.getDisplayName();
-                }
-                if (user.getUsername() != null && !user.getUsername().isBlank()) {
-                    return user.getUsername();
-                }
+        return resolveOwnerName(ownerUuid != null ? userMap.get(ownerUuid) : null, ownerUuid);
+    }
+
+    private String resolveOwnerName(AppUser user, UUID ownerUuid) {
+        if (user != null) {
+            if (user.getDisplayName() != null && !user.getDisplayName().isBlank()) {
+                return user.getDisplayName();
+            }
+            if (user.getUsername() != null && !user.getUsername().isBlank()) {
+                return user.getUsername();
             }
         }
 
-        String ownerId = portfolio.getOwnerId() != null ? portfolio.getOwnerId() : "unknown";
+        if (ownerUuid == null) {
+            return "Unknown User";
+        }
+
+        String ownerId = ownerUuid.toString();
         return "User " + ownerId.substring(0, Math.min(8, ownerId.length()));
+    }
+
+    private static final class AccountAggregate {
+        private BigDecimal startEquity = BigDecimal.ZERO;
+        private BigDecimal totalEquity = BigDecimal.ZERO;
+        private BigDecimal profitLoss = BigDecimal.ZERO;
+        private int publicPortfolioCount = 0;
+
+        void accumulate(PerformanceCalculationService.PerformanceMetrics metrics) {
+            startEquity = startEquity.add(metrics.getStartEquity());
+            totalEquity = totalEquity.add(metrics.getCurrentEquity());
+            profitLoss = profitLoss.add(metrics.getProfitLoss());
+            publicPortfolioCount++;
+        }
+
+        BigDecimal getReturnPercentage() {
+            if (startEquity.signum() == 0) {
+                return BigDecimal.ZERO;
+            }
+            return profitLoss
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(startEquity, 4, java.math.RoundingMode.HALF_UP);
+        }
+
+        BigDecimal getStartEquity() {
+            return startEquity;
+        }
+
+        BigDecimal getTotalEquity() {
+            return totalEquity;
+        }
+
+        BigDecimal getProfitLoss() {
+            return profitLoss;
+        }
+
+        int getPublicPortfolioCount() {
+            return publicPortfolioCount;
+        }
     }
 
     private enum LeaderboardSortBy {

@@ -1,5 +1,6 @@
 package com.finance.core.controller;
 
+import com.finance.core.dto.AccountLeaderboardEntry;
 import com.finance.core.dto.LeaderboardEntry;
 import com.finance.core.service.BinanceService;
 import com.finance.core.service.LeaderboardService;
@@ -17,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
@@ -83,5 +85,34 @@ class LeaderboardControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(0)))
                                 .andExpect(jsonPath("$.page.totalElements").value(0));
+        }
+
+        @Test
+        void getAccountLeaderboard_returnsPaginatedResults() throws Exception {
+                AccountLeaderboardEntry entry = AccountLeaderboardEntry.builder()
+                                .rank(1)
+                                .ownerId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+                                .ownerName("Trader X")
+                                .publicPortfolioCount(3)
+                                .trustScore(63.4)
+                                .winRate(68.5)
+                                .returnPercentage(BigDecimal.valueOf(12.3))
+                                .profitLoss(BigDecimal.valueOf(4200))
+                                .totalEquity(BigDecimal.valueOf(145000))
+                                .startEquity(BigDecimal.valueOf(129000))
+                                .build();
+
+                Page<AccountLeaderboardEntry> page = new PageImpl<>(List.of(entry), PageRequest.of(0, 10), 1);
+
+                when(leaderboardService.getAccountLeaderboard(eq("1W"), eq("RETURN_PERCENTAGE"), eq("DESC"), any(Pageable.class)))
+                                .thenReturn(page);
+
+                mockMvc.perform(get("/api/v1/leaderboards/accounts?period=1W&sortBy=RETURN_PERCENTAGE&direction=DESC&page=0&size=10"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(1)))
+                                .andExpect(jsonPath("$.content[0].ownerName").value("Trader X"))
+                                .andExpect(jsonPath("$.content[0].publicPortfolioCount").value(3))
+                                .andExpect(jsonPath("$.content[0].trustScore").value(63.4))
+                                .andExpect(jsonPath("$.content[0].winRate").value(68.5));
         }
 }

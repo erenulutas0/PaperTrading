@@ -3,7 +3,9 @@ package com.finance.core.service;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.AppUser;
+import com.finance.core.dto.AccountLeaderboardEntry;
 import com.finance.core.dto.LeaderboardEntry;
+import com.finance.core.dto.TrustScoreBreakdownResponse;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +45,8 @@ class LeaderboardServiceTest {
         private CacheService cacheService;
         @Mock
         private UserRepository userRepository;
+        @Mock
+        private TrustScoreService trustScoreService;
 
         @InjectMocks
         private LeaderboardService leaderboardService;
@@ -179,8 +183,17 @@ class LeaderboardServiceTest {
                 verify(cacheService).delete("leaderboard_portfolios_profit:1W");
                 verify(cacheService).delete("leaderboard_portfolios_profit:1M");
                 verify(cacheService).delete("leaderboard_portfolios_profit:ALL");
+                verify(cacheService).delete("leaderboard_accounts:1D");
+                verify(cacheService).delete("leaderboard_accounts:1W");
+                verify(cacheService).delete("leaderboard_accounts:1M");
+                verify(cacheService).delete("leaderboard_accounts:ALL");
+                verify(cacheService).delete("leaderboard_accounts_profit:1D");
+                verify(cacheService).delete("leaderboard_accounts_profit:1W");
+                verify(cacheService).delete("leaderboard_accounts_profit:1M");
+                verify(cacheService).delete("leaderboard_accounts_profit:ALL");
 
                 String member = portfolioA.getId().toString();
+                String ownerMember = portfolioA.getOwnerId();
                 verify(cacheService).zAdd(eq("leaderboard_portfolios:1D"), eq(member), anyDouble());
                 verify(cacheService).zAdd(eq("leaderboard_portfolios:1W"), eq(member), anyDouble());
                 verify(cacheService).zAdd(eq("leaderboard_portfolios:1M"), eq(member), anyDouble());
@@ -189,7 +202,64 @@ class LeaderboardServiceTest {
                 verify(cacheService).zAdd(eq("leaderboard_portfolios_profit:1W"), eq(member), anyDouble());
                 verify(cacheService).zAdd(eq("leaderboard_portfolios_profit:1M"), eq(member), anyDouble());
                 verify(cacheService).zAdd(eq("leaderboard_portfolios_profit:ALL"), eq(member), anyDouble());
+                verify(cacheService).zAdd(eq("leaderboard_accounts:1D"), eq(ownerMember), anyDouble());
+                verify(cacheService).zAdd(eq("leaderboard_accounts:1W"), eq(ownerMember), anyDouble());
+                verify(cacheService).zAdd(eq("leaderboard_accounts:1M"), eq(ownerMember), anyDouble());
+                verify(cacheService).zAdd(eq("leaderboard_accounts:ALL"), eq(ownerMember), anyDouble());
+                verify(cacheService).zAdd(eq("leaderboard_accounts_profit:1D"), eq(ownerMember), anyDouble());
+                verify(cacheService).zAdd(eq("leaderboard_accounts_profit:1W"), eq(ownerMember), anyDouble());
+                verify(cacheService).zAdd(eq("leaderboard_accounts_profit:1M"), eq(ownerMember), anyDouble());
+                verify(cacheService).zAdd(eq("leaderboard_accounts_profit:ALL"), eq(ownerMember), anyDouble());
 
                 verify(cacheService, times(8)).expire(startsWith("leaderboard_portfolios"), any());
+        }
+
+        @Test
+        void getAccountLeaderboard_shouldAggregatePublicPortfoliosPerOwner() {
+                Pageable pageable = PageRequest.of(0, 10);
+
+                Set<ZSetOperations.TypedTuple<Object>> mockRange = new LinkedHashSet<>();
+                UUID ownerId = UUID.fromString(portfolioA.getOwnerId());
+                mockRange.add(new DefaultTypedTuple<>(ownerId.toString(), 10.0));
+
+                when(cacheService.zRevRangeWithScores(eq("leaderboard_accounts:ALL"), anyLong(), anyLong()))
+                                .thenReturn(mockRange);
+                when(cacheService.zCard(eq("leaderboard_accounts:ALL"))).thenReturn(1L);
+                when(portfolioRepository.findByOwnerIdInAndVisibility(eq(List.of(ownerId.toString())), eq(Portfolio.Visibility.PUBLIC)))
+                                .thenReturn(List.of(portfolioA));
+                when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 55000.0));
+                when(performanceCalculationService.getStartTimeForPeriod("ALL"))
+                                .thenReturn(LocalDateTime.of(2026, 1, 1, 0, 0));
+                when(performanceCalculationService.calculateMetrics(eq(portfolioA), any(LocalDateTime.class), eq("ALL"),
+                                anyMap()))
+                                .thenReturn(PerformanceCalculationService.PerformanceMetrics.builder()
+                                                .currentEquity(BigDecimal.valueOf(110000))
+                                                .startEquity(BigDecimal.valueOf(100000))
+                                                .profitLoss(BigDecimal.valueOf(10000))
+                                                .returnPercentage(BigDecimal.valueOf(10.0))
+                                                .build());
+
+                AppUser user = AppUser.builder()
+                                .id(ownerId)
+                                .username("traderX")
+                                .displayName("Trader X")
+                                .build();
+                when(userRepository.findAllById(eq(List.of(ownerId)))).thenReturn(List.of(user));
+                when(trustScoreService.buildTrustScoreBreakdown(ownerId)).thenReturn(TrustScoreBreakdownResponse.builder()
+                                .blendedWinRate(68.5)
+                                .build());
+                when(trustScoreService.calculateTrustScore(any())).thenReturn(63.4);
+
+                Page<AccountLeaderboardEntry> page = leaderboardService.getAccountLeaderboard(
+                                "ALL",
+                                "RETURN_PERCENTAGE",
+                                "DESC",
+                                pageable);
+
+                assertEquals(1, page.getTotalElements());
+                assertEquals("Trader X", page.getContent().get(0).getOwnerName());
+                assertEquals(1, page.getContent().get(0).getPublicPortfolioCount());
+                assertEquals(63.4, page.getContent().get(0).getTrustScore(), 0.001);
+                assertEquals(68.5, page.getContent().get(0).getWinRate(), 0.001);
         }
 }

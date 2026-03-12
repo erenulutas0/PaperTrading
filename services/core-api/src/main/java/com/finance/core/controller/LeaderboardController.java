@@ -1,5 +1,6 @@
 package com.finance.core.controller;
 
+import com.finance.core.dto.AccountLeaderboardEntry;
 import com.finance.core.dto.LeaderboardEntry;
 import com.finance.core.service.LeaderboardService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,25 @@ public class LeaderboardController {
             return ResponseEntity.ok(leaderboardService.getLeaderboard(period, sortBy, direction, pageable));
         } catch (Exception e) {
             log.error("Error getting leaderboard: period={}, sortBy={}, direction={}, error={}",
+                    period,
+                    sortBy,
+                    direction,
+                    e.getMessage(),
+                    e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/accounts")
+    public ResponseEntity<Page<AccountLeaderboardEntry>> getAccountLeaderboard(
+            @RequestParam(defaultValue = "1D") String period,
+            @RequestParam(defaultValue = "RETURN_PERCENTAGE") String sortBy,
+            @RequestParam(defaultValue = "DESC") String direction,
+            @PageableDefault(size = 20) Pageable pageable) {
+        try {
+            return ResponseEntity.ok(leaderboardService.getAccountLeaderboard(period, sortBy, direction, pageable));
+        } catch (Exception e) {
+            log.error("Error getting account leaderboard: period={}, sortBy={}, direction={}, error={}",
                     period,
                     sortBy,
                     direction,

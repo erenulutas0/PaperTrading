@@ -11,12 +11,13 @@ import {
     type LeaderboardSortBy,
 } from '../../../lib/user-preferences';
 
-interface LeaderboardEntry {
+interface AccountLeaderboardEntry {
     rank: number;
-    portfolioId: string;
-    portfolioName: string;
     ownerId: string;
     ownerName: string;
+    publicPortfolioCount: number;
+    trustScore: number;
+    winRate: number;
     returnPercentage: number;
     totalEquity: number;
     profitLoss: number;
@@ -29,7 +30,7 @@ const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS'
 const SORT_DIRECTION_OPTIONS: LeaderboardDirection[] = ['DESC', 'ASC'];
 
 export default function LeaderboardPage() {
-    const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+    const [entries, setEntries] = useState<AccountLeaderboardEntry[]>([]);
     const [period, setPeriod] = useState<LeaderboardPeriod>('1D');
     const [sortBy, setSortBy] = useState<LeaderboardSortBy>('RETURN_PERCENTAGE');
     const [direction, setDirection] = useState<LeaderboardDirection>('DESC');
@@ -99,7 +100,7 @@ export default function LeaderboardPage() {
                 sortBy,
                 direction,
             });
-            const res = await apiFetch(`/api/v1/leaderboards?${params.toString()}`);
+            const res = await apiFetch(`/api/v1/leaderboards/accounts?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 setEntries(data.content || []);
@@ -170,7 +171,7 @@ export default function LeaderboardPage() {
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent uppercase tracking-tighter">
                         Leaderboard
                     </h1>
-                    <p className="text-zinc-500 text-sm mt-1">Top performing public portfolios by selected period performance</p>
+                    <p className="text-zinc-500 text-sm mt-1">Top public accounts ranked by aggregated portfolio performance, trust score, and platform win rate</p>
                 </div>
                 <nav className="flex gap-4 items-center">
                     <button
@@ -232,8 +233,10 @@ export default function LeaderboardPage() {
                     <thead className="bg-zinc-950/50 text-zinc-500 text-[10px] uppercase tracking-tighter">
                         <tr>
                             <th className="p-4 font-bold w-16 text-center">Rank</th>
-                            <th className="p-4 font-bold text-left">Portfolio</th>
-                            <th className="p-4 font-bold text-right">Owner</th>
+                            <th className="p-4 font-bold text-left">Trader</th>
+                            <th className="p-4 font-bold text-right">Public Portfolios</th>
+                            <th className="p-4 font-bold text-right">Win Rate</th>
+                            <th className="p-4 font-bold text-right">Trust</th>
                             <th className="p-4 font-bold text-right">Return %</th>
                             <th className="p-4 font-bold text-right">P/L ($)</th>
                             <th className="p-4 font-bold text-right">Total Equity</th>
@@ -242,31 +245,35 @@ export default function LeaderboardPage() {
                     <tbody className="divide-y divide-zinc-800/50">
                         {loading ? (
                             <tr>
-                                <td colSpan={6} className="p-8 text-center text-zinc-500 animate-pulse">
+                                <td colSpan={8} className="p-8 text-center text-zinc-500 animate-pulse">
                                     Loading rankings...
                                 </td>
                             </tr>
                         ) : entries.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="p-8 text-center text-zinc-600 italic">
-                                    No public portfolios found for this period. Set your portfolio visibility to PUBLIC to appear here.
+                                <td colSpan={8} className="p-8 text-center text-zinc-600 italic">
+                                    No public accounts found for this period. Users appear here when they have at least one public portfolio.
                                 </td>
                             </tr>
                         ) : (
                             entries.map((entry, idx) => (
-                                <tr key={`${entry.portfolioId}-${idx}`} className="hover:bg-white/5 transition-colors group">
+                                <tr key={`${entry.ownerId}-${idx}`} className="hover:bg-white/5 transition-colors group">
                                     <td className="p-4 text-center font-bold font-mono text-zinc-400 group-hover:text-white">
                                         #{entry.rank}
                                     </td>
                                     <td className="p-4 font-bold text-white group-hover:text-green-400 transition-colors">
-                                        <Link href={`/dashboard/portfolio/${entry.portfolioId}`}>
-                                            {entry.portfolioName}
-                                        </Link>
-                                    </td>
-                                    <td className="p-4 text-right text-zinc-500 text-xs font-mono group-hover:text-zinc-300">
-                                        <Link href={`/profile/${entry.ownerId}`} className="hover:underline decoration-zinc-700">
+                                        <Link href={`/profile/${entry.ownerId}`}>
                                             {entry.ownerName || `User ${entry.ownerId.substring(0, 8)}`}
                                         </Link>
+                                    </td>
+                                    <td className="p-4 text-right text-zinc-300 font-mono">
+                                        {entry.publicPortfolioCount}
+                                    </td>
+                                    <td className={`p-4 text-right font-bold font-mono ${entry.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`}>
+                                        {entry.winRate.toFixed(1)}%
+                                    </td>
+                                    <td className={`p-4 text-right font-bold font-mono ${entry.trustScore >= 70 ? 'text-green-500' : entry.trustScore >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                        {entry.trustScore.toFixed(1)}
                                     </td>
                                     <td className={`p-4 text-right font-bold font-mono ${entry.returnPercentage >= 0 ? 'text-green-500' : 'text-red-500'
                                         }`}>

@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-12**: **Leaderboard Promoted from Portfolio Rows to Account Credibility Surface (One Hundred Second Pass)**
+  - **Problem observed**:
+    - Portfolio-level leaderboard rows made short-term performance visible, but they hid the product's stronger signal:
+      - the trader behind those portfolios
+    - Users needed one place to compare:
+      - aggregated public portfolio performance
+      - trust score
+      - platform win rate
+      - then drill into profile + portfolios
+  - **Implementation**:
+    - Added account leaderboard API:
+      - `GET /api/v1/leaderboards/accounts`
+    - Scheduled leaderboard refresh now also materializes user-level Redis ZSETs from aggregated public portfolio metrics.
+    - Dashboard and public leaderboard pages now rank accounts instead of individual portfolios.
+    - Each row links to the user profile, where portfolio drill-down remains available.
+  - **Operational impact**:
+    - leaderboard now matches the social-proof vision better: rank the person, not just one basket
+    - trust score and platform win rate become first-class ranking context instead of profile-only metadata
 - **2026-03-11**: **Trust Score Expanded to Multi-Signal Portfolio-Aware Credibility Model (One Hundred First Pass)**
   - **Problem observed**:
     - Prediction-only trust scoring was still too narrow for the product vision.

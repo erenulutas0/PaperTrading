@@ -46,6 +46,9 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
     List<Portfolio> findByOwnerIdAndVisibility(String ownerId, Portfolio.Visibility visibility);
 
     @EntityGraph(attributePaths = "items")
+    List<Portfolio> findByOwnerIdInAndVisibility(Collection<String> ownerIds, Portfolio.Visibility visibility);
+
+    @EntityGraph(attributePaths = "items")
     List<Portfolio> findByIdInAndVisibility(Collection<UUID> ids, Portfolio.Visibility visibility);
 
     @EntityGraph(attributePaths = "items")
