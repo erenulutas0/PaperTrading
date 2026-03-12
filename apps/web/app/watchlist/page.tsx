@@ -92,6 +92,26 @@ export default function WatchlistPage() {
             ?? null;
     }, [enrichedItems, instrumentUniverse, selectedSymbol]);
 
+    const selectedDisplayName = useMemo(() => {
+        if (!selectedInstrument) {
+            return selectedSymbol;
+        }
+        if ('displayName' in selectedInstrument) {
+            return selectedInstrument.displayName;
+        }
+        return selectedInstrument.symbol;
+    }, [selectedInstrument, selectedSymbol]);
+
+    const selectedAssetType = useMemo(() => {
+        if (!selectedInstrument) {
+            return 'CRYPTO';
+        }
+        if ('assetType' in selectedInstrument) {
+            return selectedInstrument.assetType;
+        }
+        return 'WATCHLIST';
+    }, [selectedInstrument]);
+
     const filteredInstruments = useMemo(() => {
         const query = instrumentQuery.trim().toLowerCase();
         if (!query) {
@@ -388,8 +408,8 @@ export default function WatchlistPage() {
                                     <div className="flex flex-wrap items-start justify-between gap-4">
                                         <div>
                                             <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument</p>
-                                            <h2 className="mt-2 text-3xl font-bold text-white">{selectedInstrument?.displayName ?? selectedSymbol}</h2>
-                                            <p className="mt-1 text-sm text-zinc-500">{selectedSymbol} · {selectedInstrument?.assetType ?? 'CRYPTO'}</p>
+                                            <h2 className="mt-2 text-3xl font-bold text-white">{selectedDisplayName}</h2>
+                                            <p className="mt-1 text-sm text-zinc-500">{selectedSymbol} · {selectedAssetType}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Spot</p>
