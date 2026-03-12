@@ -237,7 +237,7 @@ class LeaderboardServiceTest {
                                 .username("traderX")
                                 .displayName("Trader X")
                                 .build();
-                when(userRepository.findAllById(eq(List.of(ownerId)))).thenReturn(List.of(user));
+                when(userRepository.findAllById(any())).thenReturn(List.of(user));
                 when(trustScoreService.buildTrustScoreBreakdown(ownerId)).thenReturn(TrustScoreBreakdownResponse.builder()
                                 .blendedWinRate(68.5)
                                 .build());
