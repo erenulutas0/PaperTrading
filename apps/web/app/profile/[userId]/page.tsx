@@ -20,6 +20,8 @@ interface UserProfile {
     following: boolean;
     trustScore?: number;
     winRate?: number;
+    trustScoreChange7d?: number;
+    winRateChange7d?: number;
     trustBreakdown?: {
         blendedWinRate: number;
         predictionWinRate: number;
@@ -37,6 +39,11 @@ interface UserProfile {
         returnComponent: number;
         experienceComponent: number;
     };
+    trustHistory?: {
+        capturedAt: string;
+        trustScore: number;
+        winRate: number;
+    }[];
     memberSince: string;
 }
 
@@ -66,6 +73,30 @@ interface PageMeta {
 }
 
 const passthroughImageLoader: ImageLoader = ({ src }) => src;
+
+function formatDelta(value?: number, suffix = '') {
+    if (value === undefined || Number.isNaN(value)) {
+        return 'N/A';
+    }
+    const prefix = value > 0 ? '+' : '';
+    return `${prefix}${value.toFixed(1)}${suffix}`;
+}
+
+function buildSeriesPath(values: number[], width: number, height: number) {
+    if (values.length === 0) {
+        return '';
+    }
+    const max = Math.max(...values, 1);
+    const min = Math.min(...values, 0);
+    const range = Math.max(max - min, 1);
+    return values
+        .map((value, index) => {
+            const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
+            const y = height - ((value - min) / range) * height;
+            return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+        })
+        .join(' ');
+}
 
 export default function ProfilePage() {
     const params = useParams();
@@ -247,6 +278,14 @@ export default function ProfilePage() {
     const connectionLoading = isFollowersTab ? followersLoading : isFollowingTab ? followingLoading : false;
     const connectionPage = isFollowersTab ? followersPage : followingPage;
     const hasMoreConnections = connectionPage.number + 1 < connectionPage.totalPages;
+    const trustHistory = profile.trustHistory ?? [];
+    const hasTrustEvidence = !!profile.trustBreakdown && (
+        profile.trustBreakdown.resolvedPredictionCount > 0 ||
+        profile.trustBreakdown.resolvedTradeCount > 0 ||
+        profile.trustBreakdown.totalPortfolioCount > 0
+    );
+    const trustPath = buildSeriesPath(trustHistory.map((point) => point.trustScore), 100, 48);
+    const winRatePath = buildSeriesPath(trustHistory.map((point) => point.winRate), 100, 48);
 
     return (
         <div className="min-h-screen bg-background text-foreground">
@@ -340,6 +379,9 @@ export default function ProfilePage() {
                         <p className={`mt-2 text-2xl font-bold ${trustScoreColor}`}>
                             {profile.trustScore !== undefined ? profile.trustScore.toFixed(1) : 'N/A'}
                         </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            7d change {formatDelta(profile.trustScoreChange7d)}
+                        </p>
                         <Link href="/trust-score" className="mt-3 inline-block text-xs text-primary hover:text-primary/80 transition-colors">
                             How it works
                         </Link>
@@ -347,7 +389,10 @@ export default function ProfilePage() {
                     <article className="glass-panel rounded-xl border border-border/80 p-4">
                         <p className="text-xs uppercase tracking-wide text-muted-foreground">Platform Win Rate</p>
                         <p className="mt-2 text-2xl font-bold text-secondary">
-                            {profile.winRate !== undefined && profile.winRate > 0 ? `${profile.winRate.toFixed(1)}%` : 'N/A'}
+                            {profile.winRate !== undefined && hasTrustEvidence ? `${profile.winRate.toFixed(1)}%` : 'N/A'}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            7d change {formatDelta(profile.winRateChange7d, '%')}
                         </p>
                         {profile.trustBreakdown && (
                             <p className="mt-1 text-xs text-muted-foreground">
@@ -368,6 +413,81 @@ export default function ProfilePage() {
                 </section>
 
                 {profile.trustBreakdown && (
+                    <section className="space-y-3">
+                        <article className="glass-panel rounded-xl border border-border/80 p-4">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Trust Trend</p>
+                                    <h2 className="mt-2 text-xl font-semibold">Last 30 profile evaluations</h2>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        Trust score snapshots are persisted by the backend job. Current profile reads also inject the latest point so the trend never starts empty.
+                                    </p>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                    {trustHistory.length} point{trustHistory.length === 1 ? '' : 's'}
+                                </div>
+                            </div>
+                            <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+                                <div className="rounded-2xl border border-border bg-background/60 p-4">
+                                    <svg viewBox="0 0 100 48" className="h-36 w-full">
+                                        <path d="M 0 24 L 100 24" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+                                        {trustPath && (
+                                            <path
+                                                d={trustPath}
+                                                fill="none"
+                                                stroke="rgb(34 197 94)"
+                                                strokeWidth="2.5"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            />
+                                        )}
+                                        {winRatePath && (
+                                            <path
+                                                d={winRatePath}
+                                                fill="none"
+                                                stroke="rgb(59 130 246)"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeDasharray="4 3"
+                                            />
+                                        )}
+                                    </svg>
+                                    <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                                        <span className="flex items-center gap-2">
+                                            <span className="h-2 w-2 rounded-full bg-green-500" />
+                                            Trust score
+                                        </span>
+                                        <span className="flex items-center gap-2">
+                                            <span className="h-2 w-2 rounded-full bg-blue-500" />
+                                            Platform win rate
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="rounded-2xl border border-border bg-background/60 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Latest Evidence</p>
+                                    <dl className="mt-4 space-y-3 text-sm">
+                                        <div className="flex items-center justify-between">
+                                            <dt className="text-muted-foreground">Resolved predictions</dt>
+                                            <dd className="font-semibold">{profile.trustBreakdown.resolvedPredictionCount}</dd>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <dt className="text-muted-foreground">Resolved trades</dt>
+                                            <dd className="font-semibold">{profile.trustBreakdown.resolvedTradeCount}</dd>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <dt className="text-muted-foreground">Portfolio win rate</dt>
+                                            <dd className="font-semibold">{profile.trustBreakdown.portfolioWinRate.toFixed(1)}%</dd>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <dt className="text-muted-foreground">Average return</dt>
+                                            <dd className="font-semibold">{profile.trustBreakdown.averagePortfolioReturn.toFixed(2)}%</dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                            </div>
+                        </article>
+
                     <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
                         <article className="glass-panel rounded-xl border border-border/80 p-4">
                             <p className="text-xs uppercase tracking-wide text-muted-foreground">Resolved Calls</p>
@@ -410,6 +530,7 @@ export default function ProfilePage() {
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">Closed-trade realized profit/loss</p>
                         </article>
+                    </section>
                     </section>
                 )}
 

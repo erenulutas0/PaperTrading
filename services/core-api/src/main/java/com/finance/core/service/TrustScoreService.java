@@ -2,9 +2,12 @@ package com.finance.core.service;
 
 import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.TrustScoreSnapshot;
 import com.finance.core.dto.TrustScoreBreakdownResponse;
+import com.finance.core.dto.TrustScoreHistoryPointResponse;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.TradeActivityRepository;
+import com.finance.core.repository.TrustScoreSnapshotRepository;
 import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +25,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -42,10 +48,12 @@ public class TrustScoreService {
     private static final double EXPERIENCE_PER_RESOLVED_POST = 0.35;
     private static final double EXPERIENCE_PER_RESOLVED_TRADE = 0.15;
     private static final double MAX_EXPERIENCE_BONUS = 10.0;
+    private static final Duration HISTORY_STALENESS_THRESHOLD = Duration.ofMinutes(15);
     private final UserRepository userRepository;
     private final PerformanceAnalyticsService analyticsService;
     private final PortfolioRepository portfolioRepository;
     private final TradeActivityRepository tradeActivityRepository;
+    private final TrustScoreSnapshotRepository trustScoreSnapshotRepository;
     private final PerformanceCalculationService performanceCalculationService;
     private final BinanceService binanceService;
 
@@ -65,6 +73,8 @@ public class TrustScoreService {
         do {
             userPage = userRepository.findAll(PageRequest.of(page, TRUST_SCORE_BATCH_SIZE));
             List<AppUser> batch = new ArrayList<>(userPage.getNumberOfElements());
+            List<TrustScoreSnapshot> snapshots = new ArrayList<>(userPage.getNumberOfElements());
+            LocalDateTime capturedAt = LocalDateTime.now();
 
             for (AppUser user : userPage.getContent()) {
                 TrustScoreBreakdownResponse breakdown = buildTrustScoreBreakdown(user.getId());
@@ -72,10 +82,12 @@ public class TrustScoreService {
 
                 user.setTrustScore(score);
                 batch.add(user);
+                snapshots.add(buildSnapshot(user.getId(), score, breakdown, capturedAt));
             }
 
             if (!batch.isEmpty()) {
                 userRepository.saveAll(batch);
+                trustScoreSnapshotRepository.saveAll(snapshots);
             }
             processed += userPage.getNumberOfElements();
             page++;
@@ -172,6 +184,64 @@ public class TrustScoreService {
         return Math.round(score * 100.0) / 100.0;
     }
 
+    public List<TrustScoreHistoryPointResponse> buildTrustHistory(UUID userId, TrustScoreBreakdownResponse breakdown, double currentScore, int limit) {
+        int safeLimit = Math.max(1, limit);
+        List<TrustScoreSnapshot> recentSnapshots = trustScoreSnapshotRepository.findByUserIdOrderByCapturedAtDesc(
+                userId,
+                PageRequest.of(0, safeLimit));
+
+        List<TrustScoreHistoryPointResponse> points = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        double currentWinRate = roundDouble(breakdown.getBlendedWinRate());
+
+        if (!recentSnapshots.isEmpty()) {
+            TrustScoreSnapshot latest = recentSnapshots.get(0);
+            boolean latestIsFresh = Duration.between(latest.getCapturedAt(), now).abs().compareTo(HISTORY_STALENESS_THRESHOLD) <= 0;
+            if (latestIsFresh) {
+                points.addAll(recentSnapshots.stream()
+                        .map(this::toHistoryPoint)
+                        .toList());
+            } else {
+                points.add(TrustScoreHistoryPointResponse.builder()
+                        .capturedAt(now)
+                        .trustScore(roundDouble(currentScore))
+                        .winRate(currentWinRate)
+                        .build());
+                points.addAll(recentSnapshots.stream()
+                        .limit(Math.max(0, safeLimit - 1))
+                        .map(this::toHistoryPoint)
+                        .toList());
+            }
+        } else {
+            points.add(TrustScoreHistoryPointResponse.builder()
+                    .capturedAt(now)
+                    .trustScore(roundDouble(currentScore))
+                    .winRate(currentWinRate)
+                    .build());
+        }
+
+        return points.stream()
+                .sorted(Comparator.comparing(TrustScoreHistoryPointResponse::getCapturedAt))
+                .limit(safeLimit)
+                .toList();
+    }
+
+    public double calculateTrustScoreChange7d(UUID userId, double currentScore) {
+        TrustScoreSnapshot baseline = findTrendBaseline(userId);
+        if (baseline == null) {
+            return 0.0;
+        }
+        return roundDouble(currentScore - baseline.getTrustScore());
+    }
+
+    public double calculateWinRateChange7d(UUID userId, TrustScoreBreakdownResponse breakdown) {
+        TrustScoreSnapshot baseline = findTrendBaseline(userId);
+        if (baseline == null) {
+            return 0.0;
+        }
+        return roundDouble(breakdown.getBlendedWinRate() - baseline.getWinRate());
+    }
+
     private double calculatePosteriorComponent(double ratePercent, long sampleSize, double priorWeight, double multiplier) {
         double normalizedRate = Math.max(0.0, Math.min(100.0, ratePercent)) / 100.0;
         double posteriorRate = ((normalizedRate * sampleSize) + (PRIOR_WIN_RATE * priorWeight))
@@ -237,6 +307,34 @@ public class TrustScoreService {
     private Map<String, Double> safePrices() {
         Map<String, Double> prices = binanceService.getPrices();
         return prices != null ? prices : Collections.emptyMap();
+    }
+
+    private TrustScoreSnapshot buildSnapshot(UUID userId, double trustScore, TrustScoreBreakdownResponse breakdown, LocalDateTime capturedAt) {
+        return TrustScoreSnapshot.builder()
+                .userId(userId)
+                .trustScore(roundDouble(trustScore))
+                .winRate(roundDouble(breakdown.getBlendedWinRate()))
+                .resolvedPredictionCount(breakdown.getResolvedPredictionCount())
+                .resolvedTradeCount(breakdown.getResolvedTradeCount())
+                .portfolioCount(breakdown.getTotalPortfolioCount())
+                .capturedAt(capturedAt)
+                .build();
+    }
+
+    private TrustScoreHistoryPointResponse toHistoryPoint(TrustScoreSnapshot snapshot) {
+        return TrustScoreHistoryPointResponse.builder()
+                .capturedAt(snapshot.getCapturedAt())
+                .trustScore(snapshot.getTrustScore())
+                .winRate(snapshot.getWinRate())
+                .build();
+    }
+
+    private TrustScoreSnapshot findTrendBaseline(UUID userId) {
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        return trustScoreSnapshotRepository
+                .findTopByUserIdAndCapturedAtLessThanEqualOrderByCapturedAtDesc(userId, sevenDaysAgo)
+                .or(() -> trustScoreSnapshotRepository.findByUserIdOrderByCapturedAtDesc(userId, PageRequest.of(0, 1)).stream().findFirst())
+                .orElse(null);
     }
 
     private double roundDouble(double value) {

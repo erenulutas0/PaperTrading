@@ -3,6 +3,7 @@ package com.finance.core.dto;
 import lombok.Builder;
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -20,6 +21,9 @@ public class UserProfileResponse {
     private boolean isFollowing; // Whether the requesting user is following this user
     private double trustScore;
     private double winRate;
+    private double trustScoreChange7d;
+    private double winRateChange7d;
     private TrustScoreBreakdownResponse trustBreakdown;
+    private List<TrustScoreHistoryPointResponse> trustHistory;
     private LocalDateTime memberSince;
 }

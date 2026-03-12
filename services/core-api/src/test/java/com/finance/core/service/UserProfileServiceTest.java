@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,6 +47,8 @@ class UserProfileServiceTest {
         private TrustScoreService trustScoreService;
         @Mock
         private org.springframework.context.ApplicationEventPublisher eventPublisher;
+        @Mock
+        private AuditLogService auditLogService;
 
         @InjectMocks
         private UserProfileService userProfileService;
@@ -101,8 +104,12 @@ class UserProfileServiceTest {
                                 .returnComponent(0.0)
                                 .experienceComponent(0.0)
                                 .build();
-                when(trustScoreService.buildTrustScoreBreakdown(any(UUID.class))).thenReturn(neutralBreakdown);
-                when(trustScoreService.calculateTrustScore(any(TrustScoreBreakdownResponse.class))).thenReturn(50.0);
+                lenient().when(trustScoreService.buildTrustScoreBreakdown(any(UUID.class))).thenReturn(neutralBreakdown);
+                lenient().when(trustScoreService.calculateTrustScore(any(TrustScoreBreakdownResponse.class))).thenReturn(50.0);
+                lenient().when(trustScoreService.calculateTrustScoreChange7d(any(UUID.class), anyDouble())).thenReturn(0.0);
+                lenient().when(trustScoreService.calculateWinRateChange7d(any(UUID.class), any(TrustScoreBreakdownResponse.class))).thenReturn(0.0);
+                lenient().when(trustScoreService.buildTrustHistory(any(UUID.class), any(TrustScoreBreakdownResponse.class), anyDouble(), anyInt()))
+                                .thenReturn(Collections.emptyList());
         }
 
         // ===== PROFILE RETRIEVAL =====
@@ -125,6 +132,7 @@ class UserProfileServiceTest {
                 assertEquals(0, response.getPortfolioCount());
                 assertFalse(response.isFollowing());
                 assertEquals(50.0, response.getTrustScore());
+                assertNotNull(response.getTrustHistory());
         }
 
         @Test

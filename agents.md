@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-12**: **Trust Score Snapshot History Added**
+  - **Problem observed**:
+    - Trust score and platform win rate were visible only as current values, making it hard for users to understand whether credibility was improving, deteriorating, or simply unproven.
+  - **Implementation**:
+    - Added `trust_score_snapshots` persistence with hourly capture during scheduled trust-score computation.
+    - `UserProfileResponse` now exposes:
+      - `trustHistory`
+      - `trustScoreChange7d`
+      - `winRateChange7d`
+    - Profile UI now renders a trust/win-rate trend chart and 7-day deltas.
+    - Current profile fetch injects a synthetic live point when the latest snapshot is stale so charts do not appear empty right after deployment.
+  - **Verification**:
+    - Added/updated targeted trust/profile tests.
+    - Targeted Maven suite passed for:
+      - `TrustScoreServiceTest`
+      - `UserProfileServiceTest`
+      - `TrustScoreIntegrationTest`
 - **2026-03-12**: **Leaderboard Promoted from Portfolio Rows to Account Credibility Surface (One Hundred Second Pass)**
   - **Problem observed**:
     - Portfolio-level leaderboard rows made short-term performance visible, but they hid the product's stronger signal:

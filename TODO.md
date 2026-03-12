@@ -1517,3 +1517,4 @@ Last updated: 2026-03-11
   - Social feed misses like/comment activity events
   - Notification WebSocket subscription path inconsistency risk (`/user/{id}/queue/...` vs standard `/user/queue/...`)
   - Hardcoded DB/Redis config and unnecessary Redis repository scanning logs
+- [x] Add trust score history/trend snapshots to user profiles and expose them in profile UI.

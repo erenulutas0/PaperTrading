@@ -2,9 +2,12 @@ package com.finance.core.service;
 
 import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.TrustScoreSnapshot;
 import com.finance.core.dto.TrustScoreBreakdownResponse;
+import com.finance.core.dto.TrustScoreHistoryPointResponse;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.TradeActivityRepository;
+import com.finance.core.repository.TrustScoreSnapshotRepository;
 import com.finance.core.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.util.ArrayList;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,6 +42,9 @@ class TrustScoreServiceTest {
 
     @Mock
     private TradeActivityRepository tradeActivityRepository;
+
+    @Mock
+    private TrustScoreSnapshotRepository trustScoreSnapshotRepository;
 
     @Mock
     private PerformanceCalculationService performanceCalculationService;
@@ -195,5 +202,32 @@ class TrustScoreServiceTest {
         assertEquals(50.0, breakdown.getPortfolioWinRate(), 0.001);
         assertEquals(5.0, breakdown.getAveragePortfolioReturn().doubleValue(), 0.001);
         assertTrue(trustScoreService.calculateTrustScore(breakdown) > 50.0);
+    }
+
+    @Test
+    void buildTrustHistory_injectsCurrentPointWhenSnapshotsAreStale() {
+        UUID userId = UUID.randomUUID();
+        TrustScoreBreakdownResponse breakdown = TrustScoreBreakdownResponse.builder()
+                .blendedWinRate(61.5)
+                .resolvedPredictionCount(4)
+                .resolvedTradeCount(8)
+                .totalPortfolioCount(2)
+                .build();
+
+        when(trustScoreSnapshotRepository.findByUserIdOrderByCapturedAtDesc(eq(userId), any(PageRequest.class)))
+                .thenReturn(List.of(
+                        TrustScoreSnapshot.builder()
+                                .userId(userId)
+                                .trustScore(52.0)
+                                .winRate(54.0)
+                                .capturedAt(LocalDateTime.now().minusHours(2))
+                                .build()));
+
+        List<TrustScoreHistoryPointResponse> history = trustScoreService.buildTrustHistory(userId, breakdown, 58.4, 30);
+
+        assertEquals(2, history.size());
+        assertEquals(52.0, history.get(0).getTrustScore(), 0.001);
+        assertEquals(58.4, history.get(1).getTrustScore(), 0.001);
+        assertEquals(61.5, history.get(1).getWinRate(), 0.001);
     }
 }

@@ -26,7 +26,6 @@ import com.finance.core.domain.event.NotificationEvent;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -56,6 +55,8 @@ public class UserProfileService {
 
                 TrustScoreBreakdownResponse trustBreakdown = trustScoreService.buildTrustScoreBreakdown(userId);
                 double trustScore = trustScoreService.calculateTrustScore(trustBreakdown);
+                double trustScoreChange7d = trustScoreService.calculateTrustScoreChange7d(userId, trustScore);
+                double winRateChange7d = trustScoreService.calculateWinRateChange7d(userId, trustBreakdown);
 
                 return UserProfileResponse.builder()
                                 .id(user.getId())
@@ -70,7 +71,10 @@ public class UserProfileService {
                                 .isFollowing(isFollowing)
                                 .trustScore(trustScore)
                                 .winRate(trustBreakdown.getBlendedWinRate())
+                                .trustScoreChange7d(trustScoreChange7d)
+                                .winRateChange7d(winRateChange7d)
                                 .trustBreakdown(trustBreakdown)
+                                .trustHistory(trustScoreService.buildTrustHistory(userId, trustBreakdown, trustScore, 30))
                                 .memberSince(user.getCreatedAt())
                                 .build();
         }

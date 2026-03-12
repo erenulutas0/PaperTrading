@@ -13,7 +13,7 @@ const sections = [
     },
     {
         title: '3. Portfolio Quality',
-        body: 'We look at how many of your portfolios are currently positive and at their average return. This keeps the score connected to actual portfolio behavior, not only posts.',
+        body: 'We look at how many of your portfolios are currently positive, their average return, and realized trade quality. This keeps the score tied to real portfolio behavior, not only posts.',
     },
     {
         title: '4. Sample Size',
@@ -22,6 +22,10 @@ const sections = [
     {
         title: '5. Why It Starts Near 50',
         body: 'New or inactive accounts stay near a neutral baseline until the platform has enough evidence. Trust score is a credibility signal, not a popularity metric.',
+    },
+    {
+        title: '6. Why The Trend Matters',
+        body: 'Profiles now show a trust trend and platform win-rate trend. A flat line means little new evidence; a rising or falling line means the user is adding meaningful results over time.',
     },
 ];
 
@@ -49,6 +53,9 @@ export default function TrustScorePage() {
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
                         The profile page also shows a platform win rate, which blends prediction accuracy, closed-trade quality, and profitable portfolio ratio.
                     </p>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                        Trust history snapshots are captured by the backend scoring job, so users can inspect how credibility evolves instead of treating it as a static badge.
+                    </p>
                 </section>
 
                 <section className="grid gap-4 md:grid-cols-2">
@@ -68,6 +75,7 @@ export default function TrustScorePage() {
                         <li>More evidence increases confidence gradually, not instantly.</li>
                         <li>Profitable portfolio behavior helps, but cannot fully replace prediction accuracy.</li>
                         <li>Closed-trade quality matters more than raw activity volume.</li>
+                        <li>Trend matters: durable performance over time is stronger evidence than one-time spikes.</li>
                     </ul>
                 </section>
             </div>
