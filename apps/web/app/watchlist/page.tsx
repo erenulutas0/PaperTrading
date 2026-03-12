@@ -88,6 +88,7 @@ export default function WatchlistPage() {
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
     const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
     const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
+    const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(false);
@@ -143,6 +144,31 @@ export default function WatchlistPage() {
         candlesRef.current = candles;
     }, [candles]);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        try {
+            const stored = window.localStorage.getItem('market.favoriteSymbols');
+            if (!stored) {
+                return;
+            }
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                setFavoriteSymbols(parsed.filter((value) => typeof value === 'string'));
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        window.localStorage.setItem('market.favoriteSymbols', JSON.stringify(favoriteSymbols));
+    }, [favoriteSymbols]);
+
     const filteredInstruments = useMemo(() => {
         const query = instrumentQuery.trim().toLowerCase();
         if (!query) {
@@ -153,10 +179,24 @@ export default function WatchlistPage() {
             || instrument.displayName.toLowerCase().includes(query));
     }, [instrumentQuery, instrumentUniverse]);
 
+    const favoriteInstruments = useMemo(() => {
+        const favoriteSet = new Set(favoriteSymbols);
+        return instrumentUniverse.filter((instrument) => favoriteSet.has(instrument.symbol));
+    }, [favoriteSymbols, instrumentUniverse]);
+
     const availableSymbols = useMemo(() => {
         const existingSymbols = new Set(enrichedItems.map((item) => item.symbol));
         return instrumentUniverse.filter((item) => !existingSymbols.has(item.symbol) || item.symbol === addSymbol);
     }, [addSymbol, enrichedItems, instrumentUniverse]);
+
+    const toggleFavoriteSymbol = useCallback((symbol: string) => {
+        setFavoriteSymbols((current) => {
+            if (current.includes(symbol)) {
+                return current.filter((item) => item !== symbol);
+            }
+            return [...current, symbol];
+        });
+    }, []);
 
     const fetchWatchlists = useCallback(async () => {
         if (!currentUserId) {
@@ -474,7 +514,17 @@ export default function WatchlistPage() {
                                     <div className="flex flex-wrap items-start justify-between gap-4">
                                         <div>
                                             <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument</p>
-                                            <h2 className="mt-2 text-3xl font-bold text-white">{selectedDisplayName}</h2>
+                                            <div className="mt-2 flex items-center gap-3">
+                                                <h2 className="text-3xl font-bold text-white">{selectedDisplayName}</h2>
+                                                <button
+                                                    onClick={() => toggleFavoriteSymbol(selectedSymbol)}
+                                                    className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] transition ${favoriteSymbols.includes(selectedSymbol)
+                                                        ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+                                                        : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'}`}
+                                                >
+                                                    {favoriteSymbols.includes(selectedSymbol) ? 'Starred' : 'Star'}
+                                                </button>
+                                            </div>
                                             <p className="mt-1 text-sm text-zinc-500">{selectedSymbol} · {selectedAssetType}</p>
                                         </div>
                                         <div className="text-right">
@@ -532,6 +582,25 @@ export default function WatchlistPage() {
                                         </label>
                                     </div>
 
+                                    {favoriteInstruments.length > 0 && (
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Favorites</p>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {favoriteInstruments.map((instrument) => (
+                                                    <button
+                                                        key={instrument.symbol}
+                                                        onClick={() => setSelectedSymbol(instrument.symbol)}
+                                                        className={`rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] transition ${selectedSymbol === instrument.symbol
+                                                            ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+                                                            : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'}`}
+                                                    >
+                                                        {instrument.symbol}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
                                         <div className="rounded-3xl border border-white/8 bg-zinc-950/60 p-4">
                                             {(chartLoading && candles.length === 0) ? (
@@ -552,16 +621,27 @@ export default function WatchlistPage() {
                                             <p className="mt-2 text-sm text-zinc-400">Chart sembolunu watchlist'e eklemeden de dogrudan degistirebilirsin.</p>
                                             <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto pr-1">
                                                 {filteredInstruments.map((instrument) => (
-                                                    <button
+                                                    <div
                                                         key={instrument.symbol}
-                                                        onClick={() => setSelectedSymbol(instrument.symbol)}
                                                         className={`w-full rounded-2xl border p-3 text-left transition ${selectedSymbol === instrument.symbol
                                                             ? 'border-amber-400/35 bg-amber-400/10'
                                                             : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}
                                                     >
                                                         <div className="flex items-center justify-between gap-3">
                                                             <div>
-                                                                <p className="text-sm font-semibold text-white">{instrument.displayName}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button onClick={() => setSelectedSymbol(instrument.symbol)} className="text-left">
+                                                                        <p className="text-sm font-semibold text-white">{instrument.displayName}</p>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => toggleFavoriteSymbol(instrument.symbol)}
+                                                                        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] transition ${favoriteSymbols.includes(instrument.symbol)
+                                                                            ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+                                                                            : 'border-white/10 bg-white/[0.03] text-zinc-500 hover:text-white'}`}
+                                                                    >
+                                                                        ★
+                                                                    </button>
+                                                                </div>
                                                                 <p className="text-[11px] font-mono text-zinc-500">{instrument.symbol}</p>
                                                             </div>
                                                             <div className="text-right">
@@ -571,7 +651,7 @@ export default function WatchlistPage() {
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                    </button>
+                                                    </div>
                                                 ))}
                                             </div>
                                         </div>

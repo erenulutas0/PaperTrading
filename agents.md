@@ -109,6 +109,15 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - makes the workspace materially closer to a trading terminal instead of a bare chart widget
     - improves quick candle inspection without opening separate panels
+- **2026-03-13**: **Market Workspace Favorites Bar**
+  - **Problem observed**:
+    - Instrument switching improved once the universe rail was added, but frequent symbols still required repeated scrolling/searching.
+  - **Implementation**:
+    - Added local favorites persistence for market symbols using browser storage.
+    - Users can star the active symbol or any symbol in the instrument universe.
+    - Starred symbols render in a dedicated quick-switch favorites bar above the chart.
+  - **Operational impact**:
+    - keeps the market terminal fast for repeated symbol hopping without introducing new backend state or sync complexity
 - **2026-03-12**: **Trust Score Snapshot History Added**
   - **Problem observed**:
     - Trust score and platform win rate were visible only as current values, making it hard for users to understand whether credibility was improving, deteriorating, or simply unproven.
