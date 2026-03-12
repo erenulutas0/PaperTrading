@@ -177,14 +177,19 @@ class WatchlistServiceTest {
             when(binanceService.getPrices()).thenReturn(Map.of(
                     "BTCUSDT", 58000.0,
                     "ETHUSDT", 3200.0));
+            when(binanceService.getSupportedInstruments()).thenReturn(List.of(
+                    com.finance.core.dto.MarketInstrumentResponse.builder().symbol("BTCUSDT").changePercent24h(4.25).build(),
+                    com.finance.core.dto.MarketInstrumentResponse.builder().symbol("ETHUSDT").changePercent24h(-1.75).build()));
 
             List<Map<String, Object>> result = watchlistService.getEnrichedItems(watchlistId, userId);
 
             assertEquals(2, result.size());
             assertEquals("BTCUSDT", result.get(0).get("symbol"));
             assertEquals(58000.0, result.get(0).get("currentPrice"));
+            assertEquals(4.25, result.get(0).get("changePercent24h"));
             assertEquals("ETHUSDT", result.get(1).get("symbol"));
             assertEquals(3200.0, result.get(1).get("currentPrice"));
+            assertEquals(-1.75, result.get(1).get("changePercent24h"));
         }
     }
 }

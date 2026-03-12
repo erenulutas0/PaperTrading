@@ -2,6 +2,8 @@ package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.Watchlist;
+import com.finance.core.dto.MarketCandleResponse;
+import com.finance.core.dto.MarketInstrumentResponse;
 import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
 import com.finance.core.service.BinanceService;
@@ -56,6 +58,14 @@ class WatchlistControllerIntegrationTest {
                 testWatchlist = watchlistRepository.save(testWatchlist);
 
                 when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 60000.0));
+                when(binanceService.getSupportedInstruments()).thenReturn(java.util.List.of(
+                                MarketInstrumentResponse.builder()
+                                                .symbol("BTCUSDT")
+                                                .displayName("Bitcoin")
+                                                .assetType("CRYPTO")
+                                                .currentPrice(60000.0)
+                                                .changePercent24h(3.4)
+                                                .build()));
         }
 
         @Test
@@ -99,6 +109,36 @@ class WatchlistControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$", hasSize(1)))
                                 .andExpect(jsonPath("$[0].symbol").value("BTCUSDT"))
-                                .andExpect(jsonPath("$[0].currentPrice").value(60000.0));
+                                .andExpect(jsonPath("$[0].currentPrice").value(60000.0))
+                                .andExpect(jsonPath("$[0].changePercent24h").value(3.4));
+        }
+
+        @Test
+        void testGetInstruments() throws Exception {
+                mockMvc.perform(get("/api/v1/market/instruments"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$", hasSize(1)))
+                                .andExpect(jsonPath("$[0].symbol").value("BTCUSDT"))
+                                .andExpect(jsonPath("$[0].displayName").value("Bitcoin"));
+        }
+
+        @Test
+        void testGetCandles() throws Exception {
+                when(binanceService.getCandles("BTCUSDT", "1D")).thenReturn(java.util.List.of(
+                                MarketCandleResponse.builder()
+                                                .openTime(1710000000000L)
+                                                .open(60000.0)
+                                                .high(60500.0)
+                                                .low(59800.0)
+                                                .close(60300.0)
+                                                .volume(123.45)
+                                                .build()));
+
+                mockMvc.perform(get("/api/v1/market/candles")
+                                .param("symbol", "BTCUSDT")
+                                .param("range", "1D"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$", hasSize(1)))
+                                .andExpect(jsonPath("$[0].close").value(60300.0));
         }
 }

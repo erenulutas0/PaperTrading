@@ -3,6 +3,11 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend/frontend after market workspace rollout and verify `/watchlist` now behaves as a TradingView-style markets surface with:
+  - supported instrument universe from backend
+  - right-rail watchlists with add/remove flows
+  - 24h change shown in list and selected header
+  - candlestick chart range switching (`1D` / `1W` / `1M`)
 - [ ] Redeploy backend/frontend after mixed leaderboard rollout and verify:
   - `RETURN_PERCENTAGE` / `PROFIT_LOSS` still rank portfolios
   - `WIN_RATE` / `TRUST_SCORE` rank accounts
@@ -71,6 +76,24 @@ Last updated: 2026-03-11
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Added TradingView-style market workspace over the existing watchlist route:
+  - Backend:
+    - Added market instrument + candle DTOs:
+      - `MarketInstrumentResponse`
+      - `MarketCandleResponse`
+    - Extended `BinanceService` with:
+      - supported instrument metadata
+      - 24h change fetch
+      - candle fetch for `1D` / `1W` / `1M`
+    - Added market endpoints:
+      - `GET /api/v1/market/instruments`
+      - `GET /api/v1/market/candles`
+    - Watchlist enrichment now includes `changePercent24h`
+  - Frontend:
+    - Replaced `/watchlist` table view with TradingView-style workspace
+    - Added right-rail watchlists + add-item flow
+    - Added candlestick chart component using `lightweight-charts`
+    - Added selected instrument header with live price + daily change
 - [x] Expanded trust score from prediction-only signal to multi-signal credibility model:
   - Updated:
     - `services/core-api/src/main/java/com/finance/core/service/TrustScoreService.java`

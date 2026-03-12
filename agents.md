@@ -20,7 +20,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
 | Portfolio CRUD | ✅ Done | Create, delete, deposit |
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
-| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration |
+| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, 24h movers, and backend-driven candlestick ranges (`1D/1W/1M`) |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
 | Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
@@ -38,6 +38,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-12**: **TradingView-Style Market Workspace Added on `/watchlist`**
+  - **Problem observed**:
+    - The old watchlist page was CRUD-oriented and did not support the core market-reading loop:
+      - scan instruments
+      - pin a basket
+      - inspect a chart
+      - switch timeframe quickly
+  - **Implementation**:
+    - Kept the route stable (`/watchlist`) but promoted it into a market workspace.
+    - Added backend market endpoints:
+      - `GET /api/v1/market/instruments`
+      - `GET /api/v1/market/candles`
+    - Extended watchlist enrichment with 24h change percentages.
+    - Frontend now renders:
+      - right-rail watchlists
+      - selected instrument panel
+      - candlestick chart
+      - timeframe switching (`1D`, `1W`, `1M`)
+    - Chart data now comes through backend-owned Binance integration rather than direct browser-side exchange calls.
+  - **Operational impact**:
+    - exchange integration stays server-owned
+    - watchlist and chart experiences are unified instead of split across separate pages/components
+    - future non-crypto providers can plug into the same market-workspace contract
 - **2026-03-12**: **Trust Score Snapshot History Added**
   - **Problem observed**:
     - Trust score and platform win rate were visible only as current values, making it hard for users to understand whether credibility was improving, deteriorating, or simply unproven.

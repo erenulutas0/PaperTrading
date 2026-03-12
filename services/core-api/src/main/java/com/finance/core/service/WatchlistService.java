@@ -95,6 +95,10 @@ public class WatchlistService {
                 .orElseThrow(() -> new RuntimeException("Watchlist not found"));
 
         Map<String, Double> prices = binanceService.getPrices();
+        Map<String, Double> dailyChanges = binanceService.getSupportedInstruments().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        instrument -> instrument.getSymbol(),
+                        instrument -> instrument.getChangePercent24h()));
 
         return watchlist.getItems().stream().map(item -> {
             Double currentPrice = prices.getOrDefault(item.getSymbol(), 0.0);
@@ -102,6 +106,7 @@ public class WatchlistService {
                     "id", item.getId(),
                     "symbol", item.getSymbol(),
                     "currentPrice", currentPrice,
+                    "changePercent24h", dailyChanges.getOrDefault(item.getSymbol(), 0.0),
                     "alertPriceAbove", item.getAlertPriceAbove() != null ? item.getAlertPriceAbove() : "",
                     "alertPriceBelow", item.getAlertPriceBelow() != null ? item.getAlertPriceBelow() : "",
                     "alertAboveTriggered", item.getAlertAboveTriggered(),

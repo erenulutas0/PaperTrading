@@ -10,7 +10,7 @@ const navigation = [
     { name: 'Discover', href: '/discover' },
     { name: 'Leaderboard', href: '/dashboard/leaderboard' },
     { name: 'Tournaments', href: '/tournaments' },
-    { name: 'Watchlist', href: '/watchlist' },
+    { name: 'Markets', href: '/watchlist' },
 ];
 
 export default function DashboardLayout({
