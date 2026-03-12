@@ -97,6 +97,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - reduces the perceived gap between the first rendered chart and a full-history terminal
     - keeps `ALL` mode incremental enough to avoid single-response overfetch while making scroll/backfill usable
+- **2026-03-13**: **Market Workspace OHLC Info Bar + Volume Histogram**
+  - **Problem observed**:
+    - The chart surface was functional, but traders still lacked the most basic terminal reading aids:
+      - hovered candle OHLC values
+      - per-candle volume context
+  - **Implementation**:
+    - Added an OHLC info bar above the chart that tracks the active crosshair candle and falls back to the latest candle when idle.
+    - Added a volume histogram series beneath the candlestick body using a dedicated overlay price scale.
+    - Preserved the earlier anti-refresh fixes so these additions do not reintroduce chart reset loops.
+  - **Operational impact**:
+    - makes the workspace materially closer to a trading terminal instead of a bare chart widget
+    - improves quick candle inspection without opening separate panels
 - **2026-03-12**: **Trust Score Snapshot History Added**
   - **Problem observed**:
     - Trust score and platform win rate were visible only as current values, making it hard for users to understand whether credibility was improving, deteriorating, or simply unproven.
