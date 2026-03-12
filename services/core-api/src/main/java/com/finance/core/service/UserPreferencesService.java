@@ -24,7 +24,7 @@ public class UserPreferencesService {
     private static final String DEFAULT_SORT_BY = "RETURN_PERCENTAGE";
     private static final String DEFAULT_DIRECTION = "DESC";
     private static final Set<String> SUPPORTED_PERIODS = Set.of("1D", "1W", "1M", "ALL");
-    private static final Set<String> SUPPORTED_SORTS = Set.of("RETURN_PERCENTAGE", "PROFIT_LOSS");
+    private static final Set<String> SUPPORTED_SORTS = Set.of("RETURN_PERCENTAGE", "PROFIT_LOSS", "WIN_RATE", "TRUST_SCORE");
     private static final Set<String> SUPPORTED_DIRECTIONS = Set.of("ASC", "DESC");
 
     private final UserPreferenceRepository userPreferenceRepository;
@@ -114,6 +114,12 @@ public class UserPreferencesService {
         if ("PROFIT".equals(normalized)) {
             return "PROFIT_LOSS";
         }
+        if ("WINRATE".equals(normalized) || "WIN".equals(normalized)) {
+            return "WIN_RATE";
+        }
+        if ("TRUST".equals(normalized) || "TRUSTSCORE".equals(normalized)) {
+            return "TRUST_SCORE";
+        }
         return SUPPORTED_SORTS.contains(normalized) ? normalized : DEFAULT_SORT_BY;
     }
 
@@ -131,4 +137,3 @@ public class UserPreferencesService {
         return SUPPORTED_DIRECTIONS.contains(normalized) ? normalized : DEFAULT_DIRECTION;
     }
 }
-

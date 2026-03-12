@@ -56,6 +56,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - leaderboard now matches the social-proof vision better: rank the person, not just one basket
     - trust score and platform win rate become first-class ranking context instead of profile-only metadata
+- **2026-03-12**: **Leaderboard Split Into Portfolio-Metric Mode vs Account-Credibility Mode (One Hundred Third Pass)**
+  - **Problem observed**:
+    - A pure account leaderboard hid an important comparison path:
+      - multiple portfolios from the same trader should still compete independently on raw `return` / `P&L`
+    - But `trust score` and `platform win rate` are not portfolio metrics; they belong to the account.
+  - **Implementation**:
+    - `RETURN_PERCENTAGE` and `PROFIT_LOSS` continue to use portfolio-level leaderboard rows.
+    - `WIN_RATE` and `TRUST_SCORE` switch the UI/API to account-level ranking:
+      - `GET /api/v1/leaderboards/accounts`
+    - Result:
+      - portfolio-performance discovery remains granular
+      - credibility discovery remains account-centric
+  - **Operational impact**:
+    - the leaderboard now matches metric ownership correctly instead of forcing all sorts through one aggregation model
 - **2026-03-11**: **Trust Score Expanded to Multi-Signal Portfolio-Aware Credibility Model (One Hundred First Pass)**
   - **Problem observed**:
     - Prediction-only trust scoring was still too narrow for the product vision.

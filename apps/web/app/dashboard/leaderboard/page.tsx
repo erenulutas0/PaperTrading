@@ -11,6 +11,18 @@ import {
     type LeaderboardSortBy,
 } from '../../../lib/user-preferences';
 
+interface PortfolioLeaderboardEntry {
+    rank: number;
+    portfolioId: string;
+    portfolioName: string;
+    ownerId: string;
+    ownerName: string;
+    returnPercentage: number;
+    totalEquity: number;
+    profitLoss: number;
+    startEquity: number;
+}
+
 interface AccountLeaderboardEntry {
     rank: number;
     ownerId: string;
@@ -26,11 +38,12 @@ interface AccountLeaderboardEntry {
 
 const DASHBOARD_LEADERBOARD_PREFERENCES_KEY = 'dashboard_leaderboard_preferences_v1';
 const PERIOD_OPTIONS = ['1D', '1W', '1M', 'ALL'] as const;
-const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS'];
+const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS', 'WIN_RATE', 'TRUST_SCORE'];
 const SORT_DIRECTION_OPTIONS: LeaderboardDirection[] = ['DESC', 'ASC'];
+const ACCOUNT_SORT_OPTIONS: LeaderboardSortBy[] = ['WIN_RATE', 'TRUST_SCORE'];
 
 export default function LeaderboardPage() {
-    const [entries, setEntries] = useState<AccountLeaderboardEntry[]>([]);
+    const [entries, setEntries] = useState<(PortfolioLeaderboardEntry | AccountLeaderboardEntry)[]>([]);
     const [period, setPeriod] = useState<LeaderboardPeriod>('1D');
     const [sortBy, setSortBy] = useState<LeaderboardSortBy>('RETURN_PERCENTAGE');
     const [direction, setDirection] = useState<LeaderboardDirection>('DESC');
@@ -38,6 +51,7 @@ export default function LeaderboardPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
     const skipFirstPersistRef = useRef(true);
+    const isAccountMode = ACCOUNT_SORT_OPTIONS.includes(sortBy);
 
     useEffect(() => {
         let cancelled = false;
@@ -100,7 +114,8 @@ export default function LeaderboardPage() {
                 sortBy,
                 direction,
             });
-            const res = await apiFetch(`/api/v1/leaderboards/accounts?${params.toString()}`);
+            const endpoint = isAccountMode ? '/api/v1/leaderboards/accounts' : '/api/v1/leaderboards';
+            const res = await apiFetch(`${endpoint}?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 setEntries(data.content || []);
@@ -112,7 +127,7 @@ export default function LeaderboardPage() {
         } finally {
             setLoading(false);
         }
-    }, [period, sortBy, direction]);
+    }, [isAccountMode, period, sortBy, direction]);
 
     useEffect(() => {
         if (!preferencesReady) {
@@ -171,7 +186,11 @@ export default function LeaderboardPage() {
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent uppercase tracking-tighter">
                         Leaderboard
                     </h1>
-                    <p className="text-zinc-500 text-sm mt-1">Top public accounts ranked by aggregated portfolio performance, trust score, and platform win rate</p>
+                    <p className="text-zinc-500 text-sm mt-1">
+                        {isAccountMode
+                            ? 'Top accounts ranked by trust score or platform win rate'
+                            : 'Top public portfolios ranked by selected period performance'}
+                    </p>
                 </div>
                 <nav className="flex gap-4 items-center">
                     <button
@@ -201,6 +220,7 @@ export default function LeaderboardPage() {
                     <button
                         key={p}
                         onClick={() => setPeriod(p)}
+                        disabled={isAccountMode}
                         className={`px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all ${period === p
                             ? 'bg-green-600 text-white shadow-[0_0_20px_rgba(34,197,94,0.4)]'
                             : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800'
@@ -211,6 +231,12 @@ export default function LeaderboardPage() {
                 ))}
             </div>
 
+            {isAccountMode && (
+                <p className="text-center text-xs text-zinc-500 -mt-5 mb-6">
+                    Win rate and trust score are account-level signals, so period tabs do not affect this mode.
+                </p>
+            )}
+
             <div className="flex justify-center gap-3 mb-8">
                 <select
                     value={sortBy}
@@ -219,6 +245,8 @@ export default function LeaderboardPage() {
                 >
                     <option value="RETURN_PERCENTAGE">Sort: Return %</option>
                     <option value="PROFIT_LOSS">Sort: P/L ($)</option>
+                    <option value="WIN_RATE">Sort: Win Rate</option>
+                    <option value="TRUST_SCORE">Sort: Trust</option>
                 </select>
                 <button
                     onClick={() => setDirection((prev) => (prev === 'DESC' ? 'ASC' : 'DESC'))}
@@ -233,10 +261,10 @@ export default function LeaderboardPage() {
                     <thead className="bg-zinc-950/50 text-zinc-500 text-[10px] uppercase tracking-tighter">
                         <tr>
                             <th className="p-4 font-bold w-16 text-center">Rank</th>
-                            <th className="p-4 font-bold text-left">Trader</th>
-                            <th className="p-4 font-bold text-right">Public Portfolios</th>
-                            <th className="p-4 font-bold text-right">Win Rate</th>
-                            <th className="p-4 font-bold text-right">Trust</th>
+                            <th className="p-4 font-bold text-left">{isAccountMode ? 'Trader' : 'Portfolio'}</th>
+                            <th className="p-4 font-bold text-right">{isAccountMode ? 'Public Portfolios' : 'Owner'}</th>
+                            {isAccountMode && <th className="p-4 font-bold text-right">Win Rate</th>}
+                            {isAccountMode && <th className="p-4 font-bold text-right">Trust</th>}
                             <th className="p-4 font-bold text-right">Return %</th>
                             <th className="p-4 font-bold text-right">P/L ($)</th>
                             <th className="p-4 font-bold text-right">Total Equity</th>
@@ -245,36 +273,56 @@ export default function LeaderboardPage() {
                     <tbody className="divide-y divide-zinc-800/50">
                         {loading ? (
                             <tr>
-                                <td colSpan={8} className="p-8 text-center text-zinc-500 animate-pulse">
+                                <td colSpan={isAccountMode ? 8 : 6} className="p-8 text-center text-zinc-500 animate-pulse">
                                     Loading rankings...
                                 </td>
                             </tr>
                         ) : entries.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="p-8 text-center text-zinc-600 italic">
-                                    No public accounts found for this period. Users appear here when they have at least one public portfolio.
+                                <td colSpan={isAccountMode ? 8 : 6} className="p-8 text-center text-zinc-600 italic">
+                                    {isAccountMode
+                                        ? 'No public accounts found. Users appear here when they have at least one public portfolio.'
+                                        : 'No public portfolios found for this period. Set your portfolio visibility to PUBLIC to appear here.'}
                                 </td>
                             </tr>
                         ) : (
                             entries.map((entry, idx) => (
-                                <tr key={`${entry.ownerId}-${idx}`} className="hover:bg-white/5 transition-colors group">
+                                <tr key={`${'portfolioId' in entry ? entry.portfolioId : entry.ownerId}-${idx}`} className="hover:bg-white/5 transition-colors group">
                                     <td className="p-4 text-center font-bold font-mono text-zinc-400 group-hover:text-white">
                                         #{entry.rank}
                                     </td>
                                     <td className="p-4 font-bold text-white group-hover:text-green-400 transition-colors">
-                                        <Link href={`/profile/${entry.ownerId}`}>
-                                            {entry.ownerName || `User ${entry.ownerId.substring(0, 8)}`}
-                                        </Link>
+                                        {'portfolioId' in entry ? (
+                                            <Link href={`/dashboard/portfolio/${entry.portfolioId}`}>
+                                                {entry.portfolioName}
+                                            </Link>
+                                        ) : (
+                                            <Link href={`/profile/${entry.ownerId}`}>
+                                                {entry.ownerName || `User ${entry.ownerId.substring(0, 8)}`}
+                                            </Link>
+                                        )}
                                     </td>
-                                    <td className="p-4 text-right text-zinc-300 font-mono">
-                                        {entry.publicPortfolioCount}
-                                    </td>
-                                    <td className={`p-4 text-right font-bold font-mono ${entry.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {entry.winRate.toFixed(1)}%
-                                    </td>
-                                    <td className={`p-4 text-right font-bold font-mono ${entry.trustScore >= 70 ? 'text-green-500' : entry.trustScore >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>
-                                        {entry.trustScore.toFixed(1)}
-                                    </td>
+                                    {'portfolioId' in entry ? (
+                                        <td className="p-4 text-right text-zinc-500 text-xs font-mono group-hover:text-zinc-300">
+                                            <Link href={`/profile/${entry.ownerId}`} className="hover:underline decoration-zinc-700">
+                                                {entry.ownerName || `User ${entry.ownerId.substring(0, 8)}`}
+                                            </Link>
+                                        </td>
+                                    ) : (
+                                        <td className="p-4 text-right text-zinc-300 font-mono">
+                                            {entry.publicPortfolioCount}
+                                        </td>
+                                    )}
+                                    {'portfolioId' in entry ? null : (
+                                        <>
+                                            <td className={`p-4 text-right font-bold font-mono ${entry.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`}>
+                                                {entry.winRate.toFixed(1)}%
+                                            </td>
+                                            <td className={`p-4 text-right font-bold font-mono ${entry.trustScore >= 70 ? 'text-green-500' : entry.trustScore >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                                {entry.trustScore.toFixed(1)}
+                                            </td>
+                                        </>
+                                    )}
                                     <td className={`p-4 text-right font-bold font-mono ${entry.returnPercentage >= 0 ? 'text-green-500' : 'text-red-500'
                                         }`}>
                                         {entry.returnPercentage > 0 ? '+' : ''}{entry.returnPercentage.toFixed(2)}%

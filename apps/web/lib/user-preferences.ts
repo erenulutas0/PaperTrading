@@ -1,6 +1,6 @@
 import { apiFetch, userIdHeaders } from "./api-client";
 
-export type LeaderboardSortBy = "RETURN_PERCENTAGE" | "PROFIT_LOSS";
+export type LeaderboardSortBy = "RETURN_PERCENTAGE" | "PROFIT_LOSS" | "WIN_RATE" | "TRUST_SCORE";
 export type LeaderboardDirection = "DESC" | "ASC";
 export type LeaderboardPeriod = "1D" | "1W" | "1M" | "ALL";
 

@@ -104,10 +104,10 @@ class LeaderboardControllerIntegrationTest {
 
                 Page<AccountLeaderboardEntry> page = new PageImpl<>(List.of(entry), PageRequest.of(0, 10), 1);
 
-                when(leaderboardService.getAccountLeaderboard(eq("1W"), eq("RETURN_PERCENTAGE"), eq("DESC"), any(Pageable.class)))
+                when(leaderboardService.getAccountLeaderboard(eq("1W"), eq("TRUST_SCORE"), eq("DESC"), any(Pageable.class)))
                                 .thenReturn(page);
 
-                mockMvc.perform(get("/api/v1/leaderboards/accounts?period=1W&sortBy=RETURN_PERCENTAGE&direction=DESC&page=0&size=10"))
+                mockMvc.perform(get("/api/v1/leaderboards/accounts?period=1W&sortBy=TRUST_SCORE&direction=DESC&page=0&size=10"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(1)))
                                 .andExpect(jsonPath("$.content[0].ownerName").value("Trader X"))

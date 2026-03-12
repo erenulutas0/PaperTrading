@@ -50,6 +50,9 @@ public class LeaderboardService {
     public Page<LeaderboardEntry> getLeaderboard(String period, String sortBy, String direction, Pageable pageable) {
         String safePeriod = normalizePeriod(period);
         LeaderboardSortBy safeSortBy = normalizeSortBy(sortBy);
+        if (!isPortfolioSortBy(safeSortBy)) {
+            safeSortBy = LeaderboardSortBy.RETURN_PERCENTAGE;
+        }
         LeaderboardDirection safeDirection = normalizeDirection(direction);
         String cacheKey = resolveCacheKey(safePeriod, safeSortBy);
 
@@ -129,6 +132,93 @@ public class LeaderboardService {
         return new PageImpl<>(entries, pageable, total);
     }
 
+    private Page<AccountLeaderboardEntry> buildAccountLeaderboardFromAllPublicPortfolios(
+            String period,
+            LeaderboardSortBy sortBy,
+            LeaderboardDirection direction,
+            Pageable pageable) {
+        List<Portfolio> publicPortfolios = portfolioRepository.findByVisibility(Portfolio.Visibility.PUBLIC);
+        if (publicPortfolios.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        LocalDateTime startTime = performanceCalculationService.getStartTimeForPeriod(period);
+        Map<String, Double> prices = binanceService.getPrices();
+        Set<UUID> ownerIds = publicPortfolios.stream()
+                .map(this::parseOwnerUuid)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<UUID, AppUser> userMap = userRepository.findAllById(ownerIds).stream()
+                .collect(Collectors.toMap(AppUser::getId, u -> u));
+        Map<UUID, AccountAggregate> aggregateByOwner = new HashMap<>();
+
+        for (Portfolio portfolio : publicPortfolios) {
+            UUID ownerUuid = parseOwnerUuid(portfolio);
+            if (ownerUuid == null) {
+                continue;
+            }
+
+            try {
+                PerformanceCalculationService.PerformanceMetrics metrics = performanceCalculationService.calculateMetrics(
+                        portfolio,
+                        startTime,
+                        period,
+                        prices);
+                aggregateByOwner.computeIfAbsent(ownerUuid, ignored -> new AccountAggregate())
+                        .accumulate(metrics);
+            } catch (Exception e) {
+                log.error("Failed to compute account leaderboard metrics for portfolio={} period={}",
+                        portfolio.getId(),
+                        period,
+                        e);
+            }
+        }
+
+        List<AccountLeaderboardEntry> sorted = aggregateByOwner.entrySet().stream()
+                .map(entry -> {
+                    UUID ownerId = entry.getKey();
+                    AccountAggregate aggregate = entry.getValue();
+                    AppUser user = userMap.get(ownerId);
+                    TrustScoreBreakdownResponse trustBreakdown = trustScoreService.buildTrustScoreBreakdown(ownerId);
+                    return AccountLeaderboardEntry.builder()
+                            .ownerId(ownerId)
+                            .ownerName(resolveOwnerName(user, ownerId))
+                            .returnPercentage(aggregate.getReturnPercentage())
+                            .totalEquity(aggregate.getTotalEquity())
+                            .profitLoss(aggregate.getProfitLoss())
+                            .startEquity(aggregate.getStartEquity())
+                            .publicPortfolioCount(aggregate.getPublicPortfolioCount())
+                            .trustScore(trustScoreService.calculateTrustScore(trustBreakdown))
+                            .winRate(trustBreakdown.getBlendedWinRate())
+                            .build();
+                })
+                .sorted(resolveAccountComparator(sortBy, direction))
+                .toList();
+
+        long total = sorted.size();
+        int fromIndex = (int) Math.min(pageable.getOffset(), total);
+        int toIndex = (int) Math.min(fromIndex + pageable.getPageSize(), total);
+        List<AccountLeaderboardEntry> pageContent = new ArrayList<>();
+        for (int i = fromIndex; i < toIndex; i++) {
+            AccountLeaderboardEntry entry = sorted.get(i);
+            pageContent.add(AccountLeaderboardEntry.builder()
+                    .rank(i + 1)
+                    .ownerId(entry.getOwnerId())
+                    .ownerName(entry.getOwnerName())
+                    .returnPercentage(entry.getReturnPercentage())
+                    .totalEquity(entry.getTotalEquity())
+                    .profitLoss(entry.getProfitLoss())
+                    .startEquity(entry.getStartEquity())
+                    .publicPortfolioCount(entry.getPublicPortfolioCount())
+                    .trustScore(entry.getTrustScore())
+                    .winRate(entry.getWinRate())
+                    .build());
+        }
+
+        return new PageImpl<>(pageContent, pageable, total);
+    }
+
     public Page<AccountLeaderboardEntry> getAccountLeaderboard(
             String period,
             String sortBy,
@@ -137,6 +227,11 @@ public class LeaderboardService {
         String safePeriod = normalizePeriod(period);
         LeaderboardSortBy safeSortBy = normalizeSortBy(sortBy);
         LeaderboardDirection safeDirection = normalizeDirection(direction);
+
+        if (isAccountOnlySortBy(safeSortBy)) {
+            return buildAccountLeaderboardFromAllPublicPortfolios(safePeriod, safeSortBy, safeDirection, pageable);
+        }
+
         String cacheKey = resolveAccountCacheKey(safePeriod, safeSortBy);
 
         long start = pageable.getOffset();
@@ -377,6 +472,12 @@ public class LeaderboardService {
         if ("RETURN".equals(normalized) || "ROI".equals(normalized)) {
             return LeaderboardSortBy.RETURN_PERCENTAGE;
         }
+        if ("WIN".equals(normalized) || "WINRATE".equals(normalized)) {
+            return LeaderboardSortBy.WIN_RATE;
+        }
+        if ("TRUST".equals(normalized) || "TRUSTSCORE".equals(normalized)) {
+            return LeaderboardSortBy.TRUST_SCORE;
+        }
 
         try {
             return LeaderboardSortBy.valueOf(normalized);
@@ -417,6 +518,27 @@ public class LeaderboardService {
             return ACCOUNT_LEADERBOARD_PROFIT_CACHE_KEY_PREFIX + period;
         }
         return ACCOUNT_LEADERBOARD_RETURN_CACHE_KEY_PREFIX + period;
+    }
+
+    private boolean isPortfolioSortBy(LeaderboardSortBy sortBy) {
+        return sortBy == LeaderboardSortBy.RETURN_PERCENTAGE || sortBy == LeaderboardSortBy.PROFIT_LOSS;
+    }
+
+    private boolean isAccountOnlySortBy(LeaderboardSortBy sortBy) {
+        return sortBy == LeaderboardSortBy.WIN_RATE || sortBy == LeaderboardSortBy.TRUST_SCORE;
+    }
+
+    private Comparator<AccountLeaderboardEntry> resolveAccountComparator(
+            LeaderboardSortBy sortBy,
+            LeaderboardDirection direction) {
+        Comparator<AccountLeaderboardEntry> comparator;
+        if (sortBy == LeaderboardSortBy.WIN_RATE) {
+            comparator = Comparator.comparing(AccountLeaderboardEntry::getWinRate);
+        } else {
+            comparator = Comparator.comparing(AccountLeaderboardEntry::getTrustScore);
+        }
+        comparator = comparator.thenComparing(AccountLeaderboardEntry::getOwnerName, Comparator.nullsLast(String::compareToIgnoreCase));
+        return direction == LeaderboardDirection.ASC ? comparator : comparator.reversed();
     }
 
     private Optional<UUID> parseMemberAsUuid(Object rawMember) {
@@ -504,7 +626,9 @@ public class LeaderboardService {
 
     private enum LeaderboardSortBy {
         RETURN_PERCENTAGE,
-        PROFIT_LOSS
+        PROFIT_LOSS,
+        WIN_RATE,
+        TRUST_SCORE
     }
 
     private enum LeaderboardDirection {

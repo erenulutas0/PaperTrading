@@ -10,6 +10,17 @@ import {
     type LeaderboardSortBy,
 } from '../../lib/user-preferences';
 
+interface PortfolioLeaderboardEntry {
+    portfolioId: string;
+    portfolioName: string;
+    ownerId: string;
+    ownerName: string;
+    returnPercentage: number;
+    totalEquity: number;
+    profitLoss: number;
+    startEquity: number;
+}
+
 interface AccountLeaderboardEntry {
     ownerId: string;
     ownerName: string;
@@ -23,16 +34,18 @@ interface AccountLeaderboardEntry {
 }
 
 const PUBLIC_LEADERBOARD_PREFERENCES_KEY = 'public_leaderboard_preferences_v1';
-const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS'];
+const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS', 'WIN_RATE', 'TRUST_SCORE'];
 const SORT_DIRECTION_OPTIONS: LeaderboardDirection[] = ['DESC', 'ASC'];
+const ACCOUNT_SORT_OPTIONS: LeaderboardSortBy[] = ['WIN_RATE', 'TRUST_SCORE'];
 
 export default function LeaderboardPage() {
-    const [entries, setEntries] = useState<AccountLeaderboardEntry[]>([]);
+    const [entries, setEntries] = useState<(PortfolioLeaderboardEntry | AccountLeaderboardEntry)[]>([]);
     const [sortBy, setSortBy] = useState<LeaderboardSortBy>('RETURN_PERCENTAGE');
     const [direction, setDirection] = useState<LeaderboardDirection>('DESC');
     const [preferencesReady, setPreferencesReady] = useState(false);
     const [loading, setLoading] = useState(true);
     const skipFirstPersistRef = useRef(true);
+    const isAccountMode = ACCOUNT_SORT_OPTIONS.includes(sortBy);
 
     useEffect(() => {
         let cancelled = false;
@@ -86,7 +99,8 @@ export default function LeaderboardPage() {
                 sortBy,
                 direction,
             });
-            const res = await apiFetch(`/api/v1/leaderboards/accounts?${params.toString()}`);
+            const endpoint = isAccountMode ? '/api/v1/leaderboards/accounts' : '/api/v1/leaderboards';
+            const res = await apiFetch(`${endpoint}?${params.toString()}`);
             if (res.ok) {
                 const data = await res.json();
                 setEntries(data.content || []);
@@ -96,7 +110,7 @@ export default function LeaderboardPage() {
         } finally {
             setLoading(false);
         }
-    }, [sortBy, direction]);
+    }, [isAccountMode, sortBy, direction]);
 
     useEffect(() => {
         if (!preferencesReady) {
@@ -140,7 +154,7 @@ export default function LeaderboardPage() {
                 <div className="flex items-center gap-4">
                     <Link href="/" className="text-2xl font-bold tracking-tight">PaperTrade<span className="text-green-500">Pro</span></Link>
                     <span className="text-zinc-600">|</span>
-                    <h1 className="text-xl font-medium text-zinc-300">Account Leaderboards</h1>
+                    <h1 className="text-xl font-medium text-zinc-300">{isAccountMode ? 'Account Leaderboards' : 'Portfolio Leaderboards'}</h1>
                 </div>
                 <div className="flex gap-4">
                     <select
@@ -150,6 +164,8 @@ export default function LeaderboardPage() {
                     >
                         <option value="RETURN_PERCENTAGE">Return %</option>
                         <option value="PROFIT_LOSS">P/L ($)</option>
+                        <option value="WIN_RATE">Win Rate</option>
+                        <option value="TRUST_SCORE">Trust</option>
                     </select>
                     <button
                         onClick={() => setDirection((prev) => (prev === 'DESC' ? 'ASC' : 'DESC'))}
@@ -163,13 +179,18 @@ export default function LeaderboardPage() {
 
             <main className="max-w-6xl mx-auto">
                 <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden backdrop-blur-sm">
+                    {isAccountMode && (
+                        <div className="px-4 py-3 border-b border-zinc-800 text-xs text-zinc-500">
+                            Trust and win rate sort the account itself. Return and P/L sort individual public portfolios.
+                        </div>
+                    )}
                     {/* Table Header */}
                     <div className="grid grid-cols-12 gap-4 p-4 border-b border-zinc-800 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                         <div className="col-span-1 text-center">Rank</div>
-                        <div className="col-span-11 md:col-span-3">Trader</div>
-                        <div className="hidden md:block col-span-2 text-right">Portfolios</div>
-                        <div className="hidden md:block col-span-2 text-right">Win Rate</div>
-                        <div className="hidden md:block col-span-1 text-right">Trust</div>
+                        <div className="col-span-11 md:col-span-3">{isAccountMode ? 'Trader' : 'Portfolio'}</div>
+                        <div className="hidden md:block col-span-2 text-right">{isAccountMode ? 'Portfolios' : 'Owner'}</div>
+                        {isAccountMode && <div className="hidden md:block col-span-2 text-right">Win Rate</div>}
+                        {isAccountMode && <div className="hidden md:block col-span-1 text-right">Trust</div>}
                         <div className="hidden md:block col-span-2 text-right">P/L ($)</div>
                         <div className="hidden md:block col-span-1 text-right">Return %</div>
                     </div>
@@ -191,7 +212,7 @@ export default function LeaderboardPage() {
                             if (index === 2) rankStyle = "bg-orange-700/20 text-orange-400 border border-orange-700/20";
 
                             return (
-                                <div key={entry.ownerId} className="grid grid-cols-12 gap-4 p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors items-center">
+                                <div key={`${'portfolioId' in entry ? entry.portfolioId : entry.ownerId}-${index}`} className="grid grid-cols-12 gap-4 p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors items-center">
                                     <div className="col-span-1 flex justify-center">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${rankStyle}`}>
                                             {index + 1}
@@ -199,30 +220,50 @@ export default function LeaderboardPage() {
                                     </div>
 
                                     <div className="col-span-11 md:col-span-3">
-                                        <Link href={`/profile/${entry.ownerId}`} className="font-bold text-lg hover:text-green-400 transition-colors">
-                                            {entry.ownerName || `User ${entry.ownerId.substring(0, 8)}`}
-                                        </Link>
-                                        <p className="text-xs text-zinc-500 font-mono">ID: {entry.ownerId.substring(0, 8)}...</p>
+                                        {'portfolioId' in entry ? (
+                                            <>
+                                                <Link href={`/dashboard/portfolio/${entry.portfolioId}`} className="font-bold text-lg hover:text-green-400 transition-colors">
+                                                    {entry.portfolioName}
+                                                </Link>
+                                                <p className="text-xs text-zinc-500 font-mono">ID: {entry.portfolioId.substring(0, 8)}...</p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Link href={`/profile/${entry.ownerId}`} className="font-bold text-lg hover:text-green-400 transition-colors">
+                                                    {entry.ownerName || `User ${entry.ownerId.substring(0, 8)}`}
+                                                </Link>
+                                                <p className="text-xs text-zinc-500 font-mono">ID: {entry.ownerId.substring(0, 8)}...</p>
+                                            </>
+                                        )}
                                     </div>
 
-                                    <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
-                                        <span className="block md:hidden text-xs text-zinc-500 mb-1">Portfolios</span>
-                                        <span className="font-mono text-lg font-bold text-zinc-200">{entry.publicPortfolioCount}</span>
-                                    </div>
-
-                                    <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
-                                        <span className="block md:hidden text-xs text-zinc-500 mb-1">Win Rate</span>
-                                        <span className={`font-mono text-lg font-bold ${entry.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`}>
-                                            {entry.winRate.toFixed(1)}%
-                                        </span>
-                                    </div>
-
-                                    <div className="col-span-6 md:col-span-1 text-right flex flex-col justify-center">
-                                        <span className="block md:hidden text-xs text-zinc-500 mb-1">Trust</span>
-                                        <span className={`font-mono text-lg font-bold ${entry.trustScore >= 70 ? 'text-green-500' : entry.trustScore >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>
-                                            {entry.trustScore.toFixed(1)}
-                                        </span>
-                                    </div>
+                                    {'portfolioId' in entry ? (
+                                        <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
+                                            <span className="block md:hidden text-xs text-zinc-500 mb-1">Owner</span>
+                                            <Link href={`/profile/${entry.ownerId}`} className="font-mono text-sm text-zinc-300 hover:text-white transition-colors">
+                                                {entry.ownerName || `User ${entry.ownerId.substring(0, 8)}`}
+                                            </Link>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
+                                                <span className="block md:hidden text-xs text-zinc-500 mb-1">Portfolios</span>
+                                                <span className="font-mono text-lg font-bold text-zinc-200">{entry.publicPortfolioCount}</span>
+                                            </div>
+                                            <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
+                                                <span className="block md:hidden text-xs text-zinc-500 mb-1">Win Rate</span>
+                                                <span className={`font-mono text-lg font-bold ${entry.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {entry.winRate.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                            <div className="col-span-6 md:col-span-1 text-right flex flex-col justify-center">
+                                                <span className="block md:hidden text-xs text-zinc-500 mb-1">Trust</span>
+                                                <span className={`font-mono text-lg font-bold ${entry.trustScore >= 70 ? 'text-green-500' : entry.trustScore >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                                    {entry.trustScore.toFixed(1)}
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
 
                                     <div className="col-span-6 md:col-span-2 text-right flex flex-col justify-center">
                                         <span className="block md:hidden text-xs text-zinc-500 mb-1">P/L</span>

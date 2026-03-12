@@ -215,17 +215,10 @@ class LeaderboardServiceTest {
         }
 
         @Test
-        void getAccountLeaderboard_shouldAggregatePublicPortfoliosPerOwner() {
+        void getAccountLeaderboard_shouldAggregatePublicPortfoliosPerOwnerForTrustSort() {
                 Pageable pageable = PageRequest.of(0, 10);
-
-                Set<ZSetOperations.TypedTuple<Object>> mockRange = new LinkedHashSet<>();
                 UUID ownerId = UUID.fromString(portfolioA.getOwnerId());
-                mockRange.add(new DefaultTypedTuple<>(ownerId.toString(), 10.0));
-
-                when(cacheService.zRevRangeWithScores(eq("leaderboard_accounts:ALL"), anyLong(), anyLong()))
-                                .thenReturn(mockRange);
-                when(cacheService.zCard(eq("leaderboard_accounts:ALL"))).thenReturn(1L);
-                when(portfolioRepository.findByOwnerIdInAndVisibility(eq(List.of(ownerId.toString())), eq(Portfolio.Visibility.PUBLIC)))
+                when(portfolioRepository.findByVisibility(eq(Portfolio.Visibility.PUBLIC)))
                                 .thenReturn(List.of(portfolioA));
                 when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 55000.0));
                 when(performanceCalculationService.getStartTimeForPeriod("ALL"))
@@ -252,7 +245,7 @@ class LeaderboardServiceTest {
 
                 Page<AccountLeaderboardEntry> page = leaderboardService.getAccountLeaderboard(
                                 "ALL",
-                                "RETURN_PERCENTAGE",
+                                "TRUST_SCORE",
                                 "DESC",
                                 pageable);
 
