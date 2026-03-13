@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-13**: **Market Workspace Compare Mode Polished Into Persistent Session Controls**
+  - **Problem observed**:
+    - Compare mode existed, but the session was still thin:
+      - selected compare symbol was not clearly surfaced
+      - users could not temporarily hide the overlay without clearing the selection
+      - there was no explicit quick-clear action
+  - **Implementation**:
+    - Added compare session banner to `/watchlist` with:
+      - primary vs secondary symbol context
+      - `Hide/Show Overlay`
+      - `Clear Compare`
+    - `MarketWorkspaceChart` now accepts a visibility flag so compare data can stay selected while the overlay is hidden.
+    - Added explicit compare legend/status beneath the chart to reflect whether the overlay is currently active or hidden.
+  - **Operational impact**:
+    - compare mode behaves like a persistent terminal session rather than a fragile one-shot picker
+    - users can inspect the same symbol pair without repeatedly reselecting the compare instrument
 - **2026-03-12**: **TradingView-Style Market Workspace Added on `/watchlist`**
   - **Problem observed**:
     - The old watchlist page was CRUD-oriented and did not support the core market-reading loop:

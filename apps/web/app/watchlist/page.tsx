@@ -87,6 +87,7 @@ export default function WatchlistPage() {
     const [instrumentQuery, setInstrumentQuery] = useState('');
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
     const [compareSymbol, setCompareSymbol] = useState<string>('');
+    const [compareVisible, setCompareVisible] = useState<boolean>(true);
     const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
     const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
@@ -133,6 +134,15 @@ export default function WatchlistPage() {
         return 'WATCHLIST';
     }, [selectedInstrument]);
 
+    const selectedCompareInstrument = useMemo(() => {
+        if (!compareSymbol) {
+            return null;
+        }
+        return instrumentUniverse.find((item) => item.symbol === compareSymbol)
+            ?? enrichedItems.find((item) => item.symbol === compareSymbol)
+            ?? null;
+    }, [compareSymbol, enrichedItems, instrumentUniverse]);
+
     const loadedHistoryLabel = useMemo(() => {
         if (candles.length === 0) {
             return 'No candles loaded yet.';
@@ -151,6 +161,12 @@ export default function WatchlistPage() {
             setCompareSymbol('');
         }
     }, [compareSymbol, selectedSymbol]);
+
+    useEffect(() => {
+        if (!compareSymbol) {
+            setCompareVisible(true);
+        }
+    }, [compareSymbol]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -630,6 +646,47 @@ export default function WatchlistPage() {
                                         </label>
                                     </div>
 
+                                    {compareSymbol && (
+                                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compare Session</p>
+                                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                    <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-amber-300">
+                                                        {selectedSymbol}
+                                                    </span>
+                                                    <span className="text-zinc-500">vs</span>
+                                                    <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-sky-300">
+                                                        {selectedCompareInstrument?.symbol ?? compareSymbol}
+                                                    </span>
+                                                    {selectedCompareInstrument && 'displayName' in selectedCompareInstrument && (
+                                                        <span className="text-sm text-zinc-400">
+                                                            {selectedCompareInstrument.displayName}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    onClick={() => setCompareVisible((current) => !current)}
+                                                    className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition ${compareVisible
+                                                        ? 'border-sky-400/30 bg-sky-400/10 text-sky-300 hover:bg-sky-400/20'
+                                                        : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'}`}
+                                                >
+                                                    {compareVisible ? 'Hide Overlay' : 'Show Overlay'}
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setCompareSymbol('');
+                                                        setCompareVisible(true);
+                                                    }}
+                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white"
+                                                >
+                                                    Clear Compare
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {favoriteInstruments.length > 0 && (
                                         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                                             <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Favorites</p>
@@ -660,6 +717,7 @@ export default function WatchlistPage() {
                                                     data={candles}
                                                     compareData={compareCandles}
                                                     compareLabel={compareSymbol || null}
+                                                    compareVisible={compareVisible}
                                                     resetKey={`${selectedSymbol}-${selectedRange}-${selectedInterval}`}
                                                     onReachStart={handleLoadMoreHistory}
                                                 />
@@ -726,7 +784,11 @@ export default function WatchlistPage() {
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Compare</p>
                                             <p className="mt-2 text-xl font-semibold text-white">{compareSymbol || 'Off'}</p>
-                                            <p className="mt-1 text-xs text-zinc-500">Normalized overlay line.</p>
+                                            <p className="mt-1 text-xs text-zinc-500">
+                                                {compareSymbol
+                                                    ? (compareVisible ? 'Normalized overlay line is visible.' : 'Overlay selected but hidden.')
+                                                    : 'Normalized overlay line.'}
+                                            </p>
                                         </article>
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">History</p>

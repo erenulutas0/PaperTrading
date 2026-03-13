@@ -3,6 +3,11 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
+  - compare session banner
+  - hide/show overlay without losing selected compare symbol
+  - clear compare action
+  - chart legend state that reflects active vs hidden compare overlays
 - [ ] Redeploy frontend after deeper `ALL` history preload + viewport-preserving prepend rollout and verify `/watchlist` now starts with materially deeper history while `Load Older` extends candles without jumping the visible chart window
 - [ ] Redeploy frontend after market terminal OHLC info bar + volume histogram rollout and verify crosshair movement updates candle metrics without reintroducing chart refresh loops
 - [ ] Redeploy frontend after market terminal favorites rollout and verify starred symbols persist locally and appear in the quick-switch favorites bar

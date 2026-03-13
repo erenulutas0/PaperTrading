@@ -26,11 +26,19 @@ interface MarketWorkspaceChartProps {
     data: CandlePoint[];
     compareData?: CandlePoint[];
     compareLabel?: string | null;
+    compareVisible?: boolean;
     resetKey: string;
     onReachStart?: (oldestOpenTime: number) => void;
 }
 
-export default function MarketWorkspaceChart({ data, compareData = [], compareLabel = null, resetKey, onReachStart }: MarketWorkspaceChartProps) {
+export default function MarketWorkspaceChart({
+    data,
+    compareData = [],
+    compareLabel = null,
+    compareVisible = true,
+    resetKey,
+    onReachStart,
+}: MarketWorkspaceChartProps) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
     const seriesRef = useRef<any>(null);
@@ -64,7 +72,7 @@ export default function MarketWorkspaceChart({ data, compareData = [], compareLa
     }, [data]);
 
     const compareSeriesData = useMemo<LineData[]>(() => {
-        if (!compareData.length) {
+        if (!compareVisible || !compareData.length) {
             return [];
         }
         const baseClose = compareData[0].close || 1;
@@ -72,7 +80,11 @@ export default function MarketWorkspaceChart({ data, compareData = [], compareLa
             time: Math.floor(point.openTime / 1000) as UTCTimestamp,
             value: (point.close / baseClose) * 100,
         }));
-    }, [compareData]);
+    }, [compareData, compareVisible]);
+
+    const compareLatestValue = compareSeriesData.length > 0
+        ? compareSeriesData[compareSeriesData.length - 1]?.value ?? null
+        : null;
 
     const resolvedActivePoint = activePoint ?? data[data.length - 1] ?? null;
     const activeChange = resolvedActivePoint ? resolvedActivePoint.close - resolvedActivePoint.open : 0;
@@ -322,12 +334,27 @@ export default function MarketWorkspaceChart({ data, compareData = [], compareLa
                     <div className="text-amber-300">
                         <span className="text-zinc-500">{compareLabel} </span>
                         <span className="font-mono">
-                            {compareSeriesData[compareSeriesData.length - 1]?.value.toFixed(2)} idx
+                            {compareLatestValue?.toFixed(2)} idx
                         </span>
                     </div>
                 )}
             </div>
             <div ref={chartContainerRef} className="h-[520px] w-full" />
+            {compareLabel && (
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/8 bg-black/30 px-4 py-3 text-xs">
+                    <span className="uppercase tracking-[0.24em] text-zinc-500">Compare</span>
+                    <span className={`rounded-full border px-3 py-1 font-semibold ${compareSeriesData.length > 0
+                        ? 'border-amber-400/30 bg-amber-400/10 text-amber-300'
+                        : 'border-white/10 bg-white/[0.03] text-zinc-500'}`}>
+                        {compareLabel}
+                    </span>
+                    <span className="text-zinc-500">
+                        {compareSeriesData.length > 0
+                            ? `Overlay active · ${compareLatestValue?.toFixed(2)} indexed`
+                            : 'Overlay hidden'}
+                    </span>
+                </div>
+            )}
         </div>
     );
 }
