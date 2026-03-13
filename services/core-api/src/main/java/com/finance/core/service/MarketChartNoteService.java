@@ -21,7 +21,7 @@ public class MarketChartNoteService {
 
     @Transactional(readOnly = true)
     public List<MarketChartNoteResponse> getNotes(UUID userId, MarketType market, String symbol) {
-        return marketChartNoteRepository.findByUserIdAndMarketAndSymbolOrderByCreatedAtDesc(
+        return marketChartNoteRepository.findByUserIdAndMarketAndSymbolOrderByPinnedDescCreatedAtDesc(
                         userId,
                         normalizeMarket(market),
                         normalizeSymbol(symbol))
@@ -41,6 +41,7 @@ public class MarketChartNoteService {
                 .market(market)
                 .symbol(symbol)
                 .body(body)
+                .pinned(normalizePinned(request.getPinned(), false))
                 .build());
 
         return toResponse(note);
@@ -52,6 +53,7 @@ public class MarketChartNoteService {
                 .orElseThrow(() -> new RuntimeException("Chart note not found"));
 
         note.setBody(normalizeBody(request.getBody()));
+        note.setPinned(normalizePinned(request.getPinned(), note.isPinned()));
         return toResponse(marketChartNoteRepository.save(note));
     }
 
@@ -84,12 +86,17 @@ public class MarketChartNoteService {
         return trimmed;
     }
 
+    private boolean normalizePinned(Boolean pinned, boolean defaultValue) {
+        return pinned != null ? pinned : defaultValue;
+    }
+
     private MarketChartNoteResponse toResponse(MarketChartNote note) {
         return MarketChartNoteResponse.builder()
                 .id(note.getId())
                 .market(note.getMarket())
                 .symbol(note.getSymbol())
                 .body(note.getBody())
+                .pinned(note.isPinned())
                 .createdAt(note.getCreatedAt())
                 .build();
     }

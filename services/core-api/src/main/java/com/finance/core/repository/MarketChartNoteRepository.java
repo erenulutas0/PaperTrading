@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface MarketChartNoteRepository extends JpaRepository<MarketChartNote, UUID> {
-    List<MarketChartNote> findByUserIdAndMarketAndSymbolOrderByCreatedAtDesc(UUID userId, MarketType market, String symbol);
+    List<MarketChartNote> findByUserIdAndMarketAndSymbolOrderByPinnedDescCreatedAtDesc(UUID userId, MarketType market, String symbol);
 
     Optional<MarketChartNote> findByIdAndUserId(UUID id, UUID userId);
 }

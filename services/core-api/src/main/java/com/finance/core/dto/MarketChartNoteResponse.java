@@ -13,5 +13,6 @@ public class MarketChartNoteResponse {
     MarketType market;
     String symbol;
     String body;
+    boolean pinned;
     LocalDateTime createdAt;
 }

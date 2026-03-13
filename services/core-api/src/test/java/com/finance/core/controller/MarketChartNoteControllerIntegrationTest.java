@@ -58,7 +58,8 @@ class MarketChartNoteControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.symbol").value("AEFES"))
                 .andExpect(jsonPath("$.market").value("BIST100"))
-                .andExpect(jsonPath("$.body").value("Delayed breakout watch"));
+                .andExpect(jsonPath("$.body").value("Delayed breakout watch"))
+                .andExpect(jsonPath("$.pinned").value(false));
 
         mockMvc.perform(get("/api/v1/market/chart-notes")
                         .header("X-User-Id", userId.toString())
@@ -66,7 +67,8 @@ class MarketChartNoteControllerIntegrationTest {
                         .param("symbol", "AEFES"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].body").value("Delayed breakout watch"));
+                .andExpect(jsonPath("$[0].body").value("Delayed breakout watch"))
+                .andExpect(jsonPath("$[0].pinned").value(false));
     }
 
     @Test
@@ -102,20 +104,53 @@ class MarketChartNoteControllerIntegrationTest {
         Map<String, Object> request = Map.of(
                 "market", "CRYPTO",
                 "symbol", "ETHUSDT",
-                "body", "Updated note");
+                "body", "Updated note",
+                "pinned", true);
 
         mockMvc.perform(put("/api/v1/market/chart-notes/" + note.getId())
                         .header("X-User-Id", userId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.body").value("Updated note"));
+                .andExpect(jsonPath("$.body").value("Updated note"))
+                .andExpect(jsonPath("$.pinned").value(true));
 
         mockMvc.perform(get("/api/v1/market/chart-notes")
                         .header("X-User-Id", userId.toString())
                         .param("market", "CRYPTO")
                         .param("symbol", "ETHUSDT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].body").value("Updated note"));
+                .andExpect(jsonPath("$[0].body").value("Updated note"))
+                .andExpect(jsonPath("$[0].pinned").value(true));
+    }
+
+    @Test
+    void listNotes_shouldReturnPinnedNotesFirst() throws Exception {
+        marketChartNoteRepository.save(MarketChartNote.builder()
+                .userId(userId)
+                .market(MarketType.CRYPTO)
+                .symbol("BTCUSDT")
+                .body("Older pinned note")
+                .pinned(true)
+                .build());
+
+        marketChartNoteRepository.save(MarketChartNote.builder()
+                .userId(userId)
+                .market(MarketType.CRYPTO)
+                .symbol("BTCUSDT")
+                .body("Latest unpinned note")
+                .pinned(false)
+                .build());
+
+        mockMvc.perform(get("/api/v1/market/chart-notes")
+                        .header("X-User-Id", userId.toString())
+                        .param("market", "CRYPTO")
+                        .param("symbol", "BTCUSDT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].body").value("Older pinned note"))
+                .andExpect(jsonPath("$[0].pinned").value(true))
+                .andExpect(jsonPath("$[1].body").value("Latest unpinned note"))
+                .andExpect(jsonPath("$[1].pinned").value(false));
     }
 }

@@ -45,6 +45,10 @@ public class MarketChartNote {
     @Column(nullable = false, length = 2000)
     private String body;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean pinned = false;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

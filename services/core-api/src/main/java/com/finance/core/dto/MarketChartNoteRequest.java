@@ -7,4 +7,5 @@ public class MarketChartNoteRequest {
     private MarketType market;
     private String symbol;
     private String body;
+    private Boolean pinned;
 }

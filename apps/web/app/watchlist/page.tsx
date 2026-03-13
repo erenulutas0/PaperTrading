@@ -64,6 +64,7 @@ interface CompareSeriesInput {
 interface ChartNote {
     id: string;
     body: string;
+    pinned: boolean;
     createdAt: string;
 }
 
@@ -162,6 +163,15 @@ function formatMoney(value: number) {
 function formatPercent(value: number) {
     const normalized = Number(value ?? 0);
     return `${normalized >= 0 ? '+' : ''}${normalized.toFixed(2)}%`;
+}
+
+function sortChartNotes(notes: ChartNote[]) {
+    return [...notes].sort((left, right) => {
+        if (left.pinned !== right.pinned) {
+            return left.pinned ? -1 : 1;
+        }
+        return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    });
 }
 
 export default function WatchlistPage() {
@@ -559,7 +569,7 @@ export default function WatchlistPage() {
                 return;
             }
             const data = await res.json();
-            setChartNotes(Array.isArray(data) ? data : []);
+            setChartNotes(sortChartNotes(Array.isArray(data) ? data : []));
         } catch (error) {
             console.error(error);
             setChartNotes([]);
@@ -859,7 +869,7 @@ export default function WatchlistPage() {
                 return;
             }
             const note = await res.json();
-            setChartNotes((current) => [note, ...current].slice(0, 25));
+            setChartNotes((current) => sortChartNotes([note, ...current]).slice(0, 25));
             setChartNoteDraft('');
         } catch (error) {
             console.error(error);
@@ -901,15 +911,38 @@ export default function WatchlistPage() {
                     market: selectedMarket,
                     symbol: selectedSymbol,
                     body: trimmed,
+                    pinned: note.pinned,
                 }),
             });
             if (!res.ok) {
                 return;
             }
             const updated = await res.json();
-            setChartNotes((current) => current.map((entry) => entry.id === note.id ? updated : entry));
+            setChartNotes((current) => sortChartNotes(current.map((entry) => entry.id === note.id ? updated : entry)));
             setEditingNoteId(null);
             setEditingNoteDraft('');
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleTogglePinChartNote = async (note: ChartNote) => {
+        try {
+            const res = await apiFetch(`/api/v1/market/chart-notes/${note.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    market: selectedMarket,
+                    symbol: selectedSymbol,
+                    body: note.body,
+                    pinned: !note.pinned,
+                }),
+            });
+            if (!res.ok) {
+                return;
+            }
+            const updated = await res.json();
+            setChartNotes((current) => sortChartNotes(current.map((entry) => entry.id === note.id ? updated : entry)));
         } catch (error) {
             console.error(error);
         }
@@ -1548,7 +1581,7 @@ export default function WatchlistPage() {
                                             <div className="flex items-center justify-between gap-3">
                                                 <div>
                                                     <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Saved Notes</p>
-                                                    <p className="mt-1 text-sm text-zinc-400">Reusable terminal notes for this exact symbol.</p>
+                                                    <p className="mt-1 text-sm text-zinc-400">Reusable terminal notes for this exact symbol. Pinned notes stay on top.</p>
                                                 </div>
                                                 <span className="text-xs text-zinc-500">
                                                     {filteredChartNotes.length}/{chartNotes.length} · {selectedSymbol}
@@ -1560,7 +1593,7 @@ export default function WatchlistPage() {
                                                         No saved notes match the current search.
                                                     </div>
                                                 ) : filteredChartNotes.map((note) => (
-                                                    <div key={note.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
+                                                    <div key={note.id} className={`rounded-2xl border px-4 py-3 ${note.pinned ? 'border-amber-400/25 bg-amber-400/5' : 'border-white/10 bg-black/35'}`}>
                                                         <div className="flex items-start justify-between gap-3">
                                                             {editingNoteId === note.id ? (
                                                                 <div className="w-full space-y-3">
@@ -1586,8 +1619,21 @@ export default function WatchlistPage() {
                                                                 </div>
                                                             ) : (
                                                                 <>
-                                                                    <p className="whitespace-pre-wrap text-sm text-zinc-200">{note.body}</p>
+                                                                    <div className="space-y-2">
+                                                                        {note.pinned && (
+                                                                            <span className="inline-flex rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300">
+                                                                                Pinned
+                                                                            </span>
+                                                                        )}
+                                                                        <p className="whitespace-pre-wrap text-sm text-zinc-200">{note.body}</p>
+                                                                    </div>
                                                                     <div className="flex shrink-0 gap-3">
+                                                                        <button
+                                                                            onClick={() => handleTogglePinChartNote(note)}
+                                                                            className={`text-xs transition ${note.pinned ? 'text-amber-300 hover:text-amber-200' : 'text-zinc-500 hover:text-amber-300'}`}
+                                                                        >
+                                                                            {note.pinned ? 'Unpin' : 'Pin'}
+                                                                        </button>
                                                                         <button
                                                                             onClick={() => handleStartEditChartNote(note)}
                                                                             className="text-xs text-zinc-500 transition hover:text-amber-300"

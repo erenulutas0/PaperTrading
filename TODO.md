@@ -3,6 +3,10 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend/frontend after pinned chart-note rollout and verify `/watchlist` saved notes now support:
+  - account-backed pin/unpin state
+  - pinned-first ordering
+  - pinned state preserved through note edit flows
 - [ ] Redeploy backend/frontend after watchlist chart-notes + alert-history rollout and verify `/watchlist` now supports:
   - symbol-scoped persistent chart notes backed by authenticated account storage
   - selected-item recent alert trigger history
