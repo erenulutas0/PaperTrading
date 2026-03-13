@@ -67,7 +67,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Horizontal mode places a level with one click.
     - Trend mode places a two-point line with two chart clicks.
     - Added visible drawing chips beneath the chart so users can remove individual drawings instead of clearing the entire canvas.
-    - Drawings reset on symbol/range/interval changes so terminal state stays coherent.
+    - Drawings are now persisted per symbol in browser storage so the same instrument restores its levels/lines after reload or revisit, while draw mode itself still resets on symbol/range/interval changes.
   - **Operational impact**:
     - users can start annotating price structure without introducing an overbuilt drawing subsystem
     - future drawing tools can extend this contract instead of replacing it

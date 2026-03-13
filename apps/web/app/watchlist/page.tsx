@@ -186,7 +186,6 @@ export default function WatchlistPage() {
 
     useEffect(() => {
         setDrawingMode('none');
-        setClearDrawingsToken((current) => current + 1);
     }, [selectedInterval, selectedRange, selectedSymbol]);
 
     useEffect(() => {
@@ -794,6 +793,7 @@ export default function WatchlistPage() {
                                                     compareLabel={compareSymbol || null}
                                                     compareVisible={compareVisible}
                                                     drawingMode={drawingMode}
+                                                    drawingStorageKey={selectedSymbol}
                                                     clearDrawingsToken={clearDrawingsToken}
                                                     onDrawingComplete={() => setDrawingMode('none')}
                                                     resetKey={`${selectedSymbol}-${selectedRange}-${selectedInterval}`}

@@ -40,6 +40,7 @@ interface MarketWorkspaceChartProps {
     compareLabel?: string | null;
     compareVisible?: boolean;
     drawingMode?: DrawingMode;
+    drawingStorageKey?: string | null;
     clearDrawingsToken?: number;
     onDrawingComplete?: () => void;
     resetKey: string;
@@ -52,6 +53,7 @@ export default function MarketWorkspaceChart({
     compareLabel = null,
     compareVisible = true,
     drawingMode = 'none',
+    drawingStorageKey = null,
     clearDrawingsToken = 0,
     onDrawingComplete,
     resetKey,
@@ -169,6 +171,37 @@ export default function MarketWorkspaceChart({
     useEffect(() => {
         pendingTrendAnchorRef.current = null;
     }, [drawingMode]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !drawingStorageKey) {
+            setDrawings([]);
+            return;
+        }
+        try {
+            const stored = window.localStorage.getItem(`market.drawings.${drawingStorageKey}`);
+            if (!stored) {
+                setDrawings([]);
+                return;
+            }
+            const parsed = JSON.parse(stored);
+            if (!Array.isArray(parsed)) {
+                setDrawings([]);
+                return;
+            }
+            setDrawings(parsed);
+        } catch (error) {
+            console.error(error);
+            setDrawings([]);
+        }
+        pendingTrendAnchorRef.current = null;
+    }, [drawingStorageKey]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !drawingStorageKey) {
+            return;
+        }
+        window.localStorage.setItem(`market.drawings.${drawingStorageKey}`, JSON.stringify(drawings));
+    }, [drawings, drawingStorageKey]);
 
     useEffect(() => {
         if (!chartContainerRef.current || chartRef.current) {
@@ -457,7 +490,10 @@ export default function MarketWorkspaceChart({
     useEffect(() => {
         setDrawings([]);
         pendingTrendAnchorRef.current = null;
-    }, [clearDrawingsToken, resetKey]);
+        if (typeof window !== 'undefined' && drawingStorageKey) {
+            window.localStorage.removeItem(`market.drawings.${drawingStorageKey}`);
+        }
+    }, [clearDrawingsToken, drawingStorageKey]);
 
     return (
         <div className="space-y-3">
