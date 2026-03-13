@@ -83,6 +83,7 @@ type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 type DrawingMode = 'none' | 'horizontal' | 'trend';
 type MarketSelection = 'CRYPTO' | 'BIST100';
 type AlertHistoryFilter = 'ALL' | 'ABOVE' | 'BELOW';
+type AlertHistoryWindow = 'ALL' | '24H' | '7D' | '30D';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
@@ -190,6 +191,7 @@ export default function WatchlistPage() {
     const [alertHistory, setAlertHistory] = useState<AlertHistoryEntry[]>([]);
     const [alertHistoryLoading, setAlertHistoryLoading] = useState(false);
     const [alertHistoryFilter, setAlertHistoryFilter] = useState<AlertHistoryFilter>('ALL');
+    const [alertHistoryWindow, setAlertHistoryWindow] = useState<AlertHistoryWindow>('7D');
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(false);
     const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
@@ -520,7 +522,17 @@ export default function WatchlistPage() {
     const fetchAlertHistory = useCallback(async (itemId: string) => {
         setAlertHistoryLoading(true);
         try {
-            const res = await apiFetch(`/api/v1/watchlists/items/${itemId}/alert-history?limit=8`, { cache: 'no-store' });
+            const url = new URL(`/api/v1/watchlists/items/${itemId}/alert-history`, window.location.origin);
+            url.searchParams.set('limit', '20');
+            if (alertHistoryWindow === '24H') {
+                url.searchParams.set('days', '1');
+            } else if (alertHistoryWindow === '7D') {
+                url.searchParams.set('days', '7');
+            } else if (alertHistoryWindow === '30D') {
+                url.searchParams.set('days', '30');
+            }
+
+            const res = await apiFetch(`${url.pathname}${url.search}`, { cache: 'no-store' });
             if (!res.ok) {
                 setAlertHistory([]);
                 return;
@@ -533,7 +545,7 @@ export default function WatchlistPage() {
         } finally {
             setAlertHistoryLoading(false);
         }
-    }, []);
+    }, [alertHistoryWindow]);
 
     const fetchChartNotes = useCallback(async () => {
         try {
@@ -1471,6 +1483,21 @@ export default function WatchlistPage() {
                                                     <option value="ABOVE">Above</option>
                                                     <option value="BELOW">Below</option>
                                                 </select>
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {(['24H', '7D', '30D', 'ALL'] as AlertHistoryWindow[]).map((window) => (
+                                                    <button
+                                                        key={window}
+                                                        onClick={() => setAlertHistoryWindow(window)}
+                                                        className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition ${
+                                                            alertHistoryWindow === window
+                                                                ? 'border-amber-400/30 bg-amber-400/10 text-amber-300'
+                                                                : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        {window}
+                                                    </button>
+                                                ))}
                                             </div>
                                             <div className="mt-4 space-y-2">
                                                 {!selectedWatchlistItem ? (

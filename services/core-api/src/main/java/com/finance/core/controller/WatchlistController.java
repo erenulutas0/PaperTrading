@@ -116,8 +116,9 @@ public class WatchlistController {
     public ResponseEntity<List<WatchlistAlertEventResponse>> getAlertHistory(
             @PathVariable UUID itemId,
             @CurrentUserId UUID userId,
-            @RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistory(itemId, userId, limit));
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) Integer days) {
+        return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistory(itemId, userId, limit, days));
     }
 
     @Data

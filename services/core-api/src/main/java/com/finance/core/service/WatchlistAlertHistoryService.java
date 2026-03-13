@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,13 +42,19 @@ public class WatchlistAlertHistoryService {
     }
 
     @Transactional(readOnly = true)
-    public List<WatchlistAlertEventResponse> getRecentHistory(UUID itemId, UUID userId, int limit) {
+    public List<WatchlistAlertEventResponse> getRecentHistory(UUID itemId, UUID userId, int limit, Integer days) {
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
 
         int safeLimit = Math.max(1, Math.min(limit, 50));
-        return watchlistAlertEventRepository
-                .findByWatchlistItemIdOrderByTriggeredAtDesc(item.getId(), PageRequest.of(0, safeLimit))
+        Integer safeDays = normalizeDays(days);
+        List<WatchlistAlertEvent> events = safeDays == null
+                ? watchlistAlertEventRepository.findByWatchlistItemIdOrderByTriggeredAtDesc(item.getId(), PageRequest.of(0, safeLimit))
+                : watchlistAlertEventRepository.findByWatchlistItemIdAndTriggeredAtGreaterThanEqualOrderByTriggeredAtDesc(
+                        item.getId(),
+                        LocalDateTime.now().minusDays(safeDays),
+                        PageRequest.of(0, safeLimit));
+        return events
                 .stream()
                 .map(event -> WatchlistAlertEventResponse.builder()
                         .id(event.getId())
@@ -60,5 +67,12 @@ public class WatchlistAlertHistoryService {
                         .triggeredAt(event.getTriggeredAt())
                         .build())
                 .toList();
+    }
+
+    private Integer normalizeDays(Integer days) {
+        if (days == null || days <= 0) {
+            return null;
+        }
+        return Math.min(days, 365);
     }
 }

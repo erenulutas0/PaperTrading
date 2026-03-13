@@ -19,9 +19,11 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -48,6 +50,8 @@ class WatchlistControllerIntegrationTest {
         private MarketDataFacadeService marketDataFacadeService;
         @Autowired
         private ObjectMapper objectMapper;
+        @Autowired
+        private JdbcTemplate jdbcTemplate;
 
         private UUID userId = UUID.randomUUID();
         private Watchlist testWatchlist;
@@ -129,8 +133,8 @@ class WatchlistControllerIntegrationTest {
         }
 
         @Test
-        void testGetAlertHistory() throws Exception {
-                WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+    void testGetAlertHistory() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
                                 .watchlist(testWatchlist)
                                 .symbol("BTCUSDT")
                                 .build());
@@ -152,7 +156,45 @@ class WatchlistControllerIntegrationTest {
                                 .andExpect(jsonPath("$[0].symbol").value("BTCUSDT"))
                                 .andExpect(jsonPath("$[0].direction").value("ABOVE"))
                                 .andExpect(jsonPath("$[0].triggeredPrice").value(61500));
-        }
+    }
+
+    @Test
+    void testGetAlertHistory_withDaysFilter() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+        watchlistAlertEventRepository.save(WatchlistAlertEvent.builder()
+                .watchlistItem(item)
+                .userId(userId)
+                .symbol("BTCUSDT")
+                .direction(WatchlistAlertDirection.ABOVE)
+                .thresholdPrice(java.math.BigDecimal.valueOf(61000))
+                .triggeredPrice(java.math.BigDecimal.valueOf(61500))
+                .message("Recent trigger")
+                .build());
+        WatchlistAlertEvent olderEvent = watchlistAlertEventRepository.save(WatchlistAlertEvent.builder()
+                .watchlistItem(item)
+                .userId(userId)
+                .symbol("BTCUSDT")
+                .direction(WatchlistAlertDirection.BELOW)
+                .thresholdPrice(java.math.BigDecimal.valueOf(59000))
+                .triggeredPrice(java.math.BigDecimal.valueOf(58500))
+                .message("Older trigger")
+                .build());
+        jdbcTemplate.update(
+                "update watchlist_alert_events set triggered_at = ? where id = ?",
+                LocalDateTime.now().minusDays(10),
+                olderEvent.getId());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .param("limit", "10")
+                        .param("days", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].message").value("Recent trigger"));
+    }
 
         @Test
         void testGetInstruments() throws Exception {
