@@ -510,6 +510,7 @@ export default function MarketWorkspaceChart({
                 crosshairMarkerVisible: false,
                 lastValueVisible: false,
                 priceLineVisible: false,
+                autoscaleInfoProvider: () => null,
             });
             if (!lineSeries) {
                 return;
