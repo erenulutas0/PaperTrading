@@ -82,6 +82,7 @@ type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 type DrawingMode = 'none' | 'horizontal' | 'trend';
 type MarketSelection = 'CRYPTO' | 'BIST100';
+type AlertHistoryFilter = 'ALL' | 'ABOVE' | 'BELOW';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
@@ -183,8 +184,10 @@ export default function WatchlistPage() {
     const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
     const [chartNotes, setChartNotes] = useState<ChartNote[]>([]);
     const [chartNoteDraft, setChartNoteDraft] = useState('');
+    const [chartNoteQuery, setChartNoteQuery] = useState('');
     const [alertHistory, setAlertHistory] = useState<AlertHistoryEntry[]>([]);
     const [alertHistoryLoading, setAlertHistoryLoading] = useState(false);
+    const [alertHistoryFilter, setAlertHistoryFilter] = useState<AlertHistoryFilter>('ALL');
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(false);
     const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
@@ -249,6 +252,21 @@ export default function WatchlistPage() {
     const selectedWatchlistItem = useMemo(() => {
         return enrichedItems.find((item) => item.symbol === selectedSymbol) ?? null;
     }, [enrichedItems, selectedSymbol]);
+
+    const filteredChartNotes = useMemo(() => {
+        const query = chartNoteQuery.trim().toLowerCase();
+        if (!query) {
+            return chartNotes;
+        }
+        return chartNotes.filter((note) => note.body.toLowerCase().includes(query));
+    }, [chartNoteQuery, chartNotes]);
+
+    const filteredAlertHistory = useMemo(() => {
+        if (alertHistoryFilter === 'ALL') {
+            return alertHistory;
+        }
+        return alertHistory.filter((entry) => entry.direction === alertHistoryFilter);
+    }, [alertHistory, alertHistoryFilter]);
 
     const chartAlertLines = useMemo<AlertLine[]>(() => {
         if (!selectedWatchlistItem) {
@@ -1384,15 +1402,37 @@ export default function WatchlistPage() {
                                                     </button>
                                                 </div>
                                             </form>
+                                            <div className="mt-4">
+                                                <input
+                                                    type="text"
+                                                    value={chartNoteQuery}
+                                                    onChange={(event) => setChartNoteQuery(event.target.value)}
+                                                    placeholder="Search saved notes..."
+                                                    className="w-full rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                                            <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Recent Alert Activity</p>
-                                            <p className="mt-1 text-sm text-zinc-400">
-                                                {selectedWatchlistItem
-                                                    ? `Triggered alert events for ${selectedWatchlistItem.symbol} in the selected basket.`
-                                                    : 'Add the current symbol to the selected watchlist to collect trigger history here.'}
-                                            </p>
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Recent Alert Activity</p>
+                                                    <p className="mt-1 text-sm text-zinc-400">
+                                                        {selectedWatchlistItem
+                                                            ? `Triggered alert events for ${selectedWatchlistItem.symbol} in the selected basket.`
+                                                            : 'Add the current symbol to the selected watchlist to collect trigger history here.'}
+                                                    </p>
+                                                </div>
+                                                <select
+                                                    value={alertHistoryFilter}
+                                                    onChange={(event) => setAlertHistoryFilter(event.target.value as AlertHistoryFilter)}
+                                                    className="rounded-full border border-white/10 bg-black px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-300 outline-none"
+                                                >
+                                                    <option value="ALL">All</option>
+                                                    <option value="ABOVE">Above</option>
+                                                    <option value="BELOW">Below</option>
+                                                </select>
+                                            </div>
                                             <div className="mt-4 space-y-2">
                                                 {!selectedWatchlistItem ? (
                                                     <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-zinc-500">
@@ -1402,12 +1442,14 @@ export default function WatchlistPage() {
                                                     <div className="rounded-2xl border border-white/10 px-4 py-5 text-sm text-zinc-500">
                                                         Loading alert history...
                                                     </div>
-                                                ) : alertHistory.length === 0 ? (
+                                                ) : filteredAlertHistory.length === 0 ? (
                                                     <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-zinc-500">
-                                                        No triggered alerts yet for this symbol.
+                                                        {alertHistory.length === 0
+                                                            ? 'No triggered alerts yet for this symbol.'
+                                                            : 'No alert events match the selected filter.'}
                                                     </div>
                                                 ) : (
-                                                    alertHistory.map((entry) => (
+                                                    filteredAlertHistory.map((entry) => (
                                                         <div key={entry.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
                                                             <div className="flex items-start justify-between gap-3">
                                                                 <div>
@@ -1442,10 +1484,16 @@ export default function WatchlistPage() {
                                                     <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Saved Notes</p>
                                                     <p className="mt-1 text-sm text-zinc-400">Reusable terminal notes for this exact symbol.</p>
                                                 </div>
-                                                <span className="text-xs text-zinc-500">{selectedSymbol}</span>
+                                                <span className="text-xs text-zinc-500">
+                                                    {filteredChartNotes.length}/{chartNotes.length} · {selectedSymbol}
+                                                </span>
                                             </div>
                                             <div className="mt-4 space-y-2">
-                                                {chartNotes.map((note) => (
+                                                {filteredChartNotes.length === 0 ? (
+                                                    <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-zinc-500">
+                                                        No saved notes match the current search.
+                                                    </div>
+                                                ) : filteredChartNotes.map((note) => (
                                                     <div key={note.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
                                                         <div className="flex items-start justify-between gap-3">
                                                             <p className="whitespace-pre-wrap text-sm text-zinc-200">{note.body}</p>
