@@ -47,6 +47,45 @@ interface MarketWorkspaceChartProps {
     onReachStart?: (oldestOpenTime: number) => void;
 }
 
+function normalizeCandleSeries(points: CandlePoint[]): CandlePoint[] {
+    const ordered = [...points]
+        .filter((point) => Number.isFinite(point.openTime) && point.openTime > 0)
+        .sort((left, right) => left.openTime - right.openTime);
+
+    const deduped = new Map<number, CandlePoint>();
+    let previousClose = 0;
+
+    for (const point of ordered) {
+        const rawClose = Number.isFinite(point.close) ? point.close : 0;
+        const close = rawClose > 0 ? rawClose : previousClose;
+        if (close <= 0) {
+            continue;
+        }
+
+        const rawOpen = Number.isFinite(point.open) ? point.open : 0;
+        const open = rawOpen > 0 ? rawOpen : (previousClose > 0 ? previousClose : close);
+
+        const rawHigh = Number.isFinite(point.high) ? point.high : 0;
+        const rawLow = Number.isFinite(point.low) ? point.low : 0;
+        const highBase = rawHigh > 0 ? rawHigh : Math.max(open, close);
+        const lowBase = rawLow > 0 ? rawLow : Math.min(open, close);
+
+        const normalized: CandlePoint = {
+            openTime: point.openTime,
+            open,
+            high: Math.max(highBase, open, close),
+            low: Math.min(lowBase, open, close),
+            close,
+            volume: Number.isFinite(point.volume) && point.volume > 0 ? point.volume : 0,
+        };
+
+        deduped.set(normalized.openTime, normalized);
+        previousClose = normalized.close;
+    }
+
+    return Array.from(deduped.values()).sort((left, right) => left.openTime - right.openTime);
+}
+
 export default function MarketWorkspaceChart({
     data,
     compareData = [],
@@ -79,47 +118,49 @@ export default function MarketWorkspaceChart({
     const hydratedDrawingStorageKeyRef = useRef<string | null>(null);
     const [activePoint, setActivePoint] = useState<CandlePoint | null>(data[data.length - 1] ?? null);
     const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+    const normalizedData = useMemo(() => normalizeCandleSeries(data), [data]);
+    const normalizedCompareData = useMemo(() => normalizeCandleSeries(compareData), [compareData]);
 
     const seriesData = useMemo<CandlestickData[]>(() => {
-        return data.map((point) => ({
+        return normalizedData.map((point) => ({
             time: Math.floor(point.openTime / 1000) as UTCTimestamp,
             open: point.open,
             high: point.high,
             low: point.low,
             close: point.close,
         }));
-    }, [data]);
+    }, [normalizedData]);
 
     const volumeSeriesData = useMemo(() => {
-        return data.map((point) => ({
+        return normalizedData.map((point) => ({
             time: Math.floor(point.openTime / 1000) as UTCTimestamp,
             value: point.volume,
             color: point.close >= point.open ? 'rgba(34,197,94,0.45)' : 'rgba(239,68,68,0.45)',
         }));
-    }, [data]);
+    }, [normalizedData]);
 
     const compareSeriesData = useMemo<LineData[]>(() => {
-        if (!compareVisible || !compareData.length) {
+        if (!compareVisible || !normalizedCompareData.length) {
             return [];
         }
-        const baseClose = compareData[0].close || 1;
-        return compareData.map((point) => ({
+        const baseClose = normalizedCompareData[0].close || 1;
+        return normalizedCompareData.map((point) => ({
             time: Math.floor(point.openTime / 1000) as UTCTimestamp,
             value: (point.close / baseClose) * 100,
         }));
-    }, [compareData, compareVisible]);
+    }, [compareVisible, normalizedCompareData]);
 
     const compareLatestValue = compareSeriesData.length > 0
         ? compareSeriesData[compareSeriesData.length - 1]?.value ?? null
         : null;
-    const primaryLatestIndexedValue = data.length > 0
-        ? ((data[data.length - 1].close / (data[0].close || 1)) * 100)
+    const primaryLatestIndexedValue = normalizedData.length > 0
+        ? ((normalizedData[normalizedData.length - 1].close / (normalizedData[0].close || 1)) * 100)
         : null;
     const relativePerformanceGap = compareLatestValue !== null && primaryLatestIndexedValue !== null
         ? primaryLatestIndexedValue - compareLatestValue
         : null;
 
-    const resolvedActivePoint = activePoint ?? data[data.length - 1] ?? null;
+    const resolvedActivePoint = activePoint ?? normalizedData[normalizedData.length - 1] ?? null;
     const activeChange = resolvedActivePoint ? resolvedActivePoint.close - resolvedActivePoint.open : 0;
     const activeChangePercent = resolvedActivePoint && resolvedActivePoint.open !== 0
         ? (activeChange / resolvedActivePoint.open) * 100
@@ -142,21 +183,21 @@ export default function MarketWorkspaceChart({
     }, [drawings]);
 
     useEffect(() => {
-        dataRef.current = data;
+        dataRef.current = normalizedData;
         setActivePoint((current) => {
-            if (!data.length) {
+            if (!normalizedData.length) {
                 return null;
             }
             if (!current) {
-                return data[data.length - 1];
+                return normalizedData[normalizedData.length - 1];
             }
-            return data.find((point) => point.openTime === current.openTime) ?? data[data.length - 1];
+            return normalizedData.find((point) => point.openTime === current.openTime) ?? normalizedData[normalizedData.length - 1];
         });
-    }, [data]);
+    }, [normalizedData]);
 
     useEffect(() => {
-        compareDataRef.current = compareData;
-    }, [compareData]);
+        compareDataRef.current = normalizedCompareData;
+    }, [normalizedCompareData]);
 
     useEffect(() => {
         onReachStartRef.current = onReachStart;
@@ -412,7 +453,7 @@ export default function MarketWorkspaceChart({
         const visibleRange = timeScale.getVisibleLogicalRange();
         const previousLength = previousDataLengthRef.current;
         const previousOldestTime = previousOldestTimeRef.current;
-        const currentOldestTime = data[0]?.openTime ?? null;
+        const currentOldestTime = normalizedData[0]?.openTime ?? null;
 
         seriesRef.current.setData(seriesData);
         volumeSeriesRef.current.setData(volumeSeriesData);
@@ -421,7 +462,7 @@ export default function MarketWorkspaceChart({
             visible: compareSeriesData.length > 0,
         });
 
-        const prependedBars = data.length - previousLength;
+        const prependedBars = normalizedData.length - previousLength;
         const prependedOlderHistory = previousResetKeyRef.current === resetKey
             && visibleRange
             && previousOldestTime !== null
@@ -436,9 +477,9 @@ export default function MarketWorkspaceChart({
             });
         }
 
-        previousDataLengthRef.current = data.length;
+        previousDataLengthRef.current = normalizedData.length;
         previousOldestTimeRef.current = currentOldestTime;
-    }, [compareSeriesData, data, resetKey, seriesData, volumeSeriesData]);
+    }, [compareSeriesData, normalizedData, resetKey, seriesData, volumeSeriesData]);
 
     useEffect(() => {
         if (!chartRef.current) {
@@ -446,10 +487,10 @@ export default function MarketWorkspaceChart({
         }
         lastRequestedOldestRef.current = null;
         previousResetKeyRef.current = resetKey;
-        previousDataLengthRef.current = data.length;
-        previousOldestTimeRef.current = data[0]?.openTime ?? null;
+        previousDataLengthRef.current = normalizedData.length;
+        previousOldestTimeRef.current = normalizedData[0]?.openTime ?? null;
         chartRef.current.timeScale().fitContent();
-    }, [resetKey]);
+    }, [normalizedData, resetKey]);
 
     useEffect(() => {
         if (!chartRef.current) {
@@ -474,8 +515,8 @@ export default function MarketWorkspaceChart({
                 return;
             }
 
-            const firstTime = data[0]?.openTime;
-            const lastTime = data[data.length - 1]?.openTime;
+            const firstTime = normalizedData[0]?.openTime;
+            const lastTime = normalizedData[normalizedData.length - 1]?.openTime;
             if (!firstTime || !lastTime) {
                 return;
             }
@@ -496,7 +537,7 @@ export default function MarketWorkspaceChart({
 
             drawingSeriesRef.current.push({ id: drawing.id, series: lineSeries });
         });
-    }, [data, drawings]);
+    }, [drawings, normalizedData]);
 
     useEffect(() => {
         if (previousClearDrawingsTokenRef.current === null) {
