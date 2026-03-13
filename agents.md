@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-13**: **Chart Notes Moved From Browser Scratchpad to Account-Scoped Persistence**
+  - **Problem observed**:
+    - Chart notes were useful, but browser-local storage made them fragile:
+      - notes did not follow the user across devices/sessions
+      - clearing browser state silently erased analysis context
+      - account-level terminal continuity was broken while alert history was already backend-backed
+  - **Implementation**:
+    - Added backend `market_chart_notes` table keyed by:
+      - `user_id`
+      - `market`
+      - `symbol`
+    - Added authenticated CRUD API:
+      - `GET /api/v1/market/chart-notes`
+      - `POST /api/v1/market/chart-notes`
+      - `DELETE /api/v1/market/chart-notes/{noteId}`
+    - `/watchlist` chart-note UI now reads/writes through the backend API instead of browser-local storage.
+  - **Operational impact**:
+    - terminal notes now persist across refresh, logout/login, and device changes
+    - alert history and discretionary chart notes now share the same authenticated ownership model
 - **2026-03-13**: **Watchlist Terminal Split Personal Notes From Auditable Alert Events**
   - **Problem observed**:
     - The market terminal had alert lines and watchlist notes, but no historical answer to "when did this alert actually fire?".

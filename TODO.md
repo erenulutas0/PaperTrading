@@ -4,7 +4,7 @@ Last updated: 2026-03-11
 
 ## In Progress
 - [ ] Redeploy backend/frontend after watchlist chart-notes + alert-history rollout and verify `/watchlist` now supports:
-  - symbol-scoped persistent chart notes
+  - symbol-scoped persistent chart notes backed by authenticated account storage
   - selected-item recent alert trigger history
   - triggered alert messages/threshold/triggered-price inspection from the terminal
 - [ ] Redeploy frontend after multi-symbol compare rollout and verify `/watchlist` now supports up to three simultaneous overlay symbols with independent removal, persisted session state, and compare summaries

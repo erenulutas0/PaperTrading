@@ -88,7 +88,6 @@ const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d']
 const MARKET_OPTIONS: MarketSelection[] = ['CRYPTO', 'BIST100'];
 const ALL_HISTORY_CHUNK = 1000;
 const MARKET_SESSION_STORAGE_KEY = 'market.terminal.session';
-const MARKET_NOTES_STORAGE_PREFIX = 'market.chart-notes';
 const COMPARE_COLORS = ['#f59e0b', '#38bdf8', '#f472b6'];
 
 interface PersistedMarketSession {
@@ -251,10 +250,6 @@ export default function WatchlistPage() {
         return enrichedItems.find((item) => item.symbol === selectedSymbol) ?? null;
     }, [enrichedItems, selectedSymbol]);
 
-    const chartNotesStorageKey = useMemo(() => {
-        return `${MARKET_NOTES_STORAGE_PREFIX}.${selectedMarket}.${selectedSymbol}`;
-    }, [selectedMarket, selectedSymbol]);
-
     const chartAlertLines = useMemo<AlertLine[]>(() => {
         if (!selectedWatchlistItem) {
             return [];
@@ -362,39 +357,6 @@ export default function WatchlistPage() {
             setCompareVisible(true);
         }
     }, [compareSymbols]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') {
-            return;
-        }
-        try {
-            const stored = window.localStorage.getItem(chartNotesStorageKey);
-            if (!stored) {
-                setChartNotes([]);
-                return;
-            }
-            const parsed = JSON.parse(stored);
-            if (!Array.isArray(parsed)) {
-                setChartNotes([]);
-                return;
-            }
-            setChartNotes(parsed.filter((entry): entry is ChartNote =>
-                !!entry
-                && typeof entry.id === 'string'
-                && typeof entry.body === 'string'
-                && typeof entry.createdAt === 'string'));
-        } catch (error) {
-            console.error(error);
-            setChartNotes([]);
-        }
-    }, [chartNotesStorageKey]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') {
-            return;
-        }
-        window.localStorage.setItem(chartNotesStorageKey, JSON.stringify(chartNotes));
-    }, [chartNotes, chartNotesStorageKey]);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !sessionHydrated) {
@@ -552,6 +514,25 @@ export default function WatchlistPage() {
             setAlertHistoryLoading(false);
         }
     }, []);
+
+    const fetchChartNotes = useCallback(async () => {
+        try {
+            const url = new URL('/api/v1/market/chart-notes', window.location.origin);
+            url.searchParams.set('market', selectedMarket);
+            url.searchParams.set('symbol', selectedSymbol);
+
+            const res = await apiFetch(`${url.pathname}${url.search}`, { cache: 'no-store' });
+            if (!res.ok) {
+                setChartNotes([]);
+                return;
+            }
+            const data = await res.json();
+            setChartNotes(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error(error);
+            setChartNotes([]);
+        }
+    }, [selectedMarket, selectedSymbol]);
 
     const updateSelectedSymbolAlerts = useCallback(async (nextAbove: number | null, nextBelow: number | null) => {
         if (!selectedWatchlistItem) {
@@ -733,6 +714,10 @@ export default function WatchlistPage() {
     }, [fetchAlertHistory, selectedWatchlistItem]);
 
     useEffect(() => {
+        fetchChartNotes();
+    }, [fetchChartNotes]);
+
+    useEffect(() => {
         fetchCandles(selectedSymbol, selectedRange, selectedInterval, 'reset');
     }, [fetchCandles, selectedInterval, selectedRange, selectedSymbol]);
 
@@ -822,22 +807,43 @@ export default function WatchlistPage() {
         }
     };
 
-    const handleAddChartNote = (event: React.FormEvent) => {
+    const handleAddChartNote = async (event: React.FormEvent) => {
         event.preventDefault();
         const trimmed = chartNoteDraft.trim();
         if (!trimmed) {
             return;
         }
-        setChartNotes((current) => [{
-            id: `note-${Date.now()}`,
-            body: trimmed,
-            createdAt: new Date().toISOString(),
-        }, ...current].slice(0, 25));
-        setChartNoteDraft('');
+        try {
+            const res = await apiFetch('/api/v1/market/chart-notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    market: selectedMarket,
+                    symbol: selectedSymbol,
+                    body: trimmed,
+                }),
+            });
+            if (!res.ok) {
+                return;
+            }
+            const note = await res.json();
+            setChartNotes((current) => [note, ...current].slice(0, 25));
+            setChartNoteDraft('');
+        } catch (error) {
+            console.error(error);
+        }
     };
 
-    const handleDeleteChartNote = (noteId: string) => {
-        setChartNotes((current) => current.filter((note) => note.id !== noteId));
+    const handleDeleteChartNote = async (noteId: string) => {
+        try {
+            const res = await apiFetch(`/api/v1/market/chart-notes/${noteId}`, { method: 'DELETE' });
+            if (!res.ok) {
+                return;
+            }
+            setChartNotes((current) => current.filter((note) => note.id !== noteId));
+        } catch (error) {
+            console.error(error);
+        }
     };
 
     const handleLoadMoreHistory = useCallback((oldestOpenTime: number) => {
@@ -1352,7 +1358,7 @@ export default function WatchlistPage() {
                                                 <div>
                                                     <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Chart Notes</p>
                                                     <p className="mt-1 text-sm text-zinc-400">
-                                                        Symbol-scoped quick notes for {selectedSymbol}. Stored locally in this browser.
+                                                        Symbol-scoped quick notes for {selectedSymbol}. Stored on your account and available across sessions.
                                                     </p>
                                                 </div>
                                                 <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
@@ -1368,7 +1374,7 @@ export default function WatchlistPage() {
                                                 />
                                                 <div className="flex items-center justify-between gap-3">
                                                     <p className="text-xs text-zinc-500">
-                                                        Notes follow the symbol across refresh and market terminal revisits.
+                                                        Notes follow the symbol across refresh, terminal revisits, and account sessions.
                                                     </p>
                                                     <button
                                                         type="submit"
