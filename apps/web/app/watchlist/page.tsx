@@ -185,6 +185,8 @@ export default function WatchlistPage() {
     const [chartNotes, setChartNotes] = useState<ChartNote[]>([]);
     const [chartNoteDraft, setChartNoteDraft] = useState('');
     const [chartNoteQuery, setChartNoteQuery] = useState('');
+    const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+    const [editingNoteDraft, setEditingNoteDraft] = useState('');
     const [alertHistory, setAlertHistory] = useState<AlertHistoryEntry[]>([]);
     const [alertHistoryLoading, setAlertHistoryLoading] = useState(false);
     const [alertHistoryFilter, setAlertHistoryFilter] = useState<AlertHistoryFilter>('ALL');
@@ -864,6 +866,43 @@ export default function WatchlistPage() {
         }
     };
 
+    const handleStartEditChartNote = (note: ChartNote) => {
+        setEditingNoteId(note.id);
+        setEditingNoteDraft(note.body);
+    };
+
+    const handleCancelEditChartNote = () => {
+        setEditingNoteId(null);
+        setEditingNoteDraft('');
+    };
+
+    const handleSaveEditChartNote = async (note: ChartNote) => {
+        const trimmed = editingNoteDraft.trim();
+        if (!trimmed) {
+            return;
+        }
+        try {
+            const res = await apiFetch(`/api/v1/market/chart-notes/${note.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    market: selectedMarket,
+                    symbol: selectedSymbol,
+                    body: trimmed,
+                }),
+            });
+            if (!res.ok) {
+                return;
+            }
+            const updated = await res.json();
+            setChartNotes((current) => current.map((entry) => entry.id === note.id ? updated : entry));
+            setEditingNoteId(null);
+            setEditingNoteDraft('');
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     const handleLoadMoreHistory = useCallback((oldestOpenTime: number) => {
         if (selectedRange !== 'ALL' || loadingMoreHistory || !hasMoreHistory || oldestOpenTime <= 0) {
             return;
@@ -1496,13 +1535,47 @@ export default function WatchlistPage() {
                                                 ) : filteredChartNotes.map((note) => (
                                                     <div key={note.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
                                                         <div className="flex items-start justify-between gap-3">
-                                                            <p className="whitespace-pre-wrap text-sm text-zinc-200">{note.body}</p>
-                                                            <button
-                                                                onClick={() => handleDeleteChartNote(note.id)}
-                                                                className="text-xs text-zinc-500 transition hover:text-red-400"
-                                                            >
-                                                                Remove
-                                                            </button>
+                                                            {editingNoteId === note.id ? (
+                                                                <div className="w-full space-y-3">
+                                                                    <textarea
+                                                                        value={editingNoteDraft}
+                                                                        onChange={(event) => setEditingNoteDraft(event.target.value)}
+                                                                        className="min-h-[88px] w-full rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
+                                                                    />
+                                                                    <div className="flex gap-2">
+                                                                        <button
+                                                                            onClick={() => handleSaveEditChartNote(note)}
+                                                                            className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-300 transition hover:bg-emerald-400/20"
+                                                                        >
+                                                                            Save
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={handleCancelEditChartNote}
+                                                                            className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-400 transition hover:text-white"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <p className="whitespace-pre-wrap text-sm text-zinc-200">{note.body}</p>
+                                                                    <div className="flex shrink-0 gap-3">
+                                                                        <button
+                                                                            onClick={() => handleStartEditChartNote(note)}
+                                                                            className="text-xs text-zinc-500 transition hover:text-amber-300"
+                                                                        >
+                                                                            Edit
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDeleteChartNote(note.id)}
+                                                                            className="text-xs text-zinc-500 transition hover:text-red-400"
+                                                                        >
+                                                                            Remove
+                                                                        </button>
+                                                                    </div>
+                                                                </>
+                                                            )}
                                                         </div>
                                                         <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
                                                             {new Date(note.createdAt).toLocaleString()}

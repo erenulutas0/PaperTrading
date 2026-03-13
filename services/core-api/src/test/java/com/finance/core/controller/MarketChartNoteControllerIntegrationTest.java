@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -87,5 +88,34 @@ class MarketChartNoteControllerIntegrationTest {
                         .param("symbol", "BTCUSDT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void updateNote_shouldUpdateBodyForCurrentUser() throws Exception {
+        MarketChartNote note = marketChartNoteRepository.save(MarketChartNote.builder()
+                .userId(userId)
+                .market(MarketType.CRYPTO)
+                .symbol("ETHUSDT")
+                .body("Old note")
+                .build());
+
+        Map<String, Object> request = Map.of(
+                "market", "CRYPTO",
+                "symbol", "ETHUSDT",
+                "body", "Updated note");
+
+        mockMvc.perform(put("/api/v1/market/chart-notes/" + note.getId())
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.body").value("Updated note"));
+
+        mockMvc.perform(get("/api/v1/market/chart-notes")
+                        .header("X-User-Id", userId.toString())
+                        .param("market", "CRYPTO")
+                        .param("symbol", "ETHUSDT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].body").value("Updated note"));
     }
 }

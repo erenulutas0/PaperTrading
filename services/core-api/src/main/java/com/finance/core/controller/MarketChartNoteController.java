@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -48,6 +49,24 @@ public class MarketChartNoteController {
             return ApiErrorResponses.build(
                     HttpStatus.BAD_REQUEST,
                     "market_chart_note_create_failed",
+                    exception.getMessage(),
+                    null,
+                    httpRequest);
+        }
+    }
+
+    @PutMapping("/{noteId}")
+    public ResponseEntity<?> updateNote(
+            @PathVariable UUID noteId,
+            @CurrentUserId UUID userId,
+            @RequestBody MarketChartNoteRequest request,
+            HttpServletRequest httpRequest) {
+        try {
+            return ResponseEntity.ok(marketChartNoteService.updateNote(userId, noteId, request));
+        } catch (RuntimeException exception) {
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "market_chart_note_update_failed",
                     exception.getMessage(),
                     null,
                     httpRequest);

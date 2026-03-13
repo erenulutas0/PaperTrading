@@ -47,6 +47,15 @@ public class MarketChartNoteService {
     }
 
     @Transactional
+    public MarketChartNoteResponse updateNote(UUID userId, UUID noteId, MarketChartNoteRequest request) {
+        MarketChartNote note = marketChartNoteRepository.findByIdAndUserId(noteId, userId)
+                .orElseThrow(() -> new RuntimeException("Chart note not found"));
+
+        note.setBody(normalizeBody(request.getBody()));
+        return toResponse(marketChartNoteRepository.save(note));
+    }
+
+    @Transactional
     public void deleteNote(UUID userId, UUID noteId) {
         MarketChartNote note = marketChartNoteRepository.findByIdAndUserId(noteId, userId)
                 .orElseThrow(() -> new RuntimeException("Chart note not found"));
