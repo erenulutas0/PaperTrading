@@ -83,6 +83,7 @@ type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 type DrawingMode = 'none' | 'horizontal' | 'trend';
 type MarketSelection = 'CRYPTO' | 'BIST100';
+type ChartNoteFilter = 'ALL' | 'PINNED' | 'UNPINNED';
 type AlertHistoryFilter = 'ALL' | 'ABOVE' | 'BELOW';
 type AlertHistoryWindow = 'ALL' | '24H' | '7D' | '30D';
 
@@ -196,6 +197,7 @@ export default function WatchlistPage() {
     const [chartNotes, setChartNotes] = useState<ChartNote[]>([]);
     const [chartNoteDraft, setChartNoteDraft] = useState('');
     const [chartNoteQuery, setChartNoteQuery] = useState('');
+    const [chartNoteFilter, setChartNoteFilter] = useState<ChartNoteFilter>('ALL');
     const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
     const [editingNoteDraft, setEditingNoteDraft] = useState('');
     const [alertHistory, setAlertHistory] = useState<AlertHistoryEntry[]>([]);
@@ -269,11 +271,15 @@ export default function WatchlistPage() {
 
     const filteredChartNotes = useMemo(() => {
         const query = chartNoteQuery.trim().toLowerCase();
-        if (!query) {
-            return chartNotes;
-        }
-        return chartNotes.filter((note) => note.body.toLowerCase().includes(query));
-    }, [chartNoteQuery, chartNotes]);
+        return chartNotes.filter((note) => {
+            const matchesQuery = !query || note.body.toLowerCase().includes(query);
+            const matchesPinFilter =
+                chartNoteFilter === 'ALL'
+                || (chartNoteFilter === 'PINNED' && note.pinned)
+                || (chartNoteFilter === 'UNPINNED' && !note.pinned);
+            return matchesQuery && matchesPinFilter;
+        });
+    }, [chartNoteFilter, chartNoteQuery, chartNotes]);
 
     const filteredAlertHistory = useMemo(() => {
         if (alertHistoryFilter === 'ALL') {
@@ -281,6 +287,35 @@ export default function WatchlistPage() {
         }
         return alertHistory.filter((entry) => entry.direction === alertHistoryFilter);
     }, [alertHistory, alertHistoryFilter]);
+
+    const exportFilteredAlertHistory = useCallback(() => {
+        if (filteredAlertHistory.length === 0 || typeof window === 'undefined') {
+            return;
+        }
+
+        const escapeCsv = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+        const rows = [
+            ['symbol', 'direction', 'thresholdPrice', 'triggeredPrice', 'message', 'triggeredAt'],
+            ...filteredAlertHistory.map((entry) => [
+                entry.symbol,
+                entry.direction,
+                entry.thresholdPrice,
+                entry.triggeredPrice,
+                entry.message,
+                entry.triggeredAt,
+            ]),
+        ];
+        const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `alert-history-${selectedSymbol}-${alertHistoryWindow.toLowerCase()}.csv`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+    }, [alertHistoryWindow, filteredAlertHistory, selectedSymbol]);
 
     const chartAlertLines = useMemo<AlertLine[]>(() => {
         if (!selectedWatchlistItem) {
@@ -1494,6 +1529,21 @@ export default function WatchlistPage() {
                                                     placeholder="Search saved notes..."
                                                     className="w-full rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
                                                 />
+                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                    {(['ALL', 'PINNED', 'UNPINNED'] as ChartNoteFilter[]).map((filter) => (
+                                                        <button
+                                                            key={filter}
+                                                            onClick={() => setChartNoteFilter(filter)}
+                                                            className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition ${
+                                                                chartNoteFilter === filter
+                                                                    ? 'border-amber-400/30 bg-amber-400/10 text-amber-300'
+                                                                    : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'
+                                                            }`}
+                                                        >
+                                                            {filter === 'ALL' ? 'All' : filter === 'PINNED' ? 'Pinned' : 'Unpinned'}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
 
@@ -1507,15 +1557,24 @@ export default function WatchlistPage() {
                                                             : 'Add the current symbol to the selected watchlist to collect trigger history here.'}
                                                     </p>
                                                 </div>
-                                                <select
-                                                    value={alertHistoryFilter}
-                                                    onChange={(event) => setAlertHistoryFilter(event.target.value as AlertHistoryFilter)}
-                                                    className="rounded-full border border-white/10 bg-black px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-300 outline-none"
-                                                >
-                                                    <option value="ALL">All</option>
-                                                    <option value="ABOVE">Above</option>
-                                                    <option value="BELOW">Below</option>
-                                                </select>
+                                                <div className="flex items-center gap-2">
+                                                    <select
+                                                        value={alertHistoryFilter}
+                                                        onChange={(event) => setAlertHistoryFilter(event.target.value as AlertHistoryFilter)}
+                                                        className="rounded-full border border-white/10 bg-black px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-300 outline-none"
+                                                    >
+                                                        <option value="ALL">All</option>
+                                                        <option value="ABOVE">Above</option>
+                                                        <option value="BELOW">Below</option>
+                                                    </select>
+                                                    <button
+                                                        onClick={exportFilteredAlertHistory}
+                                                        disabled={filteredAlertHistory.length === 0}
+                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                                    >
+                                                        Export CSV
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div className="mt-3 flex flex-wrap gap-2">
                                                 {(['24H', '7D', '30D', 'ALL'] as AlertHistoryWindow[]).map((window) => (

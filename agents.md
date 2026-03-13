@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Terminal Notes Stay Backend-Authoritative, Filters Stay Client-Side**
+  - **Problem observed**:
+    - Pinned chart notes improved prioritization, but operators still needed lightweight filtering without turning note browsing into another server-query surface.
+    - Alert history also needed a quick export path for external review or sharing.
+  - **Implementation**:
+    - Kept note persistence and ordering server-authoritative.
+    - Added frontend-only note filtering:
+      - `All`
+      - `Pinned`
+      - `Unpinned`
+    - Added frontend CSV export for the already-filtered alert-history panel.
+  - **Operational impact**:
+    - note browsing stays fast and local in the terminal
+    - alert history can be exported without expanding backend reporting surface yet
 - **2026-03-14**: **Chart Notes Promoted From Flat List to Pinned-First Working Set**
   - **Problem observed**:
     - Once symbol-scoped chart notes moved to backend persistence, the note list became durable but still too flat.

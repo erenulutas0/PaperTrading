@@ -3,6 +3,9 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after watchlist note-filter/export polish and verify `/watchlist` now supports:
+  - `All / Pinned / Unpinned` saved-note filtering
+  - CSV export for filtered alert history window/direction views
 - [ ] Redeploy backend/frontend after pinned chart-note rollout and verify `/watchlist` saved notes now support:
   - account-backed pin/unpin state
   - pinned-first ordering
