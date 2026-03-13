@@ -301,6 +301,10 @@ export default function MarketWorkspaceChart({
             }
 
             const anchor = pendingTrendAnchorRef.current;
+            if (anchor.time === clickedTime) {
+                pendingTrendAnchorRef.current = null;
+                return;
+            }
             pendingTrendAnchorRef.current = null;
             setDrawings((current) => [
                 ...current,
@@ -422,10 +426,12 @@ export default function MarketWorkspaceChart({
                     { time: Math.floor(lastTime / 1000) as UTCTimestamp, value: drawing.price },
                 ]);
             } else if (drawing.endTime && typeof drawing.endPrice === 'number') {
-                lineSeries.setData([
-                    { time: Math.floor(drawing.startTime / 1000) as UTCTimestamp, value: drawing.price },
-                    { time: Math.floor(drawing.endTime / 1000) as UTCTimestamp, value: drawing.endPrice },
-                ]);
+                const firstPoint = { time: Math.floor(drawing.startTime / 1000) as UTCTimestamp, value: drawing.price };
+                const secondPoint = { time: Math.floor(drawing.endTime / 1000) as UTCTimestamp, value: drawing.endPrice };
+                const orderedPoints = firstPoint.time <= secondPoint.time
+                    ? [firstPoint, secondPoint]
+                    : [secondPoint, firstPoint];
+                lineSeries.setData(orderedPoints);
             }
 
             drawingSeriesRef.current.push({ id: drawing.id, series: lineSeries });
