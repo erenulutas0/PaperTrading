@@ -50,6 +50,45 @@ type DrawingMode = 'none' | 'horizontal' | 'trend';
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
 const ALL_HISTORY_CHUNK = 1000;
+const MARKET_SESSION_STORAGE_KEY = 'market.terminal.session';
+
+interface PersistedMarketSession {
+    selectedWatchlist: string | null;
+    selectedSymbol: string;
+    compareSymbol: string;
+    compareVisible: boolean;
+    selectedRange: ChartRange;
+    selectedInterval: ChartInterval;
+}
+
+function readPersistedMarketSession(): PersistedMarketSession | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+    try {
+        const stored = window.localStorage.getItem(MARKET_SESSION_STORAGE_KEY);
+        if (!stored) {
+            return null;
+        }
+        const parsed = JSON.parse(stored);
+        if (!parsed || typeof parsed !== 'object') {
+            return null;
+        }
+        const selectedRange = RANGE_OPTIONS.includes(parsed.selectedRange) ? parsed.selectedRange : '1D';
+        const selectedInterval = INTERVAL_OPTIONS.includes(parsed.selectedInterval) ? parsed.selectedInterval : '1h';
+        return {
+            selectedWatchlist: typeof parsed.selectedWatchlist === 'string' ? parsed.selectedWatchlist : null,
+            selectedSymbol: typeof parsed.selectedSymbol === 'string' && parsed.selectedSymbol ? parsed.selectedSymbol : 'BTCUSDT',
+            compareSymbol: typeof parsed.compareSymbol === 'string' ? parsed.compareSymbol : '',
+            compareVisible: parsed.compareVisible !== false,
+            selectedRange,
+            selectedInterval,
+        };
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+}
 
 function getInitialAllHistoryChunkCount(interval: ChartInterval) {
     switch (interval) {
@@ -81,16 +120,17 @@ function formatPercent(value: number) {
 }
 
 export default function WatchlistPage() {
+    const persistedSession = readPersistedMarketSession();
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
-    const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(null);
+    const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(persistedSession?.selectedWatchlist ?? null);
     const [enrichedItems, setEnrichedItems] = useState<WatchlistItem[]>([]);
     const [instrumentUniverse, setInstrumentUniverse] = useState<InstrumentOption[]>([]);
     const [instrumentQuery, setInstrumentQuery] = useState('');
-    const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
-    const [compareSymbol, setCompareSymbol] = useState<string>('');
-    const [compareVisible, setCompareVisible] = useState<boolean>(true);
-    const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
-    const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
+    const [selectedSymbol, setSelectedSymbol] = useState<string>(persistedSession?.selectedSymbol ?? 'BTCUSDT');
+    const [compareSymbol, setCompareSymbol] = useState<string>(persistedSession?.compareSymbol ?? '');
+    const [compareVisible, setCompareVisible] = useState<boolean>(persistedSession?.compareVisible ?? true);
+    const [selectedRange, setSelectedRange] = useState<ChartRange>(persistedSession?.selectedRange ?? '1D');
+    const [selectedInterval, setSelectedInterval] = useState<ChartInterval>(persistedSession?.selectedInterval ?? '1h');
     const [drawingMode, setDrawingMode] = useState<DrawingMode>('none');
     const [clearDrawingsToken, setClearDrawingsToken] = useState(0);
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
@@ -198,6 +238,21 @@ export default function WatchlistPage() {
         if (typeof window === 'undefined') {
             return;
         }
+        const session: PersistedMarketSession = {
+            selectedWatchlist,
+            selectedSymbol,
+            compareSymbol,
+            compareVisible,
+            selectedRange,
+            selectedInterval,
+        };
+        window.localStorage.setItem(MARKET_SESSION_STORAGE_KEY, JSON.stringify(session));
+    }, [compareSymbol, compareVisible, selectedInterval, selectedRange, selectedSymbol, selectedWatchlist]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
         try {
             const stored = window.localStorage.getItem('market.favoriteSymbols');
             if (!stored) {
@@ -259,7 +314,14 @@ export default function WatchlistPage() {
             }
             const data = await res.json();
             setWatchlists(data);
-            if (data.length > 0 && !selectedWatchlist) {
+            if (data.length === 0) {
+                setSelectedWatchlist(null);
+                return;
+            }
+            const selectedStillExists = selectedWatchlist
+                ? data.some((watchlist: Watchlist) => watchlist.id === selectedWatchlist)
+                : false;
+            if (!selectedStillExists) {
                 setSelectedWatchlist(data[0].id);
             }
         } catch (error) {
@@ -278,8 +340,14 @@ export default function WatchlistPage() {
             const data = await res.json();
             setInstrumentUniverse(data);
             if (Array.isArray(data) && data.length > 0) {
-                setAddSymbol((current) => current || data[0].symbol);
-                setSelectedSymbol((current) => current || data[0].symbol);
+                setAddSymbol((current) => data.some((item: InstrumentOption) => item.symbol === current) ? current : data[0].symbol);
+                setSelectedSymbol((current) => data.some((item: InstrumentOption) => item.symbol === current) ? current : data[0].symbol);
+                setCompareSymbol((current) => {
+                    if (!current) {
+                        return '';
+                    }
+                    return data.some((item: InstrumentOption) => item.symbol === current) ? current : '';
+                });
             }
         } catch (error) {
             console.error(error);

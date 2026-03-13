@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
 
 ### Architecture Decisions Log
+- **2026-03-13**: **Market Terminal Session State Persisted Across Refresh**
+  - **Problem observed**:
+    - Chart drawings were stored per symbol, but the terminal session itself was not durable.
+    - On refresh, the page fell back to default symbol/range/interval/compare state, so drawings and compare context appeared to be lost.
+    - The chart also treated a symbol change like a clear-drawings action, which undermined per-symbol drawing persistence.
+  - **Implementation**:
+    - `/watchlist` now persists the market terminal session in browser storage:
+      - selected watchlist
+      - selected symbol
+      - compare symbol
+      - compare overlay visibility
+      - selected range
+      - selected interval
+    - `MarketWorkspaceChart` clear behavior is now driven only by explicit clear actions, not by symbol-key changes.
+    - Result:
+      - refresh restores the active terminal context
+      - per-symbol drawings remain attached to the symbol instead of being cleared during normal navigation
+  - **Operational impact**:
+    - the market workspace behaves like a persistent terminal session instead of a stateless chart page
+    - compare analysis and annotated levels survive page reloads, which is necessary for serious chart workflow
 - **2026-03-13**: **Market Workspace Compare Mode Polished Into Persistent Session Controls**
   - **Problem observed**:
     - Compare mode existed, but the session was still thin:

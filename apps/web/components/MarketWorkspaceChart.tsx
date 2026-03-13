@@ -493,7 +493,7 @@ export default function MarketWorkspaceChart({
         if (typeof window !== 'undefined' && drawingStorageKey) {
             window.localStorage.removeItem(`market.drawings.${drawingStorageKey}`);
         }
-    }, [clearDrawingsToken, drawingStorageKey]);
+    }, [clearDrawingsToken]);
 
     return (
         <div className="space-y-3">

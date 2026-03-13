@@ -1578,3 +1578,6 @@ Last updated: 2026-03-11
   - Notification WebSocket subscription path inconsistency risk (`/user/{id}/queue/...` vs standard `/user/queue/...`)
   - Hardcoded DB/Redis config and unnecessary Redis repository scanning logs
 - [x] Add trust score history/trend snapshots to user profiles and expose them in profile UI.
+- [x] Persist market terminal session state across refresh:
+  - Restore selected symbol, compare symbol/visibility, range, interval, and selected watchlist from local storage
+  - Preserve symbol-scoped drawings after refresh without treating symbol switch as a clear action
