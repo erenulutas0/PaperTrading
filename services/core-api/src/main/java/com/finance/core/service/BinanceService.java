@@ -319,6 +319,9 @@ public class BinanceService extends TextWebSocketHandler {
         int rangeMinutes = switch (normalizedRange) {
             case "1W" -> 7 * 24 * 60;
             case "1M" -> 30 * 24 * 60;
+            case "3M" -> 90 * 24 * 60;
+            case "6M" -> 180 * 24 * 60;
+            case "1Y" -> 365 * 24 * 60;
             default -> 24 * 60;
         };
 

@@ -7,6 +7,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after market terminal OHLC info bar + volume histogram rollout and verify crosshair movement updates candle metrics without reintroducing chart refresh loops
 - [ ] Redeploy frontend after market terminal favorites rollout and verify starred symbols persist locally and appear in the quick-switch favorites bar
 - [ ] Redeploy frontend after market terminal compare-mode rollout and verify secondary instruments render as normalized overlay lines without disrupting primary candle history loading
+- [ ] Redeploy backend/frontend after extended market terminal ranges (`3M/6M/1Y`) rollout and verify larger windows resolve cleanly for each supported interval
 - [ ] Redeploy backend/frontend after advanced market terminal rollout and verify:
   - `/watchlist` supports direct instrument switching from the universe rail without requiring watchlist insertion
   - chart supports intervals (`1m`, `15m`, `30m`, `1h`, `4h`, `1d`)

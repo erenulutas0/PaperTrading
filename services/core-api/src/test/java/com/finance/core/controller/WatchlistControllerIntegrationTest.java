@@ -143,4 +143,25 @@ class WatchlistControllerIntegrationTest {
                                 .andExpect(jsonPath("$", hasSize(1)))
                                 .andExpect(jsonPath("$[0].close").value(60300.0));
         }
+
+        @Test
+        void testGetCandles_withExtendedRange() throws Exception {
+                when(binanceService.getCandles("BTCUSDT", "1Y", "1d", null, null)).thenReturn(java.util.List.of(
+                                MarketCandleResponse.builder()
+                                                .openTime(1710000000000L)
+                                                .open(50000.0)
+                                                .high(70000.0)
+                                                .low(48000.0)
+                                                .close(65000.0)
+                                                .volume(456.78)
+                                                .build()));
+
+                mockMvc.perform(get("/api/v1/market/candles")
+                                .param("symbol", "BTCUSDT")
+                                .param("range", "1Y")
+                                .param("interval", "1d"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$", hasSize(1)))
+                                .andExpect(jsonPath("$[0].close").value(65000.0));
+        }
 }

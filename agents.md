@@ -127,6 +127,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Primary candlestick/volume behavior remains unchanged; compare mode is additive rather than replacing the main chart.
   - **Operational impact**:
     - brings the workspace closer to terminal-style cross-asset comparison without requiring a second chart or heavier backend state
+- **2026-03-13**: **Market Workspace Extended Range Windows**
+  - **Problem observed**:
+    - `1D/1W/1M/ALL` left a usability gap between short tactical reads and full-history mode.
+  - **Implementation**:
+    - Added market chart ranges:
+      - `3M`
+      - `6M`
+      - `1Y`
+    - Backend candle query sizing now supports these windows directly, keeping the existing interval-based candle count calculation model.
+    - Frontend watchlist terminal range picker now exposes the larger windows.
+  - **Operational impact**:
+    - gives users medium- and long-horizon inspection without forcing them into `ALL`
 - **2026-03-12**: **Trust Score Snapshot History Added**
   - **Problem observed**:
     - Trust score and platform win rate were visible only as current values, making it hard for users to understand whether credibility was improving, deteriorating, or simply unproven.

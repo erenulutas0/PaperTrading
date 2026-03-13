@@ -43,10 +43,10 @@ interface CandlePoint {
     volume: number;
 }
 
-type ChartRange = '1D' | '1W' | '1M' | 'ALL';
+type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 
-const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', 'ALL'];
+const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
 const ALL_HISTORY_CHUNK = 1000;
 
