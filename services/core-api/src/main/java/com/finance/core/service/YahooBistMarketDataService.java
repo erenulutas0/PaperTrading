@@ -139,32 +139,7 @@ public class YahooBistMarketDataService {
             return List.of();
         }
         JsonNode chart = result.get(0);
-        JsonNode timestamps = chart.path("timestamp");
-        JsonNode quote = chart.path("indicators").path("quote");
-        if (!timestamps.isArray() || !quote.isArray() || quote.isEmpty()) {
-            return List.of();
-        }
-        JsonNode quoteData = quote.get(0);
-        JsonNode opens = quoteData.path("open");
-        JsonNode highs = quoteData.path("high");
-        JsonNode lows = quoteData.path("low");
-        JsonNode closes = quoteData.path("close");
-        JsonNode volumes = quoteData.path("volume");
-
-        List<MarketCandleResponse> candles = new ArrayList<>();
-        for (int i = 0; i < timestamps.size(); i++) {
-            if (opens.path(i).isNull() || highs.path(i).isNull() || lows.path(i).isNull() || closes.path(i).isNull()) {
-                continue;
-            }
-            candles.add(MarketCandleResponse.builder()
-                    .openTime(timestamps.get(i).asLong() * 1000)
-                    .open(opens.get(i).asDouble())
-                    .high(highs.get(i).asDouble())
-                    .low(lows.get(i).asDouble())
-                    .close(closes.get(i).asDouble())
-                    .volume(volumes.path(i).asDouble(0.0))
-                    .build());
-        }
+        List<MarketCandleResponse> candles = extractCandles(normalizedSymbol, chart);
         return candles;
     }
 
@@ -379,6 +354,69 @@ public class YahooBistMarketDataService {
                 .currentPrice(0.0)
                 .changePercent24h(0.0)
                 .build();
+    }
+
+    List<MarketCandleResponse> extractCandles(String symbol, JsonNode chart) {
+        JsonNode timestamps = chart.path("timestamp");
+        JsonNode quote = chart.path("indicators").path("quote");
+        if (!timestamps.isArray() || !quote.isArray() || quote.isEmpty()) {
+            return List.of();
+        }
+        JsonNode quoteData = quote.get(0);
+        JsonNode opens = quoteData.path("open");
+        JsonNode highs = quoteData.path("high");
+        JsonNode lows = quoteData.path("low");
+        JsonNode closes = quoteData.path("close");
+        JsonNode volumes = quoteData.path("volume");
+        JsonNode adjCloseNodes = chart.path("indicators").path("adjclose");
+        JsonNode adjCloses = adjCloseNodes.isArray() && !adjCloseNodes.isEmpty()
+                ? adjCloseNodes.get(0).path("adjclose")
+                : null;
+
+        List<MarketCandleResponse> candles = new ArrayList<>();
+        double previousClose = 0.0;
+        int synthesizedCount = 0;
+        for (int i = 0; i < timestamps.size(); i++) {
+            double close = firstPositive(nodeValue(closes, i), nodeValue(adjCloses, i), previousClose);
+            if (close <= 0.0) {
+                continue;
+            }
+
+            double open = firstPositive(nodeValue(opens, i), previousClose, close);
+            double high = firstPositive(nodeValue(highs, i), open, close);
+            double low = firstPositive(nodeValue(lows, i), open, close);
+            if (high < low) {
+                double swap = high;
+                high = low;
+                low = swap;
+            }
+
+            if (nodeValue(opens, i) <= 0.0 || nodeValue(highs, i) <= 0.0 || nodeValue(lows, i) <= 0.0) {
+                synthesizedCount++;
+            }
+
+            candles.add(MarketCandleResponse.builder()
+                    .openTime(timestamps.get(i).asLong() * 1000)
+                    .open(open)
+                    .high(Math.max(high, Math.max(open, close)))
+                    .low(Math.min(low, Math.min(open, close)))
+                    .close(close)
+                    .volume(Math.max(0.0, nodeValue(volumes, i)))
+                    .build());
+            previousClose = close;
+        }
+
+        if (synthesizedCount > 0) {
+            log.info("Yahoo BIST candle fallback synthesized {} bars for {}", synthesizedCount, symbol);
+        }
+        return candles;
+    }
+
+    private double nodeValue(JsonNode node, int index) {
+        if (node == null || !node.isArray() || index >= node.size() || node.path(index).isNull()) {
+            return 0.0;
+        }
+        return node.get(index).asDouble(0.0);
     }
 
     private record CandleQuery(String yahooInterval, String range, Long period1EpochSeconds, Long period2EpochSeconds) {
