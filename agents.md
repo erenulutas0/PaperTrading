@@ -38,6 +38,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-13**: **Market Instrument Metadata Promoted to First-Class API Contract**
+  - **Problem observed**:
+    - The terminal had symbols and prices, but the instrument universe still felt too raw:
+      - search only had strong symbol/company coverage when provider payloads were rich
+      - selected instrument header and watch basket rows lacked stable market/exchange/currency/delay context
+      - BIST delayed quotes and crypto real-time quotes were visually similar even though their market semantics differ
+  - **Implementation**:
+    - Expanded `MarketInstrumentResponse` to carry:
+      - `market`
+      - `exchange`
+      - `currency`
+      - `sector`
+      - `delayLabel`
+    - Crypto instruments now emit stable metadata (`CRYPTO`, `BINANCE`, `USDT`, `Real-time`).
+    - BIST instruments now emit stable metadata (`BIST100`, `BIST`, `TRY`, `Delayed 15m`) plus coarse sector grouping.
+    - `/watchlist` search now matches metadata fields in addition to symbol/display name.
+    - Terminal UI now surfaces metadata chips in:
+      - selected instrument header
+      - instrument-universe rail
+      - right-rail watch basket rows
+  - **Operational impact**:
+    - the market terminal contract is no longer just a symbol/price feed
+    - future providers (funds, TEFAS, licensed equity feeds) can plug into the same metadata surface without reworking the UI model
 - **2026-03-13**: **Market Data Split Into Multi-Provider Terminal Path (Crypto + BIST100)**
   - **Problem observed**:
     - `/api/v1/market/*` and watchlist enrichment were hard-wired to Binance, which blocked delayed equity support without leaking exchange-specific assumptions through the app.

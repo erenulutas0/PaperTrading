@@ -104,6 +104,11 @@ public class YahooBistMarketDataService {
                             .symbol(symbol)
                             .displayName(resolveDisplayName(symbol, result))
                             .assetType("EQUITY")
+                            .market("BIST100")
+                            .exchange("BIST")
+                            .currency("TRY")
+                            .sector(resolveSector(symbol))
+                            .delayLabel("Delayed 15m")
                             .currentPrice(resolveQuotePrice(result))
                             .changePercent24h(resolveQuoteChangePercent(result))
                             .build();
@@ -319,6 +324,11 @@ public class YahooBistMarketDataService {
                     .symbol(symbol)
                     .displayName(resolveDisplayName(symbol, meta))
                     .assetType("EQUITY")
+                    .market("BIST100")
+                    .exchange("BIST")
+                    .currency("TRY")
+                    .sector(resolveSector(symbol))
+                    .delayLabel("Delayed 15m")
                     .currentPrice(currentPrice)
                     .changePercent24h(changePercent)
                     .build();
@@ -351,9 +361,27 @@ public class YahooBistMarketDataService {
                 .symbol(symbol)
                 .displayName(symbol)
                 .assetType("EQUITY")
+                .market("BIST100")
+                .exchange("BIST")
+                .currency("TRY")
+                .sector(resolveSector(symbol))
+                .delayLabel("Delayed 15m")
                 .currentPrice(0.0)
                 .changePercent24h(0.0)
                 .build();
+    }
+
+    private String resolveSector(String symbol) {
+        return switch (symbol) {
+            case "AEFES", "CCOLA", "TABGD", "ULKER", "PETUN" -> "Consumer";
+            case "AKBNK", "GARAN", "HALKB", "ISCTR", "SKBNK", "TSKB", "VAKBN", "YKBNK", "ISMEN" -> "Financials";
+            case "ASELS", "MIATK", "ASTOR", "EUPWR", "GESAN", "KONTR", "PATEK", "REEDR", "YEOTK" -> "Technology";
+            case "EREGL", "KRDMD", "BRSAN", "BTCIM", "CIMSA", "OYAKC", "SISE", "SASA", "KCAER", "BSOKE" -> "Industrials";
+            case "PGSUS", "THYAO", "TAVHL", "TTRAK", "OTKAR", "TOASO", "DOAS", "FROTO", "KARSN" -> "Transport & Auto";
+            case "EKGYO", "DAPGM", "ALARK", "TRALT" -> "Real Assets";
+            case "ENERY", "ENJSA", "AKSEN", "ODAS", "ZOREN" -> "Energy";
+            default -> "BIST100";
+        };
     }
 
     List<MarketCandleResponse> extractCandles(String symbol, JsonNode chart) {

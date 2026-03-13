@@ -30,6 +30,11 @@ interface InstrumentOption {
     symbol: string;
     displayName: string;
     assetType: string;
+    market?: string;
+    exchange?: string;
+    currency?: string;
+    sector?: string;
+    delayLabel?: string;
     currentPrice: number;
     changePercent24h: number;
 }
@@ -171,6 +176,10 @@ export default function WatchlistPage() {
             ?? null;
     }, [enrichedItems, instrumentUniverse, selectedSymbol]);
 
+    const instrumentMap = useMemo(() => {
+        return new Map(instrumentUniverse.map((instrument) => [instrument.symbol, instrument]));
+    }, [instrumentUniverse]);
+
     const selectedDisplayName = useMemo(() => {
         if (!selectedInstrument) {
             return selectedSymbol;
@@ -189,6 +198,13 @@ export default function WatchlistPage() {
             return selectedInstrument.assetType;
         }
         return 'WATCHLIST';
+    }, [selectedInstrument]);
+
+    const selectedInstrumentMetadata = useMemo(() => {
+        if (!selectedInstrument || !('market' in selectedInstrument)) {
+            return null;
+        }
+        return selectedInstrument;
     }, [selectedInstrument]);
 
     const selectedCompareInstrument = useMemo(() => {
@@ -340,7 +356,11 @@ export default function WatchlistPage() {
         }
         return instrumentUniverse.filter((instrument) =>
             instrument.symbol.toLowerCase().includes(query)
-            || instrument.displayName.toLowerCase().includes(query));
+            || instrument.displayName.toLowerCase().includes(query)
+            || (instrument.market ?? '').toLowerCase().includes(query)
+            || (instrument.exchange ?? '').toLowerCase().includes(query)
+            || (instrument.currency ?? '').toLowerCase().includes(query)
+            || (instrument.sector ?? '').toLowerCase().includes(query));
     }, [instrumentQuery, instrumentUniverse]);
 
     const favoriteInstruments = useMemo(() => {
@@ -757,6 +777,25 @@ export default function WatchlistPage() {
                                                 </button>
                                             </div>
                                             <p className="mt-1 text-sm text-zinc-500">{selectedSymbol} · {selectedAssetType}</p>
+                                            {selectedInstrumentMetadata && (
+                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                    {[selectedInstrumentMetadata.market, selectedInstrumentMetadata.exchange, selectedInstrumentMetadata.currency, selectedInstrumentMetadata.sector]
+                                                        .filter(Boolean)
+                                                        .map((chip) => (
+                                                            <span
+                                                                key={chip}
+                                                                className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300"
+                                                            >
+                                                                {chip}
+                                                            </span>
+                                                        ))}
+                                                    {selectedInstrumentMetadata.delayLabel && (
+                                                        <span className="rounded-full border border-sky-400/25 bg-sky-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300">
+                                                            {selectedInstrumentMetadata.delayLabel}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Spot</p>
@@ -772,7 +811,7 @@ export default function WatchlistPage() {
                                             type="text"
                                             value={instrumentQuery}
                                             onChange={(event) => setInstrumentQuery(event.target.value)}
-                                            placeholder="Search BTC, ETH, Solana..."
+                                            placeholder="Search symbol, company, sector, exchange..."
                                             className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-amber-400"
                                         />
                                         <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
@@ -1049,12 +1088,32 @@ export default function WatchlistPage() {
                                                                     </button>
                                                                 </div>
                                                                 <p className="text-[11px] font-mono text-zinc-500">{instrument.symbol}</p>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {[instrument.market, instrument.exchange, instrument.currency]
+                                                                        .filter(Boolean)
+                                                                        .map((chip) => (
+                                                                            <span
+                                                                                key={`${instrument.symbol}-${chip}`}
+                                                                                className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                                                                            >
+                                                                                {chip}
+                                                                            </span>
+                                                                        ))}
+                                                                    {instrument.sector && (
+                                                                        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                                                                            {instrument.sector}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <div className="text-right">
                                                                 <p className="font-mono text-sm text-white">{formatMoney(instrument.currentPrice)}</p>
                                                                 <p className={`text-[11px] font-semibold ${instrument.changePercent24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                                                     {formatPercent(instrument.changePercent24h)}
                                                                 </p>
+                                                                {instrument.delayLabel && (
+                                                                    <p className="mt-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">{instrument.delayLabel}</p>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1233,7 +1292,11 @@ export default function WatchlistPage() {
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div>
                                                         <p className="text-sm font-bold text-white">{item.symbol}</p>
-                                                        <p className="mt-1 text-xs text-zinc-500">{item.notes || 'No note yet'}</p>
+                                                        <p className="mt-1 text-xs text-zinc-400">{instrumentMap.get(item.symbol)?.displayName ?? item.notes ?? 'No note yet'}</p>
+                                                        <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                                                            {instrumentMap.get(item.symbol)?.exchange ?? 'WATCHLIST'}
+                                                            {instrumentMap.get(item.symbol)?.delayLabel ? ` · ${instrumentMap.get(item.symbol)?.delayLabel}` : ''}
+                                                        </p>
                                                     </div>
                                                     <button
                                                         onClick={(event) => {

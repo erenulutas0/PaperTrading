@@ -112,6 +112,11 @@ public class BinanceService extends TextWebSocketHandler {
                     .symbol(symbol)
                     .displayName(SYMBOL_DISPLAY_NAMES.getOrDefault(symbol, symbol))
                     .assetType("CRYPTO")
+                    .market("CRYPTO")
+                    .exchange("BINANCE")
+                    .currency("USDT")
+                    .sector("Digital Asset")
+                    .delayLabel("Real-time")
                     .currentPrice(livePrices.getOrDefault(symbol, 0.0))
                     .changePercent24h(dailyChanges.getOrDefault(symbol, 0.0))
                     .build());

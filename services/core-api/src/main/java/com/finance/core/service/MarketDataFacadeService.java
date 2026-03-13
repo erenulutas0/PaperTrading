@@ -72,6 +72,11 @@ public class MarketDataFacadeService {
                         .symbol(symbol)
                         .displayName(symbol)
                         .assetType("CRYPTO")
+                        .market("CRYPTO")
+                        .exchange("BINANCE")
+                        .currency("USDT")
+                        .sector("Digital Asset")
+                        .delayLabel("Real-time")
                         .currentPrice(cryptoPrices.getOrDefault(symbol, 0.0))
                         .changePercent24h(cryptoChanges.getOrDefault(symbol, 0.0))
                         .build());
