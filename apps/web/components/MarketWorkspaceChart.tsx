@@ -75,6 +75,7 @@ export default function MarketWorkspaceChart({
     const previousOldestTimeRef = useRef<number | null>(null);
     const previousResetKeyRef = useRef(resetKey);
     const pendingTrendAnchorRef = useRef<{ time: number; price: number } | null>(null);
+    const hydratedDrawingStorageKeyRef = useRef<string | null>(null);
     const [activePoint, setActivePoint] = useState<CandlePoint | null>(data[data.length - 1] ?? null);
     const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
 
@@ -174,30 +175,39 @@ export default function MarketWorkspaceChart({
 
     useEffect(() => {
         if (typeof window === 'undefined' || !drawingStorageKey) {
+            hydratedDrawingStorageKeyRef.current = null;
             setDrawings([]);
             return;
         }
         try {
             const stored = window.localStorage.getItem(`market.drawings.${drawingStorageKey}`);
             if (!stored) {
+                hydratedDrawingStorageKeyRef.current = drawingStorageKey;
                 setDrawings([]);
                 return;
             }
             const parsed = JSON.parse(stored);
             if (!Array.isArray(parsed)) {
+                hydratedDrawingStorageKeyRef.current = drawingStorageKey;
                 setDrawings([]);
                 return;
             }
+            hydratedDrawingStorageKeyRef.current = drawingStorageKey;
             setDrawings(parsed);
         } catch (error) {
             console.error(error);
+            hydratedDrawingStorageKeyRef.current = drawingStorageKey;
             setDrawings([]);
         }
         pendingTrendAnchorRef.current = null;
     }, [drawingStorageKey]);
 
     useEffect(() => {
-        if (typeof window === 'undefined' || !drawingStorageKey) {
+        if (
+            typeof window === 'undefined'
+            || !drawingStorageKey
+            || hydratedDrawingStorageKeyRef.current !== drawingStorageKey
+        ) {
             return;
         }
         window.localStorage.setItem(`market.drawings.${drawingStorageKey}`, JSON.stringify(drawings));
@@ -493,6 +503,7 @@ export default function MarketWorkspaceChart({
         if (typeof window !== 'undefined' && drawingStorageKey) {
             window.localStorage.removeItem(`market.drawings.${drawingStorageKey}`);
         }
+        hydratedDrawingStorageKeyRef.current = drawingStorageKey;
     }, [clearDrawingsToken]);
 
     return (

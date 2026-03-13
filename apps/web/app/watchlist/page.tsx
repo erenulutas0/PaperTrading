@@ -120,17 +120,16 @@ function formatPercent(value: number) {
 }
 
 export default function WatchlistPage() {
-    const persistedSession = readPersistedMarketSession();
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
-    const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(persistedSession?.selectedWatchlist ?? null);
+    const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(null);
     const [enrichedItems, setEnrichedItems] = useState<WatchlistItem[]>([]);
     const [instrumentUniverse, setInstrumentUniverse] = useState<InstrumentOption[]>([]);
     const [instrumentQuery, setInstrumentQuery] = useState('');
-    const [selectedSymbol, setSelectedSymbol] = useState<string>(persistedSession?.selectedSymbol ?? 'BTCUSDT');
-    const [compareSymbol, setCompareSymbol] = useState<string>(persistedSession?.compareSymbol ?? '');
-    const [compareVisible, setCompareVisible] = useState<boolean>(persistedSession?.compareVisible ?? true);
-    const [selectedRange, setSelectedRange] = useState<ChartRange>(persistedSession?.selectedRange ?? '1D');
-    const [selectedInterval, setSelectedInterval] = useState<ChartInterval>(persistedSession?.selectedInterval ?? '1h');
+    const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
+    const [compareSymbol, setCompareSymbol] = useState<string>('');
+    const [compareVisible, setCompareVisible] = useState<boolean>(true);
+    const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
+    const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
     const [drawingMode, setDrawingMode] = useState<DrawingMode>('none');
     const [clearDrawingsToken, setClearDrawingsToken] = useState(0);
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
@@ -140,6 +139,7 @@ export default function WatchlistPage() {
     const [chartLoading, setChartLoading] = useState(false);
     const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
+    const [sessionHydrated, setSessionHydrated] = useState(false);
     const candlesRef = useRef<CandlePoint[]>([]);
 
     const [newName, setNewName] = useState('');
@@ -229,13 +229,26 @@ export default function WatchlistPage() {
     }, [selectedInterval, selectedRange, selectedSymbol]);
 
     useEffect(() => {
+        const persistedSession = readPersistedMarketSession();
+        if (persistedSession) {
+            setSelectedWatchlist(persistedSession.selectedWatchlist);
+            setSelectedSymbol(persistedSession.selectedSymbol);
+            setCompareSymbol(persistedSession.compareSymbol);
+            setCompareVisible(persistedSession.compareVisible);
+            setSelectedRange(persistedSession.selectedRange);
+            setSelectedInterval(persistedSession.selectedInterval);
+        }
+        setSessionHydrated(true);
+    }, []);
+
+    useEffect(() => {
         if (!compareSymbol) {
             setCompareVisible(true);
         }
     }, [compareSymbol]);
 
     useEffect(() => {
-        if (typeof window === 'undefined') {
+        if (typeof window === 'undefined' || !sessionHydrated) {
             return;
         }
         const session: PersistedMarketSession = {
@@ -247,7 +260,7 @@ export default function WatchlistPage() {
             selectedInterval,
         };
         window.localStorage.setItem(MARKET_SESSION_STORAGE_KEY, JSON.stringify(session));
-    }, [compareSymbol, compareVisible, selectedInterval, selectedRange, selectedSymbol, selectedWatchlist]);
+    }, [compareSymbol, compareVisible, selectedInterval, selectedRange, selectedSymbol, selectedWatchlist, sessionHydrated]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
