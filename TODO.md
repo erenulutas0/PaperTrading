@@ -1581,3 +1581,7 @@ Last updated: 2026-03-11
 - [x] Persist market terminal session state across refresh:
   - Restore selected symbol, compare symbol/visibility, range, interval, and selected watchlist from local storage
   - Preserve symbol-scoped drawings after refresh without treating symbol switch as a clear action
+- [x] Start BIST100 delayed market-data abstraction:
+  - Add BIST100 seed universe with dynamic refresh attempt from İş Yatırım listing page
+  - Introduce market facade so `/api/v1/market/*` and watchlist enrichment can serve both crypto and BIST100
+  - Add frontend market switch to the terminal (`CRYPTO` / `BIST100`)

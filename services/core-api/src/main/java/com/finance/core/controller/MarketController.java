@@ -1,6 +1,7 @@
 package com.finance.core.controller;
 
-import com.finance.core.service.BinanceService;
+import com.finance.core.dto.MarketType;
+import com.finance.core.service.MarketDataFacadeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,25 +17,32 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MarketController {
 
-    private final BinanceService binanceService;
+    private final MarketDataFacadeService marketDataFacadeService;
 
     @GetMapping("/prices")
-    public Map<String, Double> getPrices() {
-        return binanceService.getPrices();
+    public Map<String, Double> getPrices(@RequestParam(required = false) String market) {
+        return marketDataFacadeService.getPrices(MarketType.fromNullable(market));
     }
 
     @GetMapping("/instruments")
-    public ResponseEntity<List<?>> getSupportedInstruments() {
-        return ResponseEntity.ok(binanceService.getSupportedInstruments());
+    public ResponseEntity<List<?>> getSupportedInstruments(@RequestParam(required = false) String market) {
+        return ResponseEntity.ok(marketDataFacadeService.getSupportedInstruments(MarketType.fromNullable(market)));
     }
 
     @GetMapping("/candles")
     public ResponseEntity<List<?>> getCandles(
             @RequestParam String symbol,
+            @RequestParam(required = false) String market,
             @RequestParam(defaultValue = "1D") String range,
             @RequestParam(defaultValue = "1h") String interval,
             @RequestParam(required = false) Long beforeOpenTime,
             @RequestParam(required = false) Integer limit) {
-        return ResponseEntity.ok(binanceService.getCandles(symbol, range, interval, beforeOpenTime, limit));
+        return ResponseEntity.ok(marketDataFacadeService.getCandles(
+                MarketType.fromNullable(market),
+                symbol,
+                range,
+                interval,
+                beforeOpenTime,
+                limit));
     }
 }

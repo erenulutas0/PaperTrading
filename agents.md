@@ -20,7 +20,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
 | Portfolio CRUD | ✅ Done | Create, delete, deposit |
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
-| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), and chunked `ALL` history loading |
+| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, and market-provider split preparing delayed BIST100 support |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
 | Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
@@ -35,9 +35,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
 | Trust/Credibility Scores | 🔨 Building | Bayesian multi-signal scoring now blends resolved analysis accuracy, realized trade quality, profitable portfolio ratio, and average portfolio return; profile breakdown + user docs added, rollout verification pending |
 | Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; read/export tooling still pending |
-| BIST30 Support | ⬜ Planned | Yahoo Finance delayed data |
+| BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-13**: **Market Data Split Into Multi-Provider Terminal Path (Crypto + BIST100)**
+  - **Problem observed**:
+    - `/api/v1/market/*` and watchlist enrichment were hard-wired to Binance, which blocked delayed equity support without leaking exchange-specific assumptions through the app.
+  - **Implementation**:
+    - Introduced a market-type aware façade for terminal reads:
+      - `CRYPTO` continues through `BinanceService`
+      - `BIST100` now routes through a delayed equity provider path
+    - Added `Bist100UniverseService`:
+      - seed-based universe from classpath
+      - best-effort dynamic refresh from İş Yatırım listing page
+      - fallback to seed if dynamic parse is weak/unavailable
+    - Added `YahooBistMarketDataService` for delayed quote/candle retrieval using `.IS` ticker normalization.
+    - `WatchlistService` enrichment now uses the provider façade instead of Binance-only price/change resolution.
+    - Frontend market terminal now carries market selection as part of session state and uses `market=` query params for instrument and candle reads.
+  - **Operational impact**:
+    - BIST100 support can land in the market terminal without destabilizing crypto trade/performance core paths.
+    - universe membership and quote/candle sourcing are now separate concerns, which makes future licensed provider replacement tractable.
 - **2026-03-13**: **Market Terminal Session State Persisted Across Refresh**
   - **Problem observed**:
     - Chart drawings were stored per symbol, but the terminal session itself was not durable.

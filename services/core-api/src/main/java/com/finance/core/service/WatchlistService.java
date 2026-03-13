@@ -21,7 +21,7 @@ public class WatchlistService {
 
     private final WatchlistRepository watchlistRepository;
     private final WatchlistItemRepository watchlistItemRepository;
-    private final BinanceService binanceService;
+    private final MarketDataFacadeService marketDataFacadeService;
 
     /** Get all watchlists for a user */
     @Transactional(readOnly = true)
@@ -94,19 +94,17 @@ public class WatchlistService {
         Watchlist watchlist = watchlistRepository.findByIdAndUserId(watchlistId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist not found"));
 
-        Map<String, Double> prices = binanceService.getPrices();
-        Map<String, Double> dailyChanges = binanceService.getSupportedInstruments().stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        instrument -> instrument.getSymbol(),
-                        instrument -> instrument.getChangePercent24h()));
+        Map<String, com.finance.core.dto.MarketInstrumentResponse> snapshots = marketDataFacadeService.getInstrumentSnapshots(
+                watchlist.getItems().stream().map(WatchlistItem::getSymbol).toList());
 
         return watchlist.getItems().stream().map(item -> {
-            Double currentPrice = prices.getOrDefault(item.getSymbol(), 0.0);
+            com.finance.core.dto.MarketInstrumentResponse snapshot = snapshots.get(item.getSymbol());
+            Double currentPrice = snapshot != null ? snapshot.getCurrentPrice() : 0.0;
             return Map.<String, Object>of(
                     "id", item.getId(),
                     "symbol", item.getSymbol(),
                     "currentPrice", currentPrice,
-                    "changePercent24h", dailyChanges.getOrDefault(item.getSymbol(), 0.0),
+                    "changePercent24h", snapshot != null ? snapshot.getChangePercent24h() : 0.0,
                     "alertPriceAbove", item.getAlertPriceAbove() != null ? item.getAlertPriceAbove() : "",
                     "alertPriceBelow", item.getAlertPriceBelow() != null ? item.getAlertPriceBelow() : "",
                     "alertAboveTriggered", item.getAlertAboveTriggered(),

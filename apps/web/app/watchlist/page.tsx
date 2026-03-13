@@ -46,9 +46,11 @@ interface CandlePoint {
 type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 type DrawingMode = 'none' | 'horizontal' | 'trend';
+type MarketSelection = 'CRYPTO' | 'BIST100';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
+const MARKET_OPTIONS: MarketSelection[] = ['CRYPTO', 'BIST100'];
 const ALL_HISTORY_CHUNK = 1000;
 const MARKET_SESSION_STORAGE_KEY = 'market.terminal.session';
 
@@ -57,6 +59,7 @@ interface PersistedMarketSession {
     selectedSymbol: string;
     compareSymbol: string;
     compareVisible: boolean;
+    selectedMarket: MarketSelection;
     selectedRange: ChartRange;
     selectedInterval: ChartInterval;
 }
@@ -74,6 +77,7 @@ function readPersistedMarketSession(): PersistedMarketSession | null {
         if (!parsed || typeof parsed !== 'object') {
             return null;
         }
+        const selectedMarket = MARKET_OPTIONS.includes(parsed.selectedMarket) ? parsed.selectedMarket : 'CRYPTO';
         const selectedRange = RANGE_OPTIONS.includes(parsed.selectedRange) ? parsed.selectedRange : '1D';
         const selectedInterval = INTERVAL_OPTIONS.includes(parsed.selectedInterval) ? parsed.selectedInterval : '1h';
         return {
@@ -81,6 +85,7 @@ function readPersistedMarketSession(): PersistedMarketSession | null {
             selectedSymbol: typeof parsed.selectedSymbol === 'string' && parsed.selectedSymbol ? parsed.selectedSymbol : 'BTCUSDT',
             compareSymbol: typeof parsed.compareSymbol === 'string' ? parsed.compareSymbol : '',
             compareVisible: parsed.compareVisible !== false,
+            selectedMarket,
             selectedRange,
             selectedInterval,
         };
@@ -125,6 +130,7 @@ export default function WatchlistPage() {
     const [enrichedItems, setEnrichedItems] = useState<WatchlistItem[]>([]);
     const [instrumentUniverse, setInstrumentUniverse] = useState<InstrumentOption[]>([]);
     const [instrumentQuery, setInstrumentQuery] = useState('');
+    const [selectedMarket, setSelectedMarket] = useState<MarketSelection>('CRYPTO');
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
     const [compareSymbol, setCompareSymbol] = useState<string>('');
     const [compareVisible, setCompareVisible] = useState<boolean>(true);
@@ -235,6 +241,7 @@ export default function WatchlistPage() {
             setSelectedSymbol(persistedSession.selectedSymbol);
             setCompareSymbol(persistedSession.compareSymbol);
             setCompareVisible(persistedSession.compareVisible);
+            setSelectedMarket(persistedSession.selectedMarket);
             setSelectedRange(persistedSession.selectedRange);
             setSelectedInterval(persistedSession.selectedInterval);
         }
@@ -256,11 +263,12 @@ export default function WatchlistPage() {
             selectedSymbol,
             compareSymbol,
             compareVisible,
+            selectedMarket,
             selectedRange,
             selectedInterval,
         };
         window.localStorage.setItem(MARKET_SESSION_STORAGE_KEY, JSON.stringify(session));
-    }, [compareSymbol, compareVisible, selectedInterval, selectedRange, selectedSymbol, selectedWatchlist, sessionHydrated]);
+    }, [compareSymbol, compareVisible, selectedInterval, selectedMarket, selectedRange, selectedSymbol, selectedWatchlist, sessionHydrated]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -346,7 +354,9 @@ export default function WatchlistPage() {
 
     const fetchInstrumentUniverse = useCallback(async () => {
         try {
-            const res = await apiFetch('/api/v1/market/instruments', { cache: 'no-store' });
+            const url = new URL('/api/v1/market/instruments', window.location.origin);
+            url.searchParams.set('market', selectedMarket);
+            const res = await apiFetch(`${url.pathname}${url.search}`, { cache: 'no-store' });
             if (!res.ok) {
                 return;
             }
@@ -365,7 +375,7 @@ export default function WatchlistPage() {
         } catch (error) {
             console.error(error);
         }
-    }, []);
+    }, [selectedMarket]);
 
     const fetchItems = useCallback(async () => {
         if (!selectedWatchlist || !currentUserId) {
@@ -390,6 +400,7 @@ export default function WatchlistPage() {
         beforeOpenTime?: number | null,
     ): Promise<CandlePoint[]> => {
         const url = new URL('/api/v1/market/candles', window.location.origin);
+        url.searchParams.set('market', selectedMarket);
         url.searchParams.set('symbol', symbol);
         url.searchParams.set('range', range);
         url.searchParams.set('interval', interval);
@@ -405,7 +416,7 @@ export default function WatchlistPage() {
             return [];
         }
         return res.json();
-    }, []);
+    }, [selectedMarket]);
 
     const fetchCandles = useCallback(async (
         symbol: string,
@@ -513,6 +524,10 @@ export default function WatchlistPage() {
         const interval = setInterval(fetchItems, 5000);
         return () => clearInterval(interval);
     }, [fetchItems, selectedWatchlist]);
+
+    useEffect(() => {
+        setCompareSymbol('');
+    }, [selectedMarket]);
 
     useEffect(() => {
         if (selectedRange === 'ALL' && selectedInterval === '1m') {
@@ -690,7 +705,7 @@ export default function WatchlistPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
                                         <input
                                             type="text"
                                             value={instrumentQuery}
@@ -698,6 +713,17 @@ export default function WatchlistPage() {
                                             placeholder="Search BTC, ETH, Solana..."
                                             className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-amber-400"
                                         />
+                                        <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
+                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Market</p>
+                                            <select
+                                                value={selectedMarket}
+                                                onChange={(event) => setSelectedMarket(event.target.value as MarketSelection)}
+                                                className="mt-2 w-full bg-transparent text-sm font-semibold text-sky-300 outline-none"
+                                            >
+                                                <option value="CRYPTO" className="bg-zinc-950 text-white">Crypto</option>
+                                                <option value="BIST100" className="bg-zinc-950 text-white">BIST 100</option>
+                                            </select>
+                                        </label>
                                         <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
                                             <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Range</p>
                                             <select

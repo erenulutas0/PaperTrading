@@ -2,11 +2,12 @@ package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.Watchlist;
+import com.finance.core.dto.MarketType;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketInstrumentResponse;
 import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
-import com.finance.core.service.BinanceService;
+import com.finance.core.service.MarketDataFacadeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,7 +39,7 @@ class WatchlistControllerIntegrationTest {
         @Autowired
         private WatchlistItemRepository watchlistItemRepository;
         @MockitoBean
-        private BinanceService binanceService;
+        private MarketDataFacadeService marketDataFacadeService;
         @Autowired
         private ObjectMapper objectMapper;
 
@@ -57,8 +58,15 @@ class WatchlistControllerIntegrationTest {
                                 .build();
                 testWatchlist = watchlistRepository.save(testWatchlist);
 
-                when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 60000.0));
-                when(binanceService.getSupportedInstruments()).thenReturn(java.util.List.of(
+                when(marketDataFacadeService.getInstrumentSnapshots(java.util.List.of("BTCUSDT"))).thenReturn(Map.of(
+                                "BTCUSDT", MarketInstrumentResponse.builder()
+                                                .symbol("BTCUSDT")
+                                                .displayName("Bitcoin")
+                                                .assetType("CRYPTO")
+                                                .currentPrice(60000.0)
+                                                .changePercent24h(3.4)
+                                                .build()));
+                when(marketDataFacadeService.getSupportedInstruments(MarketType.CRYPTO)).thenReturn(java.util.List.of(
                                 MarketInstrumentResponse.builder()
                                                 .symbol("BTCUSDT")
                                                 .displayName("Bitcoin")
@@ -124,7 +132,7 @@ class WatchlistControllerIntegrationTest {
 
         @Test
         void testGetCandles() throws Exception {
-                when(binanceService.getCandles("BTCUSDT", "ALL", "15m", null, 500)).thenReturn(java.util.List.of(
+                when(marketDataFacadeService.getCandles(MarketType.CRYPTO, "BTCUSDT", "ALL", "15m", null, 500)).thenReturn(java.util.List.of(
                                 MarketCandleResponse.builder()
                                                 .openTime(1710000000000L)
                                                 .open(60000.0)
@@ -146,7 +154,7 @@ class WatchlistControllerIntegrationTest {
 
         @Test
         void testGetCandles_withExtendedRange() throws Exception {
-                when(binanceService.getCandles("BTCUSDT", "1Y", "1d", null, null)).thenReturn(java.util.List.of(
+                when(marketDataFacadeService.getCandles(MarketType.CRYPTO, "BTCUSDT", "1Y", "1d", null, null)).thenReturn(java.util.List.of(
                                 MarketCandleResponse.builder()
                                                 .openTime(1710000000000L)
                                                 .open(50000.0)

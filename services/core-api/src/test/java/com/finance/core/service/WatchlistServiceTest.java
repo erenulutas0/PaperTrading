@@ -2,6 +2,7 @@ package com.finance.core.service;
 
 import com.finance.core.domain.Watchlist;
 import com.finance.core.domain.WatchlistItem;
+import com.finance.core.dto.MarketInstrumentResponse;
 import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,7 +28,7 @@ class WatchlistServiceTest {
     @Mock
     private WatchlistItemRepository watchlistItemRepository;
     @Mock
-    private BinanceService binanceService;
+    private MarketDataFacadeService marketDataFacadeService;
 
     @InjectMocks
     private WatchlistService watchlistService;
@@ -174,12 +175,9 @@ class WatchlistServiceTest {
             watchlist.setItems(List.of(item1, item2));
 
             when(watchlistRepository.findByIdAndUserId(watchlistId, userId)).thenReturn(Optional.of(watchlist));
-            when(binanceService.getPrices()).thenReturn(Map.of(
-                    "BTCUSDT", 58000.0,
-                    "ETHUSDT", 3200.0));
-            when(binanceService.getSupportedInstruments()).thenReturn(List.of(
-                    com.finance.core.dto.MarketInstrumentResponse.builder().symbol("BTCUSDT").changePercent24h(4.25).build(),
-                    com.finance.core.dto.MarketInstrumentResponse.builder().symbol("ETHUSDT").changePercent24h(-1.75).build()));
+            when(marketDataFacadeService.getInstrumentSnapshots(List.of("BTCUSDT", "ETHUSDT"))).thenReturn(Map.of(
+                    "BTCUSDT", MarketInstrumentResponse.builder().symbol("BTCUSDT").currentPrice(58000.0).changePercent24h(4.25).build(),
+                    "ETHUSDT", MarketInstrumentResponse.builder().symbol("ETHUSDT").currentPrice(3200.0).changePercent24h(-1.75).build()));
 
             List<Map<String, Object>> result = watchlistService.getEnrichedItems(watchlistId, userId);
 
