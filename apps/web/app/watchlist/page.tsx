@@ -452,12 +452,8 @@ export default function WatchlistPage() {
             if (Array.isArray(data) && data.length > 0) {
                 setAddSymbol((current) => data.some((item: InstrumentOption) => item.symbol === current) ? current : data[0].symbol);
                 setSelectedSymbol((current) => data.some((item: InstrumentOption) => item.symbol === current) ? current : data[0].symbol);
-                setCompareSymbol((current) => {
-                    if (!current) {
-                        return '';
-                    }
-                    return data.some((item: InstrumentOption) => item.symbol === current) ? current : '';
-                });
+                setCompareSymbols((current) => current.filter((symbol) => data.some((item: InstrumentOption) => item.symbol === symbol)));
+                setCompareCandidate((current) => data.some((item: InstrumentOption) => item.symbol === current) ? current : '');
             }
         } catch (error) {
             console.error(error);
