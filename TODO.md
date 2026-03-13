@@ -9,6 +9,11 @@ Last updated: 2026-03-11
   - clear compare action
   - chart legend state that reflects active vs hidden compare overlays
   - relative performance gap for primary vs compare symbol over the selected window
+- [ ] Redeploy frontend after first-pass drawing tools rollout and verify `/watchlist` now supports:
+  - horizontal level placement
+  - two-click trend line placement
+  - clear drawings
+  - drawing mode resets cleanly when symbol/range/interval changes
 - [ ] Redeploy frontend after deeper `ALL` history preload + viewport-preserving prepend rollout and verify `/watchlist` now starts with materially deeper history while `Load Older` extends candles without jumping the visible chart window
 - [ ] Redeploy frontend after market terminal OHLC info bar + volume histogram rollout and verify crosshair movement updates candle metrics without reintroducing chart refresh loops
 - [ ] Redeploy frontend after market terminal favorites rollout and verify starred symbols persist locally and appear in the quick-switch favorites bar

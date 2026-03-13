@@ -55,6 +55,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare mode behaves like a persistent terminal session rather than a fragile one-shot picker
     - users can inspect the same symbol pair without repeatedly reselecting the compare instrument
+- **2026-03-13**: **Market Workspace Drawing Tools Started With Controlled Terminal Semantics**
+  - **Problem observed**:
+    - The market terminal had stronger viewing controls, but no way to mark levels or structure on the chart itself.
+    - Full freehand tooling would add too much complexity for the first pass and risk destabilizing the chart.
+  - **Implementation**:
+    - Added a minimal drawing toolbar to `/watchlist`:
+      - `Horizontal`
+      - `Trend Line`
+      - `Clear Drawings`
+    - Horizontal mode places a level with one click.
+    - Trend mode places a two-point line with two chart clicks.
+    - Drawings reset on symbol/range/interval changes so terminal state stays coherent.
+  - **Operational impact**:
+    - users can start annotating price structure without introducing an overbuilt drawing subsystem
+    - future drawing tools can extend this contract instead of replacing it
 - **2026-03-12**: **TradingView-Style Market Workspace Added on `/watchlist`**
   - **Problem observed**:
     - The old watchlist page was CRUD-oriented and did not support the core market-reading loop:

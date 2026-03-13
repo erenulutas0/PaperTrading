@@ -8,6 +8,7 @@ import {
     IChartApi,
     LineData,
     LineSeries,
+    LineStyle,
     UTCTimestamp,
     createChart,
 } from 'lightweight-charts';
@@ -22,11 +23,25 @@ interface CandlePoint {
     volume: number;
 }
 
+type DrawingMode = 'none' | 'horizontal' | 'trend';
+
+interface ChartDrawing {
+    id: string;
+    type: 'horizontal' | 'trend';
+    price: number;
+    startTime: number;
+    endTime?: number;
+    endPrice?: number;
+}
+
 interface MarketWorkspaceChartProps {
     data: CandlePoint[];
     compareData?: CandlePoint[];
     compareLabel?: string | null;
     compareVisible?: boolean;
+    drawingMode?: DrawingMode;
+    clearDrawingsToken?: number;
+    onDrawingComplete?: () => void;
     resetKey: string;
     onReachStart?: (oldestOpenTime: number) => void;
 }
@@ -36,6 +51,9 @@ export default function MarketWorkspaceChart({
     compareData = [],
     compareLabel = null,
     compareVisible = true,
+    drawingMode = 'none',
+    clearDrawingsToken = 0,
+    onDrawingComplete,
     resetKey,
     onReachStart,
 }: MarketWorkspaceChartProps) {
@@ -44,14 +62,19 @@ export default function MarketWorkspaceChart({
     const seriesRef = useRef<any>(null);
     const volumeSeriesRef = useRef<any>(null);
     const compareSeriesRef = useRef<any>(null);
+    const drawingSeriesRef = useRef<Array<{ id: string; series: any }>>([]);
     const lastRequestedOldestRef = useRef<number | null>(null);
     const dataRef = useRef<CandlePoint[]>(data);
     const compareDataRef = useRef<CandlePoint[]>(compareData);
     const onReachStartRef = useRef(onReachStart);
+    const onDrawingCompleteRef = useRef(onDrawingComplete);
+    const drawingModeRef = useRef<DrawingMode>(drawingMode);
     const previousDataLengthRef = useRef(0);
     const previousOldestTimeRef = useRef<number | null>(null);
     const previousResetKeyRef = useRef(resetKey);
+    const pendingTrendAnchorRef = useRef<{ time: number; price: number } | null>(null);
     const [activePoint, setActivePoint] = useState<CandlePoint | null>(data[data.length - 1] ?? null);
+    const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
 
     const seriesData = useMemo<CandlestickData[]>(() => {
         return data.map((point) => ({
@@ -118,6 +141,18 @@ export default function MarketWorkspaceChart({
     useEffect(() => {
         onReachStartRef.current = onReachStart;
     }, [onReachStart]);
+
+    useEffect(() => {
+        onDrawingCompleteRef.current = onDrawingComplete;
+    }, [onDrawingComplete]);
+
+    useEffect(() => {
+        drawingModeRef.current = drawingMode;
+    }, [drawingMode]);
+
+    useEffect(() => {
+        pendingTrendAnchorRef.current = null;
+    }, [drawingMode]);
 
     useEffect(() => {
         if (!chartContainerRef.current || chartRef.current) {
@@ -231,8 +266,59 @@ export default function MarketWorkspaceChart({
             setActivePoint(matchingPoint ?? latestData[latestData.length - 1] ?? null);
         };
 
+        const handleClick = (param: any) => {
+            const currentDrawingMode = drawingModeRef.current;
+            if (currentDrawingMode === 'none' || !param?.time || !param?.point || !seriesRef.current) {
+                return;
+            }
+
+            const clickedTime = Number(param.time) * 1000;
+            const price = seriesRef.current.coordinateToPrice(param.point.y);
+            if (typeof price !== 'number' || Number.isNaN(price)) {
+                return;
+            }
+
+            if (currentDrawingMode === 'horizontal') {
+                setDrawings((current) => [
+                    ...current,
+                    {
+                        id: `horizontal-${clickedTime}-${current.length}`,
+                        type: 'horizontal',
+                        price,
+                        startTime: clickedTime,
+                    },
+                ]);
+                onDrawingCompleteRef.current?.();
+                return;
+            }
+
+            if (!pendingTrendAnchorRef.current) {
+                pendingTrendAnchorRef.current = {
+                    time: clickedTime,
+                    price,
+                };
+                return;
+            }
+
+            const anchor = pendingTrendAnchorRef.current;
+            pendingTrendAnchorRef.current = null;
+            setDrawings((current) => [
+                ...current,
+                {
+                    id: `trend-${anchor.time}-${clickedTime}-${current.length}`,
+                    type: 'trend',
+                    price: anchor.price,
+                    startTime: anchor.time,
+                    endTime: clickedTime,
+                    endPrice: price,
+                },
+            ]);
+            onDrawingCompleteRef.current?.();
+        };
+
         chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
         chart.subscribeCrosshairMove(handleCrosshairMove);
+        chart.subscribeClick(handleClick);
         window.addEventListener('resize', handleResize);
 
         chartRef.current = chart;
@@ -243,12 +329,14 @@ export default function MarketWorkspaceChart({
         return () => {
             chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
             chart.unsubscribeCrosshairMove(handleCrosshairMove);
+            chart.unsubscribeClick(handleClick);
             window.removeEventListener('resize', handleResize);
             chart.remove();
             chartRef.current = null;
             seriesRef.current = null;
             volumeSeriesRef.current = null;
             compareSeriesRef.current = null;
+            drawingSeriesRef.current = [];
         };
     }, []);
 
@@ -298,6 +386,56 @@ export default function MarketWorkspaceChart({
         previousOldestTimeRef.current = data[0]?.openTime ?? null;
         chartRef.current.timeScale().fitContent();
     }, [resetKey]);
+
+    useEffect(() => {
+        if (!chartRef.current) {
+            return;
+        }
+        drawingSeriesRef.current.forEach(({ series }) => {
+            chartRef.current?.removeSeries(series);
+        });
+        drawingSeriesRef.current = [];
+
+        drawings.forEach((drawing) => {
+            const lineSeries = chartRef.current?.addSeries(LineSeries, {
+                priceScaleId: 'right',
+                color: drawing.type === 'horizontal' ? '#38bdf8' : '#f472b6',
+                lineWidth: 2,
+                lineStyle: drawing.type === 'horizontal' ? LineStyle.Dashed : LineStyle.Solid,
+                crosshairMarkerVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false,
+            });
+            if (!lineSeries) {
+                return;
+            }
+
+            const firstTime = data[0]?.openTime;
+            const lastTime = data[data.length - 1]?.openTime;
+            if (!firstTime || !lastTime) {
+                return;
+            }
+
+            if (drawing.type === 'horizontal') {
+                lineSeries.setData([
+                    { time: Math.floor(firstTime / 1000) as UTCTimestamp, value: drawing.price },
+                    { time: Math.floor(lastTime / 1000) as UTCTimestamp, value: drawing.price },
+                ]);
+            } else if (drawing.endTime && typeof drawing.endPrice === 'number') {
+                lineSeries.setData([
+                    { time: Math.floor(drawing.startTime / 1000) as UTCTimestamp, value: drawing.price },
+                    { time: Math.floor(drawing.endTime / 1000) as UTCTimestamp, value: drawing.endPrice },
+                ]);
+            }
+
+            drawingSeriesRef.current.push({ id: drawing.id, series: lineSeries });
+        });
+    }, [data, drawings]);
+
+    useEffect(() => {
+        setDrawings([]);
+        pendingTrendAnchorRef.current = null;
+    }, [clearDrawingsToken, resetKey]);
 
     return (
         <div className="space-y-3">
@@ -362,6 +500,21 @@ export default function MarketWorkspaceChart({
                     {compareSeriesData.length > 0 && relativePerformanceGap !== null && (
                         <span className={relativePerformanceGap >= 0 ? 'text-emerald-400' : 'text-red-400'}>
                             {relativePerformanceGap >= 0 ? 'Primary leads' : 'Primary trails'} · {relativePerformanceGap >= 0 ? '+' : ''}{relativePerformanceGap.toFixed(2)} idx
+                        </span>
+                    )}
+                    {drawingMode !== 'none' && (
+                        <span className="text-sky-300">
+                            Draw mode · {drawingMode === 'horizontal' ? 'click chart to place a level' : 'click two points for a trend line'}
+                        </span>
+                    )}
+                    {pendingTrendAnchorRef.current && (
+                        <span className="text-pink-300">
+                            Trend anchor locked · choose end point
+                        </span>
+                    )}
+                    {drawings.length > 0 && (
+                        <span className="text-zinc-500">
+                            {drawings.length} drawing{drawings.length === 1 ? '' : 's'}
                         </span>
                     )}
                 </div>

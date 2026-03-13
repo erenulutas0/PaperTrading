@@ -45,6 +45,7 @@ interface CandlePoint {
 
 type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
+type DrawingMode = 'none' | 'horizontal' | 'trend';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
@@ -90,6 +91,8 @@ export default function WatchlistPage() {
     const [compareVisible, setCompareVisible] = useState<boolean>(true);
     const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
     const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
+    const [drawingMode, setDrawingMode] = useState<DrawingMode>('none');
+    const [clearDrawingsToken, setClearDrawingsToken] = useState(0);
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [compareCandles, setCompareCandles] = useState<CandlePoint[]>([]);
@@ -180,6 +183,11 @@ export default function WatchlistPage() {
             setCompareSymbol('');
         }
     }, [compareSymbol, selectedSymbol]);
+
+    useEffect(() => {
+        setDrawingMode('none');
+        setClearDrawingsToken((current) => current + 1);
+    }, [selectedInterval, selectedRange, selectedSymbol]);
 
     useEffect(() => {
         if (!compareSymbol) {
@@ -665,6 +673,42 @@ export default function WatchlistPage() {
                                         </label>
                                     </div>
 
+                                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                        <p className="mr-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Draw</p>
+                                        <button
+                                            onClick={() => setDrawingMode((current) => current === 'horizontal' ? 'none' : 'horizontal')}
+                                            className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition ${drawingMode === 'horizontal'
+                                                ? 'border-sky-400/30 bg-sky-400/10 text-sky-300'
+                                                : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'}`}
+                                        >
+                                            Horizontal
+                                        </button>
+                                        <button
+                                            onClick={() => setDrawingMode((current) => current === 'trend' ? 'none' : 'trend')}
+                                            className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition ${drawingMode === 'trend'
+                                                ? 'border-pink-400/30 bg-pink-400/10 text-pink-300'
+                                                : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'}`}
+                                        >
+                                            Trend Line
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setDrawingMode('none');
+                                                setClearDrawingsToken((current) => current + 1);
+                                            }}
+                                            className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white"
+                                        >
+                                            Clear Drawings
+                                        </button>
+                                        <span className="ml-auto text-xs text-zinc-500">
+                                            {drawingMode === 'none'
+                                                ? 'Select a tool to place levels or trend lines.'
+                                                : (drawingMode === 'horizontal'
+                                                    ? 'Click once on the chart to place a level.'
+                                                    : 'Click two points on the chart to place a trend line.')}
+                                        </span>
+                                    </div>
+
                                     {compareSymbol && (
                                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
                                             <div>
@@ -749,6 +793,9 @@ export default function WatchlistPage() {
                                                     compareData={compareCandles}
                                                     compareLabel={compareSymbol || null}
                                                     compareVisible={compareVisible}
+                                                    drawingMode={drawingMode}
+                                                    clearDrawingsToken={clearDrawingsToken}
+                                                    onDrawingComplete={() => setDrawingMode('none')}
                                                     resetKey={`${selectedSymbol}-${selectedRange}-${selectedInterval}`}
                                                     onReachStart={handleLoadMoreHistory}
                                                 />
@@ -796,7 +843,7 @@ export default function WatchlistPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-4 md:grid-cols-5">
+                                    <div className="grid gap-4 md:grid-cols-6">
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Range</p>
                                             <p className="mt-2 text-xl font-semibold text-white">{selectedRange}</p>
@@ -825,6 +872,11 @@ export default function WatchlistPage() {
                                                     {compareSessionSummary.relativeGapPercent >= 0 ? 'Primary leads' : 'Primary trails'} by {formatPercent(Math.abs(compareSessionSummary.relativeGapPercent))}
                                                 </p>
                                             )}
+                                        </article>
+                                        <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
+                                            <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Draw Mode</p>
+                                            <p className="mt-2 text-xl font-semibold text-white">{drawingMode === 'none' ? 'Off' : drawingMode}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Horizontal levels and trend lines.</p>
                                         </article>
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">History</p>
