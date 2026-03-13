@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import NotificationBell from '../../components/NotificationBell';
+import LogoutButton from '../../components/LogoutButton';
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard' },
@@ -61,9 +62,7 @@ export default function DashboardLayout({
                     <Link href="/notifications" className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent text-sm">
                         Inbox
                     </Link>
-                    <Link href="/" className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent text-sm">
-                        Exit
-                    </Link>
+                    <LogoutButton className="px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent text-sm disabled:opacity-60" />
                 </div>
             </nav>
 

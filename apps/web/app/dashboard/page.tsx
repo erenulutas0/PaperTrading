@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import TradeModal from '../../components/TradeModal';
 import ActivityFeed from '../../components/ActivityFeed';
+import LogoutButton from '../../components/LogoutButton';
 import { extractContent } from '../../lib/page';
 import { apiFetch } from '../../lib/api-client';
 
@@ -204,7 +205,7 @@ export default function Dashboard() {
                     <Link href="/watchlist" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-amber-400 transition-colors">Watchlist</Link>
                     <Link href="/tournaments" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-yellow-400 transition-colors">Tournaments</Link>
                     <div className="w-px h-4 bg-white/10"></div>
-                    <Link href="/" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-white transition-colors">Exit</Link>
+                    <LogoutButton className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-white transition-colors disabled:opacity-60" />
                 </div>
             </header>
 
