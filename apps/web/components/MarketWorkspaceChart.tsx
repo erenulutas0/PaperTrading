@@ -34,6 +34,13 @@ interface ChartDrawing {
     endPrice?: number;
 }
 
+interface AlertLine {
+    id: string;
+    label: string;
+    price: number;
+    color: string;
+}
+
 interface MarketWorkspaceChartProps {
     data: CandlePoint[];
     compareData?: CandlePoint[];
@@ -43,6 +50,8 @@ interface MarketWorkspaceChartProps {
     drawingStorageKey?: string | null;
     clearDrawingsToken?: number;
     onDrawingComplete?: () => void;
+    onActivePointChange?: (point: CandlePoint | null) => void;
+    alertLines?: AlertLine[];
     resetKey: string;
     onReachStart?: (oldestOpenTime: number) => void;
 }
@@ -95,6 +104,8 @@ export default function MarketWorkspaceChart({
     drawingStorageKey = null,
     clearDrawingsToken = 0,
     onDrawingComplete,
+    onActivePointChange,
+    alertLines = [],
     resetKey,
     onReachStart,
 }: MarketWorkspaceChartProps) {
@@ -104,6 +115,7 @@ export default function MarketWorkspaceChart({
     const volumeSeriesRef = useRef<any>(null);
     const compareSeriesRef = useRef<any>(null);
     const drawingSeriesRef = useRef<Array<{ id: string; series: any }>>([]);
+    const alertSeriesRef = useRef<Array<{ id: string; series: any }>>([]);
     const lastRequestedOldestRef = useRef<number | null>(null);
     const dataRef = useRef<CandlePoint[]>(data);
     const compareDataRef = useRef<CandlePoint[]>(compareData);
@@ -194,6 +206,10 @@ export default function MarketWorkspaceChart({
             return normalizedData.find((point) => point.openTime === current.openTime) ?? normalizedData[normalizedData.length - 1];
         });
     }, [normalizedData]);
+
+    useEffect(() => {
+        onActivePointChange?.(activePoint ?? normalizedData[normalizedData.length - 1] ?? null);
+    }, [activePoint, normalizedData, onActivePointChange]);
 
     useEffect(() => {
         compareDataRef.current = normalizedCompareData;
@@ -442,6 +458,7 @@ export default function MarketWorkspaceChart({
             volumeSeriesRef.current = null;
             compareSeriesRef.current = null;
             drawingSeriesRef.current = [];
+            alertSeriesRef.current = [];
         };
     }, []);
 
@@ -539,6 +556,44 @@ export default function MarketWorkspaceChart({
             drawingSeriesRef.current.push({ id: drawing.id, series: lineSeries });
         });
     }, [drawings, normalizedData]);
+
+    useEffect(() => {
+        if (!chartRef.current) {
+            return;
+        }
+        alertSeriesRef.current.forEach(({ series }) => {
+            chartRef.current?.removeSeries(series);
+        });
+        alertSeriesRef.current = [];
+
+        const firstTime = normalizedData[0]?.openTime;
+        const lastTime = normalizedData[normalizedData.length - 1]?.openTime;
+        if (!firstTime || !lastTime) {
+            return;
+        }
+
+        alertLines.forEach((alertLine) => {
+            const series = chartRef.current?.addSeries(LineSeries, {
+                priceScaleId: 'right',
+                color: alertLine.color,
+                lineWidth: 2,
+                lineStyle: LineStyle.LargeDashed,
+                crosshairMarkerVisible: false,
+                lastValueVisible: true,
+                priceLineVisible: false,
+                title: alertLine.label,
+                autoscaleInfoProvider: () => null,
+            });
+            if (!series) {
+                return;
+            }
+            series.setData([
+                { time: Math.floor(firstTime / 1000) as UTCTimestamp, value: alertLine.price },
+                { time: Math.floor(lastTime / 1000) as UTCTimestamp, value: alertLine.price },
+            ]);
+            alertSeriesRef.current.push({ id: alertLine.id, series });
+        });
+    }, [alertLines, normalizedData]);
 
     useEffect(() => {
         if (previousClearDrawingsTokenRef.current === null) {
@@ -655,6 +710,20 @@ export default function MarketWorkspaceChart({
                             >
                                 ×
                             </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+            {alertLines.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-black/30 px-4 py-3 text-xs">
+                    <span className="uppercase tracking-[0.24em] text-zinc-500">Alerts</span>
+                    {alertLines.map((alertLine) => (
+                        <div
+                            key={alertLine.id}
+                            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1"
+                        >
+                            <span className="font-semibold" style={{ color: alertLine.color }}>{alertLine.label}</span>
+                            <span className="font-mono text-zinc-300">{alertLine.price.toFixed(2)}</span>
                         </div>
                     ))}
                 </div>

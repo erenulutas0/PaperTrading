@@ -43,6 +43,13 @@ interface CandlePoint {
     volume: number;
 }
 
+interface AlertLine {
+    id: string;
+    label: string;
+    price: number;
+    color: string;
+}
+
 type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 type DrawingMode = 'none' | 'horizontal' | 'trend';
@@ -141,6 +148,7 @@ export default function WatchlistPage() {
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [compareCandles, setCompareCandles] = useState<CandlePoint[]>([]);
+    const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(false);
     const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
@@ -191,6 +199,36 @@ export default function WatchlistPage() {
             ?? enrichedItems.find((item) => item.symbol === compareSymbol)
             ?? null;
     }, [compareSymbol, enrichedItems, instrumentUniverse]);
+
+    const selectedWatchlistItem = useMemo(() => {
+        return enrichedItems.find((item) => item.symbol === selectedSymbol) ?? null;
+    }, [enrichedItems, selectedSymbol]);
+
+    const chartAlertLines = useMemo<AlertLine[]>(() => {
+        if (!selectedWatchlistItem) {
+            return [];
+        }
+        const lines: AlertLine[] = [];
+        const above = Number(selectedWatchlistItem.alertPriceAbove);
+        const below = Number(selectedWatchlistItem.alertPriceBelow);
+        if (Number.isFinite(above) && above > 0) {
+            lines.push({
+                id: `${selectedWatchlistItem.id}-above`,
+                label: selectedWatchlistItem.alertAboveTriggered ? 'Above Triggered' : 'Alert Above',
+                price: above,
+                color: selectedWatchlistItem.alertAboveTriggered ? '#f97316' : '#22c55e',
+            });
+        }
+        if (Number.isFinite(below) && below > 0) {
+            lines.push({
+                id: `${selectedWatchlistItem.id}-below`,
+                label: selectedWatchlistItem.alertBelowTriggered ? 'Below Triggered' : 'Alert Below',
+                price: below,
+                color: selectedWatchlistItem.alertBelowTriggered ? '#f97316' : '#ef4444',
+            });
+        }
+        return lines;
+    }, [selectedWatchlistItem]);
 
     const loadedHistoryLabel = useMemo(() => {
         if (candles.length === 0) {
@@ -392,6 +430,30 @@ export default function WatchlistPage() {
             console.error(error);
         }
     }, [currentUserId, selectedWatchlist]);
+
+    const updateSelectedSymbolAlerts = useCallback(async (nextAbove: number | null, nextBelow: number | null) => {
+        if (!selectedWatchlistItem) {
+            return;
+        }
+        try {
+            const res = await apiFetch(`/api/v1/watchlists/items/${selectedWatchlistItem.id}/alerts`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    alertPriceAbove: nextAbove,
+                    alertPriceBelow: nextBelow,
+                }),
+            });
+            if (!res.ok) {
+                return;
+            }
+            await fetchItems();
+        } catch (error) {
+            console.error(error);
+        }
+    }, [fetchItems, selectedWatchlistItem]);
 
     const fetchCandleChunk = useCallback(async (
         symbol: string,
@@ -815,6 +877,55 @@ export default function WatchlistPage() {
                                         </span>
                                     </div>
 
+                                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                        <p className="mr-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Alerts</p>
+                                        <button
+                                            onClick={() => updateSelectedSymbolAlerts(
+                                                chartActivePoint?.close ?? null,
+                                                Number(selectedWatchlistItem?.alertPriceBelow) > 0 ? Number(selectedWatchlistItem?.alertPriceBelow) : null,
+                                            )}
+                                            disabled={!selectedWatchlistItem || !chartActivePoint}
+                                            className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Set Above Here
+                                        </button>
+                                        <button
+                                            onClick={() => updateSelectedSymbolAlerts(
+                                                Number(selectedWatchlistItem?.alertPriceAbove) > 0 ? Number(selectedWatchlistItem?.alertPriceAbove) : null,
+                                                chartActivePoint?.close ?? null,
+                                            )}
+                                            disabled={!selectedWatchlistItem || !chartActivePoint}
+                                            className="rounded-full border border-red-400/30 bg-red-400/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-red-300 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Set Below Here
+                                        </button>
+                                        <button
+                                            onClick={() => updateSelectedSymbolAlerts(
+                                                null,
+                                                Number(selectedWatchlistItem?.alertPriceBelow) > 0 ? Number(selectedWatchlistItem?.alertPriceBelow) : null,
+                                            )}
+                                            disabled={!selectedWatchlistItem || !selectedWatchlistItem.alertPriceAbove}
+                                            className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Clear Above
+                                        </button>
+                                        <button
+                                            onClick={() => updateSelectedSymbolAlerts(
+                                                Number(selectedWatchlistItem?.alertPriceAbove) > 0 ? Number(selectedWatchlistItem?.alertPriceAbove) : null,
+                                                null,
+                                            )}
+                                            disabled={!selectedWatchlistItem || !selectedWatchlistItem.alertPriceBelow}
+                                            className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Clear Below
+                                        </button>
+                                        <span className="ml-auto text-xs text-zinc-500">
+                                            {selectedWatchlistItem
+                                                ? (chartActivePoint ? `Anchor alerts to ${formatMoney(chartActivePoint.close)} from the active candle.` : 'Move the crosshair over a candle to anchor alerts.')
+                                                : 'Add this symbol to the selected watchlist to manage alerts from the chart.'}
+                                        </span>
+                                    </div>
+
                                     {compareSymbol && (
                                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
                                             <div>
@@ -903,6 +1014,8 @@ export default function WatchlistPage() {
                                                     drawingStorageKey={selectedSymbol}
                                                     clearDrawingsToken={clearDrawingsToken}
                                                     onDrawingComplete={() => setDrawingMode('none')}
+                                                    onActivePointChange={setChartActivePoint}
+                                                    alertLines={chartAlertLines}
                                                     resetKey={`${selectedSymbol}-${selectedRange}-${selectedInterval}`}
                                                     onReachStart={handleLoadMoreHistory}
                                                 />
