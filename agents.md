@@ -66,6 +66,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - `Clear Drawings`
     - Horizontal mode places a level with one click.
     - Trend mode places a two-point line with two chart clicks.
+    - Added visible drawing chips beneath the chart so users can remove individual drawings instead of clearing the entire canvas.
     - Drawings reset on symbol/range/interval changes so terminal state stays coherent.
   - **Operational impact**:
     - users can start annotating price structure without introducing an overbuilt drawing subsystem

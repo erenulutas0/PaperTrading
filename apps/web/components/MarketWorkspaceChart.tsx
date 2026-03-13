@@ -120,6 +120,22 @@ export default function MarketWorkspaceChart({
     const activeChangePercent = resolvedActivePoint && resolvedActivePoint.open !== 0
         ? (activeChange / resolvedActivePoint.open) * 100
         : 0;
+    const drawingSummaries = useMemo(() => {
+        return drawings.map((drawing, index) => {
+            if (drawing.type === 'horizontal') {
+                return {
+                    id: drawing.id,
+                    label: `H${index + 1}`,
+                    detail: `Level ${drawing.price.toFixed(2)}`,
+                };
+            }
+            return {
+                id: drawing.id,
+                label: `T${index + 1}`,
+                detail: `${new Date(drawing.startTime).toLocaleDateString()} → ${drawing.endTime ? new Date(drawing.endTime).toLocaleDateString() : '...'}`,
+            };
+        });
+    }, [drawings]);
 
     useEffect(() => {
         dataRef.current = data;
@@ -523,6 +539,26 @@ export default function MarketWorkspaceChart({
                             {drawings.length} drawing{drawings.length === 1 ? '' : 's'}
                         </span>
                     )}
+                </div>
+            )}
+            {drawings.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-black/30 px-4 py-3 text-xs">
+                    <span className="uppercase tracking-[0.24em] text-zinc-500">Drawings</span>
+                    {drawingSummaries.map((drawing) => (
+                        <div
+                            key={drawing.id}
+                            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1"
+                        >
+                            <span className="font-semibold text-white">{drawing.label}</span>
+                            <span className="text-zinc-500">{drawing.detail}</span>
+                            <button
+                                onClick={() => setDrawings((current) => current.filter((item) => item.id !== drawing.id))}
+                                className="text-zinc-500 transition hover:text-red-400"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
