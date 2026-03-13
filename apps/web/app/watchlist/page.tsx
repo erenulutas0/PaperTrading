@@ -55,6 +55,12 @@ interface AlertLine {
     color: string;
 }
 
+interface CompareSeriesInput {
+    label: string;
+    data: CandlePoint[];
+    color: string;
+}
+
 type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 type DrawingMode = 'none' | 'horizontal' | 'trend';
@@ -65,11 +71,12 @@ const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d']
 const MARKET_OPTIONS: MarketSelection[] = ['CRYPTO', 'BIST100'];
 const ALL_HISTORY_CHUNK = 1000;
 const MARKET_SESSION_STORAGE_KEY = 'market.terminal.session';
+const COMPARE_COLORS = ['#f59e0b', '#38bdf8', '#f472b6'];
 
 interface PersistedMarketSession {
     selectedWatchlist: string | null;
     selectedSymbol: string;
-    compareSymbol: string;
+    compareSymbols: string[];
     compareVisible: boolean;
     selectedMarket: MarketSelection;
     selectedRange: ChartRange;
@@ -95,7 +102,9 @@ function readPersistedMarketSession(): PersistedMarketSession | null {
         return {
             selectedWatchlist: typeof parsed.selectedWatchlist === 'string' ? parsed.selectedWatchlist : null,
             selectedSymbol: typeof parsed.selectedSymbol === 'string' && parsed.selectedSymbol ? parsed.selectedSymbol : 'BTCUSDT',
-            compareSymbol: typeof parsed.compareSymbol === 'string' ? parsed.compareSymbol : '',
+            compareSymbols: Array.isArray(parsed.compareSymbols)
+                ? parsed.compareSymbols.filter((value: unknown): value is string => typeof value === 'string' && value.length > 0)
+                : (typeof parsed.compareSymbol === 'string' && parsed.compareSymbol ? [parsed.compareSymbol] : []),
             compareVisible: parsed.compareVisible !== false,
             selectedMarket,
             selectedRange,
@@ -144,7 +153,8 @@ export default function WatchlistPage() {
     const [instrumentQuery, setInstrumentQuery] = useState('');
     const [selectedMarket, setSelectedMarket] = useState<MarketSelection>('CRYPTO');
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
-    const [compareSymbol, setCompareSymbol] = useState<string>('');
+    const [compareSymbols, setCompareSymbols] = useState<string[]>([]);
+    const [compareCandidate, setCompareCandidate] = useState<string>('');
     const [compareVisible, setCompareVisible] = useState<boolean>(true);
     const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
     const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
@@ -152,7 +162,7 @@ export default function WatchlistPage() {
     const [clearDrawingsToken, setClearDrawingsToken] = useState(0);
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
     const [candles, setCandles] = useState<CandlePoint[]>([]);
-    const [compareCandles, setCompareCandles] = useState<CandlePoint[]>([]);
+    const [compareCandles, setCompareCandles] = useState<Record<string, CandlePoint[]>>({});
     const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(false);
@@ -207,14 +217,13 @@ export default function WatchlistPage() {
         return selectedInstrument;
     }, [selectedInstrument]);
 
-    const selectedCompareInstrument = useMemo(() => {
-        if (!compareSymbol) {
-            return null;
-        }
-        return instrumentUniverse.find((item) => item.symbol === compareSymbol)
-            ?? enrichedItems.find((item) => item.symbol === compareSymbol)
-            ?? null;
-    }, [compareSymbol, enrichedItems, instrumentUniverse]);
+    const selectedCompareInstruments = useMemo(() => {
+        return compareSymbols
+            .map((symbol) => instrumentUniverse.find((item) => item.symbol === symbol)
+                ?? enrichedItems.find((item) => item.symbol === symbol)
+                ?? null)
+            .filter((item): item is InstrumentOption | WatchlistItem => item !== null);
+    }, [compareSymbols, enrichedItems, instrumentUniverse]);
 
     const selectedWatchlistItem = useMemo(() => {
         return enrichedItems.find((item) => item.symbol === selectedSymbol) ?? null;
@@ -256,33 +265,53 @@ export default function WatchlistPage() {
     }, [candles]);
 
     const compareSessionSummary = useMemo(() => {
-        if (!compareSymbol || candles.length === 0 || compareCandles.length === 0) {
-            return null;
+        if (compareSymbols.length === 0 || candles.length === 0) {
+            return [];
         }
         const primaryBase = candles[0].close || 1;
         const primaryLatest = candles[candles.length - 1].close;
-        const compareBase = compareCandles[0].close || 1;
-        const compareLatest = compareCandles[compareCandles.length - 1].close;
         const primaryMovePercent = ((primaryLatest / primaryBase) - 1) * 100;
-        const compareMovePercent = ((compareLatest / compareBase) - 1) * 100;
-        const relativeGapPercent = primaryMovePercent - compareMovePercent;
 
-        return {
-            primaryMovePercent,
-            compareMovePercent,
-            relativeGapPercent,
-        };
-    }, [candles, compareCandles, compareSymbol]);
+        return compareSymbols
+            .map((symbol, index) => {
+                const series = compareCandles[symbol] ?? [];
+                if (series.length === 0) {
+                    return null;
+                }
+                const compareBase = series[0].close || 1;
+                const compareLatest = series[series.length - 1].close;
+                const compareMovePercent = ((compareLatest / compareBase) - 1) * 100;
+                const instrument = instrumentUniverse.find((item) => item.symbol === symbol)
+                    ?? enrichedItems.find((item) => item.symbol === symbol)
+                    ?? null;
+
+                return {
+                    symbol,
+                    color: COMPARE_COLORS[index % COMPARE_COLORS.length],
+                    displayName: instrument && 'displayName' in instrument ? instrument.displayName : symbol,
+                    primaryMovePercent,
+                    compareMovePercent,
+                    relativeGapPercent: primaryMovePercent - compareMovePercent,
+                };
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null);
+    }, [candles, compareCandles, compareSymbols, enrichedItems, instrumentUniverse]);
+
+    const compareSeries = useMemo<CompareSeriesInput[]>(() => {
+        return compareSymbols.map((symbol, index) => ({
+            label: symbol,
+            data: compareCandles[symbol] ?? [],
+            color: COMPARE_COLORS[index % COMPARE_COLORS.length],
+        }));
+    }, [compareCandles, compareSymbols]);
 
     useEffect(() => {
         candlesRef.current = candles;
     }, [candles]);
 
     useEffect(() => {
-        if (compareSymbol === selectedSymbol) {
-            setCompareSymbol('');
-        }
-    }, [compareSymbol, selectedSymbol]);
+        setCompareSymbols((current) => current.filter((symbol) => symbol !== selectedSymbol));
+    }, [selectedSymbol]);
 
     useEffect(() => {
         setDrawingMode('none');
@@ -293,7 +322,7 @@ export default function WatchlistPage() {
         if (persistedSession) {
             setSelectedWatchlist(persistedSession.selectedWatchlist);
             setSelectedSymbol(persistedSession.selectedSymbol);
-            setCompareSymbol(persistedSession.compareSymbol);
+            setCompareSymbols(persistedSession.compareSymbols);
             setCompareVisible(persistedSession.compareVisible);
             setSelectedMarket(persistedSession.selectedMarket);
             setSelectedRange(persistedSession.selectedRange);
@@ -303,10 +332,10 @@ export default function WatchlistPage() {
     }, []);
 
     useEffect(() => {
-        if (!compareSymbol) {
+        if (compareSymbols.length === 0) {
             setCompareVisible(true);
         }
-    }, [compareSymbol]);
+    }, [compareSymbols]);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !sessionHydrated) {
@@ -315,14 +344,14 @@ export default function WatchlistPage() {
         const session: PersistedMarketSession = {
             selectedWatchlist,
             selectedSymbol,
-            compareSymbol,
+            compareSymbols,
             compareVisible,
             selectedMarket,
             selectedRange,
             selectedInterval,
         };
         window.localStorage.setItem(MARKET_SESSION_STORAGE_KEY, JSON.stringify(session));
-    }, [compareSymbol, compareVisible, selectedInterval, selectedMarket, selectedRange, selectedSymbol, selectedWatchlist, sessionHydrated]);
+    }, [compareSymbols, compareVisible, selectedInterval, selectedMarket, selectedRange, selectedSymbol, selectedWatchlist, sessionHydrated]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -570,21 +599,24 @@ export default function WatchlistPage() {
     }, [fetchCandleChunk]);
 
     const fetchCompareCandles = useCallback(async (
-        symbol: string,
+        symbols: string[],
         range: ChartRange,
         interval: ChartInterval,
     ) => {
-        if (!symbol || symbol === selectedSymbol) {
-            setCompareCandles([]);
+        const normalizedSymbols = symbols.filter((symbol) => symbol && symbol !== selectedSymbol).slice(0, 3);
+        if (normalizedSymbols.length === 0) {
+            setCompareCandles({});
             return;
         }
 
         try {
-            const nextCandles = await fetchCandleChunk(symbol, range, interval);
-            setCompareCandles(nextCandles);
+            const entries = await Promise.all(
+                normalizedSymbols.map(async (symbol) => [symbol, await fetchCandleChunk(symbol, range, interval)] as const),
+            );
+            setCompareCandles(Object.fromEntries(entries));
         } catch (error) {
             console.error(error);
-            setCompareCandles([]);
+            setCompareCandles({});
         }
     }, [fetchCandleChunk, selectedSymbol]);
 
@@ -608,7 +640,9 @@ export default function WatchlistPage() {
     }, [fetchItems, selectedWatchlist]);
 
     useEffect(() => {
-        setCompareSymbol('');
+        setCompareSymbols([]);
+        setCompareCandidate('');
+        setCompareCandles({});
     }, [selectedMarket]);
 
     useEffect(() => {
@@ -622,8 +656,8 @@ export default function WatchlistPage() {
     }, [fetchCandles, selectedInterval, selectedRange, selectedSymbol]);
 
     useEffect(() => {
-        fetchCompareCandles(compareSymbol, selectedRange, selectedInterval);
-    }, [compareSymbol, fetchCompareCandles, selectedInterval, selectedRange]);
+        fetchCompareCandles(compareSymbols, selectedRange, selectedInterval);
+    }, [compareSymbols, fetchCompareCandles, selectedInterval, selectedRange]);
 
     const handleCreateWatchlist = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -864,16 +898,28 @@ export default function WatchlistPage() {
                                         <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
                                             <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compare</p>
                                             <select
-                                                value={compareSymbol}
-                                                onChange={(event) => setCompareSymbol(event.target.value)}
+                                                value={compareCandidate}
+                                                onChange={(event) => {
+                                                    const nextSymbol = event.target.value;
+                                                    setCompareCandidate('');
+                                                    if (!nextSymbol) {
+                                                        return;
+                                                    }
+                                                    setCompareSymbols((current) => {
+                                                        if (current.includes(nextSymbol) || current.length >= 3) {
+                                                            return current;
+                                                        }
+                                                        return [...current, nextSymbol];
+                                                    });
+                                                }}
                                                 className="mt-2 w-full bg-transparent text-sm font-semibold text-sky-300 outline-none"
                                             >
-                                                <option value="" className="bg-zinc-950 text-white">Off</option>
+                                                <option value="" className="bg-zinc-950 text-white">Add symbol</option>
                                                 {instrumentUniverse
-                                                    .filter((instrument) => instrument.symbol !== selectedSymbol)
+                                                    .filter((instrument) => instrument.symbol !== selectedSymbol && !compareSymbols.includes(instrument.symbol))
                                                     .map((instrument) => (
                                                         <option key={instrument.symbol} value={instrument.symbol} className="bg-zinc-950 text-white">
-                                                            {instrument.symbol}
+                                                            {instrument.symbol} · {instrument.displayName}
                                                         </option>
                                                     ))}
                                             </select>
@@ -965,7 +1011,7 @@ export default function WatchlistPage() {
                                         </span>
                                     </div>
 
-                                    {compareSymbol && (
+                                    {compareSymbols.length > 0 && (
                                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
                                             <div>
                                                 <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compare Session</p>
@@ -973,28 +1019,27 @@ export default function WatchlistPage() {
                                                     <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-amber-300">
                                                         {selectedSymbol}
                                                     </span>
-                                                    <span className="text-zinc-500">vs</span>
-                                                    <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-sky-300">
-                                                        {selectedCompareInstrument?.symbol ?? compareSymbol}
-                                                    </span>
-                                                    {selectedCompareInstrument && 'displayName' in selectedCompareInstrument && (
-                                                        <span className="text-sm text-zinc-400">
-                                                            {selectedCompareInstrument.displayName}
+                                                    {selectedCompareInstruments.map((instrument, index) => (
+                                                        <span
+                                                            key={instrument.symbol}
+                                                            className="rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.16em]"
+                                                            style={{
+                                                                borderColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}55`,
+                                                                backgroundColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}22`,
+                                                                color: COMPARE_COLORS[index % COMPARE_COLORS.length],
+                                                            }}
+                                                        >
+                                                            {instrument.symbol}
                                                         </span>
-                                                    )}
-                                                    {compareSessionSummary && (
-                                                        <span className={`rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] ${compareSessionSummary.relativeGapPercent >= 0
-                                                            ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
-                                                            : 'border-red-400/30 bg-red-400/10 text-red-300'}`}>
-                                                            {compareSessionSummary.relativeGapPercent >= 0 ? 'Outperforming' : 'Underperforming'} {formatPercent(compareSessionSummary.relativeGapPercent)}
-                                                        </span>
-                                                    )}
+                                                    ))}
                                                 </div>
-                                                {compareSessionSummary && (
-                                                    <p className="mt-2 text-sm text-zinc-400">
-                                                        {selectedSymbol} {formatPercent(compareSessionSummary.primaryMovePercent)} · {selectedCompareInstrument?.symbol ?? compareSymbol} {formatPercent(compareSessionSummary.compareMovePercent)}
-                                                    </p>
-                                                )}
+                                                <div className="mt-2 flex flex-col gap-1 text-sm text-zinc-400">
+                                                    {compareSessionSummary.map((summary) => (
+                                                        <p key={summary.symbol}>
+                                                            {selectedSymbol} {formatPercent(summary.primaryMovePercent)} · {summary.symbol} {formatPercent(summary.compareMovePercent)}
+                                                        </p>
+                                                    ))}
+                                                </div>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <button
@@ -1007,13 +1052,29 @@ export default function WatchlistPage() {
                                                 </button>
                                                 <button
                                                     onClick={() => {
-                                                        setCompareSymbol('');
+                                                        setCompareSymbols([]);
                                                         setCompareVisible(true);
                                                     }}
                                                     className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white"
                                                 >
                                                     Clear Compare
                                                 </button>
+                                            </div>
+                                            <div className="flex w-full flex-wrap gap-2 border-t border-white/10 pt-3">
+                                                {compareSessionSummary.map((summary) => (
+                                                    <button
+                                                        key={summary.symbol}
+                                                        onClick={() => setCompareSymbols((current) => current.filter((symbol) => symbol !== summary.symbol))}
+                                                        className="rounded-full border px-3 py-1 text-[11px] font-semibold"
+                                                        style={{
+                                                            borderColor: `${summary.color}55`,
+                                                            backgroundColor: `${summary.color}18`,
+                                                            color: summary.color,
+                                                        }}
+                                                    >
+                                                        {summary.displayName} · {summary.relativeGapPercent >= 0 ? '+' : ''}{summary.relativeGapPercent.toFixed(2)}%
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
                                     )}
@@ -1046,8 +1107,7 @@ export default function WatchlistPage() {
                                             ) : (
                                                 <MarketWorkspaceChart
                                                     data={candles}
-                                                    compareData={compareCandles}
-                                                    compareLabel={compareSymbol || null}
+                                                    compareSeries={compareSeries}
                                                     compareVisible={compareVisible}
                                                     drawingMode={drawingMode}
                                                     drawingStorageKey={selectedSymbol}
@@ -1140,15 +1200,15 @@ export default function WatchlistPage() {
                                         </article>
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Compare</p>
-                                            <p className="mt-2 text-xl font-semibold text-white">{compareSymbol || 'Off'}</p>
+                                            <p className="mt-2 text-xl font-semibold text-white">{compareSymbols.length > 0 ? compareSymbols.join(', ') : 'Off'}</p>
                                             <p className="mt-1 text-xs text-zinc-500">
-                                                {compareSymbol
+                                                {compareSymbols.length > 0
                                                     ? (compareVisible ? 'Normalized overlay line is visible.' : 'Overlay selected but hidden.')
                                                     : 'Normalized overlay line.'}
                                             </p>
-                                            {compareSessionSummary && (
-                                                <p className={`mt-2 text-xs font-semibold ${compareSessionSummary.relativeGapPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                    {compareSessionSummary.relativeGapPercent >= 0 ? 'Primary leads' : 'Primary trails'} by {formatPercent(Math.abs(compareSessionSummary.relativeGapPercent))}
+                                            {compareSessionSummary.length > 0 && (
+                                                <p className="mt-2 text-xs font-semibold text-zinc-300">
+                                                    {compareSessionSummary.length} overlay{compareSessionSummary.length === 1 ? '' : 's'} active
                                                 </p>
                                             )}
                                         </article>

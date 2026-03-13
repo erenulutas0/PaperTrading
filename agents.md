@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-13**: **Compare Mode Expanded From Single Overlay to Small Basket Analysis**
+  - **Problem observed**:
+    - Single-symbol compare was useful for one-off checks, but it still behaved more like a toggle than a real terminal workflow.
+    - Users could not compare a primary symbol against a small peer basket without repeatedly clearing and reselection.
+  - **Implementation**:
+    - `/watchlist` compare state now supports up to three simultaneous compare symbols instead of a single `compareSymbol`.
+    - Session persistence upgraded accordingly so refresh restores the compare basket, not just one symbol.
+    - `MarketWorkspaceChart` now renders multiple normalized overlay line series on the left price scale, each with its own color and summary.
+    - Compare session banner now:
+      - shows the active compare basket
+      - allows per-symbol removal
+      - keeps global hide/show overlay behavior
+  - **Operational impact**:
+    - compare mode is now suitable for relative-strength inspection across a small peer set
+    - future compare extensions (sector basket, index overlay, multi-market relative analysis) can build on the same array-based contract
 - **2026-03-13**: **Market Instrument Metadata Promoted to First-Class API Contract**
   - **Problem observed**:
     - The terminal had symbols and prices, but the instrument universe still felt too raw:

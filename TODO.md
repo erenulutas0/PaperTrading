@@ -3,6 +3,7 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after multi-symbol compare rollout and verify `/watchlist` now supports up to three simultaneous overlay symbols with independent removal, persisted session state, and compare summaries
 - [ ] Redeploy backend/frontend after market instrument metadata enrichment and verify `/watchlist` now surfaces market/exchange/currency/delay chips, richer BIST/crypto search, and descriptive names inside the right-rail watch basket
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner

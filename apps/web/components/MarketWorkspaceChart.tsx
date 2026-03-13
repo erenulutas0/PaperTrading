@@ -41,10 +41,15 @@ interface AlertLine {
     color: string;
 }
 
+interface CompareSeriesInput {
+    label: string;
+    data: CandlePoint[];
+    color: string;
+}
+
 interface MarketWorkspaceChartProps {
     data: CandlePoint[];
-    compareData?: CandlePoint[];
-    compareLabel?: string | null;
+    compareSeries?: CompareSeriesInput[];
     compareVisible?: boolean;
     drawingMode?: DrawingMode;
     drawingStorageKey?: string | null;
@@ -97,8 +102,7 @@ function normalizeCandleSeries(points: CandlePoint[]): CandlePoint[] {
 
 export default function MarketWorkspaceChart({
     data,
-    compareData = [],
-    compareLabel = null,
+    compareSeries = [],
     compareVisible = true,
     drawingMode = 'none',
     drawingStorageKey = null,
@@ -113,12 +117,11 @@ export default function MarketWorkspaceChart({
     const chartRef = useRef<IChartApi | null>(null);
     const seriesRef = useRef<any>(null);
     const volumeSeriesRef = useRef<any>(null);
-    const compareSeriesRef = useRef<any>(null);
+    const compareSeriesRefs = useRef<Array<{ label: string; color: string; series: any }>>([]);
     const drawingSeriesRef = useRef<Array<{ id: string; series: any }>>([]);
     const alertSeriesRef = useRef<Array<{ id: string; series: any }>>([]);
     const lastRequestedOldestRef = useRef<number | null>(null);
     const dataRef = useRef<CandlePoint[]>(data);
-    const compareDataRef = useRef<CandlePoint[]>(compareData);
     const onReachStartRef = useRef(onReachStart);
     const onDrawingCompleteRef = useRef(onDrawingComplete);
     const drawingModeRef = useRef<DrawingMode>(drawingMode);
@@ -131,7 +134,12 @@ export default function MarketWorkspaceChart({
     const [activePoint, setActivePoint] = useState<CandlePoint | null>(data[data.length - 1] ?? null);
     const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
     const normalizedData = useMemo(() => normalizeCandleSeries(data), [data]);
-    const normalizedCompareData = useMemo(() => normalizeCandleSeries(compareData), [compareData]);
+    const normalizedCompareSeries = useMemo(() => {
+        return compareSeries.map((series) => ({
+            ...series,
+            data: normalizeCandleSeries(series.data),
+        }));
+    }, [compareSeries]);
 
     const seriesData = useMemo<CandlestickData[]>(() => {
         return normalizedData.map((point) => ({
@@ -151,26 +159,40 @@ export default function MarketWorkspaceChart({
         }));
     }, [normalizedData]);
 
-    const compareSeriesData = useMemo<LineData[]>(() => {
-        if (!compareVisible || !normalizedCompareData.length) {
+    const compareSeriesData = useMemo(() => {
+        if (!compareVisible) {
             return [];
         }
-        const baseClose = normalizedCompareData[0].close || 1;
-        return normalizedCompareData.map((point) => ({
-            time: Math.floor(point.openTime / 1000) as UTCTimestamp,
-            value: (point.close / baseClose) * 100,
-        }));
-    }, [compareVisible, normalizedCompareData]);
+        return normalizedCompareSeries.map((series) => {
+            const baseClose = series.data[0]?.close || 1;
+            return {
+                label: series.label,
+                color: series.color,
+                data: series.data.map((point) => ({
+                    time: Math.floor(point.openTime / 1000) as UTCTimestamp,
+                    value: (point.close / baseClose) * 100,
+                })),
+            };
+        });
+    }, [compareVisible, normalizedCompareSeries]);
 
-    const compareLatestValue = compareSeriesData.length > 0
-        ? compareSeriesData[compareSeriesData.length - 1]?.value ?? null
-        : null;
     const primaryLatestIndexedValue = normalizedData.length > 0
         ? ((normalizedData[normalizedData.length - 1].close / (normalizedData[0].close || 1)) * 100)
         : null;
-    const relativePerformanceGap = compareLatestValue !== null && primaryLatestIndexedValue !== null
-        ? primaryLatestIndexedValue - compareLatestValue
-        : null;
+    const comparePerformanceSummaries = useMemo(() => {
+        return compareSeriesData.map((series) => {
+            const latestValue = series.data.length > 0 ? series.data[series.data.length - 1]?.value ?? null : null;
+            const relativePerformanceGap = latestValue !== null && primaryLatestIndexedValue !== null
+                ? primaryLatestIndexedValue - latestValue
+                : null;
+            return {
+                label: series.label,
+                color: series.color,
+                latestValue,
+                relativePerformanceGap,
+            };
+        });
+    }, [compareSeriesData, primaryLatestIndexedValue]);
 
     const resolvedActivePoint = activePoint ?? normalizedData[normalizedData.length - 1] ?? null;
     const activeChange = resolvedActivePoint ? resolvedActivePoint.close - resolvedActivePoint.open : 0;
@@ -210,10 +232,6 @@ export default function MarketWorkspaceChart({
     useEffect(() => {
         onActivePointChange?.(activePoint ?? normalizedData[normalizedData.length - 1] ?? null);
     }, [activePoint, normalizedData, onActivePointChange]);
-
-    useEffect(() => {
-        compareDataRef.current = normalizedCompareData;
-    }, [normalizedCompareData]);
 
     useEffect(() => {
         onReachStartRef.current = onReachStart;
@@ -316,15 +334,6 @@ export default function MarketWorkspaceChart({
             priceScaleId: '',
         });
 
-        const compareSeries = chart.addSeries(LineSeries, {
-            priceScaleId: 'left',
-            color: '#f59e0b',
-            lineWidth: 2,
-            crosshairMarkerVisible: false,
-            lastValueVisible: true,
-            priceLineVisible: false,
-        });
-
         chart.priceScale('').applyOptions({
             scaleMargins: {
                 top: 0.78,
@@ -332,7 +341,7 @@ export default function MarketWorkspaceChart({
             },
         });
         chart.priceScale('left').applyOptions({
-            visible: compareDataRef.current.length > 0,
+            visible: compareSeries.length > 0,
             borderColor: 'rgba(245,158,11,0.18)',
             scaleMargins: {
                 top: 0.08,
@@ -445,7 +454,6 @@ export default function MarketWorkspaceChart({
         chartRef.current = chart;
         seriesRef.current = series;
         volumeSeriesRef.current = volumeSeries;
-        compareSeriesRef.current = compareSeries;
 
         return () => {
             chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
@@ -456,14 +464,14 @@ export default function MarketWorkspaceChart({
             chartRef.current = null;
             seriesRef.current = null;
             volumeSeriesRef.current = null;
-            compareSeriesRef.current = null;
+            compareSeriesRefs.current = [];
             drawingSeriesRef.current = [];
             alertSeriesRef.current = [];
         };
     }, []);
 
     useEffect(() => {
-        if (!seriesRef.current || !volumeSeriesRef.current || !compareSeriesRef.current || !chartRef.current) {
+        if (!seriesRef.current || !volumeSeriesRef.current || !chartRef.current) {
             return;
         }
         const timeScale = chartRef.current.timeScale();
@@ -474,9 +482,32 @@ export default function MarketWorkspaceChart({
 
         seriesRef.current.setData(seriesData);
         volumeSeriesRef.current.setData(volumeSeriesData);
-        compareSeriesRef.current.setData(compareSeriesData);
+        compareSeriesRefs.current.forEach(({ series }) => {
+            chartRef.current?.removeSeries(series);
+        });
+        compareSeriesRefs.current = [];
+        compareSeriesData.forEach((compareSeries) => {
+            const series = chartRef.current?.addSeries(LineSeries, {
+                priceScaleId: 'left',
+                color: compareSeries.color,
+                lineWidth: 2,
+                crosshairMarkerVisible: false,
+                lastValueVisible: true,
+                priceLineVisible: false,
+                title: compareSeries.label,
+            });
+            if (!series) {
+                return;
+            }
+            series.setData(compareSeries.data);
+            compareSeriesRefs.current.push({
+                label: compareSeries.label,
+                color: compareSeries.color,
+                series,
+            });
+        });
         chartRef.current.priceScale('left').applyOptions({
-            visible: compareSeriesData.length > 0,
+            visible: compareSeriesData.some((series) => series.data.length > 0),
         });
 
         const prependedBars = normalizedData.length - previousLength;
@@ -649,34 +680,41 @@ export default function MarketWorkspaceChart({
                         {resolvedActivePoint ? resolvedActivePoint.volume.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
                     </span>
                 </div>
-                {compareLabel && compareSeriesData.length > 0 && (
-                    <div className="text-amber-300">
-                        <span className="text-zinc-500">{compareLabel} </span>
+                {comparePerformanceSummaries.map((summary) => (
+                    <div key={summary.label} style={{ color: summary.color }}>
+                        <span className="text-zinc-500">{summary.label} </span>
                         <span className="font-mono">
-                            {compareLatestValue?.toFixed(2)} idx
+                            {summary.latestValue !== null ? `${summary.latestValue.toFixed(2)} idx` : '—'}
                         </span>
                     </div>
-                )}
+                ))}
             </div>
             <div ref={chartContainerRef} className="h-[520px] w-full" />
-            {compareLabel && (
+            {comparePerformanceSummaries.length > 0 && (
                 <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/8 bg-black/30 px-4 py-3 text-xs">
                     <span className="uppercase tracking-[0.24em] text-zinc-500">Compare</span>
-                    <span className={`rounded-full border px-3 py-1 font-semibold ${compareSeriesData.length > 0
-                        ? 'border-amber-400/30 bg-amber-400/10 text-amber-300'
-                        : 'border-white/10 bg-white/[0.03] text-zinc-500'}`}>
-                        {compareLabel}
-                    </span>
-                    <span className="text-zinc-500">
-                        {compareSeriesData.length > 0
-                            ? `Overlay active · ${compareLatestValue?.toFixed(2)} indexed`
-                            : 'Overlay hidden'}
-                    </span>
-                    {compareSeriesData.length > 0 && relativePerformanceGap !== null && (
-                        <span className={relativePerformanceGap >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                            {relativePerformanceGap >= 0 ? 'Primary leads' : 'Primary trails'} · {relativePerformanceGap >= 0 ? '+' : ''}{relativePerformanceGap.toFixed(2)} idx
-                        </span>
-                    )}
+                    {comparePerformanceSummaries.map((summary) => (
+                        <div key={summary.label} className="flex items-center gap-2">
+                            <span
+                                className="rounded-full border px-3 py-1 font-semibold"
+                                style={{
+                                    borderColor: `${summary.color}55`,
+                                    backgroundColor: `${summary.color}22`,
+                                    color: summary.color,
+                                }}
+                            >
+                                {summary.label}
+                            </span>
+                            <span className="text-zinc-500">
+                                {summary.latestValue !== null ? `Overlay active · ${summary.latestValue.toFixed(2)} indexed` : 'Overlay hidden'}
+                            </span>
+                            {summary.relativePerformanceGap !== null && (
+                                <span className={summary.relativePerformanceGap >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                    {summary.relativePerformanceGap >= 0 ? 'Primary leads' : 'Primary trails'} · {summary.relativePerformanceGap >= 0 ? '+' : ''}{summary.relativePerformanceGap.toFixed(2)} idx
+                                </span>
+                            )}
+                        </div>
+                    ))}
                     {drawingMode !== 'none' && (
                         <span className="text-sky-300">
                             Draw mode · {drawingMode === 'horizontal' ? 'click chart to place a level' : 'click two points for a trend line'}
