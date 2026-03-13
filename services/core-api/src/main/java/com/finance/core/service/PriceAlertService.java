@@ -1,6 +1,7 @@
 package com.finance.core.service;
 
 import com.finance.core.domain.Notification;
+import com.finance.core.domain.WatchlistAlertDirection;
 import com.finance.core.domain.WatchlistItem;
 import com.finance.core.domain.event.NotificationEvent;
 import com.finance.core.repository.WatchlistItemRepository;
@@ -24,6 +25,7 @@ public class PriceAlertService {
     private final WatchlistItemRepository watchlistItemRepository;
     private final BinanceService binanceService;
     private final ApplicationEventPublisher eventPublisher;
+    private final WatchlistAlertHistoryService watchlistAlertHistoryService;
 
     /**
      * Runs every 10 seconds and checks all active price alerts against live market
@@ -57,15 +59,22 @@ public class PriceAlertService {
                 if (current.compareTo(item.getAlertPriceAbove()) >= 0) {
                     item.setAlertAboveTriggered(true);
                     watchlistItemRepository.save(item);
+                    String message = String.format("🚀 %s hit $%s (above alert: $%s)",
+                            item.getSymbol(), current.toPlainString(),
+                            item.getAlertPriceAbove().toPlainString());
+                    watchlistAlertHistoryService.recordEvent(
+                            item,
+                            WatchlistAlertDirection.ABOVE,
+                            item.getAlertPriceAbove(),
+                            current,
+                            message);
 
                     // Fire notification
                     eventPublisher.publishEvent(NotificationEvent.builder()
                             .receiverId(item.getWatchlist().getUserId())
                             .type(Notification.NotificationType.PRICE_ALERT)
                             .referenceId(item.getId())
-                            .referenceLabel(String.format("🚀 %s hit $%s (above alert: $%s)",
-                                    item.getSymbol(), current.toPlainString(),
-                                    item.getAlertPriceAbove().toPlainString()))
+                            .referenceLabel(message)
                             .build());
 
                     triggered++;
@@ -79,14 +88,21 @@ public class PriceAlertService {
                 if (current.compareTo(item.getAlertPriceBelow()) <= 0) {
                     item.setAlertBelowTriggered(true);
                     watchlistItemRepository.save(item);
+                    String message = String.format("📉 %s dropped to $%s (below alert: $%s)",
+                            item.getSymbol(), current.toPlainString(),
+                            item.getAlertPriceBelow().toPlainString());
+                    watchlistAlertHistoryService.recordEvent(
+                            item,
+                            WatchlistAlertDirection.BELOW,
+                            item.getAlertPriceBelow(),
+                            current,
+                            message);
 
                     eventPublisher.publishEvent(NotificationEvent.builder()
                             .receiverId(item.getWatchlist().getUserId())
                             .type(Notification.NotificationType.PRICE_ALERT)
                             .referenceId(item.getId())
-                            .referenceLabel(String.format("📉 %s dropped to $%s (below alert: $%s)",
-                                    item.getSymbol(), current.toPlainString(),
-                                    item.getAlertPriceBelow().toPlainString()))
+                            .referenceLabel(message)
                             .build());
 
                     triggered++;

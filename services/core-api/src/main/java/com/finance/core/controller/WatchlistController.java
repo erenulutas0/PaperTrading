@@ -2,6 +2,8 @@ package com.finance.core.controller;
 
 import com.finance.core.domain.Watchlist;
 import com.finance.core.domain.WatchlistItem;
+import com.finance.core.dto.WatchlistAlertEventResponse;
+import com.finance.core.service.WatchlistAlertHistoryService;
 import com.finance.core.service.WatchlistService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.CurrentUserId;
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class WatchlistController {
 
     private final WatchlistService watchlistService;
+    private final WatchlistAlertHistoryService watchlistAlertHistoryService;
 
     /** Get all watchlists for the current user */
     @GetMapping
@@ -107,6 +110,14 @@ public class WatchlistController {
         } catch (Exception e) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_items_failed", e.getMessage(), null, httpRequest);
         }
+    }
+
+    @GetMapping("/items/{itemId}/alert-history")
+    public ResponseEntity<List<WatchlistAlertEventResponse>> getAlertHistory(
+            @PathVariable UUID itemId,
+            @CurrentUserId UUID userId,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistory(itemId, userId, limit));
     }
 
     @Data

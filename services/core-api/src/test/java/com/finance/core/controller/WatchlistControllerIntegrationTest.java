@@ -2,9 +2,13 @@ package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.Watchlist;
+import com.finance.core.domain.WatchlistAlertDirection;
+import com.finance.core.domain.WatchlistAlertEvent;
+import com.finance.core.domain.WatchlistItem;
 import com.finance.core.dto.MarketType;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketInstrumentResponse;
+import com.finance.core.repository.WatchlistAlertEventRepository;
 import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
 import com.finance.core.service.MarketDataFacadeService;
@@ -38,6 +42,8 @@ class WatchlistControllerIntegrationTest {
         private WatchlistRepository watchlistRepository;
         @Autowired
         private WatchlistItemRepository watchlistItemRepository;
+        @Autowired
+        private WatchlistAlertEventRepository watchlistAlertEventRepository;
         @MockitoBean
         private MarketDataFacadeService marketDataFacadeService;
         @Autowired
@@ -49,6 +55,7 @@ class WatchlistControllerIntegrationTest {
         @BeforeEach
         void setUp() {
                 watchlistItemRepository.deleteAll();
+                watchlistAlertEventRepository.deleteAll();
                 watchlistRepository.deleteAll();
 
                 testWatchlist = Watchlist.builder()
@@ -119,6 +126,32 @@ class WatchlistControllerIntegrationTest {
                                 .andExpect(jsonPath("$[0].symbol").value("BTCUSDT"))
                                 .andExpect(jsonPath("$[0].currentPrice").value(60000.0))
                                 .andExpect(jsonPath("$[0].changePercent24h").value(3.4));
+        }
+
+        @Test
+        void testGetAlertHistory() throws Exception {
+                WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                                .watchlist(testWatchlist)
+                                .symbol("BTCUSDT")
+                                .build());
+                watchlistAlertEventRepository.save(WatchlistAlertEvent.builder()
+                                .watchlistItem(item)
+                                .userId(userId)
+                                .symbol("BTCUSDT")
+                                .direction(WatchlistAlertDirection.ABOVE)
+                                .thresholdPrice(java.math.BigDecimal.valueOf(61000))
+                                .triggeredPrice(java.math.BigDecimal.valueOf(61500))
+                                .message("BTCUSDT hit above alert")
+                                .build());
+
+                mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                                .header("X-User-Id", userId.toString())
+                                .param("limit", "5"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$", hasSize(1)))
+                                .andExpect(jsonPath("$[0].symbol").value("BTCUSDT"))
+                                .andExpect(jsonPath("$[0].direction").value("ABOVE"))
+                                .andExpect(jsonPath("$[0].triggeredPrice").value(61500));
         }
 
         @Test

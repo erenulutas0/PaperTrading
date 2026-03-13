@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-13**: **Watchlist Terminal Split Personal Notes From Auditable Alert Events**
+  - **Problem observed**:
+    - The market terminal had alert lines and watchlist notes, but no historical answer to "when did this alert actually fire?".
+    - Users also needed quick chart-side notes without turning every scratchpad thought into backend state.
+  - **Implementation**:
+    - Added backend `watchlist_alert_events` as an append-only record of triggered watchlist alerts.
+    - `PriceAlertService` now persists an event row whenever an above/below threshold is triggered.
+    - Added authenticated history read path:
+      - `GET /api/v1/watchlists/items/{itemId}/alert-history`
+    - Kept chart notes separate and lightweight:
+      - symbol-scoped
+      - browser-local persistence
+      - no backend write path
+  - **Operational impact**:
+    - alert triggers are now inspectable and auditable from the terminal
+    - quick chart annotations stay fast and low-risk without introducing extra sync/conflict complexity
 - **2026-03-13**: **Compare Mode Expanded From Single Overlay to Small Basket Analysis**
   - **Problem observed**:
     - Single-symbol compare was useful for one-off checks, but it still behaved more like a toggle than a real terminal workflow.

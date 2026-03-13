@@ -61,6 +61,23 @@ interface CompareSeriesInput {
     color: string;
 }
 
+interface ChartNote {
+    id: string;
+    body: string;
+    createdAt: string;
+}
+
+interface AlertHistoryEntry {
+    id: string;
+    watchlistItemId: string;
+    symbol: string;
+    direction: 'ABOVE' | 'BELOW';
+    thresholdPrice: number;
+    triggeredPrice: number;
+    message: string;
+    triggeredAt: string;
+}
+
 type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 type DrawingMode = 'none' | 'horizontal' | 'trend';
@@ -71,6 +88,7 @@ const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d']
 const MARKET_OPTIONS: MarketSelection[] = ['CRYPTO', 'BIST100'];
 const ALL_HISTORY_CHUNK = 1000;
 const MARKET_SESSION_STORAGE_KEY = 'market.terminal.session';
+const MARKET_NOTES_STORAGE_PREFIX = 'market.chart-notes';
 const COMPARE_COLORS = ['#f59e0b', '#38bdf8', '#f472b6'];
 
 interface PersistedMarketSession {
@@ -164,6 +182,10 @@ export default function WatchlistPage() {
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [compareCandles, setCompareCandles] = useState<Record<string, CandlePoint[]>>({});
     const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
+    const [chartNotes, setChartNotes] = useState<ChartNote[]>([]);
+    const [chartNoteDraft, setChartNoteDraft] = useState('');
+    const [alertHistory, setAlertHistory] = useState<AlertHistoryEntry[]>([]);
+    const [alertHistoryLoading, setAlertHistoryLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(false);
     const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
@@ -228,6 +250,10 @@ export default function WatchlistPage() {
     const selectedWatchlistItem = useMemo(() => {
         return enrichedItems.find((item) => item.symbol === selectedSymbol) ?? null;
     }, [enrichedItems, selectedSymbol]);
+
+    const chartNotesStorageKey = useMemo(() => {
+        return `${MARKET_NOTES_STORAGE_PREFIX}.${selectedMarket}.${selectedSymbol}`;
+    }, [selectedMarket, selectedSymbol]);
 
     const chartAlertLines = useMemo<AlertLine[]>(() => {
         if (!selectedWatchlistItem) {
@@ -336,6 +362,39 @@ export default function WatchlistPage() {
             setCompareVisible(true);
         }
     }, [compareSymbols]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        try {
+            const stored = window.localStorage.getItem(chartNotesStorageKey);
+            if (!stored) {
+                setChartNotes([]);
+                return;
+            }
+            const parsed = JSON.parse(stored);
+            if (!Array.isArray(parsed)) {
+                setChartNotes([]);
+                return;
+            }
+            setChartNotes(parsed.filter((entry): entry is ChartNote =>
+                !!entry
+                && typeof entry.id === 'string'
+                && typeof entry.body === 'string'
+                && typeof entry.createdAt === 'string'));
+        } catch (error) {
+            console.error(error);
+            setChartNotes([]);
+        }
+    }, [chartNotesStorageKey]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        window.localStorage.setItem(chartNotesStorageKey, JSON.stringify(chartNotes));
+    }, [chartNotes, chartNotesStorageKey]);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !sessionHydrated) {
@@ -475,6 +534,24 @@ export default function WatchlistPage() {
             console.error(error);
         }
     }, [currentUserId, selectedWatchlist]);
+
+    const fetchAlertHistory = useCallback(async (itemId: string) => {
+        setAlertHistoryLoading(true);
+        try {
+            const res = await apiFetch(`/api/v1/watchlists/items/${itemId}/alert-history?limit=8`, { cache: 'no-store' });
+            if (!res.ok) {
+                setAlertHistory([]);
+                return;
+            }
+            const data = await res.json();
+            setAlertHistory(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error(error);
+            setAlertHistory([]);
+        } finally {
+            setAlertHistoryLoading(false);
+        }
+    }, []);
 
     const updateSelectedSymbolAlerts = useCallback(async (nextAbove: number | null, nextBelow: number | null) => {
         if (!selectedWatchlistItem) {
@@ -648,6 +725,14 @@ export default function WatchlistPage() {
     }, [selectedInterval, selectedRange]);
 
     useEffect(() => {
+        if (!selectedWatchlistItem) {
+            setAlertHistory([]);
+            return;
+        }
+        fetchAlertHistory(selectedWatchlistItem.id);
+    }, [fetchAlertHistory, selectedWatchlistItem]);
+
+    useEffect(() => {
         fetchCandles(selectedSymbol, selectedRange, selectedInterval, 'reset');
     }, [fetchCandles, selectedInterval, selectedRange, selectedSymbol]);
 
@@ -735,6 +820,24 @@ export default function WatchlistPage() {
         } catch (error) {
             console.error(error);
         }
+    };
+
+    const handleAddChartNote = (event: React.FormEvent) => {
+        event.preventDefault();
+        const trimmed = chartNoteDraft.trim();
+        if (!trimmed) {
+            return;
+        }
+        setChartNotes((current) => [{
+            id: `note-${Date.now()}`,
+            body: trimmed,
+            createdAt: new Date().toISOString(),
+        }, ...current].slice(0, 25));
+        setChartNoteDraft('');
+    };
+
+    const handleDeleteChartNote = (noteId: string) => {
+        setChartNotes((current) => current.filter((note) => note.id !== noteId));
     };
 
     const handleLoadMoreHistory = useCallback((oldestOpenTime: number) => {
@@ -1240,6 +1343,119 @@ export default function WatchlistPage() {
                                             >
                                                 {loadingMoreHistory ? 'Loading...' : (hasMoreHistory ? 'Load Older' : 'No More Data')}
                                             </button>
+                                        </div>
+                                    )}
+
+                                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Chart Notes</p>
+                                                    <p className="mt-1 text-sm text-zinc-400">
+                                                        Symbol-scoped quick notes for {selectedSymbol}. Stored locally in this browser.
+                                                    </p>
+                                                </div>
+                                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                                                    {chartNotes.length} saved
+                                                </span>
+                                            </div>
+                                            <form onSubmit={handleAddChartNote} className="mt-4 space-y-3">
+                                                <textarea
+                                                    value={chartNoteDraft}
+                                                    onChange={(event) => setChartNoteDraft(event.target.value)}
+                                                    placeholder={`Write a quick note for ${selectedSymbol}...`}
+                                                    className="min-h-[96px] w-full rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
+                                                />
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <p className="text-xs text-zinc-500">
+                                                        Notes follow the symbol across refresh and market terminal revisits.
+                                                    </p>
+                                                    <button
+                                                        type="submit"
+                                                        className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300 transition hover:bg-amber-400/20"
+                                                    >
+                                                        Save Note
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Recent Alert Activity</p>
+                                            <p className="mt-1 text-sm text-zinc-400">
+                                                {selectedWatchlistItem
+                                                    ? `Triggered alert events for ${selectedWatchlistItem.symbol} in the selected basket.`
+                                                    : 'Add the current symbol to the selected watchlist to collect trigger history here.'}
+                                            </p>
+                                            <div className="mt-4 space-y-2">
+                                                {!selectedWatchlistItem ? (
+                                                    <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-zinc-500">
+                                                        Alert history becomes available when the current symbol exists in the active watchlist.
+                                                    </div>
+                                                ) : alertHistoryLoading ? (
+                                                    <div className="rounded-2xl border border-white/10 px-4 py-5 text-sm text-zinc-500">
+                                                        Loading alert history...
+                                                    </div>
+                                                ) : alertHistory.length === 0 ? (
+                                                    <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-zinc-500">
+                                                        No triggered alerts yet for this symbol.
+                                                    </div>
+                                                ) : (
+                                                    alertHistory.map((entry) => (
+                                                        <div key={entry.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
+                                                            <div className="flex items-start justify-between gap-3">
+                                                                <div>
+                                                                    <p className={`text-sm font-semibold ${entry.direction === 'ABOVE' ? 'text-emerald-300' : 'text-red-300'}`}>
+                                                                        {entry.direction === 'ABOVE' ? 'Above trigger' : 'Below trigger'}
+                                                                    </p>
+                                                                    <p className="mt-1 text-xs text-zinc-400">{entry.message}</p>
+                                                                </div>
+                                                                <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                                                                    {new Date(entry.triggeredAt).toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                                                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-zinc-300">
+                                                                    Threshold {formatMoney(Number(entry.thresholdPrice))}
+                                                                </span>
+                                                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-zinc-300">
+                                                                    Triggered {formatMoney(Number(entry.triggeredPrice))}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {chartNotes.length > 0 && (
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Saved Notes</p>
+                                                    <p className="mt-1 text-sm text-zinc-400">Reusable terminal notes for this exact symbol.</p>
+                                                </div>
+                                                <span className="text-xs text-zinc-500">{selectedSymbol}</span>
+                                            </div>
+                                            <div className="mt-4 space-y-2">
+                                                {chartNotes.map((note) => (
+                                                    <div key={note.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <p className="whitespace-pre-wrap text-sm text-zinc-200">{note.body}</p>
+                                                            <button
+                                                                onClick={() => handleDeleteChartNote(note.id)}
+                                                                className="text-xs text-zinc-500 transition hover:text-red-400"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                        <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                                                            {new Date(note.createdAt).toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
