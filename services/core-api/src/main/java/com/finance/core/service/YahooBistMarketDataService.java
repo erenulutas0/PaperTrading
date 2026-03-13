@@ -5,17 +5,20 @@ import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketInstrumentResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -25,9 +28,16 @@ public class YahooBistMarketDataService {
     private static final String YAHOO_QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote";
     private static final String YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
     private static final List<String> SUPPORTED_INTERVALS = List.of("1m", "15m", "30m", "1h", "4h", "1d");
+    private static final Duration SNAPSHOT_CACHE_TTL = Duration.ofMinutes(10);
 
     private final Bist100UniverseService universeService;
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient = RestClient.builder()
+            .defaultHeader(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+            .defaultHeader(HttpHeaders.ACCEPT, "application/json, text/plain, */*")
+            .defaultHeader(HttpHeaders.ACCEPT_LANGUAGE, "en-US,en;q=0.9,tr;q=0.8")
+            .defaultHeader(HttpHeaders.REFERER, "https://finance.yahoo.com/")
+            .build();
+    private final Map<String, CachedSnapshot> snapshotCache = new ConcurrentHashMap<>();
 
     public List<MarketInstrumentResponse> getSupportedInstruments() {
         return getInstrumentSnapshots(universeService.getSymbols()).values().stream().toList();
@@ -43,6 +53,33 @@ public class YahooBistMarketDataService {
             return Map.of();
         }
 
+        Map<String, MarketInstrumentResponse> snapshots = fetchQuoteSnapshots(normalizedSymbols);
+        List<String> missingSymbols = normalizedSymbols.stream()
+                .filter(symbol -> isMissingSnapshot(snapshots.get(symbol)))
+                .toList();
+        if (!missingSymbols.isEmpty()) {
+            log.info("Yahoo BIST quote response missing live data for {} symbols; applying chart fallback", missingSymbols.size());
+            missingSymbols.parallelStream()
+                    .forEach(symbol -> {
+                        MarketInstrumentResponse fallback = loadChartFallbackSnapshot(symbol);
+                        if (fallback != null) {
+                            snapshots.put(symbol, fallback);
+                        }
+                    });
+        }
+
+        Map<String, MarketInstrumentResponse> ordered = new LinkedHashMap<>();
+        for (String symbol : normalizedSymbols) {
+            MarketInstrumentResponse snapshot = snapshots.get(symbol);
+            if (snapshot == null) {
+                snapshot = zeroSnapshot(symbol);
+            }
+            ordered.put(symbol, snapshot);
+        }
+        return ordered;
+    }
+
+    private Map<String, MarketInstrumentResponse> fetchQuoteSnapshots(List<String> normalizedSymbols) {
         try {
             JsonNode response = restClient.get()
                     .uri(buildQuoteUri(normalizedSymbols))
@@ -50,7 +87,12 @@ public class YahooBistMarketDataService {
                     .body(JsonNode.class);
 
             Map<String, MarketInstrumentResponse> snapshots = new LinkedHashMap<>();
-            JsonNode results = response == null ? null : response.path("quoteResponse").path("result");
+            JsonNode quoteResponse = response == null ? null : response.path("quoteResponse");
+            JsonNode results = quoteResponse == null ? null : quoteResponse.path("result");
+            JsonNode error = quoteResponse == null ? null : quoteResponse.path("error");
+            if (error != null && !error.isMissingNode() && !error.isNull()) {
+                log.warn("Yahoo BIST quote response returned error payload: {}", error);
+            }
             if (results != null && results.isArray()) {
                 for (JsonNode result : results) {
                     String yahooSymbol = result.path("symbol").asText("");
@@ -58,39 +100,24 @@ public class YahooBistMarketDataService {
                     if (!normalizedSymbols.contains(symbol)) {
                         continue;
                     }
-                    snapshots.put(symbol, MarketInstrumentResponse.builder()
+                    MarketInstrumentResponse snapshot = MarketInstrumentResponse.builder()
                             .symbol(symbol)
                             .displayName(resolveDisplayName(symbol, result))
                             .assetType("EQUITY")
-                            .currentPrice(result.path("regularMarketPrice").asDouble(0.0))
-                            .changePercent24h(result.path("regularMarketChangePercent").asDouble(0.0))
-                            .build());
+                            .currentPrice(resolveQuotePrice(result))
+                            .changePercent24h(resolveQuoteChangePercent(result))
+                            .build();
+                    snapshots.put(symbol, snapshot);
+                    cacheSnapshot(snapshot);
                 }
             }
-
-            for (String symbol : normalizedSymbols) {
-                snapshots.putIfAbsent(symbol, MarketInstrumentResponse.builder()
-                        .symbol(symbol)
-                        .displayName(symbol)
-                        .assetType("EQUITY")
-                        .currentPrice(0.0)
-                        .changePercent24h(0.0)
-                        .build());
+            if ((results == null || !results.isArray() || results.isEmpty()) && response != null) {
+                log.warn("Yahoo BIST quote response returned no results for {} symbols", normalizedSymbols.size());
             }
             return snapshots;
         } catch (Exception e) {
             log.warn("Yahoo BIST quote refresh failed: {}", e.getMessage());
-            Map<String, MarketInstrumentResponse> fallback = new LinkedHashMap<>();
-            for (String symbol : normalizedSymbols) {
-                fallback.put(symbol, MarketInstrumentResponse.builder()
-                        .symbol(symbol)
-                        .displayName(symbol)
-                        .assetType("EQUITY")
-                        .currentPrice(0.0)
-                        .changePercent24h(0.0)
-                        .build());
-            }
-            return fallback;
+            return new LinkedHashMap<>();
         }
     }
 
@@ -144,6 +171,10 @@ public class YahooBistMarketDataService {
     private URI buildQuoteUri(List<String> symbols) {
         return UriComponentsBuilder.fromHttpUrl(YAHOO_QUOTE_URL)
                 .queryParam("symbols", symbols.stream().map(this::toYahooTicker).reduce((a, b) -> a + "," + b).orElse(""))
+                .queryParam("formatted", "false")
+                .queryParam("lang", "en-US")
+                .queryParam("region", "TR")
+                .queryParam("corsDomain", "finance.yahoo.com")
                 .build()
                 .encode()
                 .toUri();
@@ -246,6 +277,116 @@ public class YahooBistMarketDataService {
         return symbol;
     }
 
+    private double resolveQuotePrice(JsonNode result) {
+        for (String field : List.of("regularMarketPrice", "postMarketPrice", "preMarketPrice", "bid", "ask", "regularMarketPreviousClose")) {
+            double value = result.path(field).asDouble(0.0);
+            if (value > 0.0) {
+                return value;
+            }
+        }
+        return 0.0;
+    }
+
+    private double resolveQuoteChangePercent(JsonNode result) {
+        for (String field : List.of("regularMarketChangePercent", "postMarketChangePercent", "preMarketChangePercent")) {
+            JsonNode node = result.path(field);
+            if (!node.isMissingNode() && !node.isNull()) {
+                return node.asDouble(0.0);
+            }
+        }
+
+        double price = resolveQuotePrice(result);
+        double previousClose = result.path("regularMarketPreviousClose").asDouble(0.0);
+        if (price > 0.0 && previousClose > 0.0) {
+            return ((price - previousClose) / previousClose) * 100.0;
+        }
+        return 0.0;
+    }
+
+    private boolean isMissingSnapshot(MarketInstrumentResponse snapshot) {
+        return snapshot == null || snapshot.getCurrentPrice() <= 0.0;
+    }
+
+    private MarketInstrumentResponse loadChartFallbackSnapshot(String symbol) {
+        CachedSnapshot cached = snapshotCache.get(symbol);
+        if (cached != null && !cached.isExpired()) {
+            return cached.snapshot();
+        }
+
+        try {
+            JsonNode response = restClient.get()
+                    .uri(buildChartUri(symbol, new CandleQuery("1d", "5d", null, null)))
+                    .retrieve()
+                    .body(JsonNode.class);
+
+            JsonNode result = response == null ? null : response.path("chart").path("result");
+            if (result == null || !result.isArray() || result.isEmpty()) {
+                return cached != null ? cached.snapshot() : zeroSnapshot(symbol);
+            }
+
+            JsonNode chart = result.get(0);
+            JsonNode meta = chart.path("meta");
+            double currentPrice = firstPositive(
+                    meta.path("regularMarketPrice").asDouble(0.0),
+                    meta.path("chartPreviousClose").asDouble(0.0),
+                    meta.path("previousClose").asDouble(0.0)
+            );
+            double previousClose = firstPositive(
+                    meta.path("previousClose").asDouble(0.0),
+                    meta.path("chartPreviousClose").asDouble(0.0)
+            );
+            double changePercent = 0.0;
+            if (currentPrice > 0.0 && previousClose > 0.0) {
+                changePercent = ((currentPrice - previousClose) / previousClose) * 100.0;
+            }
+
+            MarketInstrumentResponse snapshot = MarketInstrumentResponse.builder()
+                    .symbol(symbol)
+                    .displayName(resolveDisplayName(symbol, meta))
+                    .assetType("EQUITY")
+                    .currentPrice(currentPrice)
+                    .changePercent24h(changePercent)
+                    .build();
+            cacheSnapshot(snapshot);
+            return snapshot;
+        } catch (Exception e) {
+            log.warn("Yahoo BIST chart fallback failed for {}: {}", symbol, e.getMessage());
+            return cached != null ? cached.snapshot() : zeroSnapshot(symbol);
+        }
+    }
+
+    private void cacheSnapshot(MarketInstrumentResponse snapshot) {
+        if (snapshot == null || snapshot.getCurrentPrice() <= 0.0) {
+            return;
+        }
+        snapshotCache.put(snapshot.getSymbol(), new CachedSnapshot(snapshot, Instant.now().plus(SNAPSHOT_CACHE_TTL)));
+    }
+
+    private double firstPositive(double... values) {
+        for (double value : values) {
+            if (value > 0.0) {
+                return value;
+            }
+        }
+        return 0.0;
+    }
+
+    private MarketInstrumentResponse zeroSnapshot(String symbol) {
+        return MarketInstrumentResponse.builder()
+                .symbol(symbol)
+                .displayName(symbol)
+                .assetType("EQUITY")
+                .currentPrice(0.0)
+                .changePercent24h(0.0)
+                .build();
+    }
+
     private record CandleQuery(String yahooInterval, String range, Long period1EpochSeconds, Long period2EpochSeconds) {
+    }
+
+    private record CachedSnapshot(MarketInstrumentResponse snapshot, Instant expiresAt) {
+        private boolean isExpired() {
+            return Instant.now().isAfter(expiresAt);
+        }
     }
 }

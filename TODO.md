@@ -1585,3 +1585,7 @@ Last updated: 2026-03-11
   - Add BIST100 seed universe with dynamic refresh attempt from İş Yatırım listing page
   - Introduce market facade so `/api/v1/market/*` and watchlist enrichment can serve both crypto and BIST100
   - Add frontend market switch to the terminal (`CRYPTO` / `BIST100`)
+- [x] Harden BIST100 delayed quote fallback:
+  - Add Yahoo quote request headers/params for more stable delayed responses
+  - Fallback missing quote rows to per-symbol chart metadata
+  - Cache successful BIST snapshots briefly to avoid repeated fallback churn

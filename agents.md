@@ -2631,6 +2631,13 @@ If requirements are ambiguous:
 - Document assumptions in code comments or PR notes,
 - Leave TODOs rather than blocking.
 
+### Market data provider note
+- Treat instrument-universe sourcing and quote/candle sourcing as separate concerns.
+- For BIST100:
+  - universe may come from seed + dynamic constituent refresh,
+  - quotes/candles may come from a delayed third-party feed.
+- When a delayed quote provider is flaky, prefer tolerant parsing + chart-metadata fallback + short-lived snapshot caching over returning hard zeros immediately.
+
 ## 13) Definition of Done
 A change is “done” when:
 - Feature works end-to-end
