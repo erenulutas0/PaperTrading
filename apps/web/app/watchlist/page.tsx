@@ -86,10 +86,12 @@ export default function WatchlistPage() {
     const [instrumentUniverse, setInstrumentUniverse] = useState<InstrumentOption[]>([]);
     const [instrumentQuery, setInstrumentQuery] = useState('');
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
+    const [compareSymbol, setCompareSymbol] = useState<string>('');
     const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
     const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
     const [candles, setCandles] = useState<CandlePoint[]>([]);
+    const [compareCandles, setCompareCandles] = useState<CandlePoint[]>([]);
     const [loading, setLoading] = useState(true);
     const [chartLoading, setChartLoading] = useState(false);
     const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
@@ -143,6 +145,12 @@ export default function WatchlistPage() {
     useEffect(() => {
         candlesRef.current = candles;
     }, [candles]);
+
+    useEffect(() => {
+        if (compareSymbol === selectedSymbol) {
+            setCompareSymbol('');
+        }
+    }, [compareSymbol, selectedSymbol]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -345,6 +353,25 @@ export default function WatchlistPage() {
         }
     }, [fetchCandleChunk]);
 
+    const fetchCompareCandles = useCallback(async (
+        symbol: string,
+        range: ChartRange,
+        interval: ChartInterval,
+    ) => {
+        if (!symbol || symbol === selectedSymbol) {
+            setCompareCandles([]);
+            return;
+        }
+
+        try {
+            const nextCandles = await fetchCandleChunk(symbol, range, interval);
+            setCompareCandles(nextCandles);
+        } catch (error) {
+            console.error(error);
+            setCompareCandles([]);
+        }
+    }, [fetchCandleChunk, selectedSymbol]);
+
     useEffect(() => {
         fetchWatchlists();
         fetchInstrumentUniverse();
@@ -373,6 +400,10 @@ export default function WatchlistPage() {
     useEffect(() => {
         fetchCandles(selectedSymbol, selectedRange, selectedInterval, 'reset');
     }, [fetchCandles, selectedInterval, selectedRange, selectedSymbol]);
+
+    useEffect(() => {
+        fetchCompareCandles(compareSymbol, selectedRange, selectedInterval);
+    }, [compareSymbol, fetchCompareCandles, selectedInterval, selectedRange]);
 
     const handleCreateWatchlist = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -536,7 +567,7 @@ export default function WatchlistPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
                                         <input
                                             type="text"
                                             value={instrumentQuery}
@@ -580,6 +611,23 @@ export default function WatchlistPage() {
                                                 })}
                                             </select>
                                         </label>
+                                        <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
+                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compare</p>
+                                            <select
+                                                value={compareSymbol}
+                                                onChange={(event) => setCompareSymbol(event.target.value)}
+                                                className="mt-2 w-full bg-transparent text-sm font-semibold text-sky-300 outline-none"
+                                            >
+                                                <option value="" className="bg-zinc-950 text-white">Off</option>
+                                                {instrumentUniverse
+                                                    .filter((instrument) => instrument.symbol !== selectedSymbol)
+                                                    .map((instrument) => (
+                                                        <option key={instrument.symbol} value={instrument.symbol} className="bg-zinc-950 text-white">
+                                                            {instrument.symbol}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
                                     </div>
 
                                     {favoriteInstruments.length > 0 && (
@@ -610,6 +658,8 @@ export default function WatchlistPage() {
                                             ) : (
                                                 <MarketWorkspaceChart
                                                     data={candles}
+                                                    compareData={compareCandles}
+                                                    compareLabel={compareSymbol || null}
                                                     resetKey={`${selectedSymbol}-${selectedRange}-${selectedInterval}`}
                                                     onReachStart={handleLoadMoreHistory}
                                                 />
@@ -657,7 +707,7 @@ export default function WatchlistPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-4 md:grid-cols-4">
+                                    <div className="grid gap-4 md:grid-cols-5">
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Range</p>
                                             <p className="mt-2 text-xl font-semibold text-white">{selectedRange}</p>
@@ -672,6 +722,11 @@ export default function WatchlistPage() {
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Watchlists</p>
                                             <p className="mt-2 text-xl font-semibold text-white">{watchlists.length}</p>
                                             <p className="mt-1 text-xs text-zinc-500">Separate baskets by thesis or regime.</p>
+                                        </article>
+                                        <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
+                                            <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Compare</p>
+                                            <p className="mt-2 text-xl font-semibold text-white">{compareSymbol || 'Off'}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Normalized overlay line.</p>
                                         </article>
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">History</p>

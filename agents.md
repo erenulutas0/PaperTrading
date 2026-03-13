@@ -118,6 +118,15 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Starred symbols render in a dedicated quick-switch favorites bar above the chart.
   - **Operational impact**:
     - keeps the market terminal fast for repeated symbol hopping without introducing new backend state or sync complexity
+- **2026-03-13**: **Market Workspace Compare Mode**
+  - **Problem observed**:
+    - Even with favorites and a richer chart, users still lacked a fast way to compare one instrument's path against another without switching the whole chart context.
+  - **Implementation**:
+    - Added compare-symbol selection to the market terminal.
+    - Secondary symbol candles are fetched through the same backend market endpoint and rendered as a normalized overlay line on a dedicated left price scale.
+    - Primary candlestick/volume behavior remains unchanged; compare mode is additive rather than replacing the main chart.
+  - **Operational impact**:
+    - brings the workspace closer to terminal-style cross-asset comparison without requiring a second chart or heavier backend state
 - **2026-03-12**: **Trust Score Snapshot History Added**
   - **Problem observed**:
     - Trust score and platform win rate were visible only as current values, making it hard for users to understand whether credibility was improving, deteriorating, or simply unproven.

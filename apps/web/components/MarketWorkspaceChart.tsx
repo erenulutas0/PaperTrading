@@ -6,6 +6,8 @@ import {
     ColorType,
     HistogramSeries,
     IChartApi,
+    LineData,
+    LineSeries,
     UTCTimestamp,
     createChart,
 } from 'lightweight-charts';
@@ -22,17 +24,21 @@ interface CandlePoint {
 
 interface MarketWorkspaceChartProps {
     data: CandlePoint[];
+    compareData?: CandlePoint[];
+    compareLabel?: string | null;
     resetKey: string;
     onReachStart?: (oldestOpenTime: number) => void;
 }
 
-export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: MarketWorkspaceChartProps) {
+export default function MarketWorkspaceChart({ data, compareData = [], compareLabel = null, resetKey, onReachStart }: MarketWorkspaceChartProps) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
     const seriesRef = useRef<any>(null);
     const volumeSeriesRef = useRef<any>(null);
+    const compareSeriesRef = useRef<any>(null);
     const lastRequestedOldestRef = useRef<number | null>(null);
     const dataRef = useRef<CandlePoint[]>(data);
+    const compareDataRef = useRef<CandlePoint[]>(compareData);
     const onReachStartRef = useRef(onReachStart);
     const previousDataLengthRef = useRef(0);
     const previousOldestTimeRef = useRef<number | null>(null);
@@ -57,6 +63,17 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
         }));
     }, [data]);
 
+    const compareSeriesData = useMemo<LineData[]>(() => {
+        if (!compareData.length) {
+            return [];
+        }
+        const baseClose = compareData[0].close || 1;
+        return compareData.map((point) => ({
+            time: Math.floor(point.openTime / 1000) as UTCTimestamp,
+            value: (point.close / baseClose) * 100,
+        }));
+    }, [compareData]);
+
     const resolvedActivePoint = activePoint ?? data[data.length - 1] ?? null;
     const activeChange = resolvedActivePoint ? resolvedActivePoint.close - resolvedActivePoint.open : 0;
     const activeChangePercent = resolvedActivePoint && resolvedActivePoint.open !== 0
@@ -75,6 +92,10 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
             return data.find((point) => point.openTime === current.openTime) ?? data[data.length - 1];
         });
     }, [data]);
+
+    useEffect(() => {
+        compareDataRef.current = compareData;
+    }, [compareData]);
 
     useEffect(() => {
         onReachStartRef.current = onReachStart;
@@ -125,10 +146,27 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
             priceScaleId: '',
         });
 
+        const compareSeries = chart.addSeries(LineSeries, {
+            priceScaleId: 'left',
+            color: '#f59e0b',
+            lineWidth: 2,
+            crosshairMarkerVisible: false,
+            lastValueVisible: true,
+            priceLineVisible: false,
+        });
+
         chart.priceScale('').applyOptions({
             scaleMargins: {
                 top: 0.78,
                 bottom: 0,
+            },
+        });
+        chart.priceScale('left').applyOptions({
+            visible: compareDataRef.current.length > 0,
+            borderColor: 'rgba(245,158,11,0.18)',
+            scaleMargins: {
+                top: 0.08,
+                bottom: 0.25,
             },
         });
         chart.priceScale('right').applyOptions({
@@ -182,6 +220,7 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
         chartRef.current = chart;
         seriesRef.current = series;
         volumeSeriesRef.current = volumeSeries;
+        compareSeriesRef.current = compareSeries;
 
         return () => {
             chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
@@ -191,11 +230,12 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
             chartRef.current = null;
             seriesRef.current = null;
             volumeSeriesRef.current = null;
+            compareSeriesRef.current = null;
         };
     }, []);
 
     useEffect(() => {
-        if (!seriesRef.current || !volumeSeriesRef.current || !chartRef.current) {
+        if (!seriesRef.current || !volumeSeriesRef.current || !compareSeriesRef.current || !chartRef.current) {
             return;
         }
         const timeScale = chartRef.current.timeScale();
@@ -206,6 +246,10 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
 
         seriesRef.current.setData(seriesData);
         volumeSeriesRef.current.setData(volumeSeriesData);
+        compareSeriesRef.current.setData(compareSeriesData);
+        chartRef.current.priceScale('left').applyOptions({
+            visible: compareSeriesData.length > 0,
+        });
 
         const prependedBars = data.length - previousLength;
         const prependedOlderHistory = previousResetKeyRef.current === resetKey
@@ -224,7 +268,7 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
 
         previousDataLengthRef.current = data.length;
         previousOldestTimeRef.current = currentOldestTime;
-    }, [data, resetKey, seriesData, volumeSeriesData]);
+    }, [compareSeriesData, data, resetKey, seriesData, volumeSeriesData]);
 
     useEffect(() => {
         if (!chartRef.current) {
@@ -274,6 +318,14 @@ export default function MarketWorkspaceChart({ data, resetKey, onReachStart }: M
                         {resolvedActivePoint ? resolvedActivePoint.volume.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
                     </span>
                 </div>
+                {compareLabel && compareSeriesData.length > 0 && (
+                    <div className="text-amber-300">
+                        <span className="text-zinc-500">{compareLabel} </span>
+                        <span className="font-mono">
+                            {compareSeriesData[compareSeriesData.length - 1]?.value.toFixed(2)} idx
+                        </span>
+                    </div>
+                )}
             </div>
             <div ref={chartContainerRef} className="h-[520px] w-full" />
         </div>
