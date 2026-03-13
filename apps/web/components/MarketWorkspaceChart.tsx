@@ -74,6 +74,7 @@ export default function MarketWorkspaceChart({
     const previousDataLengthRef = useRef(0);
     const previousOldestTimeRef = useRef<number | null>(null);
     const previousResetKeyRef = useRef(resetKey);
+    const previousClearDrawingsTokenRef = useRef<number | null>(null);
     const pendingTrendAnchorRef = useRef<{ time: number; price: number } | null>(null);
     const hydratedDrawingStorageKeyRef = useRef<string | null>(null);
     const [activePoint, setActivePoint] = useState<CandlePoint | null>(data[data.length - 1] ?? null);
@@ -498,6 +499,14 @@ export default function MarketWorkspaceChart({
     }, [data, drawings]);
 
     useEffect(() => {
+        if (previousClearDrawingsTokenRef.current === null) {
+            previousClearDrawingsTokenRef.current = clearDrawingsToken;
+            return;
+        }
+        if (previousClearDrawingsTokenRef.current === clearDrawingsToken) {
+            return;
+        }
+        previousClearDrawingsTokenRef.current = clearDrawingsToken;
         setDrawings([]);
         pendingTrendAnchorRef.current = null;
         if (typeof window !== 'undefined' && drawingStorageKey) {
