@@ -85,6 +85,12 @@ export default function MarketWorkspaceChart({
     const compareLatestValue = compareSeriesData.length > 0
         ? compareSeriesData[compareSeriesData.length - 1]?.value ?? null
         : null;
+    const primaryLatestIndexedValue = data.length > 0
+        ? ((data[data.length - 1].close / (data[0].close || 1)) * 100)
+        : null;
+    const relativePerformanceGap = compareLatestValue !== null && primaryLatestIndexedValue !== null
+        ? primaryLatestIndexedValue - compareLatestValue
+        : null;
 
     const resolvedActivePoint = activePoint ?? data[data.length - 1] ?? null;
     const activeChange = resolvedActivePoint ? resolvedActivePoint.close - resolvedActivePoint.open : 0;
@@ -353,6 +359,11 @@ export default function MarketWorkspaceChart({
                             ? `Overlay active · ${compareLatestValue?.toFixed(2)} indexed`
                             : 'Overlay hidden'}
                     </span>
+                    {compareSeriesData.length > 0 && relativePerformanceGap !== null && (
+                        <span className={relativePerformanceGap >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                            {relativePerformanceGap >= 0 ? 'Primary leads' : 'Primary trails'} · {relativePerformanceGap >= 0 ? '+' : ''}{relativePerformanceGap.toFixed(2)} idx
+                        </span>
+                    )}
                 </div>
             )}
         </div>

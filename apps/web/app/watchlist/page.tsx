@@ -152,6 +152,25 @@ export default function WatchlistPage() {
         return `${oldest} → ${newest}`;
     }, [candles]);
 
+    const compareSessionSummary = useMemo(() => {
+        if (!compareSymbol || candles.length === 0 || compareCandles.length === 0) {
+            return null;
+        }
+        const primaryBase = candles[0].close || 1;
+        const primaryLatest = candles[candles.length - 1].close;
+        const compareBase = compareCandles[0].close || 1;
+        const compareLatest = compareCandles[compareCandles.length - 1].close;
+        const primaryMovePercent = ((primaryLatest / primaryBase) - 1) * 100;
+        const compareMovePercent = ((compareLatest / compareBase) - 1) * 100;
+        const relativeGapPercent = primaryMovePercent - compareMovePercent;
+
+        return {
+            primaryMovePercent,
+            compareMovePercent,
+            relativeGapPercent,
+        };
+    }, [candles, compareCandles, compareSymbol]);
+
     useEffect(() => {
         candlesRef.current = candles;
     }, [candles]);
@@ -663,7 +682,19 @@ export default function WatchlistPage() {
                                                             {selectedCompareInstrument.displayName}
                                                         </span>
                                                     )}
+                                                    {compareSessionSummary && (
+                                                        <span className={`rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] ${compareSessionSummary.relativeGapPercent >= 0
+                                                            ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+                                                            : 'border-red-400/30 bg-red-400/10 text-red-300'}`}>
+                                                            {compareSessionSummary.relativeGapPercent >= 0 ? 'Outperforming' : 'Underperforming'} {formatPercent(compareSessionSummary.relativeGapPercent)}
+                                                        </span>
+                                                    )}
                                                 </div>
+                                                {compareSessionSummary && (
+                                                    <p className="mt-2 text-sm text-zinc-400">
+                                                        {selectedSymbol} {formatPercent(compareSessionSummary.primaryMovePercent)} · {selectedCompareInstrument?.symbol ?? compareSymbol} {formatPercent(compareSessionSummary.compareMovePercent)}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <button
@@ -789,6 +820,11 @@ export default function WatchlistPage() {
                                                     ? (compareVisible ? 'Normalized overlay line is visible.' : 'Overlay selected but hidden.')
                                                     : 'Normalized overlay line.'}
                                             </p>
+                                            {compareSessionSummary && (
+                                                <p className={`mt-2 text-xs font-semibold ${compareSessionSummary.relativeGapPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {compareSessionSummary.relativeGapPercent >= 0 ? 'Primary leads' : 'Primary trails'} by {formatPercent(Math.abs(compareSessionSummary.relativeGapPercent))}
+                                                </p>
+                                            )}
                                         </article>
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">
                                             <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">History</p>

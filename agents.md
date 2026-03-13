@@ -49,8 +49,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - primary vs secondary symbol context
       - `Hide/Show Overlay`
       - `Clear Compare`
+      - relative performance gap over the selected range
     - `MarketWorkspaceChart` now accepts a visibility flag so compare data can stay selected while the overlay is hidden.
-    - Added explicit compare legend/status beneath the chart to reflect whether the overlay is currently active or hidden.
+    - Added explicit compare legend/status beneath the chart to reflect whether the overlay is currently active or hidden, plus which symbol is currently outperforming on the normalized window.
   - **Operational impact**:
     - compare mode behaves like a persistent terminal session rather than a fragile one-shot picker
     - users can inspect the same symbol pair without repeatedly reselecting the compare instrument
