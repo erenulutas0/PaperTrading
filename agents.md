@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Terminal Snapshot Card Added for Sharing Current State Without Forcing a Saved Layout**
+  - **Problem observed**:
+    - Saved layouts are useful when a setup is worth keeping, but users also need a fast way to share or export the terminal exactly as it is right now.
+    - Requiring a save step before every share creates friction for ad-hoc collaboration.
+  - **Implementation**:
+    - Added a snapshot card in `/watchlist` that derives a concise terminal summary from current state:
+      - market
+      - symbol
+      - range / interval
+      - spot and 24h move
+      - compare status
+      - alert binding
+      - note count
+    - Added actions for:
+      - copying a plain-text summary
+      - copying a current-state share link
+      - downloading a JSON snapshot
+  - **Operational impact**:
+    - ad-hoc sharing no longer requires persisting a layout first
+    - saved layouts remain the durable preset mechanism, while snapshots cover transient collaboration
 - **2026-03-14**: **Terminal Layouts Extended From File Portability to Direct Share Links**
   - **Problem observed**:
     - JSON export/import solved portability, but it is still a file-based workflow.

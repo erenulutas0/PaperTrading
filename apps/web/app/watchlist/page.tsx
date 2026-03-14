@@ -268,6 +268,7 @@ export default function WatchlistPage() {
     const [layoutImportMessage, setLayoutImportMessage] = useState<string>('');
     const [sharedLayout, setSharedLayout] = useState<SharedTerminalLayoutPayload | null>(null);
     const [sharedLayoutMessage, setSharedLayoutMessage] = useState<string>('');
+    const [snapshotMessage, setSnapshotMessage] = useState<string>('');
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [compareCandles, setCompareCandles] = useState<Record<string, CandlePoint[]>>({});
     const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
@@ -477,6 +478,61 @@ export default function WatchlistPage() {
             color: COMPARE_COLORS[index % COMPARE_COLORS.length],
         }));
     }, [compareCandles, compareSymbols]);
+
+    const currentSnapshotPayload = useMemo<SharedTerminalLayoutPayload>(() => ({
+        version: 1,
+        name: `${selectedSymbol} ${selectedRange}/${selectedInterval}`,
+        watchlistId: selectedWatchlist,
+        market: selectedMarket,
+        symbol: selectedSymbol,
+        compareSymbols,
+        compareVisible,
+        range: selectedRange,
+        interval: selectedInterval,
+        favoriteSymbols,
+    }), [
+        compareSymbols,
+        compareVisible,
+        favoriteSymbols,
+        selectedInterval,
+        selectedMarket,
+        selectedRange,
+        selectedSymbol,
+        selectedWatchlist,
+    ]);
+
+    const currentSnapshotSummary = useMemo(() => {
+        const compareLine = compareSessionSummary.length > 0
+            ? compareSessionSummary
+                .map((summary) => `${summary.symbol} ${summary.relativeGapPercent >= 0 ? '+' : ''}${summary.relativeGapPercent.toFixed(2)}% gap`)
+                .join(' | ')
+            : 'No compare overlays';
+        const notesLine = `${chartNotes.length} notes`;
+        const alertsLine = selectedWatchlistItem
+            ? `Above ${selectedWatchlistItem.alertPriceAbove || '-'} / Below ${selectedWatchlistItem.alertPriceBelow || '-'}`
+            : 'No watchlist alert bound';
+
+        return [
+            `Market Terminal Snapshot`,
+            `${selectedDisplayName} (${selectedSymbol})`,
+            `Market: ${selectedMarket} | Range: ${selectedRange} | Interval: ${selectedInterval}`,
+            `Spot: ${formatMoney(Number(selectedInstrument?.currentPrice ?? 0))} | 24h: ${formatPercent(Number(selectedInstrument?.changePercent24h ?? 0))}`,
+            `Compare: ${compareLine}`,
+            `Alerts: ${alertsLine}`,
+            `Notes: ${notesLine}`,
+        ].join('\n');
+    }, [
+        chartNotes.length,
+        compareSessionSummary,
+        selectedDisplayName,
+        selectedInstrument?.changePercent24h,
+        selectedInstrument?.currentPrice,
+        selectedInterval,
+        selectedMarket,
+        selectedRange,
+        selectedSymbol,
+        selectedWatchlistItem,
+    ]);
 
     useEffect(() => {
         candlesRef.current = candles;
@@ -1454,6 +1510,53 @@ export default function WatchlistPage() {
         }
     };
 
+    const handleCopySnapshotSummary = async () => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(currentSnapshotSummary);
+            setSnapshotMessage('Snapshot summary copied.');
+        } catch (error) {
+            console.error(error);
+            setSnapshotMessage(currentSnapshotSummary);
+        }
+    };
+
+    const handleCopyCurrentStateShareLink = async () => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const encoded = encodeSharedLayout(currentSnapshotPayload);
+        if (!encoded) {
+            return;
+        }
+        const shareUrl = `${window.location.origin}/watchlist?sharedLayout=${encoded}`;
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setSnapshotMessage('Current-state share link copied.');
+        } catch (error) {
+            console.error(error);
+            setSnapshotMessage(shareUrl);
+        }
+    };
+
+    const handleDownloadSnapshotJson = () => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const blob = new Blob([JSON.stringify(currentSnapshotPayload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `terminal-snapshot-${selectedSymbol.toLowerCase()}-${selectedRange.toLowerCase()}-${selectedInterval}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+        setSnapshotMessage('Snapshot JSON downloaded.');
+    };
+
     const handleApplySharedLayout = () => {
         if (!sharedLayout) {
             return;
@@ -2119,6 +2222,41 @@ export default function WatchlistPage() {
                                                 ))}
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Snapshot</p>
+                                                <p className="mt-1 text-sm text-zinc-400">
+                                                    Current terminal state summary and quick-share tools for this exact setup.
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    onClick={handleCopySnapshotSummary}
+                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                >
+                                                    Copy Summary
+                                                </button>
+                                                <button
+                                                    onClick={handleCopyCurrentStateShareLink}
+                                                    className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300 transition hover:bg-emerald-400/20"
+                                                >
+                                                    Copy Share Link
+                                                </button>
+                                                <button
+                                                    onClick={handleDownloadSnapshotJson}
+                                                    className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
+                                                >
+                                                    Download JSON
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <pre className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs leading-6 text-zinc-300">{currentSnapshotSummary}</pre>
+                                        {snapshotMessage && (
+                                            <p className="mt-3 break-all text-xs text-zinc-500">{snapshotMessage}</p>
+                                        )}
                                     </div>
 
                                     <div className="grid gap-4 md:grid-cols-6">

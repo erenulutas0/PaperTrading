@@ -3,6 +3,10 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after terminal snapshot/share-card rollout and verify `/watchlist` now supports:
+  - copyable current-state terminal summary
+  - current-state share link generation without saving a layout first
+  - current-state JSON snapshot download
 - [ ] Redeploy frontend after terminal layout share-link rollout and verify `/watchlist` now supports:
   - copying a portable shared-layout URL
   - opening a shared layout banner from `?sharedLayout=...`
