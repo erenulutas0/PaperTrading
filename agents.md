@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Compare Mode Added Indexed Equity Curve Overlay**
+  - **Problem observed**:
+    - Compare mode’s first pass showed useful metric deltas, but still lacked temporal shape comparison.
+    - Comparing only headline deltas hides whether outperformance came from:
+      - steady compounding
+      - one sharp jump
+      - lower-drawdown consistency
+  - **Implementation**:
+    - Added an `Indexed Equity Overlay` canvas inside the compare surface on `/analytics/[portfolioId]`.
+    - Both portfolios are rebased to `100` for the selected window (`ALL / 30D / 7D`) before rendering.
+    - Primary portfolio renders as a solid green line; compare portfolio renders as a dashed blue line.
+    - Chose indexed overlay instead of raw-equity overlay so different portfolio sizes do not distort the visual comparison.
+  - **Operational impact**:
+    - compare mode now communicates both magnitude and path shape
+    - the overlay remains honest across unequal portfolio balances because it visualizes relative performance rather than absolute capital size
 - **2026-03-15**: **Portfolio Analytics Added Lightweight Compare Mode**
   - **Problem observed**:
     - Analytics had become strong for single-portfolio inspection, but there was still no quick answer to:

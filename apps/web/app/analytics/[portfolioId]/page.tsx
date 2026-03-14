@@ -149,6 +149,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pnlCanvasRef = useRef<HTMLCanvasElement>(null);
+    const compareCanvasRef = useRef<HTMLCanvasElement>(null);
 
     const fetchAnalytics = useCallback(async () => {
         try {
@@ -226,6 +227,21 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const filtered = data.equityCurve.filter((point) => new Date(point.timestamp).getTime() >= threshold);
         return filtered.length > 0 ? filtered : data.equityCurve;
     }, [data, selectedCurveWindow]);
+
+    const filteredCompareEquityCurve = useMemo(() => {
+        if (!compareData?.equityCurve?.length) {
+            return [];
+        }
+
+        if (selectedCurveWindow === 'ALL') {
+            return compareData.equityCurve;
+        }
+
+        const days = selectedCurveWindow === '7D' ? 7 : 30;
+        const threshold = Date.now() - days * 24 * 60 * 60 * 1000;
+        const filtered = compareData.equityCurve.filter((point) => new Date(point.timestamp).getTime() >= threshold);
+        return filtered.length > 0 ? filtered : compareData.equityCurve;
+    }, [compareData, selectedCurveWindow]);
 
     const curveWindowStats = useMemo(() => {
         const totalCurve = data?.equityCurve ?? [];
@@ -484,6 +500,94 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         }
     }, [filteredPnlTimeline]);
 
+    const drawCompareOverlay = useCallback(() => {
+        const canvas = compareCanvasRef.current;
+        if (!canvas || !filteredEquityCurve.length || !filteredCompareEquityCurve.length) {
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        const W = rect.width;
+        const H = rect.height;
+        const padL = 60, padR = 20, padT = 20, padB = 40;
+        const plotW = W - padL - padR;
+        const plotH = H - padT - padB;
+
+        const toIndexed = (curve: { equity: number }[]) => {
+            const base = curve[0]?.equity || 1;
+            return curve.map((point) => (base > 0 ? (point.equity / base) * 100 : 100));
+        };
+
+        const primaryIndexed = toIndexed(filteredEquityCurve);
+        const compareIndexed = toIndexed(filteredCompareEquityCurve);
+        const allValues = [...primaryIndexed, ...compareIndexed];
+        const minValue = Math.min(...allValues) * 0.995;
+        const maxValue = Math.max(...allValues) * 1.005;
+        const span = maxValue - minValue || 1;
+
+        const xPos = (index: number, length: number) => {
+            if (length === 1) return padL + plotW / 2;
+            return padL + (index / (length - 1)) * plotW;
+        };
+        const yPos = (value: number) => padT + (1 - ((value - minValue) / span)) * plotH;
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const y = padT + (i / 4) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(W - padR, y);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'right';
+            const val = maxValue - (i / 4) * (maxValue - minValue);
+            ctx.fillText(`${val.toFixed(1)}x`, padL - 8, y + 3);
+        }
+
+        const drawSeries = (values: number[], color: string, dashed: boolean) => {
+            ctx.beginPath();
+            values.forEach((value, index) => {
+                const x = xPos(index, values.length);
+                const y = yPos(value);
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash(dashed ? [6, 4] : []);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        };
+
+        drawSeries(primaryIndexed, '#22c55e', false);
+        drawSeries(compareIndexed, '#38bdf8', true);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 3; i++) {
+            const idx = Math.floor((i / 3) * (filteredEquityCurve.length - 1));
+            const ts = filteredEquityCurve[idx]?.timestamp;
+            if (!ts) continue;
+            const d = new Date(ts);
+            ctx.fillText(d.toLocaleDateString(), xPos(idx, filteredEquityCurve.length), H - 10);
+        }
+    }, [filteredCompareEquityCurve, filteredEquityCurve]);
+
     useEffect(() => {
         fetchAnalytics();
     }, [fetchAnalytics]);
@@ -503,6 +607,12 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             drawPnlTimeline();
         }
     }, [filteredPnlTimeline, drawPnlTimeline]);
+
+    useEffect(() => {
+        if (filteredEquityCurve.length && filteredCompareEquityCurve.length && compareCanvasRef.current) {
+            drawCompareOverlay();
+        }
+    }, [drawCompareOverlay, filteredCompareEquityCurve, filteredEquityCurve]);
 
     useEffect(() => {
         if (symbolDetailCandidates.length === 0) {
@@ -941,44 +1051,65 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                 Loading comparison analytics...
                             </p>
                         ) : compareSummary && compareRiskMetrics && compareTradeStats ? (
-                            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                                {[
-                                    {
-                                        label: 'Return Delta',
-                                        value: summary.returnPercentage - compareSummary.returnPercentage,
-                                        suffix: '%',
-                                        baseline: `${summary.portfolioName} vs ${selectedComparePortfolio?.name ?? compareSummary.portfolioName}`,
-                                    },
-                                    {
-                                        label: 'Equity Delta',
-                                        value: summary.currentEquity - compareSummary.currentEquity,
-                                        prefix: '$',
-                                        baseline: `${formatEquity(summary.currentEquity)} vs ${formatEquity(compareSummary.currentEquity)}`,
-                                    },
-                                    {
-                                        label: 'Drawdown Delta',
-                                        value: rm.maxDrawdown - compareRiskMetrics.maxDrawdown,
-                                        suffix: ' pts',
-                                        baseline: `${rm.maxDrawdown.toFixed(2)} vs ${compareRiskMetrics.maxDrawdown.toFixed(2)}`,
-                                    },
-                                    {
-                                        label: 'Trade Win Rate Delta',
-                                        value: ts.tradeWinRate - compareTradeStats.tradeWinRate,
-                                        suffix: ' pts',
-                                        baseline: `${ts.tradeWinRate.toFixed(2)} vs ${compareTradeStats.tradeWinRate.toFixed(2)}`,
-                                    },
-                                ].map((metric) => {
-                                    const positive = metric.value >= 0;
-                                    return (
-                                        <div key={metric.label} className="rounded-xl border border-white/5 bg-black/20 p-4">
-                                            <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">{metric.label}</p>
-                                            <p className={`mt-2 text-2xl font-bold font-mono ${positive ? 'text-green-400' : 'text-red-400'}`}>
-                                                {metric.prefix ?? ''}{metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}{metric.suffix ?? ''}
-                                            </p>
-                                            <p className="mt-2 text-xs text-zinc-500">{metric.baseline}</p>
+                            <div className="mt-5 space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                    {[
+                                        {
+                                            label: 'Return Delta',
+                                            value: summary.returnPercentage - compareSummary.returnPercentage,
+                                            suffix: '%',
+                                            baseline: `${summary.portfolioName} vs ${selectedComparePortfolio?.name ?? compareSummary.portfolioName}`,
+                                        },
+                                        {
+                                            label: 'Equity Delta',
+                                            value: summary.currentEquity - compareSummary.currentEquity,
+                                            prefix: '$',
+                                            baseline: `${formatEquity(summary.currentEquity)} vs ${formatEquity(compareSummary.currentEquity)}`,
+                                        },
+                                        {
+                                            label: 'Drawdown Delta',
+                                            value: rm.maxDrawdown - compareRiskMetrics.maxDrawdown,
+                                            suffix: ' pts',
+                                            baseline: `${rm.maxDrawdown.toFixed(2)} vs ${compareRiskMetrics.maxDrawdown.toFixed(2)}`,
+                                        },
+                                        {
+                                            label: 'Trade Win Rate Delta',
+                                            value: ts.tradeWinRate - compareTradeStats.tradeWinRate,
+                                            suffix: ' pts',
+                                            baseline: `${ts.tradeWinRate.toFixed(2)} vs ${compareTradeStats.tradeWinRate.toFixed(2)}`,
+                                        },
+                                    ].map((metric) => {
+                                        const positive = metric.value >= 0;
+                                        return (
+                                            <div key={metric.label} className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                                <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">{metric.label}</p>
+                                                <p className={`mt-2 text-2xl font-bold font-mono ${positive ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {metric.prefix ?? ''}{metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}{metric.suffix ?? ''}
+                                                </p>
+                                                <p className="mt-2 text-xs text-zinc-500">{metric.baseline}</p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Indexed Equity Overlay</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Both curves are rebased to 100 for fair relative comparison under the selected window.</p>
                                         </div>
-                                    );
-                                })}
+                                        <div className="flex gap-4 text-[10px] text-zinc-400">
+                                            <span className="flex items-center gap-1.5">
+                                                <span className="h-0.5 w-3 rounded bg-green-500"></span>
+                                                {summary.portfolioName}
+                                            </span>
+                                            <span className="flex items-center gap-1.5">
+                                                <span className="h-0.5 w-3 rounded bg-sky-400" style={{ borderBottom: '1px dashed rgba(56,189,248,0.8)' }}></span>
+                                                {selectedComparePortfolio?.name ?? compareSummary.portfolioName}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <canvas ref={compareCanvasRef} className="mt-4 h-64 w-full rounded-xl" />
+                                </div>
                             </div>
                         ) : (
                             <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
