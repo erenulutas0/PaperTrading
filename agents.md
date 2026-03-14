@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Portfolio Analytics Curve Windows Now Explain Short-History No-Op States**
+  - **Problem observed**:
+    - The analytics page gained `ALL / 30D / 7D` curve controls, but on younger portfolios all three windows can legitimately render the same curve.
+    - Without explicit context, that looks like a broken toggle instead of a short-history condition.
+  - **Implementation**:
+    - `app/analytics/[portfolioId]` now derives lightweight curve-window stats from the loaded equity curve:
+      - total vs selected plotted points
+      - approximate available history duration
+      - selected start/end timestamps
+      - whether the selected non-`ALL` window is actually narrower than full history
+    - Added UI hints in:
+      - `Curve Window`
+      - `PnL Timeline Split`
+      - `Equity Curve`
+      so the page explicitly says when current account history is shorter than the selected `7D` or `30D` window.
+  - **Operational impact**:
+    - window controls now degrade honestly on short-lived portfolios instead of silently appearing ineffective
+    - reduces false bug reports against a mathematically correct but previously opaque filter result
 - **2026-03-14**: **Portfolio Analytics Lifted From Raw Metrics Dump to Portfolio Summary Surface**
   - **Problem observed**:
     - `/analytics/{portfolioId}` exposed risk metrics and trade stats, but the page started cold:

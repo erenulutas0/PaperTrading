@@ -142,6 +142,42 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         return filtered.length > 0 ? filtered : data.equityCurve;
     }, [data, selectedCurveWindow]);
 
+    const curveWindowStats = useMemo(() => {
+        const totalCurve = data?.equityCurve ?? [];
+        const selectedCurve = filteredEquityCurve;
+
+        if (!totalCurve.length || !selectedCurve.length) {
+            return {
+                totalPointCount: 0,
+                selectedPointCount: 0,
+                availableHours: 0,
+                availableDays: 0,
+                isFilteredWindowDistinct: false,
+                selectedStart: null as string | null,
+                selectedEnd: null as string | null,
+            };
+        }
+
+        const firstTimestamp = totalCurve[0]?.timestamp;
+        const lastTimestamp = totalCurve[totalCurve.length - 1]?.timestamp;
+        const availableHours = firstTimestamp && lastTimestamp
+            ? Math.max(0, (new Date(lastTimestamp).getTime() - new Date(firstTimestamp).getTime()) / (1000 * 60 * 60))
+            : 0;
+
+        return {
+            totalPointCount: totalCurve.length,
+            selectedPointCount: selectedCurve.length,
+            availableHours,
+            availableDays: availableHours / 24,
+            isFilteredWindowDistinct:
+                selectedCurveWindow === 'ALL'
+                    ? false
+                    : selectedCurve.length < totalCurve.length,
+            selectedStart: selectedCurve[0]?.timestamp ?? null,
+            selectedEnd: selectedCurve[selectedCurve.length - 1]?.timestamp ?? null,
+        };
+    }, [data, filteredEquityCurve, selectedCurveWindow]);
+
     const drawEquityCurve = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas || !filteredEquityCurve.length) return;
@@ -680,6 +716,22 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                 </button>
                             ))}
                         </div>
+                        <div className="mt-4 space-y-1 text-[11px] text-zinc-500">
+                            <p>
+                                Available history: {curveWindowStats.availableDays >= 2
+                                    ? `${curveWindowStats.availableDays.toFixed(1)} days`
+                                    : `${Math.round(curveWindowStats.availableHours)} hours`}
+                                {' '}across {curveWindowStats.totalPointCount} snapshots.
+                            </p>
+                            <p>
+                                Current view: {curveWindowStats.selectedPointCount}/{curveWindowStats.totalPointCount} plotted points.
+                            </p>
+                            {selectedCurveWindow !== 'ALL' && !curveWindowStats.isFilteredWindowDistinct && curveWindowStats.totalPointCount > 0 ? (
+                                <p className="text-amber-300">
+                                    Current account history is shorter than {selectedCurveWindow}, so this view matches full history.
+                                </p>
+                            ) : null}
+                        </div>
                     </div>
                 </div>
 
@@ -865,7 +917,11 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                         <div>
                             <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">PnL Timeline Split</h2>
                             <p className="text-[10px] text-zinc-600">
-                                Realized, unrealized, and net PnL across the selected {selectedCurveWindow} window.
+                                Realized, unrealized, and net PnL across the selected {selectedCurveWindow} window
+                                {curveWindowStats.selectedStart && curveWindowStats.selectedEnd
+                                    ? ` (${formatTimestamp(curveWindowStats.selectedStart)} to ${formatTimestamp(curveWindowStats.selectedEnd)})`
+                                    : '.'}
+                                {(!curveWindowStats.isFilteredWindowDistinct && selectedCurveWindow !== 'ALL') ? ' Current history is shorter than this window.' : ''}
                             </p>
                         </div>
                         <div className="flex gap-4 text-[10px]">
@@ -890,6 +946,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Equity Curve</h2>
                             <p className="text-[10px] text-zinc-600">
                                 {selectedCurveWindow} view, {filteredEquityCurve.length} plotted points, drawdown overlay enabled.
+                                {(!curveWindowStats.isFilteredWindowDistinct && selectedCurveWindow !== 'ALL') ? ' Current account history is shorter than this window.' : ''}
                             </p>
                         </div>
                         <div className="flex gap-4 text-[10px]">
