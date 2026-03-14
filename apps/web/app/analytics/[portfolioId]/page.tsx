@@ -326,6 +326,29 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         return filtered.length > 0 ? filtered : data.pnlTimeline;
     }, [data, selectedCurveWindow]);
 
+    const symbolDetailCandidates = useMemo(() => {
+        const normalizedFilter = symbolFilter.trim().toUpperCase();
+        const symbolMiniTimelines = data?.symbolMiniTimelines ?? [];
+        const riskAttribution = data?.riskAttribution ?? [];
+        const symbolAttribution = data?.symbolAttribution ?? [];
+
+        const filteredSymbolMiniTimelines = normalizedFilter
+            ? symbolMiniTimelines.filter((row) => row.symbol.toUpperCase().includes(normalizedFilter))
+            : symbolMiniTimelines;
+        const filteredRiskAttribution = normalizedFilter
+            ? riskAttribution.filter((row) => row.symbol.toUpperCase().includes(normalizedFilter))
+            : riskAttribution;
+        const filteredSymbolAttribution = normalizedFilter
+            ? symbolAttribution.filter((row) => row.symbol.toUpperCase().includes(normalizedFilter))
+            : symbolAttribution;
+
+        return Array.from(new Set([
+            ...filteredSymbolMiniTimelines.map((row) => row.symbol),
+            ...filteredRiskAttribution.map((row) => row.symbol),
+            ...filteredSymbolAttribution.map((row) => row.symbol),
+        ]));
+    }, [data, symbolFilter]);
+
     const drawPnlTimeline = useCallback(() => {
         const canvas = pnlCanvasRef.current;
         if (!canvas || !filteredPnlTimeline.length) return;
@@ -624,11 +647,6 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         .filter(([symbol]) => !normalizedSymbolFilter || symbol.toUpperCase().includes(normalizedSymbolFilter))
         .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 6);
-    const symbolDetailCandidates = Array.from(new Set([
-        ...filteredSymbolMiniTimelines.map((row) => row.symbol),
-        ...filteredRiskAttribution.map((row) => row.symbol),
-        ...filteredSymbolAttribution.map((row) => row.symbol),
-    ]));
     const selectedSymbolTimeline = filteredSymbolMiniTimelines.find((row) => row.symbol === selectedSymbolDetail) ?? null;
     const selectedSymbolRisk = filteredRiskAttribution.find((row) => row.symbol === selectedSymbolDetail) ?? null;
     const selectedSymbolAttribution = filteredSymbolAttribution.find((row) => row.symbol === selectedSymbolDetail) ?? null;
