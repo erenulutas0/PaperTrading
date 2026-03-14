@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/api-client';
 import MarketWorkspaceChart from '../../components/MarketWorkspaceChart';
+import { decodeSharedLayout, encodeSharedLayout, SharedTerminalLayoutPayload } from '../../lib/market-terminal-share';
 import {
     createTerminalLayout,
     deleteTerminalLayout,
@@ -86,19 +87,6 @@ interface AlertHistoryEntry {
     triggeredPrice: number;
     message: string;
     triggeredAt: string;
-}
-
-interface SharedTerminalLayoutPayload {
-    version: 1;
-    name: string;
-    watchlistId: string | null;
-    market: MarketSelection;
-    symbol: string;
-    compareSymbols: string[];
-    compareVisible: boolean;
-    range: ChartRange;
-    interval: ChartInterval;
-    favoriteSymbols: string[];
 }
 
 type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
@@ -197,52 +185,6 @@ function sortChartNotes(notes: ChartNote[]) {
     });
 }
 
-function encodeSharedLayout(layout: SharedTerminalLayoutPayload) {
-    if (typeof window === 'undefined') {
-        return '';
-    }
-    const json = JSON.stringify(layout);
-    return window.btoa(unescape(encodeURIComponent(json)))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/g, '');
-}
-
-function decodeSharedLayout(encoded: string): SharedTerminalLayoutPayload | null {
-    if (typeof window === 'undefined' || !encoded) {
-        return null;
-    }
-    try {
-        const normalized = encoded
-            .replace(/-/g, '+')
-            .replace(/_/g, '/');
-        const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
-        const json = decodeURIComponent(escape(window.atob(padded)));
-        const parsed = JSON.parse(json);
-        if (!parsed || typeof parsed !== 'object' || parsed.version !== 1 || typeof parsed.name !== 'string') {
-            return null;
-        }
-        return {
-            version: 1,
-            name: parsed.name,
-            watchlistId: typeof parsed.watchlistId === 'string' ? parsed.watchlistId : null,
-            market: parsed.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
-            symbol: typeof parsed.symbol === 'string' && parsed.symbol ? parsed.symbol : 'BTCUSDT',
-            compareSymbols: Array.isArray(parsed.compareSymbols)
-                ? parsed.compareSymbols.filter((value: unknown): value is string => typeof value === 'string').slice(0, 3)
-                : [],
-            compareVisible: parsed.compareVisible !== false,
-            range: RANGE_OPTIONS.includes(parsed.range) ? parsed.range : '1D',
-            interval: INTERVAL_OPTIONS.includes(parsed.interval) ? parsed.interval : '1h',
-            favoriteSymbols: Array.isArray(parsed.favoriteSymbols)
-                ? parsed.favoriteSymbols.filter((value: unknown): value is string => typeof value === 'string')
-                : [],
-        };
-    } catch (error) {
-        console.error(error);
-        return null;
-    }
-}
 
 function escapeSvgText(value: string) {
     return value
@@ -602,7 +544,7 @@ export default function WatchlistPage() {
             return;
         }
         const params = new URLSearchParams(window.location.search);
-        const encoded = params.get('sharedLayout');
+        const encoded = params.get('sharedLayout') || params.get('layout');
         if (!encoded) {
             return;
         }
@@ -1537,7 +1479,7 @@ export default function WatchlistPage() {
         if (!encoded) {
             return;
         }
-        const shareUrl = `${window.location.origin}/watchlist?sharedLayout=${encoded}`;
+        const shareUrl = `${window.location.origin}/watchlist/shared?layout=${encoded}`;
         try {
             await navigator.clipboard.writeText(shareUrl);
             setSharedLayoutMessage('Share link copied to clipboard.');
@@ -1568,7 +1510,7 @@ export default function WatchlistPage() {
         if (!encoded) {
             return;
         }
-        const shareUrl = `${window.location.origin}/watchlist?sharedLayout=${encoded}`;
+        const shareUrl = `${window.location.origin}/watchlist/shared?layout=${encoded}`;
         try {
             await navigator.clipboard.writeText(shareUrl);
             setSnapshotMessage('Current-state share link copied.');

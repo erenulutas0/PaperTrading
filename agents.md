@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Shared Layout Links Split Into Preview Surface and Full Terminal Surface**
+  - **Problem observed**:
+    - Sending a shared layout directly into the full terminal works, but it is heavier than necessary for first contact.
+    - Shared links benefit from a lightweight preview step before loading the entire interactive workspace.
+  - **Implementation**:
+    - Added `/watchlist/shared` as a dedicated preview route for shared terminal presets.
+    - Share links now target the preview page first.
+    - Preview page shows:
+      - preset name
+      - market/symbol/range/interval
+      - compare basket and favorites count
+      - CTA to open the full terminal with the same payload
+    - Shared-layout encoding/decoding moved into a reusable library module.
+  - **Operational impact**:
+    - shared links now degrade more gracefully
+    - the terminal route remains focused on interaction, while the preview route handles lightweight inspection
 - **2026-03-14**: **Snapshot Export Extended From Raw Data to Branded Visual Card**
   - **Problem observed**:
     - Plain-text summary and JSON snapshot are useful for fidelity, but not ideal for social sharing or lightweight reporting.
