@@ -147,6 +147,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
+    const [hasHydratedShareState, setHasHydratedShareState] = useState(false);
+    const [compareLinkCopied, setCompareLinkCopied] = useState(false);
     const [chartRenderVersion, setChartRenderVersion] = useState(0);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pnlCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -620,6 +622,52 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     }, []);
 
     useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const compare = params.get('compare');
+        const curveWindow = params.get('curveWindow');
+        const filter = params.get('symbolFilter');
+        const detail = params.get('detail');
+
+        if (compare) {
+            setComparePortfolioId(compare);
+        }
+        if (curveWindow === 'ALL' || curveWindow === '30D' || curveWindow === '7D') {
+            setSelectedCurveWindow(curveWindow);
+        }
+        if (filter) {
+            setSymbolFilter(filter);
+        }
+        if (detail) {
+            setSelectedSymbolDetail(detail.toUpperCase());
+        }
+
+        setHasHydratedShareState(true);
+    }, []);
+
+    useEffect(() => {
+        if (!hasHydratedShareState) {
+            return;
+        }
+
+        const params = new URLSearchParams();
+        if (comparePortfolioId) {
+            params.set('compare', comparePortfolioId);
+        }
+        if (selectedCurveWindow !== 'ALL') {
+            params.set('curveWindow', selectedCurveWindow);
+        }
+        if (symbolFilter.trim()) {
+            params.set('symbolFilter', symbolFilter.trim().toUpperCase());
+        }
+        if (selectedSymbolDetail) {
+            params.set('detail', selectedSymbolDetail);
+        }
+
+        const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+        window.history.replaceState(null, '', nextUrl);
+    }, [comparePortfolioId, hasHydratedShareState, selectedCurveWindow, selectedSymbolDetail, symbolFilter]);
+
+    useEffect(() => {
         fetchAnalytics();
     }, [fetchAnalytics]);
 
@@ -804,6 +852,16 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         link.download = filename;
         link.click();
         URL.revokeObjectURL(url);
+    };
+
+    const copyAnalyticsShareLink = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            setCompareLinkCopied(true);
+            window.setTimeout(() => setCompareLinkCopied(false), 1800);
+        } catch (error) {
+            console.error(error);
+        }
     };
 
     if (loading) {
@@ -1079,16 +1137,25 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                 ))}
                             </select>
                             {comparePortfolioId ? (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setComparePortfolioId('');
-                                        setCompareData(null);
-                                    }}
-                                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-zinc-300 transition-colors hover:text-white"
-                                >
-                                    Clear
-                                </button>
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => void copyAnalyticsShareLink()}
+                                        className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20"
+                                    >
+                                        {compareLinkCopied ? 'Link Copied' : 'Copy Compare Link'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setComparePortfolioId('');
+                                            setCompareData(null);
+                                        }}
+                                        className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-zinc-300 transition-colors hover:text-white"
+                                    >
+                                        Clear
+                                    </button>
+                                </>
                             ) : null}
                         </div>
                     </div>

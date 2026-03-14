@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Analytics Compare State Became Shareable Through URL-Carried Session Parameters**
+  - **Problem observed**:
+    - Portfolio compare mode had become useful, but it was still ephemeral.
+    - Reproducing the same analytics surface required manually reselecting:
+      - compare portfolio
+      - curve window
+      - symbol filter
+      - selected symbol detail
+  - **Implementation**:
+    - Added lightweight URL hydration/sync for `/analytics/[portfolioId]` using browser history instead of Next search-param hooks.
+    - The page now reads and writes:
+      - `compare`
+      - `curveWindow`
+      - `symbolFilter`
+      - `detail`
+    - Added `Copy Compare Link` action inside the compare surface so the current analytics comparison can be reopened directly.
+    - Chose browser-history sync specifically to avoid introducing another prerender/suspense edge on a page that already had build-sensitive client behavior.
+  - **Operational impact**:
+    - analytics compare sessions can now be shared or reopened without reconstructing the page state manually
+    - state-sharing stayed frontend-only and did not require a new backend persistence layer
 - **2026-03-15**: **Portfolio Compare Surface Extended Into Risk-And-Quality Table**
   - **Problem observed**:
     - The first compare surface showed:

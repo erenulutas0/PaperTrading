@@ -26,6 +26,7 @@ Last updated: 2026-03-11
   - portfolio compare mode with second-portfolio metric deltas
   - indexed equity curve overlay inside compare mode
   - compare mode risk-and-quality table for Sharpe/Sortino/drawdown/volatility/profit-factor/win-rate inspection
+  - compare state share link carrying compare portfolio, curve window, symbol filter, and selected symbol detail via URL
   - resize-safe analytics canvases that redraw cleanly after viewport/layout changes and clear stale charts on empty states
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
