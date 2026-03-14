@@ -3,6 +3,10 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after terminal layout share-link rollout and verify `/watchlist` now supports:
+  - copying a portable shared-layout URL
+  - opening a shared layout banner from `?sharedLayout=...`
+  - applying or saving a shared preset into account-backed layouts
 - [ ] Redeploy frontend after market terminal layout export/import + overwrite/rename polish and verify `/watchlist` now supports:
   - named layout save/apply/remove
   - rename + overwrite of existing saved layouts

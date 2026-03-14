@@ -38,6 +38,19 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Terminal Layouts Extended From File Portability to Direct Share Links**
+  - **Problem observed**:
+    - JSON export/import solved portability, but it is still a file-based workflow.
+    - For fast collaboration, a lightweight URL share path is better than telling users to export a file first.
+  - **Implementation**:
+    - Added client-side layout share links using a compact encoded JSON payload in `?sharedLayout=...`.
+    - `/watchlist` now detects shared layouts on load and surfaces a banner that can:
+      - apply the shared preset immediately
+      - save it as a new account-backed layout
+    - Existing backend layout creation remains the validation gate; shared links do not bypass server-side normalization.
+  - **Operational impact**:
+    - layout collaboration is now instant for web users
+    - file export/import still exists for backup and bulk transfer scenarios
 - **2026-03-14**: **Terminal Layouts Graduated From Last-State Persistence to Portable Presets**
   - **Problem observed**:
     - Named layouts solved reuse on one account, but they still behaved like data trapped inside the app.

@@ -88,6 +88,19 @@ interface AlertHistoryEntry {
     triggeredAt: string;
 }
 
+interface SharedTerminalLayoutPayload {
+    version: 1;
+    name: string;
+    watchlistId: string | null;
+    market: MarketSelection;
+    symbol: string;
+    compareSymbols: string[];
+    compareVisible: boolean;
+    range: ChartRange;
+    interval: ChartInterval;
+    favoriteSymbols: string[];
+}
+
 type ChartRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL';
 type ChartInterval = '1m' | '15m' | '30m' | '1h' | '4h' | '1d';
 type DrawingMode = 'none' | 'horizontal' | 'trend';
@@ -184,6 +197,53 @@ function sortChartNotes(notes: ChartNote[]) {
     });
 }
 
+function encodeSharedLayout(layout: SharedTerminalLayoutPayload) {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+    const json = JSON.stringify(layout);
+    return window.btoa(unescape(encodeURIComponent(json)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
+}
+
+function decodeSharedLayout(encoded: string): SharedTerminalLayoutPayload | null {
+    if (typeof window === 'undefined' || !encoded) {
+        return null;
+    }
+    try {
+        const normalized = encoded
+            .replace(/-/g, '+')
+            .replace(/_/g, '/');
+        const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+        const json = decodeURIComponent(escape(window.atob(padded)));
+        const parsed = JSON.parse(json);
+        if (!parsed || typeof parsed !== 'object' || parsed.version !== 1 || typeof parsed.name !== 'string') {
+            return null;
+        }
+        return {
+            version: 1,
+            name: parsed.name,
+            watchlistId: typeof parsed.watchlistId === 'string' ? parsed.watchlistId : null,
+            market: parsed.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
+            symbol: typeof parsed.symbol === 'string' && parsed.symbol ? parsed.symbol : 'BTCUSDT',
+            compareSymbols: Array.isArray(parsed.compareSymbols)
+                ? parsed.compareSymbols.filter((value: unknown): value is string => typeof value === 'string').slice(0, 3)
+                : [],
+            compareVisible: parsed.compareVisible !== false,
+            range: RANGE_OPTIONS.includes(parsed.range) ? parsed.range : '1D',
+            interval: INTERVAL_OPTIONS.includes(parsed.interval) ? parsed.interval : '1h',
+            favoriteSymbols: Array.isArray(parsed.favoriteSymbols)
+                ? parsed.favoriteSymbols.filter((value: unknown): value is string => typeof value === 'string')
+                : [],
+        };
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+}
+
 export default function WatchlistPage() {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(null);
@@ -206,6 +266,8 @@ export default function WatchlistPage() {
     const [editingLayoutName, setEditingLayoutName] = useState('');
     const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
     const [layoutImportMessage, setLayoutImportMessage] = useState<string>('');
+    const [sharedLayout, setSharedLayout] = useState<SharedTerminalLayoutPayload | null>(null);
+    const [sharedLayoutMessage, setSharedLayoutMessage] = useState<string>('');
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [compareCandles, setCompareCandles] = useState<Record<string, CandlePoint[]>>({});
     const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
@@ -434,6 +496,23 @@ export default function WatchlistPage() {
             setSelectedInterval(persistedSession.selectedInterval);
         }
         setSessionHydrated(true);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const params = new URLSearchParams(window.location.search);
+        const encoded = params.get('sharedLayout');
+        if (!encoded) {
+            return;
+        }
+        const decoded = decodeSharedLayout(encoded);
+        if (!decoded) {
+            setSharedLayoutMessage('Shared layout link is invalid.');
+            return;
+        }
+        setSharedLayout(decoded);
     }, []);
 
     useEffect(() => {
@@ -1179,6 +1258,20 @@ export default function WatchlistPage() {
         }
     };
 
+    const applySharedLayoutState = useCallback((layout: SharedTerminalLayoutPayload) => {
+        if (layout.watchlistId) {
+            setSelectedWatchlist(layout.watchlistId);
+        }
+        setSelectedMarket(layout.market);
+        setSelectedSymbol(layout.symbol);
+        setCompareSymbols(layout.compareSymbols.slice(0, 3));
+        setCompareVisible(layout.compareVisible !== false);
+        setSelectedRange(layout.range);
+        setSelectedInterval(layout.interval);
+        setFavoriteSymbols(layout.favoriteSymbols);
+        setActiveLayoutId(null);
+    }, []);
+
     const handleExportLayouts = () => {
         if (terminalLayouts.length === 0 || typeof window === 'undefined') {
             return;
@@ -1320,6 +1413,66 @@ export default function WatchlistPage() {
                 layoutImportInputRef.current.value = '';
             }
         }
+    };
+
+    const handleShareLayout = async (layout: TerminalLayoutResponsePayload) => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const encoded = encodeSharedLayout({
+            version: 1,
+            name: layout.name,
+            watchlistId: layout.watchlistId,
+            market: layout.market,
+            symbol: layout.symbol,
+            compareSymbols: layout.compareSymbols,
+            compareVisible: layout.compareVisible,
+            range: layout.range,
+            interval: layout.interval,
+            favoriteSymbols: layout.favoriteSymbols,
+        });
+        if (!encoded) {
+            return;
+        }
+        const shareUrl = `${window.location.origin}/watchlist?sharedLayout=${encoded}`;
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setSharedLayoutMessage('Share link copied to clipboard.');
+        } catch (error) {
+            console.error(error);
+            setSharedLayoutMessage(shareUrl);
+        }
+    };
+
+    const handleApplySharedLayout = () => {
+        if (!sharedLayout) {
+            return;
+        }
+        applySharedLayoutState(sharedLayout);
+        setSharedLayoutMessage(`Applied shared layout: ${sharedLayout.name}`);
+    };
+
+    const handleSaveSharedLayout = async () => {
+        if (!sharedLayout || !currentUserId) {
+            return;
+        }
+        const created = await createTerminalLayout(currentUserId, {
+            name: sharedLayout.name,
+            watchlistId: sharedLayout.watchlistId,
+            market: sharedLayout.market,
+            symbol: sharedLayout.symbol,
+            compareSymbols: sharedLayout.compareSymbols,
+            compareVisible: sharedLayout.compareVisible,
+            range: sharedLayout.range,
+            interval: sharedLayout.interval,
+            favoriteSymbols: sharedLayout.favoriteSymbols,
+        });
+        if (!created) {
+            setSharedLayoutMessage('Failed to save shared layout.');
+            return;
+        }
+        setTerminalLayouts((current) => [created, ...current].slice(0, 10));
+        setSharedLayoutMessage(`Saved shared layout: ${sharedLayout.name}`);
     };
 
     return (
@@ -1700,6 +1853,40 @@ export default function WatchlistPage() {
                                                 </span>
                                             </div>
                                         </div>
+                                        {sharedLayout && (
+                                            <div className="mt-4 rounded-2xl border border-sky-400/20 bg-sky-400/8 px-4 py-3">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">Shared Layout</p>
+                                                        <p className="mt-1 text-sm text-zinc-200">{sharedLayout.name}</p>
+                                                        <p className="mt-1 text-xs text-zinc-400">
+                                                            {sharedLayout.market} · {sharedLayout.symbol} · {sharedLayout.range} / {sharedLayout.interval}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={handleApplySharedLayout}
+                                                            className="rounded-full border border-sky-400/25 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
+                                                        >
+                                                            Apply Shared
+                                                        </button>
+                                                        <button
+                                                            onClick={handleSaveSharedLayout}
+                                                            disabled={terminalLayouts.length >= 10}
+                                                            className="rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        >
+                                                            Save As New
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setSharedLayout(null)}
+                                                            className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                        >
+                                                            Dismiss
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                         <input
                                             ref={layoutImportInputRef}
                                             type="file"
@@ -1725,6 +1912,9 @@ export default function WatchlistPage() {
                                         </div>
                                         {layoutImportMessage && (
                                             <p className="mt-3 text-xs text-zinc-500">{layoutImportMessage}</p>
+                                        )}
+                                        {sharedLayoutMessage && (
+                                            <p className="mt-2 break-all text-xs text-zinc-500">{sharedLayoutMessage}</p>
                                         )}
                                         <div className="mt-4 space-y-2">
                                             {terminalLayouts.length === 0 ? (
@@ -1806,6 +1996,12 @@ export default function WatchlistPage() {
                                                                         className="text-xs text-sky-300 transition hover:text-sky-200"
                                                                     >
                                                                         Overwrite
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleShareLayout(layout)}
+                                                                        className="text-xs text-emerald-300 transition hover:text-emerald-200"
+                                                                    >
+                                                                        Share
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleStartEditLayout(layout)}
