@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Analytics Compare Surface Added Human-Readable Summary Export**
+  - **Problem observed**:
+    - URL-based compare sharing is useful for exact reconstruction, but not ideal when an operator just wants to paste the comparison result into chat or notes.
+    - A raw link does not immediately communicate:
+      - relative return
+      - equity gap
+      - drawdown gap
+      - path-quality metrics
+  - **Implementation**:
+    - Added `Copy Summary` inside `Portfolio Compare`.
+    - The generated clipboard summary includes:
+      - primary vs compare portfolio names
+      - selected curve window
+      - return / equity / drawdown / win-rate deltas
+      - Sharpe / Sortino / profit-factor comparison
+      - active symbol filter and selected symbol detail when present
+    - Kept this browser-side because it is a presentation artifact of the already-loaded analytics state, not a new reporting contract.
+  - **Operational impact**:
+    - compare results are now shareable as a concise analyst note without forcing the receiver to open a link first
+    - URL sharing and summary sharing now cover both reconstruction and quick communication workflows
 - **2026-03-15**: **Analytics Compare State Became Shareable Through URL-Carried Session Parameters**
   - **Problem observed**:
     - Portfolio compare mode had become useful, but it was still ephemeral.

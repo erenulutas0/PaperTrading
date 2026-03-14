@@ -149,6 +149,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
     const [hasHydratedShareState, setHasHydratedShareState] = useState(false);
     const [compareLinkCopied, setCompareLinkCopied] = useState(false);
+    const [compareSummaryCopied, setCompareSummaryCopied] = useState(false);
     const [chartRenderVersion, setChartRenderVersion] = useState(0);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pnlCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -946,6 +947,36 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const compareTradeStats = compareData?.tradeStats ?? null;
     const selectedComparePortfolio = portfolioOptions.find((portfolio) => portfolio.id === comparePortfolioId) ?? null;
 
+    const copyCompareSummary = async () => {
+        if (!compareSummary || !compareRiskMetrics || !compareTradeStats) {
+            return;
+        }
+
+        const compareName = selectedComparePortfolio?.name ?? compareSummary.portfolioName;
+        const summaryLines = [
+            `Portfolio Compare Summary`,
+            `${summary.portfolioName} vs ${compareName}`,
+            `Window: ${selectedCurveWindow}`,
+            `Return delta: ${(summary.returnPercentage - compareSummary.returnPercentage) >= 0 ? '+' : ''}${(summary.returnPercentage - compareSummary.returnPercentage).toFixed(2)} pts`,
+            `Equity delta: ${formatCurrency(summary.currentEquity - compareSummary.currentEquity)}`,
+            `Drawdown delta: ${(rm.maxDrawdown - compareRiskMetrics.maxDrawdown) >= 0 ? '+' : ''}${(rm.maxDrawdown - compareRiskMetrics.maxDrawdown).toFixed(2)} pts`,
+            `Win-rate delta: ${(ts.tradeWinRate - compareTradeStats.tradeWinRate) >= 0 ? '+' : ''}${(ts.tradeWinRate - compareTradeStats.tradeWinRate).toFixed(2)} pts`,
+            `Sharpe: ${rm.sharpeRatio.toFixed(2)} vs ${compareRiskMetrics.sharpeRatio.toFixed(2)}`,
+            `Sortino: ${rm.sortinoRatio.toFixed(2)} vs ${compareRiskMetrics.sortinoRatio.toFixed(2)}`,
+            `Profit factor: ${rm.profitFactor.toFixed(2)} vs ${compareRiskMetrics.profitFactor.toFixed(2)}`,
+            normalizedSymbolFilter ? `Symbol filter: ${normalizedSymbolFilter}` : null,
+            selectedSymbolDetail ? `Detail symbol: ${selectedSymbolDetail}` : null,
+        ].filter(Boolean);
+
+        try {
+            await navigator.clipboard.writeText(summaryLines.join('\n'));
+            setCompareSummaryCopied(true);
+            window.setTimeout(() => setCompareSummaryCopied(false), 1800);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     const exportAnalytics = async (format: 'csv' | 'json') => {
         try {
             const userId = localStorage.getItem('userId') || '';
@@ -1138,6 +1169,13 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             </select>
                             {comparePortfolioId ? (
                                 <>
+                                    <button
+                                        type="button"
+                                        onClick={() => void copyCompareSummary()}
+                                        className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                                    >
+                                        {compareSummaryCopied ? 'Summary Copied' : 'Copy Summary'}
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => void copyAnalyticsShareLink()}
