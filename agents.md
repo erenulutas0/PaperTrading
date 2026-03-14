@@ -85,6 +85,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - analytics is discoverable from the dashboard instead of requiring a manual route
     - users can now separate closed-trade performance from still-open risk on the same page
+- **2026-03-14**: **Portfolio Analytics Extended With Rolling Windows and Realized Symbol Attribution**
+  - **Problem observed**:
+    - The second analytics pass surfaced current state and live open-risk, but still lacked:
+      - recent-window momentum (`7D`, `30D`)
+      - a clean view of which symbols actually drove realized results
+    - Without those, the page still leaned too much toward static point-in-time inspection.
+  - **Implementation**:
+    - `PerformanceAnalyticsService` now adds:
+      - `performanceWindows`
+        - `7d`
+        - `30d`
+      - `symbolAttribution`
+        - realized PnL aggregated by symbol
+        - trade count per symbol
+    - `app/analytics/[portfolioId]` now renders:
+      - rolling performance cards
+      - realized symbol attribution list
+    - Regression assertions added to analytics backend tests to keep the expanded payload stable.
+  - **Operational impact**:
+    - analytics now answers both:
+      - "what is happening now?"
+      - "what has been working recently?"
+    - realized attribution is explicit instead of forcing users to infer it from raw trade stats
 - **2026-03-14**: **Shared Layout Links Split Into Preview Surface and Full Terminal Surface**
   - **Problem observed**:
     - Sending a shared layout directly into the full terminal works, but it is heavier than necessary for first contact.

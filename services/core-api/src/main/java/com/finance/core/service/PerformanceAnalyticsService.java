@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -276,6 +277,7 @@ public class PerformanceAnalyticsService {
 
         analytics.put("summary", buildPortfolioSummary(portfolio, snapshots));
         analytics.put("positionSummary", buildPositionSummary(portfolio, trades));
+        analytics.put("performanceWindows", buildPerformanceWindows(snapshots));
 
         // Risk Metrics
         Map<String, Object> risk = new LinkedHashMap<>();
@@ -291,6 +293,7 @@ public class PerformanceAnalyticsService {
 
         // Trade Stats
         analytics.put("tradeStats", buildTradeStats(trades));
+        analytics.put("symbolAttribution", buildSymbolAttribution(trades));
 
         // Equity Curve
         analytics.put("equityCurve", getEquityCurve(portfolioId));
@@ -407,5 +410,71 @@ public class PerformanceAnalyticsService {
         summary.put("netPnl", Math.round((realizedPnl + unrealizedPnl) * 100.0) / 100.0);
         summary.put("topPositions", topPositions.stream().limit(5).toList());
         return summary;
+    }
+
+    private Map<String, Object> buildPerformanceWindows(List<PortfolioSnapshot> snapshots) {
+        Map<String, Object> windows = new LinkedHashMap<>();
+        windows.put("7d", buildWindowPerformance(snapshots, LocalDateTime.now().minusDays(7)));
+        windows.put("30d", buildWindowPerformance(snapshots, LocalDateTime.now().minusDays(30)));
+        return windows;
+    }
+
+    private Map<String, Object> buildWindowPerformance(List<PortfolioSnapshot> snapshots, LocalDateTime startTime) {
+        List<PortfolioSnapshot> inWindow = snapshots.stream()
+                .filter(snapshot -> snapshot.getTimestamp() != null && !snapshot.getTimestamp().isBefore(startTime))
+                .toList();
+
+        if (inWindow.isEmpty()) {
+            return Map.of(
+                    "startingEquity", 0.0,
+                    "endingEquity", 0.0,
+                    "absoluteReturn", 0.0,
+                    "returnPercentage", 0.0,
+                    "snapshotCount", 0);
+        }
+
+        double startEquity = inWindow.get(0).getTotalEquity().doubleValue();
+        double endEquity = inWindow.get(inWindow.size() - 1).getTotalEquity().doubleValue();
+        double absoluteReturn = endEquity - startEquity;
+        double returnPercentage = startEquity > 0 ? (absoluteReturn / startEquity) * 100.0 : 0.0;
+
+        Map<String, Object> window = new LinkedHashMap<>();
+        window.put("startingEquity", Math.round(startEquity * 100.0) / 100.0);
+        window.put("endingEquity", Math.round(endEquity * 100.0) / 100.0);
+        window.put("absoluteReturn", Math.round(absoluteReturn * 100.0) / 100.0);
+        window.put("returnPercentage", Math.round(returnPercentage * 100.0) / 100.0);
+        window.put("snapshotCount", inWindow.size());
+        return window;
+    }
+
+    private List<Map<String, Object>> buildSymbolAttribution(List<TradeActivity> trades) {
+        Map<String, Double> realizedBySymbol = new LinkedHashMap<>();
+        Map<String, Integer> tradeCountBySymbol = new LinkedHashMap<>();
+
+        for (TradeActivity trade : trades) {
+            if (trade.getSymbol() == null) {
+                continue;
+            }
+            tradeCountBySymbol.merge(trade.getSymbol(), 1, Integer::sum);
+            if (trade.getRealizedPnl() != null) {
+                realizedBySymbol.merge(trade.getSymbol(), trade.getRealizedPnl().doubleValue(), Double::sum);
+            } else {
+                realizedBySymbol.putIfAbsent(trade.getSymbol(), 0.0);
+            }
+        }
+
+        return realizedBySymbol.entrySet().stream()
+                .map(entry -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("symbol", entry.getKey());
+                    row.put("realizedPnl", Math.round(entry.getValue() * 100.0) / 100.0);
+                    row.put("tradeCount", tradeCountBySymbol.getOrDefault(entry.getKey(), 0));
+                    return row;
+                })
+                .sorted((left, right) -> Double.compare(
+                        Math.abs(((Number) right.get("realizedPnl")).doubleValue()),
+                        Math.abs(((Number) left.get("realizedPnl")).doubleValue())))
+                .limit(6)
+                .toList();
     }
 }

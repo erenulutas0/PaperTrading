@@ -36,6 +36,22 @@ interface AnalyticsData {
             unrealizedPnl: number;
         }[];
     };
+    performanceWindows?: {
+        '7d': {
+            startingEquity: number;
+            endingEquity: number;
+            absoluteReturn: number;
+            returnPercentage: number;
+            snapshotCount: number;
+        };
+        '30d': {
+            startingEquity: number;
+            endingEquity: number;
+            absoluteReturn: number;
+            returnPercentage: number;
+            snapshotCount: number;
+        };
+    };
     riskMetrics: {
         maxDrawdown: number;
         sharpeRatio: number;
@@ -61,6 +77,11 @@ interface AnalyticsData {
         mostTradedSymbol: string;
         symbolBreakdown: Record<string, number>;
     };
+    symbolAttribution?: {
+        symbol: string;
+        realizedPnl: number;
+        tradeCount: number;
+    }[];
     equityCurve: { timestamp: string; equity: number; drawdown: number; peak: number }[];
 }
 
@@ -308,6 +329,11 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         netPnl: 0,
         topPositions: [],
     };
+    const performanceWindows = data.performanceWindows ?? {
+        '7d': { startingEquity: 0, endingEquity: 0, absoluteReturn: 0, returnPercentage: 0, snapshotCount: 0 },
+        '30d': { startingEquity: 0, endingEquity: 0, absoluteReturn: 0, returnPercentage: 0, snapshotCount: 0 },
+    };
+    const symbolAttribution = data.symbolAttribution ?? [];
     const performancePositive = summary.absoluteReturn >= 0;
 
     return (
@@ -453,6 +479,72 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                                 <p className="text-xs text-zinc-500">Exposure {formatEquity(position.exposure)}</p>
                                             </div>
                                         </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-6 grid gap-6 xl:grid-cols-12">
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Rolling Performance</h2>
+                            <p className="mt-1 text-[10px] text-zinc-600">Short and medium window momentum from stored equity snapshots.</p>
+                        </div>
+                        <div className="mt-5 space-y-4">
+                            {([
+                                ['7D', performanceWindows['7d']],
+                                ['30D', performanceWindows['30d']],
+                            ] as const).map(([label, window]) => (
+                                <div key={label} className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-bold text-white">{label}</span>
+                                        <span className="text-xs text-zinc-500">{window.snapshotCount} snapshots</span>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                                        <div>
+                                            <p className="text-zinc-500">Start</p>
+                                            <p className="mt-1 font-mono text-zinc-200">{formatEquity(window.startingEquity)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-zinc-500">End</p>
+                                            <p className="mt-1 font-mono text-zinc-200">{formatEquity(window.endingEquity)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 flex items-center justify-between">
+                                        <span className={`text-lg font-bold ${window.absoluteReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {formatCurrency(window.absoluteReturn)}
+                                        </span>
+                                        <span className={`text-sm font-mono ${window.returnPercentage >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                                            {window.returnPercentage >= 0 ? '+' : ''}{window.returnPercentage.toFixed(2)}%
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-7">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Realized Symbol Attribution</h2>
+                            <p className="mt-1 text-[10px] text-zinc-600">Closed-trade contribution by instrument, ordered by realized impact.</p>
+                        </div>
+                        <div className="mt-5 space-y-3">
+                            {symbolAttribution.length === 0 ? (
+                                <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                                    No realized trade history yet. Attribution appears as trades close and realized PnL is recorded.
+                                </p>
+                            ) : (
+                                symbolAttribution.map((row) => (
+                                    <div key={row.symbol} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-4 py-4">
+                                        <div>
+                                            <p className="text-sm font-bold text-white">{row.symbol}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">{row.tradeCount} recorded trades</p>
+                                        </div>
+                                        <p className={`text-lg font-bold font-mono ${row.realizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {formatCurrency(row.realizedPnl)}
+                                        </p>
                                     </div>
                                 ))
                             )}
