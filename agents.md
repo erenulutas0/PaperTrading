@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Compare Surface Extended Into Risk-And-Quality Table**
+  - **Problem observed**:
+    - The first compare surface showed:
+      - core delta cards
+      - indexed equity overlay
+    - but risk character still had to be inferred by scanning the separate analytics sections for each portfolio mentally.
+  - **Implementation**:
+    - Added a dedicated compare table under `Portfolio Compare` for:
+      - Sharpe
+      - Sortino
+      - max drawdown
+      - volatility
+      - profit factor
+      - trade win rate
+    - Reused the existing primary and compare analytics payloads instead of introducing another backend contract.
+    - Delta coloring now respects metric direction, so lower-is-better metrics like drawdown and volatility do not get falsely marked as positive simply because the raw delta is negative.
+  - **Operational impact**:
+    - compare mode now communicates not only who outperformed, but how that performance was achieved
+    - users can judge path quality and downside control without leaving the compare surface
 - **2026-03-15**: **Selected-Symbol Analytics Detail Now Visualizes Live Risk Even Before Realized History Exists**
   - **Problem observed**:
     - The `Selected Symbol PnL Detail` surface combined realized path with current unrealized PnL, but symbols with:

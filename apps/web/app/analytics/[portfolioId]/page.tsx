@@ -1157,6 +1157,91 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                     </div>
                                     <canvas ref={compareCanvasRef} className="mt-4 h-64 w-full rounded-xl" />
                                 </div>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Risk And Quality Compare</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Direct metric table for path quality, downside control, and trading efficiency.</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 overflow-x-auto">
+                                        <table className="min-w-full text-left text-sm">
+                                            <thead>
+                                                <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.22em] text-zinc-500">
+                                                    <th className="pb-3 pr-4 font-medium">Metric</th>
+                                                    <th className="pb-3 pr-4 font-medium text-zinc-300">{summary.portfolioName}</th>
+                                                    <th className="pb-3 pr-4 font-medium text-zinc-300">{selectedComparePortfolio?.name ?? compareSummary.portfolioName}</th>
+                                                    <th className="pb-3 font-medium">Delta</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {[
+                                                    {
+                                                        label: 'Sharpe',
+                                                        primary: rm.sharpeRatio,
+                                                        compare: compareRiskMetrics.sharpeRatio,
+                                                        type: 'sharpe' as const,
+                                                        format: (value: number) => value.toFixed(2),
+                                                    },
+                                                    {
+                                                        label: 'Sortino',
+                                                        primary: rm.sortinoRatio,
+                                                        compare: compareRiskMetrics.sortinoRatio,
+                                                        type: 'sortino' as const,
+                                                        format: (value: number) => value.toFixed(2),
+                                                    },
+                                                    {
+                                                        label: 'Max Drawdown',
+                                                        primary: rm.maxDrawdown,
+                                                        compare: compareRiskMetrics.maxDrawdown,
+                                                        type: 'drawdown' as const,
+                                                        format: (value: number) => `${value.toFixed(2)}%`,
+                                                    },
+                                                    {
+                                                        label: 'Volatility',
+                                                        primary: rm.volatility,
+                                                        compare: compareRiskMetrics.volatility,
+                                                        type: 'vol' as const,
+                                                        format: (value: number) => `${value.toFixed(2)}%`,
+                                                    },
+                                                    {
+                                                        label: 'Profit Factor',
+                                                        primary: rm.profitFactor,
+                                                        compare: compareRiskMetrics.profitFactor,
+                                                        type: 'pf' as const,
+                                                        format: (value: number) => value.toFixed(2),
+                                                    },
+                                                    {
+                                                        label: 'Trade Win Rate',
+                                                        primary: ts.tradeWinRate,
+                                                        compare: compareTradeStats.tradeWinRate,
+                                                        type: 'winrate' as const,
+                                                        format: (value: number) => `${value.toFixed(2)}%`,
+                                                    },
+                                                ].map((metric) => {
+                                                    const delta = metric.primary - metric.compare;
+                                                    const positive = metric.type === 'drawdown' || metric.type === 'vol'
+                                                        ? delta <= 0
+                                                        : delta >= 0;
+                                                    return (
+                                                        <tr key={metric.label}>
+                                                            <td className="py-3 pr-4 text-zinc-400">{metric.label}</td>
+                                                            <td className={`py-3 pr-4 font-mono ${ratingColor(metric.primary, metric.type)}`}>
+                                                                {metric.format(metric.primary)}
+                                                            </td>
+                                                            <td className={`py-3 pr-4 font-mono ${ratingColor(metric.compare, metric.type)}`}>
+                                                                {metric.format(metric.compare)}
+                                                            </td>
+                                                            <td className={`py-3 font-mono ${positive ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {delta >= 0 ? '+' : ''}{metric.type === 'drawdown' || metric.type === 'vol' || metric.type === 'winrate' ? `${delta.toFixed(2)} pts` : delta.toFixed(2)}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
