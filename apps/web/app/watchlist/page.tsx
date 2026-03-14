@@ -32,7 +32,7 @@ interface Watchlist {
     name: string;
     userId: string;
     createdAt: string;
-    items: WatchlistItem[];
+    items: WatchlistItem[] | null;
 }
 
 interface InstrumentOption {
@@ -365,6 +365,10 @@ export default function WatchlistPage() {
         return watchlists.find((watchlist) => watchlist.id === selectedWatchlist) ?? null;
     }, [selectedWatchlist, watchlists]);
 
+    const selectedWatchlistItemCount = useMemo(() => {
+        return Array.isArray(selectedWatchlistMeta?.items) ? selectedWatchlistMeta.items.length : 0;
+    }, [selectedWatchlistMeta]);
+
     const topPinnedNotes = useMemo(() => {
         return chartNotes.filter((note) => note.pinned).slice(0, 2);
     }, [chartNotes]);
@@ -535,7 +539,7 @@ export default function WatchlistPage() {
             ? `Above ${selectedWatchlistItem.alertPriceAbove || '-'} / Below ${selectedWatchlistItem.alertPriceBelow || '-'}`
             : 'No watchlist alert bound';
         const watchlistLine = selectedWatchlistMeta
-            ? `${selectedWatchlistMeta.name} (${selectedWatchlistMeta.items.length} items)`
+            ? `${selectedWatchlistMeta.name} (${selectedWatchlistItemCount} items)`
             : 'No active watchlist';
 
         return [
@@ -561,6 +565,7 @@ export default function WatchlistPage() {
         selectedMarket,
         selectedRange,
         selectedSymbol,
+        selectedWatchlistItemCount,
         selectedWatchlistMeta,
         selectedWatchlistItem,
         topPinnedNotes,
