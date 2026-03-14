@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Terminal Layouts Graduated From Last-State Persistence to Portable Presets**
+  - **Problem observed**:
+    - Named layouts solved reuse on one account, but they still behaved like data trapped inside the app.
+    - Traders need lightweight portability:
+      - backup presets
+      - move setups between accounts/environments
+      - overwrite an existing preset after refining it
+  - **Implementation**:
+    - Kept backend layouts as the source of truth.
+    - Added terminal UI actions for:
+      - `Rename`
+      - `Overwrite`
+      - `Export`
+      - `Import`
+    - Export emits a compact JSON array of layout presets.
+    - Import rehydrates presets through the authenticated layout-create API instead of bypassing server validation.
+  - **Operational impact**:
+    - layouts are now both account-backed and portable
+    - import path still honors server-side normalization/limits instead of trusting raw browser JSON
 - **2026-03-14**: **Market Terminal Saved Layouts Promoted Session State Into Named, Reusable Snapshots**
   - **Problem observed**:
     - Backend-synced terminal preferences solved "restore my last state", but not "let me keep multiple named setups".

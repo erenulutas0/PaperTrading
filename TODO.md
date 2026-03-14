@@ -3,6 +3,10 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after market terminal layout export/import + overwrite/rename polish and verify `/watchlist` now supports:
+  - named layout save/apply/remove
+  - rename + overwrite of existing saved layouts
+  - JSON export/import for account layout presets
 - [ ] Redeploy backend/frontend after saved market terminal layouts rollout and verify `/watchlist` now supports:
   - account-backed named layout snapshots
   - apply/remove flows

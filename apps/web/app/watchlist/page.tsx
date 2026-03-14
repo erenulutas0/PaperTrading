@@ -205,6 +205,7 @@ export default function WatchlistPage() {
     const [editingLayoutId, setEditingLayoutId] = useState<string | null>(null);
     const [editingLayoutName, setEditingLayoutName] = useState('');
     const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
+    const [layoutImportMessage, setLayoutImportMessage] = useState<string>('');
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [compareCandles, setCompareCandles] = useState<Record<string, CandlePoint[]>>({});
     const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
@@ -225,6 +226,7 @@ export default function WatchlistPage() {
     const [sessionHydrated, setSessionHydrated] = useState(false);
     const [terminalPreferencesReady, setTerminalPreferencesReady] = useState(false);
     const candlesRef = useRef<CandlePoint[]>([]);
+    const layoutImportInputRef = useRef<HTMLInputElement | null>(null);
 
     const [newName, setNewName] = useState('');
     const [addSymbol, setAddSymbol] = useState('BTCUSDT');
@@ -1177,6 +1179,32 @@ export default function WatchlistPage() {
         }
     };
 
+    const handleExportLayouts = () => {
+        if (terminalLayouts.length === 0 || typeof window === 'undefined') {
+            return;
+        }
+        const payload = terminalLayouts.map((layout) => ({
+            name: layout.name,
+            watchlistId: layout.watchlistId,
+            market: layout.market,
+            symbol: layout.symbol,
+            compareSymbols: layout.compareSymbols,
+            compareVisible: layout.compareVisible,
+            range: layout.range,
+            interval: layout.interval,
+            favoriteSymbols: layout.favoriteSymbols,
+        }));
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'market-terminal-layouts.json';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+    };
+
     const handleStartEditLayout = (layout: TerminalLayoutResponsePayload) => {
         setEditingLayoutId(layout.id);
         setEditingLayoutName(layout.name);
@@ -1231,6 +1259,67 @@ export default function WatchlistPage() {
         }
         setTerminalLayouts((current) => [updated, ...current.filter((entry) => entry.id !== layout.id)]);
         setActiveLayoutId(layout.id);
+    };
+
+    const handleImportLayouts = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !currentUserId) {
+            return;
+        }
+
+        try {
+            const raw = await file.text();
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                setLayoutImportMessage('Import failed: file must contain a layout array.');
+                return;
+            }
+
+            const remainingSlots = Math.max(0, 10 - terminalLayouts.length);
+            const candidates = parsed
+                .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+                .slice(0, remainingSlots);
+
+            let importedCount = 0;
+            const importedLayouts: TerminalLayoutResponsePayload[] = [];
+
+            for (const candidate of candidates) {
+                if (typeof candidate.name !== 'string' || !candidate.name.trim()) {
+                    continue;
+                }
+                const created = await createTerminalLayout(currentUserId, {
+                    name: candidate.name,
+                    watchlistId: typeof candidate.watchlistId === 'string' ? candidate.watchlistId : null,
+                    market: candidate.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
+                    symbol: typeof candidate.symbol === 'string' ? candidate.symbol : selectedSymbol,
+                    compareSymbols: Array.isArray(candidate.compareSymbols)
+                        ? candidate.compareSymbols.filter((value): value is string => typeof value === 'string')
+                        : [],
+                    compareVisible: candidate.compareVisible !== false,
+                    range: typeof candidate.range === 'string' ? candidate.range as ChartRange : selectedRange,
+                    interval: typeof candidate.interval === 'string' ? candidate.interval as ChartInterval : selectedInterval,
+                    favoriteSymbols: Array.isArray(candidate.favoriteSymbols)
+                        ? candidate.favoriteSymbols.filter((value): value is string => typeof value === 'string')
+                        : [],
+                });
+                if (created) {
+                    importedLayouts.push(created);
+                    importedCount += 1;
+                }
+            }
+
+            if (importedLayouts.length > 0) {
+                setTerminalLayouts((current) => [...importedLayouts, ...current].slice(0, 10));
+            }
+            setLayoutImportMessage(`Imported ${importedCount} layout${importedCount === 1 ? '' : 's'}.`);
+        } catch (error) {
+            console.error(error);
+            setLayoutImportMessage('Import failed: invalid JSON.');
+        } finally {
+            if (layoutImportInputRef.current) {
+                layoutImportInputRef.current.value = '';
+            }
+        }
     };
 
     return (
@@ -1591,10 +1680,33 @@ export default function WatchlistPage() {
                                                     Current market, symbol, compare basket, watchlist context, range, interval, and favorites snapshot.
                                                 </p>
                                             </div>
-                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                                                {terminalLayouts.length}/10
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={handleExportLayouts}
+                                                    disabled={terminalLayouts.length === 0}
+                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                                >
+                                                    Export
+                                                </button>
+                                                <button
+                                                    onClick={() => layoutImportInputRef.current?.click()}
+                                                    disabled={terminalLayouts.length >= 10}
+                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                                >
+                                                    Import
+                                                </button>
+                                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                                                    {terminalLayouts.length}/10
+                                                </span>
+                                            </div>
                                         </div>
+                                        <input
+                                            ref={layoutImportInputRef}
+                                            type="file"
+                                            accept="application/json"
+                                            onChange={handleImportLayouts}
+                                            className="hidden"
+                                        />
                                         <div className="mt-4 flex flex-col gap-3 lg:flex-row">
                                             <input
                                                 type="text"
@@ -1611,6 +1723,9 @@ export default function WatchlistPage() {
                                                 Save Current
                                             </button>
                                         </div>
+                                        {layoutImportMessage && (
+                                            <p className="mt-3 text-xs text-zinc-500">{layoutImportMessage}</p>
+                                        )}
                                         <div className="mt-4 space-y-2">
                                             {terminalLayouts.length === 0 ? (
                                                 <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-zinc-500">
