@@ -38,6 +38,37 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Market Terminal Saved Layouts Promoted Session State Into Named, Reusable Snapshots**
+  - **Problem observed**:
+    - Backend-synced terminal preferences solved "restore my last state", but not "let me keep multiple named setups".
+    - Traders often need separate reusable terminal contexts:
+      - one for crypto momentum
+      - one for BIST swing names
+      - one for a watchlist-specific alert basket
+  - **Implementation**:
+    - Added `market_terminal_layouts` table keyed by:
+      - `user_id`
+      - layout `id`
+    - Each layout persists:
+      - name
+      - selected watchlist
+      - market
+      - symbol
+      - compare basket + visibility
+      - range / interval
+      - favorite symbols
+    - Added authenticated CRUD endpoints:
+      - `GET /api/v1/users/me/preferences/terminal-layouts`
+      - `POST /api/v1/users/me/preferences/terminal-layouts`
+      - `PUT /api/v1/users/me/preferences/terminal-layouts/{layoutId}`
+      - `DELETE /api/v1/users/me/preferences/terminal-layouts/{layoutId}`
+    - `/watchlist` now exposes a saved-layout panel with:
+      - save current session
+      - apply saved layout
+      - remove saved layout
+  - **Operational impact**:
+    - "last terminal state" stays lightweight in `user_preferences`
+    - reusable named setups move into a separate persistence surface without overloading preference rows
 - **2026-03-14**: **Market Terminal Session Moved to Account Preferences With Local Multi-Tab Fallback**
   - **Problem observed**:
     - `/watchlist` had rich state (market, symbol, compare basket, range, interval, favorites), but this state lived only in browser storage.

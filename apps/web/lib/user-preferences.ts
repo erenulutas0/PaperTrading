@@ -40,6 +40,21 @@ export interface TerminalPreferencesResponsePayload {
   favoriteSymbols: string[];
 }
 
+export interface TerminalLayoutResponsePayload {
+  id: string;
+  name: string;
+  watchlistId: string | null;
+  market: TerminalPreferencesResponsePayload["market"];
+  symbol: string;
+  compareSymbols: string[];
+  compareVisible: boolean;
+  range: TerminalPreferencesResponsePayload["range"];
+  interval: TerminalPreferencesResponsePayload["interval"];
+  favoriteSymbols: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UpdateTerminalPreferencesPayload {
   market?: TerminalPreferencesResponsePayload["market"];
   symbol?: string;
@@ -48,6 +63,11 @@ export interface UpdateTerminalPreferencesPayload {
   range?: TerminalPreferencesResponsePayload["range"];
   interval?: TerminalPreferencesResponsePayload["interval"];
   favoriteSymbols?: string[];
+}
+
+export interface SaveTerminalLayoutPayload extends UpdateTerminalPreferencesPayload {
+  name: string;
+  watchlistId?: string | null;
 }
 
 export async function fetchUserPreferences(
@@ -106,5 +126,58 @@ export async function updateTerminalPreferences(
     return (await res.json()) as UserPreferencesResponsePayload;
   } catch {
     return null;
+  }
+}
+
+export async function fetchTerminalLayouts(
+  userId: string
+): Promise<TerminalLayoutResponsePayload[]> {
+  try {
+    const res = await apiFetch("/api/v1/users/me/preferences/terminal-layouts", {
+      headers: userIdHeaders(userId),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return [];
+    }
+    return (await res.json()) as TerminalLayoutResponsePayload[];
+  } catch {
+    return [];
+  }
+}
+
+export async function createTerminalLayout(
+  userId: string,
+  payload: SaveTerminalLayoutPayload
+): Promise<TerminalLayoutResponsePayload | null> {
+  try {
+    const res = await apiFetch("/api/v1/users/me/preferences/terminal-layouts", {
+      method: "POST",
+      headers: userIdHeaders(userId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return (await res.json()) as TerminalLayoutResponsePayload;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteTerminalLayout(
+  userId: string,
+  layoutId: string
+): Promise<boolean> {
+  try {
+    const res = await apiFetch(`/api/v1/users/me/preferences/terminal-layouts/${layoutId}`, {
+      method: "DELETE",
+      headers: userIdHeaders(userId),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }

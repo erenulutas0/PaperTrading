@@ -3,6 +3,10 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend/frontend after saved market terminal layouts rollout and verify `/watchlist` now supports:
+  - account-backed named layout snapshots
+  - apply/remove flows
+  - restoring saved market/symbol/watchlist/compare/range/interval/favorites bundles
 - [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol

@@ -5,7 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/api-client';
 import MarketWorkspaceChart from '../../components/MarketWorkspaceChart';
-import { fetchUserPreferences, updateTerminalPreferences } from '../../lib/user-preferences';
+import {
+    createTerminalLayout,
+    deleteTerminalLayout,
+    fetchTerminalLayouts,
+    fetchUserPreferences,
+    TerminalLayoutResponsePayload,
+    updateTerminalPreferences,
+} from '../../lib/user-preferences';
 
 interface WatchlistItem {
     id: string;
@@ -192,6 +199,8 @@ export default function WatchlistPage() {
     const [drawingMode, setDrawingMode] = useState<DrawingMode>('none');
     const [clearDrawingsToken, setClearDrawingsToken] = useState(0);
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
+    const [terminalLayouts, setTerminalLayouts] = useState<TerminalLayoutResponsePayload[]>([]);
+    const [layoutNameDraft, setLayoutNameDraft] = useState('');
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [compareCandles, setCompareCandles] = useState<Record<string, CandlePoint[]>>({});
     const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
@@ -717,6 +726,15 @@ export default function WatchlistPage() {
         }
     }, [selectedMarket, selectedSymbol]);
 
+    const fetchLayouts = useCallback(async () => {
+        if (!currentUserId) {
+            setTerminalLayouts([]);
+            return;
+        }
+        const data = await fetchTerminalLayouts(currentUserId);
+        setTerminalLayouts(Array.isArray(data) ? data : []);
+    }, [currentUserId]);
+
     const updateSelectedSymbolAlerts = useCallback(async (nextAbove: number | null, nextBelow: number | null) => {
         if (!selectedWatchlistItem) {
             return;
@@ -861,6 +879,10 @@ export default function WatchlistPage() {
         fetchWatchlists();
         fetchInstrumentUniverse();
     }, [fetchInstrumentUniverse, fetchWatchlists]);
+
+    useEffect(() => {
+        fetchLayouts();
+    }, [fetchLayouts]);
 
     useEffect(() => {
         const interval = setInterval(fetchInstrumentUniverse, 10000);
@@ -1095,6 +1117,53 @@ export default function WatchlistPage() {
         }
         fetchCandles(selectedSymbol, selectedRange, selectedInterval, 'prepend');
     }, [fetchCandles, hasMoreHistory, loadingMoreHistory, selectedInterval, selectedRange, selectedSymbol]);
+
+    const handleSaveCurrentLayout = async () => {
+        const trimmed = layoutNameDraft.trim();
+        if (!currentUserId || !trimmed) {
+            return;
+        }
+        const layout = await createTerminalLayout(currentUserId, {
+            name: trimmed,
+            watchlistId: selectedWatchlist,
+            market: selectedMarket,
+            symbol: selectedSymbol,
+            compareSymbols,
+            compareVisible,
+            range: selectedRange,
+            interval: selectedInterval,
+            favoriteSymbols,
+        });
+        if (!layout) {
+            return;
+        }
+        setTerminalLayouts((current) => [layout, ...current].slice(0, 10));
+        setLayoutNameDraft('');
+    };
+
+    const handleApplyLayout = (layout: TerminalLayoutResponsePayload) => {
+        if (layout.watchlistId) {
+            setSelectedWatchlist(layout.watchlistId);
+        }
+        setSelectedMarket(layout.market);
+        setSelectedSymbol(layout.symbol);
+        setCompareSymbols(layout.compareSymbols.slice(0, 3));
+        setCompareVisible(layout.compareVisible !== false);
+        setSelectedRange(layout.range);
+        setSelectedInterval(layout.interval);
+        setFavoriteSymbols(layout.favoriteSymbols);
+    };
+
+    const handleDeleteLayout = async (layoutId: string) => {
+        if (!currentUserId) {
+            return;
+        }
+        const deleted = await deleteTerminalLayout(currentUserId, layoutId);
+        if (!deleted) {
+            return;
+        }
+        setTerminalLayouts((current) => current.filter((layout) => layout.id !== layoutId));
+    };
 
     return (
         <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.10),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(34,197,94,0.10),_transparent_28%),#040404] text-white">
@@ -1445,6 +1514,91 @@ export default function WatchlistPage() {
                                             </div>
                                         </div>
                                     )}
+
+                                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Saved Layouts</p>
+                                                <p className="mt-1 text-sm text-zinc-400">
+                                                    Current market, symbol, compare basket, watchlist context, range, interval, and favorites snapshot.
+                                                </p>
+                                            </div>
+                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                                                {terminalLayouts.length}/10
+                                            </span>
+                                        </div>
+                                        <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+                                            <input
+                                                type="text"
+                                                value={layoutNameDraft}
+                                                onChange={(event) => setLayoutNameDraft(event.target.value)}
+                                                placeholder="Save current layout as..."
+                                                className="flex-1 rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
+                                            />
+                                            <button
+                                                onClick={handleSaveCurrentLayout}
+                                                disabled={!layoutNameDraft.trim() || terminalLayouts.length >= 10}
+                                                className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                            >
+                                                Save Current
+                                            </button>
+                                        </div>
+                                        <div className="mt-4 space-y-2">
+                                            {terminalLayouts.length === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-zinc-500">
+                                                    No saved layouts yet. Capture a setup once and restore it later with one click.
+                                                </div>
+                                            ) : (
+                                                terminalLayouts.map((layout) => (
+                                                    <div key={layout.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div>
+                                                                <p className="text-sm font-semibold text-white">{layout.name}</p>
+                                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                                        {layout.market}
+                                                                    </span>
+                                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                                        {layout.symbol}
+                                                                    </span>
+                                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                                        {layout.range} · {layout.interval}
+                                                                    </span>
+                                                                    {layout.compareSymbols.length > 0 && (
+                                                                        <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                                                                            Compare {layout.compareSymbols.join(', ')}
+                                                                        </span>
+                                                                    )}
+                                                                    {layout.watchlistId && (
+                                                                        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                                                                            Watchlist linked
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex shrink-0 gap-3">
+                                                                <button
+                                                                    onClick={() => handleApplyLayout(layout)}
+                                                                    className="text-xs text-amber-300 transition hover:text-amber-200"
+                                                                >
+                                                                    Apply
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteLayout(layout.id)}
+                                                                    className="text-xs text-zinc-500 transition hover:text-red-400"
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                                                            Updated {new Date(layout.updatedAt).toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
 
                                     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
                                         <div className="rounded-3xl border border-white/8 bg-zinc-950/60 p-4">
