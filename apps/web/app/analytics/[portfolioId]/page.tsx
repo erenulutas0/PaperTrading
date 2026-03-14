@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, use, useCallback } from 'react';
+import { useState, useEffect, useRef, use, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch, userIdHeaders } from '../../../lib/api-client';
 
@@ -104,6 +104,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const portfolioId = resolvedParams.portfolioId;
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
+    const [symbolFilter, setSymbolFilter] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const fetchAnalytics = useCallback(async () => {
@@ -117,9 +119,24 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         finally { setLoading(false); }
     }, [portfolioId]);
 
+    const filteredEquityCurve = useMemo(() => {
+        if (!data?.equityCurve?.length) {
+            return [];
+        }
+
+        if (selectedCurveWindow === 'ALL') {
+            return data.equityCurve;
+        }
+
+        const days = selectedCurveWindow === '7D' ? 7 : 30;
+        const threshold = Date.now() - days * 24 * 60 * 60 * 1000;
+        const filtered = data.equityCurve.filter((point) => new Date(point.timestamp).getTime() >= threshold);
+        return filtered.length > 0 ? filtered : data.equityCurve;
+    }, [data, selectedCurveWindow]);
+
     const drawEquityCurve = useCallback(() => {
         const canvas = canvasRef.current;
-        if (!canvas || !data?.equityCurve.length) return;
+        if (!canvas || !filteredEquityCurve.length) return;
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
@@ -132,7 +149,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const W = rect.width;
         const H = rect.height;
 
-        const curve = data.equityCurve;
+        const curve = filteredEquityCurve;
         const equities = curve.map(p => p.equity);
         const drawdowns = curve.map(p => p.drawdown);
         const peaks = curve.map(p => p.peak);
@@ -225,17 +242,17 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             const d = new Date(ts);
             ctx.fillText(d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), xPos(idx), H - 10);
         }
-    }, [data]);
+    }, [filteredEquityCurve]);
 
     useEffect(() => {
         fetchAnalytics();
     }, [fetchAnalytics]);
 
     useEffect(() => {
-        if (data?.equityCurve && canvasRef.current) {
+        if (filteredEquityCurve.length && canvasRef.current) {
             drawEquityCurve();
         }
-    }, [data, drawEquityCurve]);
+    }, [filteredEquityCurve, drawEquityCurve]);
 
     const ratingColor = (value: number, type: 'sharpe' | 'sortino' | 'drawdown' | 'winrate' | 'pf' | 'vol') => {
         switch (type) {
@@ -303,6 +320,24 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             })
             : 'N/A';
 
+    const downloadText = useCallback((content: string, filename: string, type: string) => {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+    }, []);
+
+    const escapeCsv = useCallback((value: string | number | null | undefined) => {
+        const raw = value == null ? '' : String(value);
+        if (raw.includes(',') || raw.includes('"') || raw.includes('\n')) {
+            return `"${raw.replace(/"/g, '""')}"`;
+        }
+        return raw;
+    }, []);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center">
@@ -353,6 +388,78 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     };
     const symbolAttribution = data.symbolAttribution ?? [];
     const performancePositive = summary.absoluteReturn >= 0;
+    const normalizedSymbolFilter = symbolFilter.trim().toUpperCase();
+    const filteredTopPositions = normalizedSymbolFilter
+        ? positionSummary.topPositions.filter((position) => position.symbol.toUpperCase().includes(normalizedSymbolFilter))
+        : positionSummary.topPositions;
+    const filteredSymbolAttribution = normalizedSymbolFilter
+        ? symbolAttribution.filter((row) => row.symbol.toUpperCase().includes(normalizedSymbolFilter))
+        : symbolAttribution;
+    const filteredSymbolBreakdownEntries = Object.entries(ts.symbolBreakdown || {})
+        .filter(([symbol]) => !normalizedSymbolFilter || symbol.toUpperCase().includes(normalizedSymbolFilter))
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 6);
+
+    const exportAnalyticsJson = useCallback(() => {
+        if (!data) {
+            return;
+        }
+        downloadText(
+            JSON.stringify(
+                {
+                    portfolioId,
+                    exportedAt: new Date().toISOString(),
+                    curveWindow: selectedCurveWindow,
+                    symbolFilter: normalizedSymbolFilter || null,
+                    analytics: data,
+                },
+                null,
+                2,
+            ),
+            `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics.json`,
+            'application/json;charset=utf-8',
+        );
+    }, [data, downloadText, normalizedSymbolFilter, portfolioId, selectedCurveWindow, summary.portfolioName]);
+
+    const exportAnalyticsCsv = useCallback(() => {
+        const rows = [
+            ['section', 'label', 'value'],
+            ['summary', 'portfolioName', summary.portfolioName],
+            ['summary', 'visibility', summary.visibility],
+            ['summary', 'currentEquity', summary.currentEquity],
+            ['summary', 'absoluteReturn', summary.absoluteReturn],
+            ['summary', 'returnPercentage', summary.returnPercentage],
+            ['positions', 'openPositions', positionSummary.openPositions],
+            ['positions', 'grossExposure', positionSummary.grossExposure],
+            ['positions', 'realizedPnl', positionSummary.realizedPnl],
+            ['positions', 'unrealizedPnl', positionSummary.unrealizedPnl],
+            ['windows', '7dReturnPercentage', performanceWindows['7d'].returnPercentage],
+            ['windows', '30dReturnPercentage', performanceWindows['30d'].returnPercentage],
+            ['extremes', 'bestMoveReturnPercentage', periodExtremes.bestMove.returnPercentage],
+            ['extremes', 'worstMoveReturnPercentage', periodExtremes.worstMove.returnPercentage],
+            ['context', 'curveWindow', selectedCurveWindow],
+            ['context', 'symbolFilter', normalizedSymbolFilter || ''],
+            ...filteredSymbolAttribution.map((row) => ['symbolAttribution', `${row.symbol} realizedPnl`, row.realizedPnl]),
+        ];
+
+        const content = rows.map((row) => row.map((value) => escapeCsv(value)).join(',')).join('\n');
+        downloadText(
+            content,
+            `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics.csv`,
+            'text/csv;charset=utf-8',
+        );
+    }, [
+        downloadText,
+        escapeCsv,
+        filteredSymbolAttribution,
+        normalizedSymbolFilter,
+        periodExtremes.bestMove.returnPercentage,
+        periodExtremes.worstMove.returnPercentage,
+        performanceWindows,
+        positionSummary,
+        selectedCurveWindow,
+        summary,
+    ]);
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -436,6 +543,55 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                 </div>
 
                 <div className="mb-6 grid gap-6 xl:grid-cols-12">
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-7">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Analytics Controls</h2>
+                        <p className="mt-1 text-[10px] text-zinc-600">Filter symbol-facing blocks and export the current analytics snapshot.</p>
+                        <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                            <input
+                                value={symbolFilter}
+                                onChange={(event) => setSymbolFilter(event.target.value)}
+                                placeholder="Filter symbols: BTC, ETH, THYAO..."
+                                className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-cyan-500/40"
+                            />
+                            <button
+                                type="button"
+                                onClick={exportAnalyticsCsv}
+                                className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                            >
+                                Export CSV
+                            </button>
+                            <button
+                                type="button"
+                                onClick={exportAnalyticsJson}
+                                className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
+                            >
+                                Export JSON
+                            </button>
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Curve Window</h2>
+                        <p className="mt-1 text-[10px] text-zinc-600">Limit the equity chart to the window you want to inspect.</p>
+                        <div className="mt-5 flex flex-wrap gap-2">
+                            {(['ALL', '30D', '7D'] as const).map((windowOption) => (
+                                <button
+                                    key={windowOption}
+                                    type="button"
+                                    onClick={() => setSelectedCurveWindow(windowOption)}
+                                    className={`rounded-full border px-4 py-2 text-xs font-bold tracking-[0.24em] transition-colors ${
+                                        selectedCurveWindow === windowOption
+                                            ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300'
+                                            : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                    }`}
+                                >
+                                    {windowOption}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-6 grid gap-6 xl:grid-cols-12">
                     <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
                         <div className="flex items-center justify-between">
                             <div>
@@ -471,12 +627,14 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             </div>
                         </div>
                         <div className="mt-5 space-y-3">
-                            {positionSummary.topPositions.length === 0 ? (
+                            {filteredTopPositions.length === 0 ? (
                                 <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                                    No open positions. Analytics is currently driven by historical trade and snapshot data.
+                                    {normalizedSymbolFilter
+                                        ? 'No open positions match the current symbol filter.'
+                                        : 'No open positions. Analytics is currently driven by historical trade and snapshot data.'}
                                 </p>
                             ) : (
-                                positionSummary.topPositions.map((position) => (
+                                filteredTopPositions.map((position) => (
                                     <div key={`${position.symbol}-${position.side}`} className="rounded-xl border border-white/5 bg-black/20 px-4 py-4">
                                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                             <div>
@@ -549,12 +707,14 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             <p className="mt-1 text-[10px] text-zinc-600">Closed-trade contribution by instrument, ordered by realized impact.</p>
                         </div>
                         <div className="mt-5 space-y-3">
-                            {symbolAttribution.length === 0 ? (
+                            {filteredSymbolAttribution.length === 0 ? (
                                 <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                                    No realized trade history yet. Attribution appears as trades close and realized PnL is recorded.
+                                    {normalizedSymbolFilter
+                                        ? 'No realized attribution rows match the current symbol filter.'
+                                        : 'No realized trade history yet. Attribution appears as trades close and realized PnL is recorded.'}
                                 </p>
                             ) : (
-                                symbolAttribution.map((row) => (
+                                filteredSymbolAttribution.map((row) => (
                                     <div key={row.symbol} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-4 py-4">
                                         <div>
                                             <p className="text-sm font-bold text-white">{row.symbol}</p>
@@ -614,7 +774,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                         <div>
                             <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Equity Curve</h2>
                             <p className="text-[10px] text-zinc-600">
-                                {formatTimestamp(summary.firstSnapshotAt)} to {formatTimestamp(summary.latestSnapshotAt)} with drawdown overlay.
+                                {selectedCurveWindow} view, {filteredEquityCurve.length} plotted points, drawdown overlay enabled.
                             </p>
                         </div>
                         <div className="flex gap-4 text-[10px]">
@@ -732,9 +892,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                         <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
                             <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-3">Symbol Breakdown</h2>
                             <div className="space-y-2">
-                                {Object.entries(ts.symbolBreakdown || {})
-                                    .sort(([, a], [, b]) => (b as number) - (a as number))
-                                    .slice(0, 6)
+                                {filteredSymbolBreakdownEntries
                                     .map(([symbol, count]) => {
                                         const pct = ts.totalTrades > 0 ? ((count as number) / ts.totalTrades) * 100 : 0;
                                         return (
@@ -752,8 +910,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                             </div>
                                         );
                                     })}
-                                {Object.keys(ts.symbolBreakdown || {}).length === 0 && (
-                                    <p className="text-xs text-zinc-600 italic">No trades yet</p>
+                                {filteredSymbolBreakdownEntries.length === 0 && (
+                                    <p className="text-xs text-zinc-600 italic">
+                                        {normalizedSymbolFilter ? 'No symbol breakdown rows match the filter' : 'No trades yet'}
+                                    </p>
                                 )}
                             </div>
                         </div>

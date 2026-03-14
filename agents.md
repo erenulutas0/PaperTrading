@@ -120,6 +120,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - `app/analytics/[portfolioId]` now surfaces those extremes in dedicated cards.
   - **Operational impact**:
     - users can immediately see the sharpest upside and downside interval without manually parsing the equity curve
+- **2026-03-14**: **Portfolio Analytics Added Export, Symbol Filtering, and Curve Window Controls**
+  - **Problem observed**:
+    - Analytics had become information-rich, but still lacked basic working controls:
+      - export
+      - symbol-level filtering
+      - focused chart windows
+    - Without these, the page was informative but not yet operational.
+  - **Implementation**:
+    - Added client-side `CSV` and `JSON` export for the current analytics snapshot.
+    - Added shared symbol filter input that narrows:
+      - open-position contribution list
+      - realized symbol attribution
+      - symbol breakdown
+    - Added equity-curve window switch:
+      - `ALL`
+      - `30D`
+      - `7D`
+    - Chart rendering now uses the selected filtered curve instead of always plotting the full history.
+  - **Operational impact**:
+    - users can extract and share analytics quickly
+    - symbol-heavy portfolios are easier to inspect without visual noise
+    - the equity chart can now be used for focused recent-window review instead of always showing the full history
 - **2026-03-14**: **Shared Layout Links Split Into Preview Surface and Full Terminal Surface**
   - **Problem observed**:
     - Sending a shared layout directly into the full terminal works, but it is heavier than necessary for first contact.
