@@ -38,6 +38,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Portfolio Analytics Added Live Exposure Attribution By Symbol**
+  - **Problem observed**:
+    - Analytics already separated realized attribution and open-position summaries, but it still lacked a direct answer to:
+      - which symbols currently carry the most live portfolio risk
+      - how concentrated that open exposure is
+    - Users had to infer concentration from the top-positions block instead of seeing explicit exposure weights.
+  - **Implementation**:
+    - `PerformanceAnalyticsService` now emits `riskAttribution` built from current portfolio items plus live market snapshots:
+      - symbol
+      - side
+      - leverage
+      - quantity
+      - average/current price
+      - gross exposure
+      - exposure share of total gross exposure
+      - unrealized PnL
+      - live move percentage
+    - `app/analytics/[portfolioId]` now renders `Exposure By Symbol` and wires it into the existing shared symbol filter and export flow.
+    - Analytics backend tests now lock the new payload field into both service and controller coverage.
+  - **Operational impact**:
+    - analytics now answers both realized contribution and current concentration risk on the same surface
+    - symbol-heavy portfolios are easier to inspect for crowding and live exposure skew
 - **2026-03-14**: **Portfolio Analytics Curve Windows Now Explain Short-History No-Op States**
   - **Problem observed**:
     - The analytics page gained `ALL / 30D / 7D` curve controls, but on younger portfolios all three windows can legitimately render the same curve.

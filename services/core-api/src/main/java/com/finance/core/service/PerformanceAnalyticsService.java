@@ -277,6 +277,7 @@ public class PerformanceAnalyticsService {
 
         analytics.put("summary", buildPortfolioSummary(portfolio, snapshots));
         analytics.put("positionSummary", buildPositionSummary(portfolio, trades));
+        analytics.put("riskAttribution", buildRiskAttribution(portfolio));
         analytics.put("performanceWindows", buildPerformanceWindows(snapshots));
         analytics.put("periodExtremes", buildPeriodExtremes(snapshots));
         analytics.put("pnlTimeline", buildPnlTimeline(snapshots, trades));
@@ -412,6 +413,71 @@ public class PerformanceAnalyticsService {
         summary.put("netPnl", Math.round((realizedPnl + unrealizedPnl) * 100.0) / 100.0);
         summary.put("topPositions", topPositions.stream().limit(5).toList());
         return summary;
+    }
+
+    private List<Map<String, Object>> buildRiskAttribution(Portfolio portfolio) {
+        List<PortfolioItem> items = portfolio.getItems() != null ? portfolio.getItems() : List.of();
+        if (items.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, MarketInstrumentResponse> instrumentSnapshots = marketDataFacadeService.getInstrumentSnapshots(
+                items.stream()
+                        .map(PortfolioItem::getSymbol)
+                        .filter(Objects::nonNull)
+                        .toList());
+
+        List<Map<String, Object>> rawRows = new ArrayList<>();
+        double grossExposure = 0.0;
+
+        for (PortfolioItem item : items) {
+            String symbol = item.getSymbol();
+            MarketInstrumentResponse snapshot = instrumentSnapshots.get(symbol != null ? symbol.toUpperCase() : null);
+            double currentPrice = snapshot != null && snapshot.getCurrentPrice() > 0.0
+                    ? snapshot.getCurrentPrice()
+                    : item.getAveragePrice().doubleValue();
+            double quantity = item.getQuantity() != null ? item.getQuantity().doubleValue() : 0.0;
+            double averagePrice = item.getAveragePrice() != null ? item.getAveragePrice().doubleValue() : 0.0;
+            int leverage = item.getLeverage() != null && item.getLeverage() > 0 ? item.getLeverage() : 1;
+            double exposure = quantity * currentPrice;
+            double unrealizedPnl = "SHORT".equalsIgnoreCase(item.getSide())
+                    ? (averagePrice - currentPrice) * quantity
+                    : (currentPrice - averagePrice) * quantity;
+            double movePercentage = averagePrice > 0
+                    ? ("SHORT".equalsIgnoreCase(item.getSide())
+                            ? ((averagePrice - currentPrice) / averagePrice) * 100.0
+                            : ((currentPrice - averagePrice) / averagePrice) * 100.0)
+                    : 0.0;
+
+            grossExposure += exposure;
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("symbol", symbol);
+            row.put("side", item.getSide());
+            row.put("leverage", leverage);
+            row.put("quantity", Math.round(quantity * 10000.0) / 10000.0);
+            row.put("averagePrice", Math.round(averagePrice * 100.0) / 100.0);
+            row.put("currentPrice", Math.round(currentPrice * 100.0) / 100.0);
+            row.put("exposure", Math.round(exposure * 100.0) / 100.0);
+            row.put("unrealizedPnl", Math.round(unrealizedPnl * 100.0) / 100.0);
+            row.put("movePercentage", Math.round(movePercentage * 100.0) / 100.0);
+            rawRows.add(row);
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> rawRow : rawRows) {
+            double exposure = ((Number) rawRow.get("exposure")).doubleValue();
+            Map<String, Object> row = new LinkedHashMap<>(rawRow);
+            double exposureShare = grossExposure > 0 ? (exposure / grossExposure) * 100.0 : 0.0;
+            row.put("exposureShare", Math.round(exposureShare * 100.0) / 100.0);
+            rows.add(row);
+        }
+
+        rows.sort((left, right) -> Double.compare(
+                ((Number) right.get("exposure")).doubleValue(),
+                ((Number) left.get("exposure")).doubleValue()));
+
+        return rows.stream().limit(8).toList();
     }
 
     private Map<String, Object> buildPerformanceWindows(List<PortfolioSnapshot> snapshots) {

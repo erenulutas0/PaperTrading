@@ -36,6 +36,18 @@ interface AnalyticsData {
             unrealizedPnl: number;
         }[];
     };
+    riskAttribution?: {
+        symbol: string;
+        side: string;
+        leverage: number;
+        quantity: number;
+        averagePrice: number;
+        currentPrice: number;
+        exposure: number;
+        exposureShare: number;
+        unrealizedPnl: number;
+        movePercentage: number;
+    }[];
     performanceWindows?: {
         '7d': {
             startingEquity: number;
@@ -525,6 +537,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         worstMove: { absoluteReturn: 0, returnPercentage: 0, from: null, to: null },
     };
     const symbolAttribution = data.symbolAttribution ?? [];
+    const riskAttribution = data.riskAttribution ?? [];
     const pnlTimeline = data.pnlTimeline ?? [];
     const performancePositive = summary.absoluteReturn >= 0;
     const normalizedSymbolFilter = symbolFilter.trim().toUpperCase();
@@ -534,6 +547,9 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const filteredSymbolAttribution = normalizedSymbolFilter
         ? symbolAttribution.filter((row) => row.symbol.toUpperCase().includes(normalizedSymbolFilter))
         : symbolAttribution;
+    const filteredRiskAttribution = normalizedSymbolFilter
+        ? riskAttribution.filter((row) => row.symbol.toUpperCase().includes(normalizedSymbolFilter))
+        : riskAttribution;
     const filteredSymbolBreakdownEntries = Object.entries(ts.symbolBreakdown || {})
         .filter(([symbol]) => !normalizedSymbolFilter || symbol.toUpperCase().includes(normalizedSymbolFilter))
         .sort(([, a], [, b]) => (b as number) - (a as number))
@@ -572,6 +588,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             ['positions', 'grossExposure', positionSummary.grossExposure],
             ['positions', 'realizedPnl', positionSummary.realizedPnl],
             ['positions', 'unrealizedPnl', positionSummary.unrealizedPnl],
+            ...filteredRiskAttribution.map((row) => ['riskAttribution', `${row.symbol} exposure`, row.exposure]),
             ['windows', '7dReturnPercentage', performanceWindows['7d'].returnPercentage],
             ['windows', '30dReturnPercentage', performanceWindows['30d'].returnPercentage],
             ['extremes', 'bestMoveReturnPercentage', periodExtremes.bestMove.returnPercentage],
@@ -871,6 +888,66 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                 ))
                             )}
                         </div>
+                    </div>
+                </div>
+
+                <div className="mb-6 rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Exposure By Symbol</h2>
+                            <p className="mt-1 text-[10px] text-zinc-600">Current open-risk concentration across live positions, ordered by gross exposure.</p>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+                            {filteredRiskAttribution.length} symbols
+                        </span>
+                    </div>
+                    <div className="mt-5 space-y-3">
+                        {filteredRiskAttribution.length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                                {normalizedSymbolFilter
+                                    ? 'No live exposure rows match the current symbol filter.'
+                                    : 'No live positions. Exposure attribution appears when the portfolio has open holdings.'}
+                            </p>
+                        ) : (
+                            filteredRiskAttribution.map((row) => (
+                                <div key={`${row.symbol}-${row.side}-${row.leverage}`} className="rounded-xl border border-white/5 bg-black/20 px-4 py-4">
+                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-bold text-white">{row.symbol}</span>
+                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${row.side === 'SHORT' ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                                                    {row.side} {row.leverage > 1 ? `${row.leverage}x` : ''}
+                                                </span>
+                                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-400">
+                                                    {row.exposureShare.toFixed(2)}% share
+                                                </span>
+                                            </div>
+                                            <p className="mt-1 text-xs text-zinc-500">
+                                                Qty {row.quantity} | Avg {formatEquity(row.averagePrice)} | Now {formatEquity(row.currentPrice)}
+                                            </p>
+                                        </div>
+                                        <div className="grid gap-2 text-left text-xs lg:grid-cols-3 lg:text-right">
+                                            <div>
+                                                <p className="text-zinc-500">Exposure</p>
+                                                <p className="mt-1 font-mono font-bold text-white">{formatEquity(row.exposure)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-zinc-500">Unrealized</p>
+                                                <p className={`mt-1 font-mono font-bold ${row.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {formatCurrency(row.unrealizedPnl)}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-zinc-500">Move</p>
+                                                <p className={`mt-1 font-mono font-bold ${row.movePercentage >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                                                    {row.movePercentage >= 0 ? '+' : ''}{row.movePercentage.toFixed(2)}%
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
 

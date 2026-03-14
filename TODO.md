@@ -17,6 +17,7 @@ Last updated: 2026-03-11
   - equity-curve `ALL / 30D / 7D` window switch
   - realized/unrealized/net PnL timeline split chart
   - short-history hinting when `30D` / `7D` currently matches full history
+  - live exposure / risk attribution by symbol
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state
