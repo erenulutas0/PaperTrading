@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Selected-Symbol Analytics Detail Now Visualizes Live Risk Even Before Realized History Exists**
+  - **Problem observed**:
+    - The `Selected Symbol PnL Detail` surface combined realized path with current unrealized PnL, but symbols with:
+      - open exposure
+      - little or no realized trade history
+    - could still look visually empty or flat even when live unrealized risk was large.
+  - **Implementation**:
+    - Kept the realized cumulative path when history exists.
+    - Added an explicit baseline/displacement model for the detail chart:
+      - dashed baseline at the latest realized level
+      - connector from that baseline to the current unrealized level
+      - unrealized marker and displacement summary text
+    - When no realized points exist yet, the chart now falls back to a zero baseline instead of an effectively empty path.
+  - **Operational impact**:
+    - symbol detail no longer hides meaningful open risk simply because realized history is thin
+    - the chart now explains the current live state rather than only replaying closed-trade history
 - **2026-03-15**: **Portfolio Analytics Canvas Charts Hardened Against Resize and Empty-State Drift**
   - **Problem observed**:
     - The analytics page had grown several custom canvas surfaces:

@@ -21,6 +21,7 @@ Last updated: 2026-03-11
   - backend-owned analytics CSV/JSON export endpoint wired to the page controls
   - symbol-specific mini timelines for realized trade sequences
   - selected-symbol PnL detail with realized path + live unrealized overlay
+  - selected-symbol detail now shows live open-risk displacement even when no realized trade path exists yet
   - stacked exposure distribution chart for live concentration inspection
   - portfolio compare mode with second-portfolio metric deltas
   - indexed equity curve overlay inside compare mode

@@ -761,30 +761,37 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         points: { cumulativePnl: number }[],
         currentUnrealized: number,
     ) => {
-        if (points.length === 0) {
-            return {
-                realizedPath: '',
-                unrealizedY: 48,
-            };
-        }
-
-        const values = [...points.map((point) => point.cumulativePnl), currentUnrealized, 0];
+        const chartWidth = 280;
+        const chartHeight = 96;
+        const baselineValue = points.length ? points[points.length - 1].cumulativePnl : 0;
+        const values = [...points.map((point) => point.cumulativePnl), currentUnrealized, baselineValue, 0];
         const minValue = Math.min(...values);
         const maxValue = Math.max(...values);
         const span = maxValue - minValue || 1;
-        const yForValue = (value: number) => 96 - (((value - minValue) / span) * 96);
+        const yForValue = (value: number) => chartHeight - (((value - minValue) / span) * chartHeight);
 
         const realizedPath = points.length === 1
-            ? `M 0 ${yForValue(points[0].cumulativePnl).toFixed(2)} L 280 ${yForValue(points[0].cumulativePnl).toFixed(2)}`
+            ? `M 0 ${yForValue(points[0].cumulativePnl).toFixed(2)} L ${chartWidth} ${yForValue(points[0].cumulativePnl).toFixed(2)}`
+            : points.length === 0
+                ? `M 0 ${yForValue(0).toFixed(2)} L ${chartWidth} ${yForValue(0).toFixed(2)}`
             : points.map((point, index) => {
-                const x = (index / (points.length - 1)) * 280;
+                const x = (index / (points.length - 1)) * chartWidth;
                 const y = yForValue(point.cumulativePnl);
                 return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
             }).join(' ');
 
+        const baselineY = yForValue(baselineValue);
+        const unrealizedY = yForValue(currentUnrealized);
+        const liveConnectorPath = `M ${chartWidth - 36} ${baselineY.toFixed(2)} L ${chartWidth - 36} ${unrealizedY.toFixed(2)} L ${chartWidth} ${unrealizedY.toFixed(2)}`;
+        const unrealizedDelta = currentUnrealized - baselineValue;
+
         return {
             realizedPath,
-            unrealizedY: yForValue(currentUnrealized),
+            baselineY,
+            unrealizedY,
+            liveConnectorPath,
+            unrealizedDelta,
+            hasRealizedPoints: points.length > 0,
         };
     };
 
@@ -1503,7 +1510,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                     <div>
                                         <p className="text-sm font-bold text-white">{selectedSymbolDetail}</p>
                                         <p className="mt-1 text-[10px] text-zinc-500">
-                                            Realized cumulative path with current unrealized overlay.
+                                            Realized cumulative path with current unrealized displacement from the latest realized baseline.
                                         </p>
                                     </div>
                                     <div className="flex gap-4 text-[10px] text-zinc-400">
@@ -1520,6 +1527,13 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                 <div className="rounded-lg border border-white/5 bg-zinc-950/80 px-4 py-4">
                                     <svg viewBox="0 0 280 96" className="h-48 w-full overflow-visible">
                                         <path d="M 0 48 L 280 48" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
+                                        <path
+                                            d={`M 0 ${selectedSymbolVisuals.baselineY.toFixed(2)} L 280 ${selectedSymbolVisuals.baselineY.toFixed(2)}`}
+                                            stroke="rgba(255,255,255,0.12)"
+                                            strokeWidth="1"
+                                            strokeDasharray="3 4"
+                                            fill="none"
+                                        />
                                         {selectedSymbolVisuals.realizedPath ? (
                                             <path
                                                 d={selectedSymbolVisuals.realizedPath}
@@ -1531,13 +1545,40 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                             />
                                         ) : null}
                                         <path
+                                            d={selectedSymbolVisuals.liveConnectorPath}
+                                            stroke={(selectedSymbolRisk?.unrealizedPnl ?? 0) >= (selectedSymbolTimeline?.finalRealizedPnl ?? 0) ? '#34d399' : '#f87171'}
+                                            strokeWidth="1.5"
+                                            fill="none"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        />
+                                        <path
                                             d={`M 0 ${selectedSymbolVisuals.unrealizedY.toFixed(2)} L 280 ${selectedSymbolVisuals.unrealizedY.toFixed(2)}`}
                                             stroke="#f59e0b"
                                             strokeWidth="1.5"
                                             strokeDasharray="5 5"
                                             fill="none"
                                         />
+                                        <circle
+                                            cx="280"
+                                            cy={selectedSymbolVisuals.unrealizedY.toFixed(2)}
+                                            r="3.5"
+                                            fill="#f59e0b"
+                                        />
                                     </svg>
+                                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-zinc-500">
+                                        <span>
+                                            Baseline {formatCurrency(selectedSymbolTimeline?.finalRealizedPnl ?? 0)}
+                                        </span>
+                                        <span className={selectedSymbolVisuals.unrealizedDelta >= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                                            Live displacement {formatCurrency(selectedSymbolVisuals.unrealizedDelta)}
+                                        </span>
+                                        {!selectedSymbolVisuals.hasRealizedPoints ? (
+                                            <span className="text-amber-300">
+                                                No realized trade path yet, showing live open-risk against zero baseline.
+                                            </span>
+                                        ) : null}
+                                    </div>
                                 </div>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
