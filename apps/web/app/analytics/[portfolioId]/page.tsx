@@ -96,6 +96,13 @@ interface AnalyticsData {
         realizedPnl: number;
         tradeCount: number;
     }[];
+    pnlTimeline?: {
+        timestamp: string | null;
+        equity: number;
+        realizedPnl: number;
+        unrealizedPnl: number;
+        netPnl: number;
+    }[];
     equityCurve: { timestamp: string; equity: number; drawdown: number; peak: number }[];
 }
 
@@ -107,6 +114,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const pnlCanvasRef = useRef<HTMLCanvasElement>(null);
 
     const fetchAnalytics = useCallback(async () => {
         try {
@@ -244,6 +252,94 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         }
     }, [filteredEquityCurve]);
 
+    const filteredPnlTimeline = useMemo(() => {
+        if (!data?.pnlTimeline?.length) {
+            return [];
+        }
+
+        if (selectedCurveWindow === 'ALL') {
+            return data.pnlTimeline;
+        }
+
+        const days = selectedCurveWindow === '7D' ? 7 : 30;
+        const threshold = Date.now() - days * 24 * 60 * 60 * 1000;
+        const filtered = data.pnlTimeline.filter((point) => point.timestamp && new Date(point.timestamp).getTime() >= threshold);
+        return filtered.length > 0 ? filtered : data.pnlTimeline;
+    }, [data, selectedCurveWindow]);
+
+    const drawPnlTimeline = useCallback(() => {
+        const canvas = pnlCanvasRef.current;
+        if (!canvas || !filteredPnlTimeline.length) return;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        const W = rect.width;
+        const H = rect.height;
+        const padL = 60, padR = 20, padT = 20, padB = 40;
+        const plotW = W - padL - padR;
+        const plotH = H - padT - padB;
+        const values = filteredPnlTimeline.flatMap((point) => [point.realizedPnl, point.unrealizedPnl, point.netPnl]);
+        const minValue = Math.min(...values, 0);
+        const maxValue = Math.max(...values, 0);
+        const span = maxValue - minValue || 1;
+
+        const xPos = (i: number) => filteredPnlTimeline.length === 1
+            ? padL + plotW / 2
+            : padL + (i / (filteredPnlTimeline.length - 1)) * plotW;
+        const yPos = (value: number) => padT + (1 - ((value - minValue) / span)) * plotH;
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const y = padT + (i / 4) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(W - padR, y);
+            ctx.stroke();
+        }
+
+        const series = [
+            { key: 'realizedPnl' as const, color: '#38bdf8' },
+            { key: 'unrealizedPnl' as const, color: '#f59e0b' },
+            { key: 'netPnl' as const, color: '#22c55e' },
+        ];
+
+        for (const { key, color } of series) {
+            ctx.beginPath();
+            filteredPnlTimeline.forEach((point, index) => {
+                const x = xPos(index);
+                const y = yPos(point[key]);
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 3; i++) {
+            const idx = Math.floor((i / 3) * (filteredPnlTimeline.length - 1));
+            const ts = filteredPnlTimeline[idx]?.timestamp;
+            if (!ts) continue;
+            const d = new Date(ts);
+            ctx.fillText(d.toLocaleDateString(), xPos(idx), H - 10);
+        }
+    }, [filteredPnlTimeline]);
+
     useEffect(() => {
         fetchAnalytics();
     }, [fetchAnalytics]);
@@ -253,6 +349,12 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             drawEquityCurve();
         }
     }, [filteredEquityCurve, drawEquityCurve]);
+
+    useEffect(() => {
+        if (filteredPnlTimeline.length && pnlCanvasRef.current) {
+            drawPnlTimeline();
+        }
+    }, [filteredPnlTimeline, drawPnlTimeline]);
 
     const ratingColor = (value: number, type: 'sharpe' | 'sortino' | 'drawdown' | 'winrate' | 'pf' | 'vol') => {
         switch (type) {
@@ -387,6 +489,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         worstMove: { absoluteReturn: 0, returnPercentage: 0, from: null, to: null },
     };
     const symbolAttribution = data.symbolAttribution ?? [];
+    const pnlTimeline = data.pnlTimeline ?? [];
     const performancePositive = summary.absoluteReturn >= 0;
     const normalizedSymbolFilter = symbolFilter.trim().toUpperCase();
     const filteredTopPositions = normalizedSymbolFilter
@@ -755,6 +858,29 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             </div>
                         </div>
                     ))}
+                </div>
+
+                <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">PnL Timeline Split</h2>
+                            <p className="text-[10px] text-zinc-600">
+                                Realized, unrealized, and net PnL across the selected {selectedCurveWindow} window.
+                            </p>
+                        </div>
+                        <div className="flex gap-4 text-[10px]">
+                            <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-sky-400 rounded"></span> Realized</span>
+                            <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-amber-400 rounded"></span> Unrealized</span>
+                            <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-green-500 rounded"></span> Net</span>
+                        </div>
+                    </div>
+                    {pnlTimeline.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                            No PnL timeline available yet. It will appear once snapshots and realized trade events accumulate.
+                        </p>
+                    ) : (
+                        <canvas ref={pnlCanvasRef} className="w-full h-64 rounded-xl"></canvas>
+                    )}
                 </div>
 
                 {/* Equity Curve */}

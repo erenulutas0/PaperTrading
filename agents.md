@@ -142,6 +142,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - users can extract and share analytics quickly
     - symbol-heavy portfolios are easier to inspect without visual noise
     - the equity chart can now be used for focused recent-window review instead of always showing the full history
+- **2026-03-14**: **Portfolio Analytics Added Realized vs Unrealized Timeline Split**
+  - **Problem observed**:
+    - Even with summary cards, rolling windows, and attribution, the analytics page still compressed all PnL into one equity story.
+    - Users need to distinguish:
+      - closed performance already locked in
+      - open risk still floating
+      - net combined impact
+      over time.
+  - **Implementation**:
+    - `PerformanceAnalyticsService` now emits `pnlTimeline` for each snapshot:
+      - cumulative realized PnL
+      - derived unrealized PnL
+      - net PnL
+      - timestamp/equity context
+    - `app/analytics/[portfolioId]` now renders a dedicated `PnL Timeline Split` chart using the same window selector (`ALL/30D/7D`).
+  - **Operational impact**:
+    - analytics now separates locked-in gains from open-market exposure instead of forcing users to infer the difference from raw equity alone
 - **2026-03-14**: **Shared Layout Links Split Into Preview Surface and Full Terminal Surface**
   - **Problem observed**:
     - Sending a shared layout directly into the full terminal works, but it is heavier than necessary for first contact.

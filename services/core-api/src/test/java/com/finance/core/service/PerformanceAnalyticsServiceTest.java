@@ -4,6 +4,7 @@ import com.finance.core.domain.AnalysisPost;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.PortfolioSnapshot;
+import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.MarketInstrumentResponse;
 import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.PortfolioRepository;
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -179,7 +181,17 @@ class PerformanceAnalyticsServiceTest {
         when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.of(portfolio));
         when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(Arrays.asList(s1, s2));
         when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(any(), any())).thenReturn(0L);
-        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(Collections.emptyList());
+        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(List.of(
+                TradeActivity.builder()
+                        .portfolioId(portfolioId)
+                        .symbol("BTCUSDT")
+                        .type("SELL")
+                        .side("LONG")
+                        .quantity(BigDecimal.ONE)
+                        .price(BigDecimal.valueOf(51000))
+                        .realizedPnl(BigDecimal.valueOf(1500))
+                        .timestamp(LocalDateTime.now().minusMinutes(1))
+                        .build()));
         when(marketDataFacadeService.getInstrumentSnapshots(any())).thenReturn(Map.of(
                 "BTCUSDT",
                 MarketInstrumentResponse.builder()
@@ -193,6 +205,7 @@ class PerformanceAnalyticsServiceTest {
         Map<String, Object> performanceWindows = (Map<String, Object>) result.get("performanceWindows");
         Map<String, Object> periodExtremes = (Map<String, Object>) result.get("periodExtremes");
         java.util.List<Map<String, Object>> symbolAttribution = (java.util.List<Map<String, Object>>) result.get("symbolAttribution");
+        java.util.List<Map<String, Object>> pnlTimeline = (java.util.List<Map<String, Object>>) result.get("pnlTimeline");
 
         assertEquals("Alpha", summary.get("portfolioName"));
         assertEquals("PUBLIC", summary.get("visibility"));
@@ -202,10 +215,12 @@ class PerformanceAnalyticsServiceTest {
         assertEquals(5.0, (double) summary.get("returnPercentage"), 0.001);
         assertEquals(1, positionSummary.get("openPositions"));
         assertEquals(104000.0, (double) positionSummary.get("grossExposure"), 0.001);
+        assertEquals(1500.0, (double) positionSummary.get("realizedPnl"), 0.001);
         assertEquals(4000.0, (double) positionSummary.get("unrealizedPnl"), 0.001);
         assertEquals(2, performanceWindows.size());
         assertEquals(2, periodExtremes.size());
-        assertEquals(0, symbolAttribution.size());
+        assertEquals(1, symbolAttribution.size());
+        assertEquals(2, pnlTimeline.size());
     }
 
     private PortfolioSnapshot createSnapshot(BigDecimal equity) {

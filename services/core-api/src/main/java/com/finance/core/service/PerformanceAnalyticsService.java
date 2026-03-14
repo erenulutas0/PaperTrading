@@ -279,6 +279,7 @@ public class PerformanceAnalyticsService {
         analytics.put("positionSummary", buildPositionSummary(portfolio, trades));
         analytics.put("performanceWindows", buildPerformanceWindows(snapshots));
         analytics.put("periodExtremes", buildPeriodExtremes(snapshots));
+        analytics.put("pnlTimeline", buildPnlTimeline(snapshots, trades));
 
         // Risk Metrics
         Map<String, Object> risk = new LinkedHashMap<>();
@@ -526,5 +527,49 @@ public class PerformanceAnalyticsService {
         extremes.put("bestMove", best);
         extremes.put("worstMove", worst);
         return extremes;
+    }
+
+    private List<Map<String, Object>> buildPnlTimeline(List<PortfolioSnapshot> snapshots, List<TradeActivity> trades) {
+        if (snapshots.isEmpty()) {
+            return List.of();
+        }
+
+        List<TradeActivity> orderedTrades = trades.stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(TradeActivity::getTimestamp, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+
+        double startingEquity = snapshots.get(0).getTotalEquity().doubleValue();
+        double realizedRunning = 0.0;
+        int tradeIndex = 0;
+        List<Map<String, Object>> timeline = new ArrayList<>();
+
+        for (PortfolioSnapshot snapshot : snapshots) {
+            LocalDateTime snapshotTime = snapshot.getTimestamp();
+            while (tradeIndex < orderedTrades.size()) {
+                TradeActivity trade = orderedTrades.get(tradeIndex);
+                if (trade.getTimestamp() == null || snapshotTime == null || trade.getTimestamp().isAfter(snapshotTime)) {
+                    break;
+                }
+                if (trade.getRealizedPnl() != null) {
+                    realizedRunning += trade.getRealizedPnl().doubleValue();
+                }
+                tradeIndex++;
+            }
+
+            double equity = snapshot.getTotalEquity().doubleValue();
+            double netPnl = equity - startingEquity;
+            double unrealizedPnl = netPnl - realizedRunning;
+
+            Map<String, Object> point = new LinkedHashMap<>();
+            point.put("timestamp", snapshotTime != null ? snapshotTime.toString() : null);
+            point.put("equity", Math.round(equity * 100.0) / 100.0);
+            point.put("realizedPnl", Math.round(realizedRunning * 100.0) / 100.0);
+            point.put("unrealizedPnl", Math.round(unrealizedPnl * 100.0) / 100.0);
+            point.put("netPnl", Math.round(netPnl * 100.0) / 100.0);
+            timeline.add(point);
+        }
+
+        return timeline;
     }
 }
