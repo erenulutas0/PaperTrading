@@ -135,6 +135,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [loading, setLoading] = useState(true);
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
+    const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pnlCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -414,6 +415,19 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         }
     }, [filteredPnlTimeline, drawPnlTimeline]);
 
+    useEffect(() => {
+        if (symbolDetailCandidates.length === 0) {
+            if (selectedSymbolDetail) {
+                setSelectedSymbolDetail('');
+            }
+            return;
+        }
+
+        if (!selectedSymbolDetail || !symbolDetailCandidates.includes(selectedSymbolDetail)) {
+            setSelectedSymbolDetail(symbolDetailCandidates[0]);
+        }
+    }, [selectedSymbolDetail, symbolDetailCandidates]);
+
     const ratingColor = (value: number, type: 'sharpe' | 'sortino' | 'drawdown' | 'winrate' | 'pf' | 'vol') => {
         switch (type) {
             case 'sharpe':
@@ -500,6 +514,37 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         }).join(' ');
     };
 
+    const buildDetailTimelineVisuals = (
+        points: { cumulativePnl: number }[],
+        currentUnrealized: number,
+    ) => {
+        if (points.length === 0) {
+            return {
+                realizedPath: '',
+                unrealizedY: 48,
+            };
+        }
+
+        const values = [...points.map((point) => point.cumulativePnl), currentUnrealized, 0];
+        const minValue = Math.min(...values);
+        const maxValue = Math.max(...values);
+        const span = maxValue - minValue || 1;
+        const yForValue = (value: number) => 96 - (((value - minValue) / span) * 96);
+
+        const realizedPath = points.length === 1
+            ? `M 0 ${yForValue(points[0].cumulativePnl).toFixed(2)} L 280 ${yForValue(points[0].cumulativePnl).toFixed(2)}`
+            : points.map((point, index) => {
+                const x = (index / (points.length - 1)) * 280;
+                const y = yForValue(point.cumulativePnl);
+                return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+            }).join(' ');
+
+        return {
+            realizedPath,
+            unrealizedY: yForValue(currentUnrealized),
+        };
+    };
+
     const downloadBlob = (blob: Blob, filename: string) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -579,6 +624,18 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         .filter(([symbol]) => !normalizedSymbolFilter || symbol.toUpperCase().includes(normalizedSymbolFilter))
         .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 6);
+    const symbolDetailCandidates = Array.from(new Set([
+        ...filteredSymbolMiniTimelines.map((row) => row.symbol),
+        ...filteredRiskAttribution.map((row) => row.symbol),
+        ...filteredSymbolAttribution.map((row) => row.symbol),
+    ]));
+    const selectedSymbolTimeline = filteredSymbolMiniTimelines.find((row) => row.symbol === selectedSymbolDetail) ?? null;
+    const selectedSymbolRisk = filteredRiskAttribution.find((row) => row.symbol === selectedSymbolDetail) ?? null;
+    const selectedSymbolAttribution = filteredSymbolAttribution.find((row) => row.symbol === selectedSymbolDetail) ?? null;
+    const selectedSymbolVisuals = buildDetailTimelineVisuals(
+        selectedSymbolTimeline?.points ?? [],
+        selectedSymbolRisk?.unrealizedPnl ?? 0,
+    );
 
     const exportAnalytics = async (format: 'csv' | 'json') => {
         try {
@@ -1009,6 +1066,116 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             })
                         )}
                     </div>
+                </div>
+
+                <div className="mb-6 rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Selected Symbol PnL Detail</h2>
+                            <p className="mt-1 text-[10px] text-zinc-600">Realized path from trade history with current unrealized PnL overlaid as the live baseline.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {symbolDetailCandidates.length === 0 ? (
+                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-500">
+                                    No symbol detail available
+                                </span>
+                            ) : (
+                                symbolDetailCandidates.map((symbol) => (
+                                    <button
+                                        key={symbol}
+                                        type="button"
+                                        onClick={() => setSelectedSymbolDetail(symbol)}
+                                        className={`rounded-full border px-3 py-1 text-xs font-bold tracking-[0.2em] transition-colors ${
+                                            selectedSymbolDetail === symbol
+                                                ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300'
+                                                : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                        }`}
+                                    >
+                                        {symbol}
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                    {selectedSymbolTimeline || selectedSymbolRisk || selectedSymbolAttribution ? (
+                        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.85fr)]">
+                            <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                <div className="mb-3 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-bold text-white">{selectedSymbolDetail}</p>
+                                        <p className="mt-1 text-[10px] text-zinc-500">
+                                            Realized cumulative path with current unrealized overlay.
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-4 text-[10px] text-zinc-400">
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="h-0.5 w-3 rounded bg-cyan-400"></span>
+                                            Realized
+                                        </span>
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="h-0.5 w-3 rounded bg-amber-400"></span>
+                                            Current Unrealized
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="rounded-lg border border-white/5 bg-zinc-950/80 px-4 py-4">
+                                    <svg viewBox="0 0 280 96" className="h-48 w-full overflow-visible">
+                                        <path d="M 0 48 L 280 48" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
+                                        {selectedSymbolVisuals.realizedPath ? (
+                                            <path
+                                                d={selectedSymbolVisuals.realizedPath}
+                                                stroke={(selectedSymbolTimeline?.finalRealizedPnl ?? 0) >= 0 ? '#22d3ee' : '#f87171'}
+                                                strokeWidth="2.5"
+                                                fill="none"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            />
+                                        ) : null}
+                                        <path
+                                            d={`M 0 ${selectedSymbolVisuals.unrealizedY.toFixed(2)} L 280 ${selectedSymbolVisuals.unrealizedY.toFixed(2)}`}
+                                            stroke="#f59e0b"
+                                            strokeWidth="1.5"
+                                            strokeDasharray="5 5"
+                                            fill="none"
+                                        />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Final Realized</p>
+                                    <p className={`mt-2 text-2xl font-bold font-mono ${(selectedSymbolTimeline?.finalRealizedPnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {formatCurrency(selectedSymbolTimeline?.finalRealizedPnl ?? 0)}
+                                    </p>
+                                    <p className="mt-2 text-xs text-zinc-500">
+                                        {selectedSymbolTimeline?.realizedTradeCount ?? 0} realized updates across {selectedSymbolTimeline?.tradeCount ?? 0} trades
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Current Unrealized</p>
+                                    <p className={`mt-2 text-2xl font-bold font-mono ${(selectedSymbolRisk?.unrealizedPnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {formatCurrency(selectedSymbolRisk?.unrealizedPnl ?? 0)}
+                                    </p>
+                                    <p className="mt-2 text-xs text-zinc-500">
+                                        Exposure {formatEquity(selectedSymbolRisk?.exposure ?? 0)} | Share {(selectedSymbolRisk?.exposureShare ?? 0).toFixed(2)}%
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Realized Attribution</p>
+                                    <p className={`mt-2 text-2xl font-bold font-mono ${(selectedSymbolAttribution?.realizedPnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {formatCurrency(selectedSymbolAttribution?.realizedPnl ?? 0)}
+                                    </p>
+                                    <p className="mt-2 text-xs text-zinc-500">
+                                        {selectedSymbolAttribution?.tradeCount ?? 0} recorded trades for this symbol
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                            No symbol detail is available for the current analytics filter.
+                        </p>
+                    )}
                 </div>
 
                 <div className="mb-6 grid gap-6 xl:grid-cols-2">

@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Analytics Added Selected-Symbol PnL Detail Surface**
+  - **Problem observed**:
+    - Symbol mini timelines improved path visibility, but they still left one interaction gap:
+      - users could not focus one symbol and compare its realized path against the live open risk still attached to it
+    - Totals and mini sparklines were useful, but not enough for symbol-level inspection.
+  - **Implementation**:
+    - `/analytics/[portfolioId]` now derives a selected-symbol detail surface from:
+      - `symbolMiniTimelines`
+      - `riskAttribution`
+      - `symbolAttribution`
+    - Added a symbol picker plus a larger SVG detail chart that shows:
+      - realized cumulative path
+      - current unrealized PnL as a live horizontal overlay
+    - Added supporting stat cards for:
+      - final realized PnL
+      - current unrealized PnL / exposure share
+      - recorded realized attribution
+  - **Operational impact**:
+    - analytics now supports symbol-level drill-in without introducing a second heavy full charting surface
+    - users can compare locked-in results against still-open risk for one symbol at a glance
 - **2026-03-15**: **Portfolio Analytics Added Symbol-Specific Mini Timelines**
   - **Problem observed**:
     - Analytics already showed realized attribution totals by symbol, but totals alone flatten the path.
