@@ -3,6 +3,13 @@
 import { useState, useEffect, useRef, use, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch, userIdHeaders } from '../../../lib/api-client';
+import { extractContent } from '../../../lib/page';
+
+interface PortfolioOption {
+    id: string;
+    name: string;
+    visibility?: 'PUBLIC' | 'PRIVATE';
+}
 
 interface AnalyticsData {
     summary: {
@@ -133,6 +140,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const portfolioId = resolvedParams.portfolioId;
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [portfolioOptions, setPortfolioOptions] = useState<PortfolioOption[]>([]);
+    const [comparePortfolioId, setComparePortfolioId] = useState('');
+    const [compareData, setCompareData] = useState<AnalyticsData | null>(null);
+    const [compareLoading, setCompareLoading] = useState(false);
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
@@ -148,6 +159,57 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             if (res.ok) setData(await res.json());
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
+    }, [portfolioId]);
+
+    const fetchPortfolioOptions = useCallback(async () => {
+        try {
+            const userId = localStorage.getItem('userId') || '';
+            if (!userId) {
+                setPortfolioOptions([]);
+                return;
+            }
+
+            const res = await apiFetch(`/api/v1/portfolios?ownerId=${encodeURIComponent(userId)}&t=${Date.now()}`, {
+                headers: userIdHeaders(userId),
+                cache: 'no-store',
+            });
+            if (!res.ok) {
+                return;
+            }
+
+            const payload = await res.json();
+            const portfolios = extractContent<PortfolioOption>(payload).filter((portfolio) => portfolio.id !== portfolioId);
+            setPortfolioOptions(portfolios);
+        } catch (err) {
+            console.error(err);
+        }
+    }, [portfolioId]);
+
+    const fetchCompareAnalytics = useCallback(async (targetPortfolioId: string) => {
+        if (!targetPortfolioId || targetPortfolioId === portfolioId) {
+            setCompareData(null);
+            setCompareLoading(false);
+            return;
+        }
+
+        try {
+            setCompareLoading(true);
+            const userId = localStorage.getItem('userId') || '';
+            const res = await apiFetch(`/api/v1/analytics/${targetPortfolioId}`, {
+                headers: userIdHeaders(userId),
+            });
+            if (!res.ok) {
+                setCompareData(null);
+                return;
+            }
+
+            setCompareData(await res.json());
+        } catch (err) {
+            console.error(err);
+            setCompareData(null);
+        } finally {
+            setCompareLoading(false);
+        }
     }, [portfolioId]);
 
     const filteredEquityCurve = useMemo(() => {
@@ -427,6 +489,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     }, [fetchAnalytics]);
 
     useEffect(() => {
+        fetchPortfolioOptions();
+    }, [fetchPortfolioOptions]);
+
+    useEffect(() => {
         if (filteredEquityCurve.length && canvasRef.current) {
             drawEquityCurve();
         }
@@ -450,6 +516,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             setSelectedSymbolDetail(symbolDetailCandidates[0]);
         }
     }, [selectedSymbolDetail, symbolDetailCandidates]);
+
+    useEffect(() => {
+        void fetchCompareAnalytics(comparePortfolioId);
+    }, [comparePortfolioId, fetchCompareAnalytics]);
 
     const ratingColor = (value: number, type: 'sharpe' | 'sortino' | 'drawdown' | 'winrate' | 'pf' | 'vol') => {
         switch (type) {
@@ -656,6 +726,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         selectedSymbolTimeline?.points ?? [],
         selectedSymbolRisk?.unrealizedPnl ?? 0,
     );
+    const compareSummary = compareData?.summary ?? null;
+    const compareRiskMetrics = compareData?.riskMetrics ?? null;
+    const compareTradeStats = compareData?.tradeStats ?? null;
+    const selectedComparePortfolio = portfolioOptions.find((portfolio) => portfolio.id === comparePortfolioId) ?? null;
 
     const exportAnalytics = async (format: 'csv' | 'json') => {
         try {
@@ -826,6 +900,96 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             ) : null}
                         </div>
                     </div>
+                </div>
+
+                <div className="mb-6 rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Portfolio Compare</h2>
+                            <p className="mt-1 text-[10px] text-zinc-600">Load a second portfolio and compare core outcome, risk, and trade-quality metrics side by side.</p>
+                        </div>
+                        <div className="flex w-full flex-col gap-3 sm:flex-row xl:max-w-xl">
+                            <select
+                                value={comparePortfolioId}
+                                onChange={(event) => setComparePortfolioId(event.target.value)}
+                                className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-cyan-500/40"
+                            >
+                                <option value="">No comparison</option>
+                                {portfolioOptions.map((portfolio) => (
+                                    <option key={portfolio.id} value={portfolio.id}>
+                                        {portfolio.name} {portfolio.visibility ? `(${portfolio.visibility})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            {comparePortfolioId ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setComparePortfolioId('');
+                                        setCompareData(null);
+                                    }}
+                                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-zinc-300 transition-colors hover:text-white"
+                                >
+                                    Clear
+                                </button>
+                            ) : null}
+                        </div>
+                    </div>
+                    {comparePortfolioId ? (
+                        compareLoading ? (
+                            <p className="mt-5 rounded-xl border border-white/5 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                                Loading comparison analytics...
+                            </p>
+                        ) : compareSummary && compareRiskMetrics && compareTradeStats ? (
+                            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                {[
+                                    {
+                                        label: 'Return Delta',
+                                        value: summary.returnPercentage - compareSummary.returnPercentage,
+                                        suffix: '%',
+                                        baseline: `${summary.portfolioName} vs ${selectedComparePortfolio?.name ?? compareSummary.portfolioName}`,
+                                    },
+                                    {
+                                        label: 'Equity Delta',
+                                        value: summary.currentEquity - compareSummary.currentEquity,
+                                        prefix: '$',
+                                        baseline: `${formatEquity(summary.currentEquity)} vs ${formatEquity(compareSummary.currentEquity)}`,
+                                    },
+                                    {
+                                        label: 'Drawdown Delta',
+                                        value: rm.maxDrawdown - compareRiskMetrics.maxDrawdown,
+                                        suffix: ' pts',
+                                        baseline: `${rm.maxDrawdown.toFixed(2)} vs ${compareRiskMetrics.maxDrawdown.toFixed(2)}`,
+                                    },
+                                    {
+                                        label: 'Trade Win Rate Delta',
+                                        value: ts.tradeWinRate - compareTradeStats.tradeWinRate,
+                                        suffix: ' pts',
+                                        baseline: `${ts.tradeWinRate.toFixed(2)} vs ${compareTradeStats.tradeWinRate.toFixed(2)}`,
+                                    },
+                                ].map((metric) => {
+                                    const positive = metric.value >= 0;
+                                    return (
+                                        <div key={metric.label} className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">{metric.label}</p>
+                                            <p className={`mt-2 text-2xl font-bold font-mono ${positive ? 'text-green-400' : 'text-red-400'}`}>
+                                                {metric.prefix ?? ''}{metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}{metric.suffix ?? ''}
+                                            </p>
+                                            <p className="mt-2 text-xs text-zinc-500">{metric.baseline}</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                                Comparison analytics could not be loaded for the selected portfolio.
+                            </p>
+                        )
+                    ) : (
+                        <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                            Pick one of your other portfolios to compare against this analytics surface.
+                        </p>
+                    )}
                 </div>
 
                 <div className="mb-6 grid gap-6 xl:grid-cols-12">

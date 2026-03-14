@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Analytics Added Lightweight Compare Mode**
+  - **Problem observed**:
+    - Analytics had become strong for single-portfolio inspection, but there was still no quick answer to:
+      - "is this portfolio actually outperforming my other setups?"
+    - Operators had to open multiple pages and compare by eye.
+  - **Implementation**:
+    - `/analytics/[portfolioId]` now loads the current user’s other portfolios into a compare selector.
+    - Selecting a second portfolio fetches its existing analytics payload through the same `/api/v1/analytics/{portfolioId}` endpoint.
+    - Added a compare surface with core deltas for:
+      - return percentage
+      - current equity
+      - max drawdown
+      - trade win rate
+    - Kept the first pass frontend-only so it can reuse the stable analytics contract without adding a separate compare API prematurely.
+  - **Operational impact**:
+    - users can benchmark one portfolio against another without leaving the analytics page
+    - compare mode stays low-risk because it reuses already-tested analytics reads instead of introducing a parallel backend contract
 - **2026-03-15**: **Portfolio Analytics Added Stacked Exposure Distribution Chart**
   - **Problem observed**:
     - The exposure list provided exact numbers, but concentration still required reading row by row.
