@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/api-client';
 import MarketWorkspaceChart from '../../components/MarketWorkspaceChart';
+import { fetchUserPreferences, updateTerminalPreferences } from '../../lib/user-preferences';
 
 interface WatchlistItem {
     id: string;
@@ -209,6 +210,7 @@ export default function WatchlistPage() {
     const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
     const [sessionHydrated, setSessionHydrated] = useState(false);
+    const [terminalPreferencesReady, setTerminalPreferencesReady] = useState(false);
     const candlesRef = useRef<CandlePoint[]>([]);
 
     const [newName, setNewName] = useState('');
@@ -420,6 +422,44 @@ export default function WatchlistPage() {
     }, []);
 
     useEffect(() => {
+        if (!sessionHydrated || !currentUserId) {
+            setTerminalPreferencesReady(sessionHydrated);
+            return;
+        }
+
+        let cancelled = false;
+
+        const hydrateRemotePreferences = async () => {
+            try {
+                const response = await fetchUserPreferences(currentUserId);
+                const terminal = response?.terminal;
+                if (!terminal || cancelled) {
+                    return;
+                }
+                setSelectedMarket(terminal.market);
+                setSelectedSymbol(terminal.symbol);
+                setCompareSymbols(Array.isArray(terminal.compareSymbols) ? terminal.compareSymbols.slice(0, 3) : []);
+                setCompareVisible(terminal.compareVisible !== false);
+                setSelectedRange(terminal.range);
+                setSelectedInterval(terminal.interval);
+                setFavoriteSymbols(Array.isArray(terminal.favoriteSymbols) ? terminal.favoriteSymbols : []);
+            } catch (error) {
+                console.error('Failed to hydrate terminal preferences:', error);
+            } finally {
+                if (!cancelled) {
+                    setTerminalPreferencesReady(true);
+                }
+            }
+        };
+
+        hydrateRemotePreferences();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [currentUserId, sessionHydrated]);
+
+    useEffect(() => {
         if (compareSymbols.length === 0) {
             setCompareVisible(true);
         }
@@ -445,6 +485,42 @@ export default function WatchlistPage() {
         if (typeof window === 'undefined') {
             return;
         }
+
+        const handleStorage = (event: StorageEvent) => {
+            if (event.key === MARKET_SESSION_STORAGE_KEY && event.newValue) {
+                const next = readPersistedMarketSession();
+                if (!next) {
+                    return;
+                }
+                setSelectedWatchlist(next.selectedWatchlist);
+                setSelectedSymbol(next.selectedSymbol);
+                setCompareSymbols(next.compareSymbols);
+                setCompareVisible(next.compareVisible);
+                setSelectedMarket(next.selectedMarket);
+                setSelectedRange(next.selectedRange);
+                setSelectedInterval(next.selectedInterval);
+            }
+
+            if (event.key === 'market.favoriteSymbols' && event.newValue) {
+                try {
+                    const parsed = JSON.parse(event.newValue);
+                    if (Array.isArray(parsed)) {
+                        setFavoriteSymbols(parsed.filter((value) => typeof value === 'string'));
+                    }
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+        };
+
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
         try {
             const stored = window.localStorage.getItem('market.favoriteSymbols');
             if (!stored) {
@@ -465,6 +541,36 @@ export default function WatchlistPage() {
         }
         window.localStorage.setItem('market.favoriteSymbols', JSON.stringify(favoriteSymbols));
     }, [favoriteSymbols]);
+
+    useEffect(() => {
+        if (!terminalPreferencesReady || !currentUserId) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            updateTerminalPreferences(currentUserId, {
+                market: selectedMarket,
+                symbol: selectedSymbol,
+                compareSymbols,
+                compareVisible,
+                range: selectedRange,
+                interval: selectedInterval,
+                favoriteSymbols,
+            }).catch((error) => console.error('Failed to save terminal preferences:', error));
+        }, 400);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [
+        compareSymbols,
+        compareVisible,
+        currentUserId,
+        favoriteSymbols,
+        selectedInterval,
+        selectedMarket,
+        selectedRange,
+        selectedSymbol,
+        terminalPreferencesReady,
+    ]);
 
     const filteredInstruments = useMemo(() => {
         const query = instrumentQuery.trim().toLowerCase();

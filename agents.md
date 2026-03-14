@@ -38,6 +38,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Market Terminal Session Moved to Account Preferences With Local Multi-Tab Fallback**
+  - **Problem observed**:
+    - `/watchlist` had rich state (market, symbol, compare basket, range, interval, favorites), but this state lived only in browser storage.
+    - That was fast, but not durable across device changes and not aligned with the rest of the authenticated terminal workflow.
+  - **Implementation**:
+    - Extended `user_preferences` with terminal-session fields:
+      - market
+      - symbol
+      - compare symbols
+      - compare visibility
+      - range
+      - interval
+      - favorite symbols
+    - Added authenticated update endpoint:
+      - `PUT /api/v1/users/me/preferences/terminal`
+    - `/watchlist` now:
+      - restores from local storage first for instant paint
+      - hydrates from backend user preferences
+      - writes terminal state back to the backend with debounce
+      - still listens to browser `storage` events for multi-tab sync
+  - **Operational impact**:
+    - terminal sessions now follow the account, not just the tab
+    - local storage remains a performance optimization, not the source of truth
 - **2026-03-14**: **Terminal Notes Stay Backend-Authoritative, Filters Stay Client-Side**
   - **Problem observed**:
     - Pinned chart notes improved prioritization, but operators still needed lightweight filtering without turning note browsing into another server-query surface.

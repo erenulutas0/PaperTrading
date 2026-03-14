@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class UserPreferencesResponse {
 
     private LeaderboardPreferences leaderboard;
+    private TerminalPreferences terminal;
 
     @Data
     @Builder
@@ -40,5 +41,18 @@ public class UserPreferencesResponse {
         private String sortBy;
         private String direction;
     }
-}
 
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TerminalPreferences {
+        private String market;
+        private String symbol;
+        private java.util.List<String> compareSymbols;
+        private Boolean compareVisible;
+        private String range;
+        private String interval;
+        private java.util.List<String> favoriteSymbols;
+    }
+}

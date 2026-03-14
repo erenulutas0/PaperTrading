@@ -3,6 +3,13 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
+  - market
+  - selected symbol
+  - compare basket + overlay visibility
+  - range / interval
+  - favorites
+  from authenticated user preferences instead of browser-only state
 - [ ] Redeploy frontend after watchlist note-filter/export polish and verify `/watchlist` now supports:
   - `All / Pinned / Unpinned` saved-note filtering
   - CSV export for filtered alert history window/direction views

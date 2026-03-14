@@ -48,10 +48,37 @@ public class UserPreference {
     @Builder.Default
     private String publicDirection = "DESC";
 
+    @Column(name = "terminal_market", nullable = false)
+    @Builder.Default
+    private String terminalMarket = "CRYPTO";
+
+    @Column(name = "terminal_symbol", nullable = false)
+    @Builder.Default
+    private String terminalSymbol = "BTCUSDT";
+
+    @Column(name = "terminal_compare_symbols", nullable = false, length = 512)
+    @Builder.Default
+    private String terminalCompareSymbols = "";
+
+    @Column(name = "terminal_compare_visible", nullable = false)
+    @Builder.Default
+    private Boolean terminalCompareVisible = true;
+
+    @Column(name = "terminal_range", nullable = false)
+    @Builder.Default
+    private String terminalRange = "1D";
+
+    @Column(name = "terminal_interval", nullable = false)
+    @Builder.Default
+    private String terminalInterval = "1h";
+
+    @Column(name = "terminal_favorite_symbols", nullable = false, length = 1024)
+    @Builder.Default
+    private String terminalFavoriteSymbols = "";
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 }
-

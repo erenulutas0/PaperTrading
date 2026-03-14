@@ -1,5 +1,6 @@
 package com.finance.core.controller;
 
+import com.finance.core.dto.UpdateTerminalPreferencesRequest;
 import com.finance.core.dto.UpdateLeaderboardPreferencesRequest;
 import com.finance.core.dto.UserPreferencesResponse;
 import com.finance.core.service.UserPreferencesService;
@@ -32,6 +33,15 @@ public class UserPreferencesController {
             @CurrentUserId UUID userId,
             @RequestBody(required = false) UpdateLeaderboardPreferencesRequest request) {
         return ResponseEntity.ok(userPreferencesService.updateLeaderboardPreferences(
+                userId,
+                request));
+    }
+
+    @PutMapping("/terminal")
+    public ResponseEntity<UserPreferencesResponse> updateTerminalPreferences(
+            @CurrentUserId UUID userId,
+            @RequestBody(required = false) UpdateTerminalPreferencesRequest request) {
+        return ResponseEntity.ok(userPreferencesService.updateTerminalPreferences(
                 userId,
                 request));
     }

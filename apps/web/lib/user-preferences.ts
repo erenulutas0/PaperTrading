@@ -22,11 +22,32 @@ export interface LeaderboardPreferencesResponsePayload {
 
 export interface UserPreferencesResponsePayload {
   leaderboard: LeaderboardPreferencesResponsePayload;
+  terminal?: TerminalPreferencesResponsePayload;
 }
 
 export interface UpdateLeaderboardPreferencesPayload {
   dashboard?: Partial<LeaderboardDashboardPreferences>;
   publicPage?: Partial<LeaderboardPublicPreferences>;
+}
+
+export interface TerminalPreferencesResponsePayload {
+  market: "CRYPTO" | "BIST100";
+  symbol: string;
+  compareSymbols: string[];
+  compareVisible: boolean;
+  range: "1D" | "1W" | "1M" | "3M" | "6M" | "1Y" | "ALL";
+  interval: "1m" | "15m" | "30m" | "1h" | "4h" | "1d";
+  favoriteSymbols: string[];
+}
+
+export interface UpdateTerminalPreferencesPayload {
+  market?: TerminalPreferencesResponsePayload["market"];
+  symbol?: string;
+  compareSymbols?: string[];
+  compareVisible?: boolean;
+  range?: TerminalPreferencesResponsePayload["range"];
+  interval?: TerminalPreferencesResponsePayload["interval"];
+  favoriteSymbols?: string[];
 }
 
 export async function fetchUserPreferences(
@@ -52,6 +73,27 @@ export async function updateLeaderboardPreferences(
 ): Promise<UserPreferencesResponsePayload | null> {
   try {
     const res = await apiFetch("/api/v1/users/me/preferences/leaderboard", {
+      method: "PUT",
+      headers: userIdHeaders(userId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return (await res.json()) as UserPreferencesResponsePayload;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateTerminalPreferences(
+  userId: string,
+  payload: UpdateTerminalPreferencesPayload
+): Promise<UserPreferencesResponsePayload | null> {
+  try {
+    const res = await apiFetch("/api/v1/users/me/preferences/terminal", {
       method: "PUT",
       headers: userIdHeaders(userId, {
         "Content-Type": "application/json",

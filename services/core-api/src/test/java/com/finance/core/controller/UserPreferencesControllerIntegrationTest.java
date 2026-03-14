@@ -1,6 +1,7 @@
 package com.finance.core.controller;
 
 import com.finance.core.dto.UpdateLeaderboardPreferencesRequest;
+import com.finance.core.dto.UpdateTerminalPreferencesRequest;
 import com.finance.core.dto.UserPreferencesResponse;
 import com.finance.core.service.BinanceService;
 import com.finance.core.service.UserPreferencesService;
@@ -48,6 +49,15 @@ class UserPreferencesControllerIntegrationTest {
                                 .direction("DESC")
                                 .build())
                         .build())
+                .terminal(UserPreferencesResponse.TerminalPreferences.builder()
+                        .market("CRYPTO")
+                        .symbol("BTCUSDT")
+                        .compareSymbols(java.util.List.of("ETHUSDT"))
+                        .compareVisible(true)
+                        .range("1D")
+                        .interval("1h")
+                        .favoriteSymbols(java.util.List.of("BTCUSDT"))
+                        .build())
                 .build();
 
         when(userPreferencesService.getPreferences(any(UUID.class))).thenReturn(response);
@@ -59,7 +69,9 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.leaderboard.dashboard.sortBy").value("PROFIT_LOSS"))
                 .andExpect(jsonPath("$.leaderboard.dashboard.direction").value("ASC"))
                 .andExpect(jsonPath("$.leaderboard.publicPage.sortBy").value("RETURN_PERCENTAGE"))
-                .andExpect(jsonPath("$.leaderboard.publicPage.direction").value("DESC"));
+                .andExpect(jsonPath("$.leaderboard.publicPage.direction").value("DESC"))
+                .andExpect(jsonPath("$.terminal.market").value("CRYPTO"))
+                .andExpect(jsonPath("$.terminal.symbol").value("BTCUSDT"));
     }
 
     @Test
@@ -75,6 +87,15 @@ class UserPreferencesControllerIntegrationTest {
                                 .sortBy("PROFIT_LOSS")
                                 .direction("ASC")
                                 .build())
+                        .build())
+                .terminal(UserPreferencesResponse.TerminalPreferences.builder()
+                        .market("CRYPTO")
+                        .symbol("BTCUSDT")
+                        .compareSymbols(java.util.List.of())
+                        .compareVisible(true)
+                        .range("1D")
+                        .interval("1h")
+                        .favoriteSymbols(java.util.List.of())
                         .build())
                 .build();
         when(userPreferencesService.updateLeaderboardPreferences(any(UUID.class), any(UpdateLeaderboardPreferencesRequest.class)))
@@ -103,5 +124,56 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.leaderboard.publicPage.sortBy").value("PROFIT_LOSS"))
                 .andExpect(jsonPath("$.leaderboard.publicPage.direction").value("ASC"));
     }
-}
 
+    @Test
+    void updateTerminalPreferences_shouldReturnUpdatedTerminalPayload() throws Exception {
+        UserPreferencesResponse response = UserPreferencesResponse.builder()
+                .leaderboard(UserPreferencesResponse.LeaderboardPreferences.builder()
+                        .dashboard(UserPreferencesResponse.DashboardPreferences.builder()
+                                .period("1D")
+                                .sortBy("RETURN_PERCENTAGE")
+                                .direction("DESC")
+                                .build())
+                        .publicPage(UserPreferencesResponse.PublicPreferences.builder()
+                                .sortBy("RETURN_PERCENTAGE")
+                                .direction("DESC")
+                                .build())
+                        .build())
+                .terminal(UserPreferencesResponse.TerminalPreferences.builder()
+                        .market("BIST100")
+                        .symbol("THYAO")
+                        .compareSymbols(java.util.List.of("ISCTR", "GARAN"))
+                        .compareVisible(false)
+                        .range("6M")
+                        .interval("4h")
+                        .favoriteSymbols(java.util.List.of("THYAO"))
+                        .build())
+                .build();
+        when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
+                .thenReturn(response);
+
+        String body = """
+                {
+                  "market": "BIST100",
+                  "symbol": "THYAO",
+                  "compareSymbols": ["ISCTR", "GARAN"],
+                  "compareVisible": false,
+                  "range": "6M",
+                  "interval": "4h",
+                  "favoriteSymbols": ["THYAO"]
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/terminal")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.terminal.market").value("BIST100"))
+                .andExpect(jsonPath("$.terminal.symbol").value("THYAO"))
+                .andExpect(jsonPath("$.terminal.compareSymbols[0]").value("ISCTR"))
+                .andExpect(jsonPath("$.terminal.compareVisible").value(false))
+                .andExpect(jsonPath("$.terminal.range").value("6M"))
+                .andExpect(jsonPath("$.terminal.interval").value("4h"));
+    }
+}
