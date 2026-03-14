@@ -1,14 +1,17 @@
 package com.finance.core.service;
 
 import com.finance.core.domain.AnalysisPost;
+import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioSnapshot;
 import com.finance.core.domain.TradeActivity;
 import com.finance.core.repository.AnalysisPostRepository;
+import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.PortfolioSnapshotRepository;
 import com.finance.core.repository.TradeActivityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 @Service
@@ -18,6 +21,7 @@ public class PerformanceAnalyticsService {
     private final PortfolioSnapshotRepository snapshotRepository;
     private final AnalysisPostRepository analysisPostRepository;
     private final TradeActivityRepository tradeActivityRepository;
+    private final PortfolioRepository portfolioRepository;
 
     // ==================== RISK METRICS ====================
 
@@ -259,6 +263,11 @@ public class PerformanceAnalyticsService {
      */
     public Map<String, Object> getFullAnalytics(UUID portfolioId, UUID userId) {
         Map<String, Object> analytics = new LinkedHashMap<>();
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+                .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+        List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
+
+        analytics.put("summary", buildPortfolioSummary(portfolio, snapshots));
 
         // Risk Metrics
         Map<String, Object> risk = new LinkedHashMap<>();
@@ -295,5 +304,40 @@ public class PerformanceAnalyticsService {
             returns[i - 1] = prev > 0 ? (curr - prev) / prev : 0;
         }
         return returns;
+    }
+
+    private Map<String, Object> buildPortfolioSummary(Portfolio portfolio, List<PortfolioSnapshot> snapshots) {
+        double fallbackEquity = portfolio.getBalance() != null ? portfolio.getBalance().doubleValue() : 0.0;
+        double startEquity = snapshots.isEmpty() ? fallbackEquity : snapshots.get(0).getTotalEquity().doubleValue();
+        double currentEquity = snapshots.isEmpty() ? fallbackEquity : snapshots.get(snapshots.size() - 1).getTotalEquity().doubleValue();
+        double peakEquity = snapshots.stream()
+                .map(PortfolioSnapshot::getTotalEquity)
+                .filter(Objects::nonNull)
+                .mapToDouble(BigDecimal::doubleValue)
+                .max()
+                .orElse(currentEquity);
+        double troughEquity = snapshots.stream()
+                .map(PortfolioSnapshot::getTotalEquity)
+                .filter(Objects::nonNull)
+                .mapToDouble(BigDecimal::doubleValue)
+                .min()
+                .orElse(currentEquity);
+        double absoluteReturn = currentEquity - startEquity;
+        double returnPercentage = startEquity > 0 ? (absoluteReturn / startEquity) * 100.0 : 0.0;
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("portfolioId", portfolio.getId());
+        summary.put("portfolioName", portfolio.getName());
+        summary.put("visibility", portfolio.getVisibility() != null ? portfolio.getVisibility().name() : "PRIVATE");
+        summary.put("startingEquity", Math.round(startEquity * 100.0) / 100.0);
+        summary.put("currentEquity", Math.round(currentEquity * 100.0) / 100.0);
+        summary.put("absoluteReturn", Math.round(absoluteReturn * 100.0) / 100.0);
+        summary.put("returnPercentage", Math.round(returnPercentage * 100.0) / 100.0);
+        summary.put("peakEquity", Math.round(peakEquity * 100.0) / 100.0);
+        summary.put("troughEquity", Math.round(troughEquity * 100.0) / 100.0);
+        summary.put("snapshotCount", snapshots.size());
+        summary.put("firstSnapshotAt", snapshots.isEmpty() ? null : snapshots.get(0).getTimestamp().toString());
+        summary.put("latestSnapshotAt", snapshots.isEmpty() ? null : snapshots.get(snapshots.size() - 1).getTimestamp().toString());
+        return summary;
     }
 }

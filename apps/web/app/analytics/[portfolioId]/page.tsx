@@ -5,6 +5,20 @@ import Link from 'next/link';
 import { apiFetch, userIdHeaders } from '../../../lib/api-client';
 
 interface AnalyticsData {
+    summary: {
+        portfolioId: string;
+        portfolioName: string;
+        visibility: string;
+        startingEquity: number;
+        currentEquity: number;
+        absoluteReturn: number;
+        returnPercentage: number;
+        peakEquity: number;
+        troughEquity: number;
+        snapshotCount: number;
+        firstSnapshotAt: string | null;
+        latestSnapshotAt: string | null;
+    };
     riskMetrics: {
         maxDrawdown: number;
         sharpeRatio: number;
@@ -77,7 +91,12 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const plotW = W - padL - padR;
         const plotH = H - padT - padB;
 
-        const xPos = (i: number) => padL + (i / (curve.length - 1)) * plotW;
+        const xPos = (i: number) => {
+            if (curve.length === 1) {
+                return padL + plotW / 2;
+            }
+            return padL + (i / (curve.length - 1)) * plotW;
+        };
         const yPos = (v: number) => padT + (1 - (v - minEq) / (maxEq - minEq)) * plotH;
 
         // Clear
@@ -215,6 +234,23 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         }
     };
 
+    const formatCurrency = (value: number) =>
+        `${value >= 0 ? '+' : '-'}$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+    const formatEquity = (value: number) =>
+        `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+    const formatTimestamp = (value: string | null) =>
+        value
+            ? new Date(value).toLocaleString([], {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+            })
+            : 'N/A';
+
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center">
@@ -233,6 +269,21 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
 
     const rm = data.riskMetrics;
     const ts = data.tradeStats;
+    const summary = data.summary ?? {
+        portfolioId,
+        portfolioName: 'Portfolio',
+        visibility: 'PRIVATE',
+        startingEquity: 0,
+        currentEquity: 0,
+        absoluteReturn: 0,
+        returnPercentage: 0,
+        peakEquity: 0,
+        troughEquity: 0,
+        snapshotCount: 0,
+        firstSnapshotAt: null,
+        latestSnapshotAt: null,
+    };
+    const performancePositive = summary.absoluteReturn >= 0;
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -254,10 +305,65 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                 {/* Header */}
                 <div className="mb-8">
                     <Link href="/dashboard" className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors mb-2 inline-block">← Back to Dashboard</Link>
-                    <h1 className="text-3xl font-bold">
-                        📊 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400">Advanced Analytics</span>
-                    </h1>
-                    <p className="text-zinc-500 text-sm mt-1">Professional risk metrics and trade statistics</p>
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+                        <div>
+                            <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">Portfolio Analytics</p>
+                            <h1 className="text-3xl font-bold">
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400">{summary.portfolioName}</span>
+                            </h1>
+                            <p className="text-zinc-500 text-sm mt-1">
+                                Current equity, return path, trade quality, and risk posture in one view.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-300">
+                                {summary.visibility}
+                            </span>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-zinc-300">
+                                {summary.snapshotCount} snapshots
+                            </span>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-zinc-300">
+                                Updated {formatTimestamp(summary.latestSnapshotAt)}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
+                        <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">Current Equity</p>
+                        <p className="mt-3 text-3xl font-bold text-white">{formatEquity(summary.currentEquity)}</p>
+                        <p className="mt-2 text-xs text-zinc-500">Started at {formatEquity(summary.startingEquity)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
+                        <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">Net Return</p>
+                        <p className={`mt-3 text-3xl font-bold ${performancePositive ? 'text-green-400' : 'text-red-400'}`}>
+                            {formatCurrency(summary.absoluteReturn)}
+                        </p>
+                        <p className={`mt-2 text-xs ${performancePositive ? 'text-green-300' : 'text-red-300'}`}>
+                            {summary.returnPercentage >= 0 ? '+' : ''}{summary.returnPercentage.toFixed(2)}%
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
+                        <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">Range</p>
+                        <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <p className="text-zinc-500">Peak</p>
+                                <p className="mt-1 font-mono font-bold text-green-300">{formatEquity(summary.peakEquity)}</p>
+                            </div>
+                            <div>
+                                <p className="text-zinc-500">Trough</p>
+                                <p className="mt-1 font-mono font-bold text-red-300">{formatEquity(summary.troughEquity)}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
+                        <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">Signal Quality</p>
+                        <p className={`mt-3 text-3xl font-bold ${ratingColor(data.predictionWinRate, 'winrate')}`}>
+                            {data.predictionWinRate.toFixed(2)}%
+                        </p>
+                        <p className="mt-2 text-xs text-zinc-500">Resolved analysis hit rate</p>
+                    </div>
                 </div>
 
                 {/* Equity Curve */}
@@ -265,7 +371,9 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                     <div className="flex items-center justify-between mb-4">
                         <div>
                             <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Equity Curve</h2>
-                            <p className="text-[10px] text-zinc-600">Portfolio value over time with drawdown visualization</p>
+                            <p className="text-[10px] text-zinc-600">
+                                {formatTimestamp(summary.firstSnapshotAt)} to {formatTimestamp(summary.latestSnapshotAt)} with drawdown overlay.
+                            </p>
                         </div>
                         <div className="flex gap-4 text-[10px]">
                             <span className="flex items-center gap-1.5"><span className="w-3 h-0.5 bg-green-500 rounded"></span> Equity</span>
@@ -277,7 +385,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                 </div>
 
                 {/* Risk Metrics Cards */}
-                <div className="grid grid-cols-5 gap-3 mb-6">
+                <div className="grid gap-3 mb-6 sm:grid-cols-2 xl:grid-cols-5">
                     {[
                         { label: 'Max Drawdown', value: rm.maxDrawdown, suffix: '%', type: 'drawdown' as const, icon: '📉' },
                         { label: 'Sharpe Ratio', value: rm.sharpeRatio, suffix: '', type: 'sharpe' as const, icon: '⚡' },
@@ -299,19 +407,19 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                 </div>
 
                 {/* Trade Stats + Win Rate */}
-                <div className="grid grid-cols-12 gap-6 mb-6">
+                <div className="grid gap-6 mb-6 xl:grid-cols-12">
                     {/* Trade Stats */}
-                    <div className="col-span-7 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
+                    <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 xl:col-span-7">
                         <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-4">Trade Statistics</h2>
 
-                        <div className="grid grid-cols-3 gap-4 mb-6">
+                        <div className="grid gap-4 mb-6 sm:grid-cols-3">
                             <div className="text-center p-3 bg-black/30 rounded-xl">
                                 <p className="text-2xl font-bold text-white">{ts.totalTrades}</p>
                                 <p className="text-[10px] text-zinc-500 uppercase">Total Trades</p>
                             </div>
                             <div className="text-center p-3 bg-black/30 rounded-xl">
                                 <p className={`text-2xl font-bold ${ts.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {ts.totalPnl >= 0 ? '+' : ''}${ts.totalPnl.toLocaleString()}
+                                    {formatCurrency(ts.totalPnl)}
                                 </p>
                                 <p className="text-[10px] text-zinc-500 uppercase">Total PnL</p>
                             </div>
@@ -321,7 +429,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="grid gap-3 text-sm md:grid-cols-2">
                             {[
                                 { label: 'Buy Orders', value: ts.buyCount, color: 'text-green-400' },
                                 { label: 'Sell Orders', value: ts.sellCount, color: 'text-red-400' },
@@ -348,7 +456,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                     </div>
 
                     {/* Symbol Breakdown & Win/Loss Donut */}
-                    <div className="col-span-5 space-y-4">
+                    <div className="space-y-4 xl:col-span-5">
                         {/* Win/Loss Visual */}
                         <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
                             <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-4">Win/Loss Distribution</h2>

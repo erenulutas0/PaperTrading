@@ -38,6 +38,33 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Portfolio Analytics Lifted From Raw Metrics Dump to Portfolio Summary Surface**
+  - **Problem observed**:
+    - `/analytics/{portfolioId}` exposed risk metrics and trade stats, but the page started cold:
+      - no portfolio identity
+      - no headline equity/return context
+      - no clear connection between snapshots and the rendered analytics blocks
+    - Existing layout was also desktop-heavy (`grid-cols-5`, `grid-cols-12`) and not resilient on narrower widths.
+  - **Implementation**:
+    - `PerformanceAnalyticsService.getFullAnalytics(...)` now includes a `summary` block with:
+      - portfolio name/id
+      - visibility
+      - starting/current equity
+      - absolute and percentage return
+      - peak/trough equity
+      - snapshot count
+      - first/latest snapshot timestamps
+    - Added backend regression coverage for the summary contract in:
+      - `PerformanceAnalyticsServiceTest`
+      - `AnalyticsControllerIntegrationTest`
+    - Updated `app/analytics/[portfolioId]` to render:
+      - portfolio header with visibility and snapshot freshness
+      - summary cards for equity, return, range, and prediction quality
+      - more responsive risk/trade grids
+      - safe fallback behavior if the frontend is briefly ahead of backend rollout
+  - **Operational impact**:
+    - analytics now reads like a portfolio control room instead of an isolated metrics dump
+    - rollout order is safer because the frontend tolerates a temporarily missing `summary` payload
 - **2026-03-14**: **Shared Layout Links Split Into Preview Surface and Full Terminal Surface**
   - **Problem observed**:
     - Sending a shared layout directly into the full terminal works, but it is heavier than necessary for first contact.

@@ -44,6 +44,7 @@ class AnalyticsControllerIntegrationTest {
                 .name("Analytics Test")
                 .ownerId(userId.toString())
                 .balance(new BigDecimal("100000"))
+                .visibility(Portfolio.Visibility.PUBLIC)
                 .build();
         testPortfolio = portfolioRepository.save(testPortfolio);
     }
@@ -53,6 +54,9 @@ class AnalyticsControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/analytics/" + testPortfolio.getId())
                 .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary").exists())
+                .andExpect(jsonPath("$.summary.portfolioName").value("Analytics Test"))
+                .andExpect(jsonPath("$.summary.visibility").value("PUBLIC"))
                 .andExpect(jsonPath("$.riskMetrics").exists())
                 .andExpect(jsonPath("$.tradeStats").exists())
                 .andExpect(jsonPath("$.equityCurve").exists());

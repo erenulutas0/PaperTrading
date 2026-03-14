@@ -1,9 +1,12 @@
 package com.finance.core.service;
 
 import com.finance.core.domain.AnalysisPost;
+import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioSnapshot;
 import com.finance.core.repository.AnalysisPostRepository;
+import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.PortfolioSnapshotRepository;
+import com.finance.core.repository.TradeActivityRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +18,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +33,12 @@ class PerformanceAnalyticsServiceTest {
 
     @Mock
     private AnalysisPostRepository analysisPostRepository;
+
+    @Mock
+    private TradeActivityRepository tradeActivityRepository;
+
+    @Mock
+    private PortfolioRepository portfolioRepository;
 
     @InjectMocks
     private PerformanceAnalyticsService analyticsService;
@@ -138,6 +149,34 @@ class PerformanceAnalyticsServiceTest {
         // Constant positive returns should give a high positive sharpe (our logic
         // returns 999.0)
         assertEquals(999.0, result, 0.001);
+    }
+
+    @Test
+    void getFullAnalytics_shouldIncludeSummaryBlock() {
+        Portfolio portfolio = Portfolio.builder()
+                .id(portfolioId)
+                .name("Alpha")
+                .balance(BigDecimal.valueOf(100000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .ownerId(authorId.toString())
+                .build();
+        PortfolioSnapshot s1 = createSnapshot(BigDecimal.valueOf(100000));
+        PortfolioSnapshot s2 = createSnapshot(BigDecimal.valueOf(105000));
+
+        when(portfolioRepository.findById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(Arrays.asList(s1, s2));
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(any(), any())).thenReturn(0L);
+        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(Collections.emptyList());
+
+        Map<String, Object> result = analyticsService.getFullAnalytics(portfolioId, authorId);
+        Map<String, Object> summary = (Map<String, Object>) result.get("summary");
+
+        assertEquals("Alpha", summary.get("portfolioName"));
+        assertEquals("PUBLIC", summary.get("visibility"));
+        assertEquals(100000.0, (double) summary.get("startingEquity"), 0.001);
+        assertEquals(105000.0, (double) summary.get("currentEquity"), 0.001);
+        assertEquals(5000.0, (double) summary.get("absoluteReturn"), 0.001);
+        assertEquals(5.0, (double) summary.get("returnPercentage"), 0.001);
     }
 
     private PortfolioSnapshot createSnapshot(BigDecimal equity) {
