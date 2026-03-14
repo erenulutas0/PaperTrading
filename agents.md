@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Analytics Canvas Charts Hardened Against Resize and Empty-State Drift**
+  - **Problem observed**:
+    - The analytics page had grown several custom canvas surfaces:
+      - equity curve
+      - PnL split chart
+      - indexed compare overlay
+    - Those charts redrew when data changed, but not reliably when the viewport or surrounding layout changed.
+    - Empty-state transitions could also leave stale drawings behind because the old canvas content was not explicitly cleared.
+  - **Implementation**:
+    - Added a shared canvas initialization path that:
+      - resets transform state
+      - re-sizes for current device-pixel ratio
+      - clears the drawing surface before each render
+    - Added resize-driven redraw scheduling for the analytics canvases using:
+      - `window.resize`
+      - `ResizeObserver` on chart containers
+    - Analytics draw effects now also clear canvases explicitly when the selected data window becomes empty or compare mode is removed.
+  - **Operational impact**:
+    - analytics charts now stay visually consistent after resize, layout shifts, and compare/window changes
+    - stale curves are removed instead of silently lingering on the screen
 - **2026-03-15**: **Portfolio Compare Mode Added Indexed Equity Curve Overlay**
   - **Problem observed**:
     - Compare mode’s first pass showed useful metric deltas, but still lacked temporal shape comparison.

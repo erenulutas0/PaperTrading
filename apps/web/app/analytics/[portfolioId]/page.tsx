@@ -147,9 +147,36 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
+    const [chartRenderVersion, setChartRenderVersion] = useState(0);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pnlCanvasRef = useRef<HTMLCanvasElement>(null);
     const compareCanvasRef = useRef<HTMLCanvasElement>(null);
+
+    const initializeCanvas = useCallback((canvas: HTMLCanvasElement) => {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return null;
+        }
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const width = Math.max(1, rect.width);
+        const height = Math.max(1, rect.height);
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, width, height);
+        return { ctx, width, height };
+    }, []);
+
+    const clearCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+        if (!canvas) {
+            return;
+        }
+
+        initializeCanvas(canvas);
+    }, [initializeCanvas]);
 
     const fetchAnalytics = useCallback(async () => {
         try {
@@ -283,16 +310,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const canvas = canvasRef.current;
         if (!canvas || !filteredEquityCurve.length) return;
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        const prepared = initializeCanvas(canvas);
+        if (!prepared) return;
 
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
-        const W = rect.width;
-        const H = rect.height;
+        const { ctx, width: W, height: H } = prepared;
 
         const curve = filteredEquityCurve;
         const equities = curve.map(p => p.equity);
@@ -312,9 +333,6 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             return padL + (i / (curve.length - 1)) * plotW;
         };
         const yPos = (v: number) => padT + (1 - (v - minEq) / (maxEq - minEq)) * plotH;
-
-        // Clear
-        ctx.clearRect(0, 0, W, H);
 
         // Grid
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
@@ -387,7 +405,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             const d = new Date(ts);
             ctx.fillText(d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), xPos(idx), H - 10);
         }
-    }, [filteredEquityCurve]);
+    }, [filteredEquityCurve, initializeCanvas]);
 
     const filteredPnlTimeline = useMemo(() => {
         if (!data?.pnlTimeline?.length) {
@@ -431,17 +449,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const canvas = pnlCanvasRef.current;
         if (!canvas || !filteredPnlTimeline.length) return;
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        const prepared = initializeCanvas(canvas);
+        if (!prepared) return;
 
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
-
-        const W = rect.width;
-        const H = rect.height;
+        const { ctx, width: W, height: H } = prepared;
         const padL = 60, padR = 20, padT = 20, padB = 40;
         const plotW = W - padL - padR;
         const plotH = H - padT - padB;
@@ -455,7 +466,6 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             : padL + (i / (filteredPnlTimeline.length - 1)) * plotW;
         const yPos = (value: number) => padT + (1 - ((value - minValue) / span)) * plotH;
 
-        ctx.clearRect(0, 0, W, H);
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 1;
         for (let i = 0; i <= 4; i++) {
@@ -498,7 +508,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             const d = new Date(ts);
             ctx.fillText(d.toLocaleDateString(), xPos(idx), H - 10);
         }
-    }, [filteredPnlTimeline]);
+    }, [filteredPnlTimeline, initializeCanvas]);
 
     const drawCompareOverlay = useCallback(() => {
         const canvas = compareCanvasRef.current;
@@ -506,17 +516,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             return;
         }
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        const prepared = initializeCanvas(canvas);
+        if (!prepared) return;
 
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
-
-        const W = rect.width;
-        const H = rect.height;
+        const { ctx, width: W, height: H } = prepared;
         const padL = 60, padR = 20, padT = 20, padB = 40;
         const plotW = W - padL - padR;
         const plotH = H - padT - padB;
@@ -539,7 +542,6 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         };
         const yPos = (value: number) => padT + (1 - ((value - minValue) / span)) * plotH;
 
-        ctx.clearRect(0, 0, W, H);
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 1;
         for (let i = 0; i <= 4; i++) {
@@ -586,7 +588,36 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             const d = new Date(ts);
             ctx.fillText(d.toLocaleDateString(), xPos(idx, filteredEquityCurve.length), H - 10);
         }
-    }, [filteredCompareEquityCurve, filteredEquityCurve]);
+    }, [filteredCompareEquityCurve, filteredEquityCurve, initializeCanvas]);
+
+    useEffect(() => {
+        let frameId: number | null = null;
+        const requestRedraw = () => {
+            if (frameId !== null) {
+                cancelAnimationFrame(frameId);
+            }
+            frameId = window.requestAnimationFrame(() => {
+                setChartRenderVersion((current) => current + 1);
+            });
+        };
+
+        const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(requestRedraw) : null;
+        [canvasRef.current, pnlCanvasRef.current, compareCanvasRef.current].forEach((canvas) => {
+            if (canvas?.parentElement) {
+                resizeObserver?.observe(canvas.parentElement);
+            }
+        });
+
+        window.addEventListener('resize', requestRedraw);
+
+        return () => {
+            window.removeEventListener('resize', requestRedraw);
+            if (frameId !== null) {
+                cancelAnimationFrame(frameId);
+            }
+            resizeObserver?.disconnect();
+        };
+    }, []);
 
     useEffect(() => {
         fetchAnalytics();
@@ -599,20 +630,29 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     useEffect(() => {
         if (filteredEquityCurve.length && canvasRef.current) {
             drawEquityCurve();
+            return;
         }
-    }, [filteredEquityCurve, drawEquityCurve]);
+
+        clearCanvas(canvasRef.current);
+    }, [chartRenderVersion, clearCanvas, drawEquityCurve, filteredEquityCurve]);
 
     useEffect(() => {
         if (filteredPnlTimeline.length && pnlCanvasRef.current) {
             drawPnlTimeline();
+            return;
         }
-    }, [filteredPnlTimeline, drawPnlTimeline]);
+
+        clearCanvas(pnlCanvasRef.current);
+    }, [chartRenderVersion, clearCanvas, drawPnlTimeline, filteredPnlTimeline]);
 
     useEffect(() => {
         if (filteredEquityCurve.length && filteredCompareEquityCurve.length && compareCanvasRef.current) {
             drawCompareOverlay();
+            return;
         }
-    }, [drawCompareOverlay, filteredCompareEquityCurve, filteredEquityCurve]);
+
+        clearCanvas(compareCanvasRef.current);
+    }, [chartRenderVersion, clearCanvas, drawCompareOverlay, filteredCompareEquityCurve, filteredEquityCurve]);
 
     useEffect(() => {
         if (symbolDetailCandidates.length === 0) {
