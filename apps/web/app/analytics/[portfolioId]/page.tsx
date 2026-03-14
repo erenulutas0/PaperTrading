@@ -572,9 +572,19 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
 
                 <div className="mb-6 grid gap-6 xl:grid-cols-2">
                     {[
-                        ['Best Interval Move', periodExtremes.bestMove, 'text-green-400', 'text-green-300'],
-                        ['Worst Interval Move', periodExtremes.worstMove, 'text-red-400', 'text-red-300'],
-                    ].map(([label, move, accent, softAccent]) => (
+                        {
+                            label: 'Best Interval Move',
+                            move: periodExtremes.bestMove,
+                            accent: 'text-green-400',
+                            softAccent: 'text-green-300',
+                        },
+                        {
+                            label: 'Worst Interval Move',
+                            move: periodExtremes.worstMove,
+                            accent: 'text-red-400',
+                            softAccent: 'text-red-300',
+                        },
+                    ].map(({ label, move, accent, softAccent }) => (
                         <div key={label} className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
