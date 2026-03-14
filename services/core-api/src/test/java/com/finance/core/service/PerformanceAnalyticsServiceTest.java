@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
@@ -226,6 +227,43 @@ class PerformanceAnalyticsServiceTest {
         assertEquals(104000.0, (double) riskAttribution.get(0).get("exposure"), 0.001);
         assertEquals(100.0, (double) riskAttribution.get(0).get("exposureShare"), 0.001);
         assertEquals(2, pnlTimeline.size());
+    }
+
+    @Test
+    void buildAnalyticsExportCsv_shouldIncludeRiskAttributionRows() {
+        Portfolio portfolio = Portfolio.builder()
+                .id(portfolioId)
+                .name("Alpha")
+                .balance(BigDecimal.valueOf(100000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .ownerId(authorId.toString())
+                .items(List.of(
+                        PortfolioItem.builder()
+                                .symbol("BTCUSDT")
+                                .quantity(BigDecimal.valueOf(2))
+                                .averagePrice(BigDecimal.valueOf(50000))
+                                .side("LONG")
+                                .leverage(1)
+                                .build()))
+                .build();
+
+        when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(List.of(
+                createSnapshot(BigDecimal.valueOf(100000)),
+                createSnapshot(BigDecimal.valueOf(105000))));
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(any(), any())).thenReturn(0L);
+        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(List.of());
+        when(marketDataFacadeService.getInstrumentSnapshots(any())).thenReturn(Map.of(
+                "BTCUSDT",
+                MarketInstrumentResponse.builder()
+                        .symbol("BTCUSDT")
+                        .currentPrice(52000.0)
+                        .build()));
+
+        String csv = new String(analyticsService.buildAnalyticsExportCsv(portfolioId, authorId, "ALL", "BTC"), StandardCharsets.UTF_8);
+
+        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("riskAttribution,BTCUSDT exposure,104000.0"));
+        org.junit.jupiter.api.Assertions.assertTrue(csv.contains("context,curveWindow,ALL"));
     }
 
     private PortfolioSnapshot createSnapshot(BigDecimal equity) {

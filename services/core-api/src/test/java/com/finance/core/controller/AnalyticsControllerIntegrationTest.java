@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,6 +71,17 @@ class AnalyticsControllerIntegrationTest {
                 .andExpect(jsonPath("$.riskMetrics").exists())
                 .andExpect(jsonPath("$.tradeStats").exists())
                 .andExpect(jsonPath("$.equityCurve").exists());
+    }
+
+    @Test
+    void testExportAnalyticsCsv() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/" + testPortfolio.getId() + "/export")
+                .header("X-User-Id", userId.toString())
+                .param("format", "csv")
+                .param("curveWindow", "7D"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString(".csv")))
+                .andExpect(content().contentType("text/csv"));
     }
 
     @Test

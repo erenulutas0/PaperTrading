@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Portfolio Analytics Export Moved Behind Backend-Owned Report Endpoints**
+  - **Problem observed**:
+    - Analytics export initially lived entirely in the browser.
+    - That was fast to ship, but it created two drift risks:
+      - export content could diverge from the server analytics contract
+      - frontend-only formatting bugs could silently break reporting
+  - **Implementation**:
+    - Added `GET /api/v1/analytics/{portfolioId}/export` with:
+      - `format=json|csv`
+      - `curveWindow`
+      - `symbolFilter`
+    - `PerformanceAnalyticsService` now builds filtered export payloads server-side for both JSON and CSV.
+    - `/analytics/[portfolioId]` export buttons now download backend-produced files instead of synthesizing reports in the browser.
+    - Added service/controller regression coverage for the new export path.
+  - **Operational impact**:
+    - analytics exports now share the same normalization rules as the analytics API itself
+    - reporting behavior is easier to test and less exposed to frontend refactor drift
 - **2026-03-14**: **Portfolio Analytics Added Live Exposure Attribution By Symbol**
   - **Problem observed**:
     - Analytics already separated realized attribution and open-position summaries, but it still lacked a direct answer to:

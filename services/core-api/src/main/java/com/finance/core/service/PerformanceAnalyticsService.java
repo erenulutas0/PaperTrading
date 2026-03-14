@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -302,6 +303,69 @@ public class PerformanceAnalyticsService {
         analytics.put("equityCurve", getEquityCurve(portfolioId));
 
         return analytics;
+    }
+
+    public String buildAnalyticsExportJson(UUID portfolioId, UUID userId, String curveWindow, String symbolFilter) {
+        Map<String, Object> analytics = applyExportFilters(getFullAnalytics(portfolioId, userId), curveWindow, symbolFilter);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("portfolioId", portfolioId);
+        payload.put("exportedAt", LocalDateTime.now().toString());
+        payload.put("curveWindow", normalizeCurveWindow(curveWindow));
+        payload.put("symbolFilter", normalizeSymbolFilter(symbolFilter));
+        payload.put("analytics", analytics);
+        return toJson(payload);
+    }
+
+    public byte[] buildAnalyticsExportCsv(UUID portfolioId, UUID userId, String curveWindow, String symbolFilter) {
+        Map<String, Object> analytics = applyExportFilters(getFullAnalytics(portfolioId, userId), curveWindow, symbolFilter);
+        Map<String, Object> summary = castMap(analytics.get("summary"));
+        Map<String, Object> positionSummary = castMap(analytics.get("positionSummary"));
+        Map<String, Object> performanceWindows = castMap(analytics.get("performanceWindows"));
+        Map<String, Object> periodExtremes = castMap(analytics.get("periodExtremes"));
+        Map<String, Object> tradeStats = castMap(analytics.get("tradeStats"));
+        List<Map<String, Object>> symbolAttribution = castList(analytics.get("symbolAttribution"));
+        List<Map<String, Object>> riskAttribution = castList(analytics.get("riskAttribution"));
+
+        List<List<Object>> rows = new ArrayList<>();
+        rows.add(List.of("section", "label", "value"));
+        rows.add(List.of("summary", "portfolioName", summary.get("portfolioName")));
+        rows.add(List.of("summary", "visibility", summary.get("visibility")));
+        rows.add(List.of("summary", "currentEquity", summary.get("currentEquity")));
+        rows.add(List.of("summary", "absoluteReturn", summary.get("absoluteReturn")));
+        rows.add(List.of("summary", "returnPercentage", summary.get("returnPercentage")));
+        rows.add(List.of("positions", "openPositions", positionSummary.get("openPositions")));
+        rows.add(List.of("positions", "grossExposure", positionSummary.get("grossExposure")));
+        rows.add(List.of("positions", "realizedPnl", positionSummary.get("realizedPnl")));
+        rows.add(List.of("positions", "unrealizedPnl", positionSummary.get("unrealizedPnl")));
+        rows.add(List.of("context", "curveWindow", normalizeCurveWindow(curveWindow)));
+        rows.add(List.of("context", "symbolFilter", Objects.requireNonNullElse(normalizeSymbolFilter(symbolFilter), "")));
+
+        Map<String, Object> window7d = castMap(performanceWindows.get("7d"));
+        Map<String, Object> window30d = castMap(performanceWindows.get("30d"));
+        rows.add(List.of("windows", "7dReturnPercentage", window7d.getOrDefault("returnPercentage", 0.0)));
+        rows.add(List.of("windows", "30dReturnPercentage", window30d.getOrDefault("returnPercentage", 0.0)));
+
+        Map<String, Object> bestMove = castMap(periodExtremes.get("bestMove"));
+        Map<String, Object> worstMove = castMap(periodExtremes.get("worstMove"));
+        rows.add(List.of("extremes", "bestMoveReturnPercentage", bestMove.getOrDefault("returnPercentage", 0.0)));
+        rows.add(List.of("extremes", "worstMoveReturnPercentage", worstMove.getOrDefault("returnPercentage", 0.0)));
+
+        for (Map<String, Object> row : riskAttribution) {
+            rows.add(List.of("riskAttribution", row.get("symbol") + " exposure", row.get("exposure")));
+        }
+        for (Map<String, Object> row : symbolAttribution) {
+            rows.add(List.of("symbolAttribution", row.get("symbol") + " realizedPnl", row.get("realizedPnl")));
+        }
+        for (Map.Entry<String, Object> entry : castMap(tradeStats.get("symbolBreakdown")).entrySet()) {
+            rows.add(List.of("symbolBreakdown", entry.getKey(), entry.getValue()));
+        }
+
+        String content = rows.stream()
+                .map(row -> row.stream().map(this::escapeCsv).reduce((left, right) -> left + "," + right).orElse(""))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+        return content.getBytes(StandardCharsets.UTF_8);
     }
 
     // ==================== INTERNAL HELPERS ====================
@@ -637,5 +701,133 @@ public class PerformanceAnalyticsService {
         }
 
         return timeline;
+    }
+
+    private Map<String, Object> applyExportFilters(Map<String, Object> analytics, String curveWindow, String symbolFilter) {
+        Map<String, Object> copy = new LinkedHashMap<>(analytics);
+        String normalizedFilter = normalizeSymbolFilter(symbolFilter);
+        String normalizedCurveWindow = normalizeCurveWindow(curveWindow);
+
+        if (normalizedFilter != null) {
+            copy.put("symbolAttribution", filterRowsBySymbol(castList(copy.get("symbolAttribution")), normalizedFilter));
+            copy.put("riskAttribution", filterRowsBySymbol(castList(copy.get("riskAttribution")), normalizedFilter));
+
+            Map<String, Object> tradeStats = new LinkedHashMap<>(castMap(copy.get("tradeStats")));
+            Map<String, Object> symbolBreakdown = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : castMap(tradeStats.get("symbolBreakdown")).entrySet()) {
+                if (entry.getKey().toUpperCase(Locale.ROOT).contains(normalizedFilter)) {
+                    symbolBreakdown.put(entry.getKey(), entry.getValue());
+                }
+            }
+            tradeStats.put("symbolBreakdown", symbolBreakdown);
+            copy.put("tradeStats", tradeStats);
+
+            Map<String, Object> positionSummary = new LinkedHashMap<>(castMap(copy.get("positionSummary")));
+            positionSummary.put("topPositions", filterRowsBySymbol(castList(positionSummary.get("topPositions")), normalizedFilter));
+            copy.put("positionSummary", positionSummary);
+        }
+
+        copy.put("equityCurve", filterCurveByWindow(castList(copy.get("equityCurve")), normalizedCurveWindow));
+        copy.put("pnlTimeline", filterCurveByWindow(castList(copy.get("pnlTimeline")), normalizedCurveWindow));
+        return copy;
+    }
+
+    private List<Map<String, Object>> filterRowsBySymbol(List<Map<String, Object>> rows, String normalizedFilter) {
+        if (normalizedFilter == null || rows.isEmpty()) {
+            return rows;
+        }
+        return rows.stream()
+                .filter(row -> Objects.toString(row.get("symbol"), "").toUpperCase(Locale.ROOT).contains(normalizedFilter))
+                .toList();
+    }
+
+    private List<Map<String, Object>> filterCurveByWindow(List<Map<String, Object>> points, String curveWindow) {
+        if (points.isEmpty() || "ALL".equals(curveWindow)) {
+            return points;
+        }
+        long days = "7D".equals(curveWindow) ? 7 : 30;
+        LocalDateTime threshold = LocalDateTime.now().minusDays(days);
+        List<Map<String, Object>> filtered = points.stream()
+                .filter(point -> {
+                    Object timestamp = point.get("timestamp");
+                    if (timestamp == null) {
+                        return false;
+                    }
+                    try {
+                        return !LocalDateTime.parse(String.valueOf(timestamp)).isBefore(threshold);
+                    } catch (Exception ignored) {
+                        return false;
+                    }
+                })
+                .toList();
+        return filtered.isEmpty() ? points : filtered;
+    }
+
+    private String normalizeCurveWindow(String curveWindow) {
+        if (curveWindow == null || curveWindow.isBlank()) {
+            return "ALL";
+        }
+        String normalized = curveWindow.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "7D", "30D", "ALL" -> normalized;
+            default -> "ALL";
+        };
+    }
+
+    private String normalizeSymbolFilter(String symbolFilter) {
+        if (symbolFilter == null || symbolFilter.isBlank()) {
+            return null;
+        }
+        return symbolFilter.trim().toUpperCase(Locale.ROOT);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> castMap(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> castList(Object value) {
+        return value instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+    }
+
+    private String escapeCsv(Object value) {
+        String raw = value == null ? "" : String.valueOf(value);
+        if (raw.contains(",") || raw.contains("\"") || raw.contains("\n")) {
+            return "\"" + raw.replace("\"", "\"\"") + "\"";
+        }
+        return raw;
+    }
+
+    private String toJson(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof String stringValue) {
+            return "\"" + stringValue
+                    .replace("\\", "\\\\")
+                    .replace("\"", "\\\"")
+                    .replace("\n", "\\n")
+                    .replace("\r", "\\r")
+                    .replace("\t", "\\t") + "\"";
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        if (value instanceof Map<?, ?> map) {
+            return map.entrySet().stream()
+                    .map(entry -> toJson(String.valueOf(entry.getKey())) + ":" + toJson(entry.getValue()))
+                    .reduce((left, right) -> left + "," + right)
+                    .map(body -> "{" + body + "}")
+                    .orElse("{}");
+        }
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .map(this::toJson)
+                    .reduce((left, right) -> left + "," + right)
+                    .map(body -> "[" + body + "]")
+                    .orElse("[]");
+        }
+        return toJson(String.valueOf(value));
     }
 }

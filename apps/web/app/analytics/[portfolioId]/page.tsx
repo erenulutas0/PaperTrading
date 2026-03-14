@@ -470,22 +470,13 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             })
             : 'N/A';
 
-    const downloadText = (content: string, filename: string, type: string) => {
-        const blob = new Blob([content], { type });
+    const downloadBlob = (blob: Blob, filename: string) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = filename;
         link.click();
         URL.revokeObjectURL(url);
-    };
-
-    const escapeCsv = (value: string | number | null | undefined) => {
-        const raw = value == null ? '' : String(value);
-        if (raw.includes(',') || raw.includes('"') || raw.includes('\n')) {
-            return `"${raw.replace(/"/g, '""')}"`;
-        }
-        return raw;
     };
 
     if (loading) {
@@ -555,55 +546,29 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 6);
 
-    const exportAnalyticsJson = () => {
-        if (!data) {
-            return;
+    const exportAnalytics = async (format: 'csv' | 'json') => {
+        try {
+            const userId = localStorage.getItem('userId') || '';
+            const searchParams = new URLSearchParams({
+                format,
+                curveWindow: selectedCurveWindow,
+            });
+            if (normalizedSymbolFilter) {
+                searchParams.set('symbolFilter', normalizedSymbolFilter);
+            }
+
+            const response = await apiFetch(`/api/v1/analytics/${portfolioId}/export?${searchParams.toString()}`, {
+                headers: userIdHeaders(userId),
+            });
+            if (!response.ok) {
+                throw new Error(`Analytics export failed with status ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            downloadBlob(blob, `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics.${format}`);
+        } catch (error) {
+            console.error(error);
         }
-        downloadText(
-            JSON.stringify(
-                {
-                    portfolioId,
-                    exportedAt: new Date().toISOString(),
-                    curveWindow: selectedCurveWindow,
-                    symbolFilter: normalizedSymbolFilter || null,
-                    analytics: data,
-                },
-                null,
-                2,
-            ),
-            `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics.json`,
-            'application/json;charset=utf-8',
-        );
-    };
-
-    const exportAnalyticsCsv = () => {
-        const rows = [
-            ['section', 'label', 'value'],
-            ['summary', 'portfolioName', summary.portfolioName],
-            ['summary', 'visibility', summary.visibility],
-            ['summary', 'currentEquity', summary.currentEquity],
-            ['summary', 'absoluteReturn', summary.absoluteReturn],
-            ['summary', 'returnPercentage', summary.returnPercentage],
-            ['positions', 'openPositions', positionSummary.openPositions],
-            ['positions', 'grossExposure', positionSummary.grossExposure],
-            ['positions', 'realizedPnl', positionSummary.realizedPnl],
-            ['positions', 'unrealizedPnl', positionSummary.unrealizedPnl],
-            ...filteredRiskAttribution.map((row) => ['riskAttribution', `${row.symbol} exposure`, row.exposure]),
-            ['windows', '7dReturnPercentage', performanceWindows['7d'].returnPercentage],
-            ['windows', '30dReturnPercentage', performanceWindows['30d'].returnPercentage],
-            ['extremes', 'bestMoveReturnPercentage', periodExtremes.bestMove.returnPercentage],
-            ['extremes', 'worstMoveReturnPercentage', periodExtremes.worstMove.returnPercentage],
-            ['context', 'curveWindow', selectedCurveWindow],
-            ['context', 'symbolFilter', normalizedSymbolFilter || ''],
-            ...filteredSymbolAttribution.map((row) => ['symbolAttribution', `${row.symbol} realizedPnl`, row.realizedPnl]),
-        ];
-
-        const content = rows.map((row) => row.map((value) => escapeCsv(value)).join(',')).join('\n');
-        downloadText(
-            content,
-            `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics.csv`,
-            'text/csv;charset=utf-8',
-        );
     };
 
     return (
@@ -700,14 +665,14 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             />
                             <button
                                 type="button"
-                                onClick={exportAnalyticsCsv}
+                                onClick={() => void exportAnalytics('csv')}
                                 className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
                             >
                                 Export CSV
                             </button>
                             <button
                                 type="button"
-                                onClick={exportAnalyticsJson}
+                                onClick={() => void exportAnalytics('json')}
                                 className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
                             >
                                 Export JSON
