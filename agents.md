@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Analytics Added Symbol-Specific Mini Timelines**
+  - **Problem observed**:
+    - Analytics already showed realized attribution totals by symbol, but totals alone flatten the path.
+    - Users still could not quickly see whether a symbol’s realized contribution came from:
+      - one sharp win
+      - steady compounding
+      - erratic back-and-forth results
+  - **Implementation**:
+    - `PerformanceAnalyticsService` now emits `symbolMiniTimelines` from trade history:
+      - symbol
+      - total trade count
+      - realized-trade count
+      - final cumulative realized PnL
+      - ordered cumulative realized PnL points
+    - `/analytics/[portfolioId]` now renders a `Symbol Mini Timelines` section with lightweight SVG sparklines.
+    - The existing symbol filter also narrows these mini timelines.
+  - **Operational impact**:
+    - realized attribution is no longer just a total; users can inspect the path quality per symbol at a glance
+    - avoids adding another heavy full-width chart while still increasing temporal insight
 - **2026-03-14**: **Portfolio Analytics Export Moved Behind Backend-Owned Report Endpoints**
   - **Problem observed**:
     - Analytics export initially lived entirely in the browser.

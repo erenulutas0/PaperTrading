@@ -108,6 +108,16 @@ interface AnalyticsData {
         realizedPnl: number;
         tradeCount: number;
     }[];
+    symbolMiniTimelines?: {
+        symbol: string;
+        tradeCount: number;
+        realizedTradeCount: number;
+        finalRealizedPnl: number;
+        points: {
+            timestamp: string | null;
+            cumulativePnl: number;
+        }[];
+    }[];
     pnlTimeline?: {
         timestamp: string | null;
         equity: number;
@@ -470,6 +480,26 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             })
             : 'N/A';
 
+    const buildMiniSparklinePath = (points: { cumulativePnl: number }[]) => {
+        if (points.length === 0) {
+            return '';
+        }
+        if (points.length === 1) {
+            return 'M 0 22 L 100 22';
+        }
+
+        const values = points.map((point) => point.cumulativePnl);
+        const minValue = Math.min(...values);
+        const maxValue = Math.max(...values);
+        const span = maxValue - minValue || 1;
+
+        return points.map((point, index) => {
+            const x = (index / (points.length - 1)) * 100;
+            const y = 44 - (((point.cumulativePnl - minValue) / span) * 44);
+            return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+        }).join(' ');
+    };
+
     const downloadBlob = (blob: Blob, filename: string) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -528,6 +558,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         worstMove: { absoluteReturn: 0, returnPercentage: 0, from: null, to: null },
     };
     const symbolAttribution = data.symbolAttribution ?? [];
+    const symbolMiniTimelines = data.symbolMiniTimelines ?? [];
     const riskAttribution = data.riskAttribution ?? [];
     const pnlTimeline = data.pnlTimeline ?? [];
     const performancePositive = summary.absoluteReturn >= 0;
@@ -538,6 +569,9 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const filteredSymbolAttribution = normalizedSymbolFilter
         ? symbolAttribution.filter((row) => row.symbol.toUpperCase().includes(normalizedSymbolFilter))
         : symbolAttribution;
+    const filteredSymbolMiniTimelines = normalizedSymbolFilter
+        ? symbolMiniTimelines.filter((row) => row.symbol.toUpperCase().includes(normalizedSymbolFilter))
+        : symbolMiniTimelines;
     const filteredRiskAttribution = normalizedSymbolFilter
         ? riskAttribution.filter((row) => row.symbol.toUpperCase().includes(normalizedSymbolFilter))
         : riskAttribution;
@@ -912,6 +946,67 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                     </div>
                                 </div>
                             ))
+                        )}
+                    </div>
+                </div>
+
+                <div className="mb-6 rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Symbol Mini Timelines</h2>
+                            <p className="mt-1 text-[10px] text-zinc-600">Per-symbol cumulative realized PnL sparklines from recorded trade history.</p>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+                            {filteredSymbolMiniTimelines.length} symbols
+                        </span>
+                    </div>
+                    <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {filteredSymbolMiniTimelines.length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500 md:col-span-2 xl:col-span-3">
+                                {normalizedSymbolFilter
+                                    ? 'No symbol timelines match the current symbol filter.'
+                                    : 'No realized trade sequences yet. Mini timelines appear once symbols accumulate trade history.'}
+                            </p>
+                        ) : (
+                            filteredSymbolMiniTimelines.map((timeline) => {
+                                const path = buildMiniSparklinePath(timeline.points);
+                                const latestPoint = timeline.points[timeline.points.length - 1];
+                                const latestTimestamp = latestPoint?.timestamp ?? null;
+                                const positive = timeline.finalRealizedPnl >= 0;
+                                return (
+                                    <div key={timeline.symbol} className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-sm font-bold text-white">{timeline.symbol}</p>
+                                                <p className="mt-1 text-[11px] text-zinc-500">
+                                                    {timeline.tradeCount} trades | {timeline.realizedTradeCount} realized updates
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className={`text-sm font-bold font-mono ${positive ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {formatCurrency(timeline.finalRealizedPnl)}
+                                                </p>
+                                                <p className="mt-1 text-[10px] text-zinc-500">{formatTimestamp(latestTimestamp)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 rounded-lg border border-white/5 bg-zinc-950/80 px-3 py-3">
+                                            <svg viewBox="0 0 100 44" className="h-16 w-full overflow-visible">
+                                                <path d="M 0 22 L 100 22" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
+                                                {path ? (
+                                                    <path
+                                                        d={path}
+                                                        stroke={positive ? '#22c55e' : '#f87171'}
+                                                        strokeWidth="2"
+                                                        fill="none"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    />
+                                                ) : null}
+                                            </svg>
+                                        </div>
+                                    </div>
+                                );
+                            })
                         )}
                     </div>
                 </div>

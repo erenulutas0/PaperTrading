@@ -206,6 +206,7 @@ class PerformanceAnalyticsServiceTest {
         Map<String, Object> performanceWindows = (Map<String, Object>) result.get("performanceWindows");
         Map<String, Object> periodExtremes = (Map<String, Object>) result.get("periodExtremes");
         java.util.List<Map<String, Object>> symbolAttribution = (java.util.List<Map<String, Object>>) result.get("symbolAttribution");
+        java.util.List<Map<String, Object>> symbolMiniTimelines = (java.util.List<Map<String, Object>>) result.get("symbolMiniTimelines");
         java.util.List<Map<String, Object>> riskAttribution = (java.util.List<Map<String, Object>>) result.get("riskAttribution");
         java.util.List<Map<String, Object>> pnlTimeline = (java.util.List<Map<String, Object>>) result.get("pnlTimeline");
 
@@ -222,6 +223,8 @@ class PerformanceAnalyticsServiceTest {
         assertEquals(2, performanceWindows.size());
         assertEquals(2, periodExtremes.size());
         assertEquals(1, symbolAttribution.size());
+        assertEquals(1, symbolMiniTimelines.size());
+        assertEquals("BTCUSDT", symbolMiniTimelines.get(0).get("symbol"));
         assertEquals(1, riskAttribution.size());
         assertEquals("BTCUSDT", riskAttribution.get(0).get("symbol"));
         assertEquals(104000.0, (double) riskAttribution.get(0).get("exposure"), 0.001);

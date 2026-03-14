@@ -298,6 +298,7 @@ public class PerformanceAnalyticsService {
         // Trade Stats
         analytics.put("tradeStats", buildTradeStats(trades));
         analytics.put("symbolAttribution", buildSymbolAttribution(trades));
+        analytics.put("symbolMiniTimelines", buildSymbolMiniTimelines(trades));
 
         // Equity Curve
         analytics.put("equityCurve", getEquityCurve(portfolioId));
@@ -610,6 +611,53 @@ public class PerformanceAnalyticsService {
                 .toList();
     }
 
+    private List<Map<String, Object>> buildSymbolMiniTimelines(List<TradeActivity> trades) {
+        Map<String, List<TradeActivity>> tradesBySymbol = new LinkedHashMap<>();
+        for (TradeActivity trade : trades) {
+            if (trade.getSymbol() == null) {
+                continue;
+            }
+            tradesBySymbol.computeIfAbsent(trade.getSymbol(), ignored -> new ArrayList<>()).add(trade);
+        }
+
+        return tradesBySymbol.entrySet().stream()
+                .map(entry -> {
+                    List<TradeActivity> symbolTrades = entry.getValue().stream()
+                            .filter(Objects::nonNull)
+                            .sorted(Comparator.comparing(TradeActivity::getTimestamp, Comparator.nullsLast(Comparator.naturalOrder())))
+                            .toList();
+
+                    double runningPnl = 0.0;
+                    List<Map<String, Object>> points = new ArrayList<>();
+                    int realizedTradeCount = 0;
+
+                    for (TradeActivity trade : symbolTrades) {
+                        if (trade.getRealizedPnl() != null) {
+                            runningPnl += trade.getRealizedPnl().doubleValue();
+                            realizedTradeCount++;
+                        }
+
+                        Map<String, Object> point = new LinkedHashMap<>();
+                        point.put("timestamp", trade.getTimestamp() != null ? trade.getTimestamp().toString() : null);
+                        point.put("cumulativePnl", Math.round(runningPnl * 100.0) / 100.0);
+                        points.add(point);
+                    }
+
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("symbol", entry.getKey());
+                    row.put("tradeCount", symbolTrades.size());
+                    row.put("realizedTradeCount", realizedTradeCount);
+                    row.put("finalRealizedPnl", Math.round(runningPnl * 100.0) / 100.0);
+                    row.put("points", points);
+                    return row;
+                })
+                .sorted((left, right) -> Double.compare(
+                        Math.abs(((Number) right.get("finalRealizedPnl")).doubleValue()),
+                        Math.abs(((Number) left.get("finalRealizedPnl")).doubleValue())))
+                .limit(6)
+                .toList();
+    }
+
     private Map<String, Object> buildPeriodExtremes(List<PortfolioSnapshot> snapshots) {
         List<PortfolioSnapshot> validSnapshots = snapshots.stream()
                 .filter(Objects::nonNull)
@@ -711,6 +759,7 @@ public class PerformanceAnalyticsService {
         if (normalizedFilter != null) {
             copy.put("symbolAttribution", filterRowsBySymbol(castList(copy.get("symbolAttribution")), normalizedFilter));
             copy.put("riskAttribution", filterRowsBySymbol(castList(copy.get("riskAttribution")), normalizedFilter));
+            copy.put("symbolMiniTimelines", filterRowsBySymbol(castList(copy.get("symbolMiniTimelines")), normalizedFilter));
 
             Map<String, Object> tradeStats = new LinkedHashMap<>(castMap(copy.get("tradeStats")));
             Map<String, Object> symbolBreakdown = new LinkedHashMap<>();

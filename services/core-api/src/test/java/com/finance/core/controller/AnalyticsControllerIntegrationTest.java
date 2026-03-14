@@ -67,6 +67,7 @@ class AnalyticsControllerIntegrationTest {
                 .andExpect(jsonPath("$.periodExtremes").exists())
                 .andExpect(jsonPath("$.periodExtremes.bestMove").exists())
                 .andExpect(jsonPath("$.symbolAttribution").isArray())
+                .andExpect(jsonPath("$.symbolMiniTimelines").isArray())
                 .andExpect(jsonPath("$.pnlTimeline").isArray())
                 .andExpect(jsonPath("$.riskMetrics").exists())
                 .andExpect(jsonPath("$.tradeStats").exists())
