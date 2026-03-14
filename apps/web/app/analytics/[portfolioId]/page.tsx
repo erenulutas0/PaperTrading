@@ -320,7 +320,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             })
             : 'N/A';
 
-    const downloadText = useCallback((content: string, filename: string, type: string) => {
+    const downloadText = (content: string, filename: string, type: string) => {
         const blob = new Blob([content], { type });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -328,15 +328,15 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         link.download = filename;
         link.click();
         URL.revokeObjectURL(url);
-    }, []);
+    };
 
-    const escapeCsv = useCallback((value: string | number | null | undefined) => {
+    const escapeCsv = (value: string | number | null | undefined) => {
         const raw = value == null ? '' : String(value);
         if (raw.includes(',') || raw.includes('"') || raw.includes('\n')) {
             return `"${raw.replace(/"/g, '""')}"`;
         }
         return raw;
-    }, []);
+    };
 
     if (loading) {
         return (
@@ -400,7 +400,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 6);
 
-    const exportAnalyticsJson = useCallback(() => {
+    const exportAnalyticsJson = () => {
         if (!data) {
             return;
         }
@@ -419,9 +419,9 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics.json`,
             'application/json;charset=utf-8',
         );
-    }, [data, downloadText, normalizedSymbolFilter, portfolioId, selectedCurveWindow, summary.portfolioName]);
+    };
 
-    const exportAnalyticsCsv = useCallback(() => {
+    const exportAnalyticsCsv = () => {
         const rows = [
             ['section', 'label', 'value'],
             ['summary', 'portfolioName', summary.portfolioName],
@@ -448,18 +448,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics.csv`,
             'text/csv;charset=utf-8',
         );
-    }, [
-        downloadText,
-        escapeCsv,
-        filteredSymbolAttribution,
-        normalizedSymbolFilter,
-        periodExtremes.bestMove.returnPercentage,
-        periodExtremes.worstMove.returnPercentage,
-        performanceWindows,
-        positionSummary,
-        selectedCurveWindow,
-        summary,
-    ]);
+    };
 
     return (
         <div className="min-h-screen bg-black text-white">
