@@ -568,6 +568,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         };
     };
 
+    const exposurePalette = ['#22c55e', '#06b6d4', '#f59e0b', '#f97316', '#a855f7', '#ef4444', '#84cc16', '#3b82f6'];
+
     const downloadBlob = (blob: Blob, filename: string) => {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -978,49 +980,93 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                     <div className="mt-5 space-y-3">
                         {filteredRiskAttribution.length === 0 ? (
                             <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                                {normalizedSymbolFilter
+                            {normalizedSymbolFilter
                                     ? 'No live exposure rows match the current symbol filter.'
                                     : 'No live positions. Exposure attribution appears when the portfolio has open holdings.'}
                             </p>
                         ) : (
-                            filteredRiskAttribution.map((row) => (
-                                <div key={`${row.symbol}-${row.side}-${row.leverage}`} className="rounded-xl border border-white/5 bg-black/20 px-4 py-4">
-                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <div className="flex items-center justify-between">
                                         <div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-bold text-white">{row.symbol}</span>
-                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${row.side === 'SHORT' ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
-                                                    {row.side} {row.leverage > 1 ? `${row.leverage}x` : ''}
-                                                </span>
-                                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-400">
-                                                    {row.exposureShare.toFixed(2)}% share
-                                                </span>
-                                            </div>
-                                            <p className="mt-1 text-xs text-zinc-500">
-                                                Qty {row.quantity} | Avg {formatEquity(row.averagePrice)} | Now {formatEquity(row.currentPrice)}
-                                            </p>
+                                            <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Exposure Distribution</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Stacked by gross exposure share across current live positions.</p>
                                         </div>
-                                        <div className="grid gap-2 text-left text-xs lg:grid-cols-3 lg:text-right">
-                                            <div>
-                                                <p className="text-zinc-500">Exposure</p>
-                                                <p className="mt-1 font-mono font-bold text-white">{formatEquity(row.exposure)}</p>
+                                        <p className="text-xs text-zinc-400">
+                                            Total {formatEquity(filteredRiskAttribution.reduce((total, row) => total + row.exposure, 0))}
+                                        </p>
+                                    </div>
+                                    <div className="mt-4 overflow-hidden rounded-full border border-white/5 bg-zinc-950/80">
+                                        <div className="flex h-5 w-full">
+                                            {filteredRiskAttribution.map((row, index) => (
+                                                <div
+                                                    key={`${row.symbol}-${row.side}-segment`}
+                                                    title={`${row.symbol}: ${row.exposureShare.toFixed(2)}%`}
+                                                    className="h-full"
+                                                    style={{
+                                                        width: `${Math.max(row.exposureShare, 1.5)}%`,
+                                                        backgroundColor: exposurePalette[index % exposurePalette.length],
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                                        {filteredRiskAttribution.map((row, index) => (
+                                            <div key={`${row.symbol}-${row.side}-legend`} className="flex items-center gap-2 text-xs text-zinc-400">
+                                                <span
+                                                    className="h-2.5 w-2.5 rounded-full"
+                                                    style={{ backgroundColor: exposurePalette[index % exposurePalette.length] }}
+                                                />
+                                                <span className="font-medium text-zinc-200">{row.symbol}</span>
+                                                <span className="ml-auto font-mono">{row.exposureShare.toFixed(2)}%</span>
                                             </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                {filteredRiskAttribution.map((row, index) => (
+                                    <div key={`${row.symbol}-${row.side}-${row.leverage}`} className="rounded-xl border border-white/5 bg-black/20 px-4 py-4">
+                                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                             <div>
-                                                <p className="text-zinc-500">Unrealized</p>
-                                                <p className={`mt-1 font-mono font-bold ${row.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {formatCurrency(row.unrealizedPnl)}
+                                                <div className="flex items-center gap-2">
+                                                    <span
+                                                        className="h-2.5 w-2.5 rounded-full"
+                                                        style={{ backgroundColor: exposurePalette[index % exposurePalette.length] }}
+                                                    />
+                                                    <span className="text-sm font-bold text-white">{row.symbol}</span>
+                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${row.side === 'SHORT' ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                                                        {row.side} {row.leverage > 1 ? `${row.leverage}x` : ''}
+                                                    </span>
+                                                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-400">
+                                                        {row.exposureShare.toFixed(2)}% share
+                                                    </span>
+                                                </div>
+                                                <p className="mt-1 text-xs text-zinc-500">
+                                                    Qty {row.quantity} | Avg {formatEquity(row.averagePrice)} | Now {formatEquity(row.currentPrice)}
                                                 </p>
                                             </div>
-                                            <div>
-                                                <p className="text-zinc-500">Move</p>
-                                                <p className={`mt-1 font-mono font-bold ${row.movePercentage >= 0 ? 'text-green-300' : 'text-red-300'}`}>
-                                                    {row.movePercentage >= 0 ? '+' : ''}{row.movePercentage.toFixed(2)}%
-                                                </p>
+                                            <div className="grid gap-2 text-left text-xs lg:grid-cols-3 lg:text-right">
+                                                <div>
+                                                    <p className="text-zinc-500">Exposure</p>
+                                                    <p className="mt-1 font-mono font-bold text-white">{formatEquity(row.exposure)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-zinc-500">Unrealized</p>
+                                                    <p className={`mt-1 font-mono font-bold ${row.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {formatCurrency(row.unrealizedPnl)}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-zinc-500">Move</p>
+                                                    <p className={`mt-1 font-mono font-bold ${row.movePercentage >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                                                        {row.movePercentage >= 0 ? '+' : ''}{row.movePercentage.toFixed(2)}%
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))
+                                ))}
+                            </>
                         )}
                     </div>
                 </div>

@@ -38,6 +38,17 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Analytics Added Stacked Exposure Distribution Chart**
+  - **Problem observed**:
+    - The exposure list provided exact numbers, but concentration still required reading row by row.
+    - Users need a fast visual answer to "how crowded is this portfolio right now?" before parsing the table.
+  - **Implementation**:
+    - `/analytics/[portfolioId]` now renders a stacked distribution bar above the existing `Exposure By Symbol` list.
+    - Each segment maps directly to a symbol’s `exposureShare` from `riskAttribution`, with matching legend dots carried into the row list.
+    - The chart remains tied to the existing symbol filter and does not introduce a separate analytics contract.
+  - **Operational impact**:
+    - live concentration risk is visible at a glance instead of only through numeric table scanning
+    - the visual layer stays deterministic because it is derived from the already-validated `riskAttribution` payload
 - **2026-03-15**: **Portfolio Analytics Added Selected-Symbol PnL Detail Surface**
   - **Problem observed**:
     - Symbol mini timelines improved path visibility, but they still left one interaction gap:
