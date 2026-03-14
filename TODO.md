@@ -11,6 +11,7 @@ Last updated: 2026-03-11
   - realized/unrealized/live-position contribution panels
   - rolling `7D / 30D` performance windows
   - realized symbol attribution cards
+  - best/worst interval move cards
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state

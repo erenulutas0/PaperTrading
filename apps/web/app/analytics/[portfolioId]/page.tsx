@@ -52,6 +52,20 @@ interface AnalyticsData {
             snapshotCount: number;
         };
     };
+    periodExtremes?: {
+        bestMove: {
+            absoluteReturn: number;
+            returnPercentage: number;
+            from: string | null;
+            to: string | null;
+        };
+        worstMove: {
+            absoluteReturn: number;
+            returnPercentage: number;
+            from: string | null;
+            to: string | null;
+        };
+    };
     riskMetrics: {
         maxDrawdown: number;
         sharpeRatio: number;
@@ -333,6 +347,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         '7d': { startingEquity: 0, endingEquity: 0, absoluteReturn: 0, returnPercentage: 0, snapshotCount: 0 },
         '30d': { startingEquity: 0, endingEquity: 0, absoluteReturn: 0, returnPercentage: 0, snapshotCount: 0 },
     };
+    const periodExtremes = data.periodExtremes ?? {
+        bestMove: { absoluteReturn: 0, returnPercentage: 0, from: null, to: null },
+        worstMove: { absoluteReturn: 0, returnPercentage: 0, from: null, to: null },
+    };
     const symbolAttribution = data.symbolAttribution ?? [];
     const performancePositive = summary.absoluteReturn >= 0;
 
@@ -550,6 +568,34 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             )}
                         </div>
                     </div>
+                </div>
+
+                <div className="mb-6 grid gap-6 xl:grid-cols-2">
+                    {[
+                        ['Best Interval Move', periodExtremes.bestMove, 'text-green-400', 'text-green-300'],
+                        ['Worst Interval Move', periodExtremes.worstMove, 'text-red-400', 'text-red-300'],
+                    ].map(([label, move, accent, softAccent]) => (
+                        <div key={label} className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">{label}</h2>
+                                    <p className="mt-1 text-[10px] text-zinc-600">Largest point-to-point equity step in the stored curve.</p>
+                                </div>
+                            </div>
+                            <div className="mt-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                                <div>
+                                    <p className={`text-3xl font-bold ${accent}`}>{formatCurrency(move.absoluteReturn)}</p>
+                                    <p className={`mt-1 text-sm font-mono ${softAccent}`}>
+                                        {move.returnPercentage >= 0 ? '+' : ''}{move.returnPercentage.toFixed(2)}%
+                                    </p>
+                                </div>
+                                <div className="text-xs text-zinc-500">
+                                    <p>{formatTimestamp(move.from)}</p>
+                                    <p className="mt-1">to {formatTimestamp(move.to)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Equity Curve */}

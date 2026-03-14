@@ -278,6 +278,7 @@ public class PerformanceAnalyticsService {
         analytics.put("summary", buildPortfolioSummary(portfolio, snapshots));
         analytics.put("positionSummary", buildPositionSummary(portfolio, trades));
         analytics.put("performanceWindows", buildPerformanceWindows(snapshots));
+        analytics.put("periodExtremes", buildPeriodExtremes(snapshots));
 
         // Risk Metrics
         Map<String, Object> risk = new LinkedHashMap<>();
@@ -476,5 +477,54 @@ public class PerformanceAnalyticsService {
                         Math.abs(((Number) left.get("realizedPnl")).doubleValue())))
                 .limit(6)
                 .toList();
+    }
+
+    private Map<String, Object> buildPeriodExtremes(List<PortfolioSnapshot> snapshots) {
+        List<PortfolioSnapshot> validSnapshots = snapshots.stream()
+                .filter(Objects::nonNull)
+                .filter(snapshot -> snapshot.getTotalEquity() != null)
+                .toList();
+        if (validSnapshots.size() < 2) {
+            Map<String, Object> emptyMove = new LinkedHashMap<>();
+            emptyMove.put("absoluteReturn", 0.0);
+            emptyMove.put("returnPercentage", 0.0);
+            emptyMove.put("from", null);
+            emptyMove.put("to", null);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("bestMove", new LinkedHashMap<>(emptyMove));
+            result.put("worstMove", new LinkedHashMap<>(emptyMove));
+            return result;
+        }
+
+        Map<String, Object> best = null;
+        Map<String, Object> worst = null;
+
+        for (int i = 1; i < validSnapshots.size(); i++) {
+            PortfolioSnapshot previous = validSnapshots.get(i - 1);
+            PortfolioSnapshot current = validSnapshots.get(i);
+            double previousEquity = previous.getTotalEquity().doubleValue();
+            double currentEquity = current.getTotalEquity().doubleValue();
+            double absoluteReturn = currentEquity - previousEquity;
+            double returnPercentage = previousEquity > 0 ? (absoluteReturn / previousEquity) * 100.0 : 0.0;
+
+            Map<String, Object> move = new LinkedHashMap<>();
+            move.put("absoluteReturn", Math.round(absoluteReturn * 100.0) / 100.0);
+            move.put("returnPercentage", Math.round(returnPercentage * 100.0) / 100.0);
+            move.put("from", previous.getTimestamp() != null ? previous.getTimestamp().toString() : null);
+            move.put("to", current.getTimestamp() != null ? current.getTimestamp().toString() : null);
+
+            if (best == null || ((Number) move.get("absoluteReturn")).doubleValue() > ((Number) best.get("absoluteReturn")).doubleValue()) {
+                best = move;
+            }
+            if (worst == null || ((Number) move.get("absoluteReturn")).doubleValue() < ((Number) worst.get("absoluteReturn")).doubleValue()) {
+                worst = move;
+            }
+        }
+
+        Map<String, Object> extremes = new LinkedHashMap<>();
+        extremes.put("bestMove", best);
+        extremes.put("worstMove", worst);
+        return extremes;
     }
 }

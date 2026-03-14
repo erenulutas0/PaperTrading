@@ -61,6 +61,8 @@ class AnalyticsControllerIntegrationTest {
                 .andExpect(jsonPath("$.positionSummary.openPositions").value(0))
                 .andExpect(jsonPath("$.performanceWindows").exists())
                 .andExpect(jsonPath("$.performanceWindows.7d").exists())
+                .andExpect(jsonPath("$.periodExtremes").exists())
+                .andExpect(jsonPath("$.periodExtremes.bestMove").exists())
                 .andExpect(jsonPath("$.symbolAttribution").isArray())
                 .andExpect(jsonPath("$.riskMetrics").exists())
                 .andExpect(jsonPath("$.tradeStats").exists())

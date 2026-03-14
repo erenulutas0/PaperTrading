@@ -108,6 +108,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - "what is happening now?"
       - "what has been working recently?"
     - realized attribution is explicit instead of forcing users to infer it from raw trade stats
+- **2026-03-14**: **Portfolio Analytics Added Best/Worst Interval Move Cards**
+  - **Problem observed**:
+    - Even with rolling windows, users still had to visually inspect the curve to guess the sharpest favorable and adverse moves.
+    - That kind of pattern should be explicit, not inferred from the chart by eye.
+  - **Implementation**:
+    - `PerformanceAnalyticsService` now derives `periodExtremes` from adjacent snapshot moves:
+      - `bestMove`
+      - `worstMove`
+      with absolute and percentage return plus the time window
+    - `app/analytics/[portfolioId]` now surfaces those extremes in dedicated cards.
+  - **Operational impact**:
+    - users can immediately see the sharpest upside and downside interval without manually parsing the equity curve
 - **2026-03-14**: **Shared Layout Links Split Into Preview Surface and Full Terminal Surface**
   - **Problem observed**:
     - Sending a shared layout directly into the full terminal works, but it is heavier than necessary for first contact.
