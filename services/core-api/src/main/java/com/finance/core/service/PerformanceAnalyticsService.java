@@ -2,8 +2,10 @@ package com.finance.core.service;
 
 import com.finance.core.domain.AnalysisPost;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.PortfolioSnapshot;
 import com.finance.core.domain.TradeActivity;
+import com.finance.core.dto.MarketInstrumentResponse;
 import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.PortfolioSnapshotRepository;
@@ -22,6 +24,7 @@ public class PerformanceAnalyticsService {
     private final AnalysisPostRepository analysisPostRepository;
     private final TradeActivityRepository tradeActivityRepository;
     private final PortfolioRepository portfolioRepository;
+    private final MarketDataFacadeService marketDataFacadeService;
 
     // ==================== RISK METRICS ====================
 
@@ -150,7 +153,10 @@ public class PerformanceAnalyticsService {
      */
     public Map<String, Object> getTradeStats(UUID portfolioId) {
         List<TradeActivity> trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId);
+        return buildTradeStats(trades);
+    }
 
+    private Map<String, Object> buildTradeStats(List<TradeActivity> trades) {
         int totalTrades = trades.size();
         int buyCount = 0, sellCount = 0;
         int longCount = 0, shortCount = 0;
@@ -263,11 +269,13 @@ public class PerformanceAnalyticsService {
      */
     public Map<String, Object> getFullAnalytics(UUID portfolioId, UUID userId) {
         Map<String, Object> analytics = new LinkedHashMap<>();
-        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+        Portfolio portfolio = portfolioRepository.findWithItemsById(portfolioId)
                 .orElseThrow(() -> new RuntimeException("Portfolio not found"));
         List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
+        List<TradeActivity> trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId);
 
         analytics.put("summary", buildPortfolioSummary(portfolio, snapshots));
+        analytics.put("positionSummary", buildPositionSummary(portfolio, trades));
 
         // Risk Metrics
         Map<String, Object> risk = new LinkedHashMap<>();
@@ -282,7 +290,7 @@ public class PerformanceAnalyticsService {
         analytics.put("predictionWinRate", Math.round(calculateWinRate(userId) * 100.0) / 100.0);
 
         // Trade Stats
-        analytics.put("tradeStats", getTradeStats(portfolioId));
+        analytics.put("tradeStats", buildTradeStats(trades));
 
         // Equity Curve
         analytics.put("equityCurve", getEquityCurve(portfolioId));
@@ -338,6 +346,66 @@ public class PerformanceAnalyticsService {
         summary.put("snapshotCount", snapshots.size());
         summary.put("firstSnapshotAt", snapshots.isEmpty() ? null : snapshots.get(0).getTimestamp().toString());
         summary.put("latestSnapshotAt", snapshots.isEmpty() ? null : snapshots.get(snapshots.size() - 1).getTimestamp().toString());
+        return summary;
+    }
+
+    private Map<String, Object> buildPositionSummary(Portfolio portfolio, List<TradeActivity> trades) {
+        List<PortfolioItem> items = portfolio.getItems() != null ? portfolio.getItems() : List.of();
+        Map<String, MarketInstrumentResponse> instrumentSnapshots = marketDataFacadeService.getInstrumentSnapshots(
+                items.stream()
+                        .map(PortfolioItem::getSymbol)
+                        .filter(Objects::nonNull)
+                        .toList());
+
+        double realizedPnl = trades.stream()
+                .map(TradeActivity::getRealizedPnl)
+                .filter(Objects::nonNull)
+                .mapToDouble(BigDecimal::doubleValue)
+                .sum();
+        double unrealizedPnl = 0.0;
+        double grossExposure = 0.0;
+        List<Map<String, Object>> topPositions = new ArrayList<>();
+
+        for (PortfolioItem item : items) {
+            MarketInstrumentResponse snapshot = instrumentSnapshots.get(
+                    item.getSymbol() != null ? item.getSymbol().toUpperCase() : null);
+            double currentPrice = snapshot != null && snapshot.getCurrentPrice() > 0.0
+                    ? snapshot.getCurrentPrice()
+                    : item.getAveragePrice().doubleValue();
+            double quantity = item.getQuantity() != null ? item.getQuantity().doubleValue() : 0.0;
+            double averagePrice = item.getAveragePrice() != null ? item.getAveragePrice().doubleValue() : 0.0;
+            int leverage = item.getLeverage() != null && item.getLeverage() > 0 ? item.getLeverage() : 1;
+            double pnl = "SHORT".equalsIgnoreCase(item.getSide())
+                    ? (averagePrice - currentPrice) * quantity
+                    : (currentPrice - averagePrice) * quantity;
+            double exposure = quantity * currentPrice;
+
+            unrealizedPnl += pnl;
+            grossExposure += exposure;
+
+            Map<String, Object> position = new LinkedHashMap<>();
+            position.put("symbol", item.getSymbol());
+            position.put("side", item.getSide());
+            position.put("leverage", leverage);
+            position.put("quantity", Math.round(quantity * 10000.0) / 10000.0);
+            position.put("averagePrice", Math.round(averagePrice * 100.0) / 100.0);
+            position.put("currentPrice", Math.round(currentPrice * 100.0) / 100.0);
+            position.put("exposure", Math.round(exposure * 100.0) / 100.0);
+            position.put("unrealizedPnl", Math.round(pnl * 100.0) / 100.0);
+            topPositions.add(position);
+        }
+
+        topPositions.sort((left, right) -> Double.compare(
+                Math.abs(((Number) right.get("unrealizedPnl")).doubleValue()),
+                Math.abs(((Number) left.get("unrealizedPnl")).doubleValue())));
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("openPositions", items.size());
+        summary.put("grossExposure", Math.round(grossExposure * 100.0) / 100.0);
+        summary.put("realizedPnl", Math.round(realizedPnl * 100.0) / 100.0);
+        summary.put("unrealizedPnl", Math.round(unrealizedPnl * 100.0) / 100.0);
+        summary.put("netPnl", Math.round((realizedPnl + unrealizedPnl) * 100.0) / 100.0);
+        summary.put("topPositions", topPositions.stream().limit(5).toList());
         return summary;
     }
 }

@@ -57,6 +57,8 @@ class AnalyticsControllerIntegrationTest {
                 .andExpect(jsonPath("$.summary").exists())
                 .andExpect(jsonPath("$.summary.portfolioName").value("Analytics Test"))
                 .andExpect(jsonPath("$.summary.visibility").value("PUBLIC"))
+                .andExpect(jsonPath("$.positionSummary").exists())
+                .andExpect(jsonPath("$.positionSummary.openPositions").value(0))
                 .andExpect(jsonPath("$.riskMetrics").exists())
                 .andExpect(jsonPath("$.tradeStats").exists())
                 .andExpect(jsonPath("$.equityCurve").exists());

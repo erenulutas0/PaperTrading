@@ -7,6 +7,8 @@ Last updated: 2026-03-11
   - portfolio identity and visibility in the header
   - current equity / net return / peak / trough summary cards
   - responsive trade/risk sections backed by the new backend `summary` block
+  - dashboard portfolio-card `Analytics` CTA
+  - realized/unrealized/live-position contribution panels
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state

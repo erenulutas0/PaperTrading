@@ -383,7 +383,14 @@ export default function Dashboard() {
                                                     {isPositive ? '▲' : '▼'} {Math.abs(plPercent).toFixed(2)}% (${Math.abs(pl).toLocaleString(undefined, { maximumFractionDigits: 2 })})
                                                 </span>
                                             </div>
-                                            <Link href={`/dashboard/portfolio/${p.id}`} className="text-xs bg-white/5 border border-white/10 hover:bg-white/10 px-4 py-2 rounded-lg transition-colors text-zinc-300 relative z-10">View History</Link>
+                                            <div className="flex gap-2 relative z-10">
+                                                <Link href={`/analytics/${p.id}`} className="text-xs bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 px-4 py-2 rounded-lg transition-colors text-blue-300">
+                                                    Analytics
+                                                </Link>
+                                                <Link href={`/dashboard/portfolio/${p.id}`} className="text-xs bg-white/5 border border-white/10 hover:bg-white/10 px-4 py-2 rounded-lg transition-colors text-zinc-300">
+                                                    View History
+                                                </Link>
+                                            </div>
                                         </div>
 
                                         <button

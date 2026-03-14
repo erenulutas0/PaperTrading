@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Collection;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.Query;
@@ -53,6 +54,9 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
 
     @EntityGraph(attributePaths = "items")
     List<Portfolio> findByIdIn(Collection<UUID> ids);
+
+    @EntityGraph(attributePaths = "items")
+    Optional<Portfolio> findWithItemsById(UUID id);
 
     @EntityGraph(attributePaths = "items")
     Page<Portfolio> findByOwnerIdAndVisibility(String ownerId, Portfolio.Visibility visibility, Pageable pageable);

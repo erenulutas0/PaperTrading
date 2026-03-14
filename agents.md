@@ -65,6 +65,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - analytics now reads like a portfolio control room instead of an isolated metrics dump
     - rollout order is safer because the frontend tolerates a temporarily missing `summary` payload
+- **2026-03-14**: **Portfolio Analytics Extended With Live Position Attribution and Dashboard Entry Point**
+  - **Problem observed**:
+    - Even after the first summary pass, portfolio analytics was still one click too hidden from the main dashboard.
+    - The page also lacked a live decomposition of:
+      - realized PnL
+      - unrealized PnL
+      - gross exposure
+      - top open contributors by symbol
+  - **Implementation**:
+    - Added explicit `Analytics` CTA on each dashboard portfolio card.
+    - `PerformanceAnalyticsService` now resolves the portfolio with items eagerly and adds `positionSummary` to the analytics payload:
+      - open position count
+      - realized / unrealized / net PnL
+      - gross exposure
+      - top live positions with current price and unrealized contribution
+    - Reused `MarketDataFacadeService` so the analytics surface can consume current symbol snapshots instead of hard-wiring crypto-only pricing logic.
+    - Updated analytics tests to lock the expanded contract.
+  - **Operational impact**:
+    - analytics is discoverable from the dashboard instead of requiring a manual route
+    - users can now separate closed-trade performance from still-open risk on the same page
 - **2026-03-14**: **Shared Layout Links Split Into Preview Surface and Full Terminal Surface**
   - **Problem observed**:
     - Sending a shared layout directly into the full terminal works, but it is heavier than necessary for first contact.

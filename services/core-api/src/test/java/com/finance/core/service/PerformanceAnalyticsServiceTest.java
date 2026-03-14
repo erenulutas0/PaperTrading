@@ -2,7 +2,9 @@ package com.finance.core.service;
 
 import com.finance.core.domain.AnalysisPost;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.PortfolioSnapshot;
+import com.finance.core.dto.MarketInstrumentResponse;
 import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.PortfolioSnapshotRepository;
@@ -39,6 +41,9 @@ class PerformanceAnalyticsServiceTest {
 
     @Mock
     private PortfolioRepository portfolioRepository;
+
+    @Mock
+    private MarketDataFacadeService marketDataFacadeService;
 
     @InjectMocks
     private PerformanceAnalyticsService analyticsService;
@@ -159,17 +164,32 @@ class PerformanceAnalyticsServiceTest {
                 .balance(BigDecimal.valueOf(100000))
                 .visibility(Portfolio.Visibility.PUBLIC)
                 .ownerId(authorId.toString())
+                .items(Arrays.asList(
+                        PortfolioItem.builder()
+                                .symbol("BTCUSDT")
+                                .quantity(BigDecimal.valueOf(2))
+                                .averagePrice(BigDecimal.valueOf(50000))
+                                .side("LONG")
+                                .leverage(1)
+                                .build()))
                 .build();
         PortfolioSnapshot s1 = createSnapshot(BigDecimal.valueOf(100000));
         PortfolioSnapshot s2 = createSnapshot(BigDecimal.valueOf(105000));
 
-        when(portfolioRepository.findById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.of(portfolio));
         when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(Arrays.asList(s1, s2));
         when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(any(), any())).thenReturn(0L);
         when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(Collections.emptyList());
+        when(marketDataFacadeService.getInstrumentSnapshots(any())).thenReturn(Map.of(
+                "BTCUSDT",
+                MarketInstrumentResponse.builder()
+                        .symbol("BTCUSDT")
+                        .currentPrice(52000.0)
+                        .build()));
 
         Map<String, Object> result = analyticsService.getFullAnalytics(portfolioId, authorId);
         Map<String, Object> summary = (Map<String, Object>) result.get("summary");
+        Map<String, Object> positionSummary = (Map<String, Object>) result.get("positionSummary");
 
         assertEquals("Alpha", summary.get("portfolioName"));
         assertEquals("PUBLIC", summary.get("visibility"));
@@ -177,6 +197,9 @@ class PerformanceAnalyticsServiceTest {
         assertEquals(105000.0, (double) summary.get("currentEquity"), 0.001);
         assertEquals(5000.0, (double) summary.get("absoluteReturn"), 0.001);
         assertEquals(5.0, (double) summary.get("returnPercentage"), 0.001);
+        assertEquals(1, positionSummary.get("openPositions"));
+        assertEquals(104000.0, (double) positionSummary.get("grossExposure"), 0.001);
+        assertEquals(4000.0, (double) positionSummary.get("unrealizedPnl"), 0.001);
     }
 
     private PortfolioSnapshot createSnapshot(BigDecimal equity) {

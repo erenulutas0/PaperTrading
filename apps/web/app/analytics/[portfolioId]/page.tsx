@@ -19,6 +19,23 @@ interface AnalyticsData {
         firstSnapshotAt: string | null;
         latestSnapshotAt: string | null;
     };
+    positionSummary?: {
+        openPositions: number;
+        grossExposure: number;
+        realizedPnl: number;
+        unrealizedPnl: number;
+        netPnl: number;
+        topPositions: {
+            symbol: string;
+            side: string;
+            leverage: number;
+            quantity: number;
+            averagePrice: number;
+            currentPrice: number;
+            exposure: number;
+            unrealizedPnl: number;
+        }[];
+    };
     riskMetrics: {
         maxDrawdown: number;
         sharpeRatio: number;
@@ -283,6 +300,14 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         firstSnapshotAt: null,
         latestSnapshotAt: null,
     };
+    const positionSummary = data.positionSummary ?? {
+        openPositions: 0,
+        grossExposure: 0,
+        realizedPnl: 0,
+        unrealizedPnl: 0,
+        netPnl: 0,
+        topPositions: [],
+    };
     const performancePositive = summary.absoluteReturn >= 0;
 
     return (
@@ -363,6 +388,75 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             {data.predictionWinRate.toFixed(2)}%
                         </p>
                         <p className="mt-2 text-xs text-zinc-500">Resolved analysis hit rate</p>
+                    </div>
+                </div>
+
+                <div className="mb-6 grid gap-6 xl:grid-cols-12">
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Position Summary</h2>
+                                <p className="mt-1 text-[10px] text-zinc-600">Live open-risk footprint built from current holdings.</p>
+                            </div>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+                                {positionSummary.openPositions} open
+                            </span>
+                        </div>
+                        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                            {[
+                                { label: 'Realized PnL', value: positionSummary.realizedPnl },
+                                { label: 'Unrealized PnL', value: positionSummary.unrealizedPnl },
+                                { label: 'Net PnL', value: positionSummary.netPnl },
+                                { label: 'Gross Exposure', value: positionSummary.grossExposure, neutral: true },
+                            ].map((metric) => (
+                                <div key={metric.label} className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">{metric.label}</p>
+                                    <p className={`mt-2 text-xl font-bold font-mono ${metric.neutral ? 'text-white' : metric.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {formatEquity(metric.value)}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-7">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Top Open Positions</h2>
+                                <p className="mt-1 text-[10px] text-zinc-600">Largest live contributors by unrealized PnL magnitude.</p>
+                            </div>
+                        </div>
+                        <div className="mt-5 space-y-3">
+                            {positionSummary.topPositions.length === 0 ? (
+                                <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                                    No open positions. Analytics is currently driven by historical trade and snapshot data.
+                                </p>
+                            ) : (
+                                positionSummary.topPositions.map((position) => (
+                                    <div key={`${position.symbol}-${position.side}`} className="rounded-xl border border-white/5 bg-black/20 px-4 py-4">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-bold text-white">{position.symbol}</span>
+                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${position.side === 'SHORT' ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                                                        {position.side} {position.leverage > 1 ? `${position.leverage}x` : ''}
+                                                    </span>
+                                                </div>
+                                                <p className="mt-1 text-xs text-zinc-500">
+                                                    Qty {position.quantity} | Avg {formatEquity(position.averagePrice)} | Now {formatEquity(position.currentPrice)}
+                                                </p>
+                                            </div>
+                                            <div className="text-left md:text-right">
+                                                <p className={`text-lg font-bold font-mono ${position.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {formatCurrency(position.unrealizedPnl)}
+                                                </p>
+                                                <p className="text-xs text-zinc-500">Exposure {formatEquity(position.exposure)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
 
