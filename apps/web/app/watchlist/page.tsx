@@ -11,6 +11,7 @@ import {
     fetchTerminalLayouts,
     fetchUserPreferences,
     TerminalLayoutResponsePayload,
+    updateTerminalLayout,
     updateTerminalPreferences,
 } from '../../lib/user-preferences';
 
@@ -201,6 +202,9 @@ export default function WatchlistPage() {
     const [favoriteSymbols, setFavoriteSymbols] = useState<string[]>([]);
     const [terminalLayouts, setTerminalLayouts] = useState<TerminalLayoutResponsePayload[]>([]);
     const [layoutNameDraft, setLayoutNameDraft] = useState('');
+    const [editingLayoutId, setEditingLayoutId] = useState<string | null>(null);
+    const [editingLayoutName, setEditingLayoutName] = useState('');
+    const [activeLayoutId, setActiveLayoutId] = useState<string | null>(null);
     const [candles, setCandles] = useState<CandlePoint[]>([]);
     const [compareCandles, setCompareCandles] = useState<Record<string, CandlePoint[]>>({});
     const [chartActivePoint, setChartActivePoint] = useState<CandlePoint | null>(null);
@@ -1152,6 +1156,7 @@ export default function WatchlistPage() {
         setSelectedRange(layout.range);
         setSelectedInterval(layout.interval);
         setFavoriteSymbols(layout.favoriteSymbols);
+        setActiveLayoutId(layout.id);
     };
 
     const handleDeleteLayout = async (layoutId: string) => {
@@ -1163,6 +1168,69 @@ export default function WatchlistPage() {
             return;
         }
         setTerminalLayouts((current) => current.filter((layout) => layout.id !== layoutId));
+        if (activeLayoutId === layoutId) {
+            setActiveLayoutId(null);
+        }
+        if (editingLayoutId === layoutId) {
+            setEditingLayoutId(null);
+            setEditingLayoutName('');
+        }
+    };
+
+    const handleStartEditLayout = (layout: TerminalLayoutResponsePayload) => {
+        setEditingLayoutId(layout.id);
+        setEditingLayoutName(layout.name);
+    };
+
+    const handleCancelEditLayout = () => {
+        setEditingLayoutId(null);
+        setEditingLayoutName('');
+    };
+
+    const handleSaveLayoutName = async (layout: TerminalLayoutResponsePayload) => {
+        const trimmed = editingLayoutName.trim();
+        if (!currentUserId || !trimmed) {
+            return;
+        }
+        const updated = await updateTerminalLayout(currentUserId, layout.id, {
+            name: trimmed,
+            watchlistId: layout.watchlistId,
+            market: layout.market,
+            symbol: layout.symbol,
+            compareSymbols: layout.compareSymbols,
+            compareVisible: layout.compareVisible,
+            range: layout.range,
+            interval: layout.interval,
+            favoriteSymbols: layout.favoriteSymbols,
+        });
+        if (!updated) {
+            return;
+        }
+        setTerminalLayouts((current) => current.map((entry) => entry.id === layout.id ? updated : entry));
+        setEditingLayoutId(null);
+        setEditingLayoutName('');
+    };
+
+    const handleOverwriteLayout = async (layout: TerminalLayoutResponsePayload) => {
+        if (!currentUserId) {
+            return;
+        }
+        const updated = await updateTerminalLayout(currentUserId, layout.id, {
+            name: layout.name,
+            watchlistId: selectedWatchlist,
+            market: selectedMarket,
+            symbol: selectedSymbol,
+            compareSymbols,
+            compareVisible,
+            range: selectedRange,
+            interval: selectedInterval,
+            favoriteSymbols,
+        });
+        if (!updated) {
+            return;
+        }
+        setTerminalLayouts((current) => [updated, ...current.filter((entry) => entry.id !== layout.id)]);
+        setActiveLayoutId(layout.id);
     };
 
     return (
@@ -1552,44 +1620,92 @@ export default function WatchlistPage() {
                                                 terminalLayouts.map((layout) => (
                                                     <div key={layout.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
                                                         <div className="flex items-start justify-between gap-3">
-                                                            <div>
-                                                                <p className="text-sm font-semibold text-white">{layout.name}</p>
-                                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
-                                                                        {layout.market}
-                                                                    </span>
-                                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
-                                                                        {layout.symbol}
-                                                                    </span>
-                                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
-                                                                        {layout.range} · {layout.interval}
-                                                                    </span>
-                                                                    {layout.compareSymbols.length > 0 && (
-                                                                        <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
-                                                                            Compare {layout.compareSymbols.join(', ')}
-                                                                        </span>
-                                                                    )}
-                                                                    {layout.watchlistId && (
-                                                                        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
-                                                                            Watchlist linked
-                                                                        </span>
-                                                                    )}
+                                                            <div className="min-w-0 flex-1">
+                                                                {editingLayoutId === layout.id ? (
+                                                                    <div className="space-y-3">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={editingLayoutName}
+                                                                            onChange={(event) => setEditingLayoutName(event.target.value)}
+                                                                            className="w-full rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
+                                                                        />
+                                                                        <div className="flex gap-2">
+                                                                            <button
+                                                                                onClick={() => handleSaveLayoutName(layout)}
+                                                                                className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-300 transition hover:bg-emerald-400/20"
+                                                                            >
+                                                                                Save
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={handleCancelEditLayout}
+                                                                                className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-400 transition hover:text-white"
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <p className="text-sm font-semibold text-white">{layout.name}</p>
+                                                                            {activeLayoutId === layout.id && (
+                                                                                <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300">
+                                                                                    Active
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                                                {layout.market}
+                                                                            </span>
+                                                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                                                {layout.symbol}
+                                                                            </span>
+                                                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                                                {layout.range} · {layout.interval}
+                                                                            </span>
+                                                                            {layout.compareSymbols.length > 0 && (
+                                                                                <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                                                                                    Compare {layout.compareSymbols.join(', ')}
+                                                                                </span>
+                                                                            )}
+                                                                            {layout.watchlistId && (
+                                                                                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                                                                                    Watchlist linked
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                            {editingLayoutId !== layout.id && (
+                                                                <div className="flex shrink-0 gap-3">
+                                                                    <button
+                                                                        onClick={() => handleApplyLayout(layout)}
+                                                                        className="text-xs text-amber-300 transition hover:text-amber-200"
+                                                                    >
+                                                                        Apply
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleOverwriteLayout(layout)}
+                                                                        className="text-xs text-sky-300 transition hover:text-sky-200"
+                                                                    >
+                                                                        Overwrite
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleStartEditLayout(layout)}
+                                                                        className="text-xs text-zinc-500 transition hover:text-amber-300"
+                                                                    >
+                                                                        Rename
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteLayout(layout.id)}
+                                                                        className="text-xs text-zinc-500 transition hover:text-red-400"
+                                                                    >
+                                                                        Remove
+                                                                    </button>
                                                                 </div>
-                                                            </div>
-                                                            <div className="flex shrink-0 gap-3">
-                                                                <button
-                                                                    onClick={() => handleApplyLayout(layout)}
-                                                                    className="text-xs text-amber-300 transition hover:text-amber-200"
-                                                                >
-                                                                    Apply
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleDeleteLayout(layout.id)}
-                                                                    className="text-xs text-zinc-500 transition hover:text-red-400"
-                                                                >
-                                                                    Remove
-                                                                </button>
-                                                            </div>
+                                                            )}
                                                         </div>
                                                         <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
                                                             Updated {new Date(layout.updatedAt).toLocaleString()}

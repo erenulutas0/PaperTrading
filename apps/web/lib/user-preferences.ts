@@ -167,6 +167,28 @@ export async function createTerminalLayout(
   }
 }
 
+export async function updateTerminalLayout(
+  userId: string,
+  layoutId: string,
+  payload: SaveTerminalLayoutPayload
+): Promise<TerminalLayoutResponsePayload | null> {
+  try {
+    const res = await apiFetch(`/api/v1/users/me/preferences/terminal-layouts/${layoutId}`, {
+      method: "PUT",
+      headers: userIdHeaders(userId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return (await res.json()) as TerminalLayoutResponsePayload;
+  } catch {
+    return null;
+  }
+}
+
 export async function deleteTerminalLayout(
   userId: string,
   layoutId: string
