@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { decodeSharedLayout, SharedTerminalLayoutPayload } from '../../../lib/market-terminal-share';
 
@@ -16,7 +16,7 @@ function formatPreviewLines(layout: SharedTerminalLayoutPayload) {
   ];
 }
 
-export default function SharedWatchlistLayoutPage() {
+function SharedWatchlistLayoutContent() {
   const params = useSearchParams();
   const [message, setMessage] = useState('');
   const encoded = params.get('layout') || params.get('sharedLayout') || '';
@@ -127,5 +127,21 @@ export default function SharedWatchlistLayoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SharedWatchlistLayoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.10),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(34,197,94,0.10),_transparent_28%),#040404] px-6 py-10 text-white">
+          <div className="mx-auto max-w-4xl rounded-3xl border border-white/10 bg-black/45 p-8 backdrop-blur-xl">
+            <p className="text-sm text-zinc-400">Loading shared market layout preview...</p>
+          </div>
+        </div>
+      }
+    >
+      <SharedWatchlistLayoutContent />
+    </Suspense>
   );
 }
