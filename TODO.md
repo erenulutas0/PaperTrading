@@ -3,6 +3,10 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after richer terminal snapshot/shared-layout preview rollout and verify `/watchlist` now surfaces:
+  - watchlist context in snapshot output
+  - compare/favorites counts in snapshot/share surfaces
+  - pinned-note preview inside the snapshot card
 - [ ] Redeploy frontend after terminal snapshot/share-card rollout and verify `/watchlist` now supports:
   - copyable current-state terminal summary
   - current-state share link generation without saving a layout first

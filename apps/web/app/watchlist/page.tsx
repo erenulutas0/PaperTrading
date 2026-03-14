@@ -349,6 +349,17 @@ export default function WatchlistPage() {
         return enrichedItems.find((item) => item.symbol === selectedSymbol) ?? null;
     }, [enrichedItems, selectedSymbol]);
 
+    const selectedWatchlistMeta = useMemo(() => {
+        if (!selectedWatchlist) {
+            return null;
+        }
+        return watchlists.find((watchlist) => watchlist.id === selectedWatchlist) ?? null;
+    }, [selectedWatchlist, watchlists]);
+
+    const topPinnedNotes = useMemo(() => {
+        return chartNotes.filter((note) => note.pinned).slice(0, 2);
+    }, [chartNotes]);
+
     const filteredChartNotes = useMemo(() => {
         const query = chartNoteQuery.trim().toLowerCase();
         return chartNotes.filter((note) => {
@@ -508,22 +519,32 @@ export default function WatchlistPage() {
                 .join(' | ')
             : 'No compare overlays';
         const notesLine = `${chartNotes.length} notes`;
+        const pinnedNotesLine = topPinnedNotes.length > 0
+            ? topPinnedNotes.map((note) => note.body).join(' | ')
+            : 'No pinned notes';
         const alertsLine = selectedWatchlistItem
             ? `Above ${selectedWatchlistItem.alertPriceAbove || '-'} / Below ${selectedWatchlistItem.alertPriceBelow || '-'}`
             : 'No watchlist alert bound';
+        const watchlistLine = selectedWatchlistMeta
+            ? `${selectedWatchlistMeta.name} (${selectedWatchlistMeta.items.length} items)`
+            : 'No active watchlist';
 
         return [
             `Market Terminal Snapshot`,
             `${selectedDisplayName} (${selectedSymbol})`,
             `Market: ${selectedMarket} | Range: ${selectedRange} | Interval: ${selectedInterval}`,
+            `Watchlist: ${watchlistLine}`,
             `Spot: ${formatMoney(Number(selectedInstrument?.currentPrice ?? 0))} | 24h: ${formatPercent(Number(selectedInstrument?.changePercent24h ?? 0))}`,
             `Compare: ${compareLine}`,
+            `Favorites: ${favoriteSymbols.length}`,
             `Alerts: ${alertsLine}`,
             `Notes: ${notesLine}`,
+            `Pinned Notes: ${pinnedNotesLine}`,
         ].join('\n');
     }, [
         chartNotes.length,
         compareSessionSummary,
+        favoriteSymbols.length,
         selectedDisplayName,
         selectedInstrument?.changePercent24h,
         selectedInstrument?.currentPrice,
@@ -531,7 +552,9 @@ export default function WatchlistPage() {
         selectedMarket,
         selectedRange,
         selectedSymbol,
+        selectedWatchlistMeta,
         selectedWatchlistItem,
+        topPinnedNotes,
     ]);
 
     useEffect(() => {
@@ -1975,6 +1998,21 @@ export default function WatchlistPage() {
                                                         <p className="mt-1 text-xs text-zinc-400">
                                                             {sharedLayout.market} · {sharedLayout.symbol} · {sharedLayout.range} / {sharedLayout.interval}
                                                         </p>
+                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                            {sharedLayout.compareSymbols.length > 0 && (
+                                                                <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                                                                    Compare {sharedLayout.compareSymbols.join(', ')}
+                                                                </span>
+                                                            )}
+                                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                                Favorites {sharedLayout.favoriteSymbols.length}
+                                                            </span>
+                                                            {sharedLayout.watchlistId && (
+                                                                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                                                                    Watchlist linked
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <div className="flex gap-2">
                                                         <button
@@ -2253,7 +2291,37 @@ export default function WatchlistPage() {
                                                 </button>
                                             </div>
                                         </div>
+                                        <div className="mt-4 flex flex-wrap gap-2">
+                                            {selectedWatchlistMeta && (
+                                                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                                                    {selectedWatchlistMeta.name}
+                                                </span>
+                                            )}
+                                            {compareSymbols.length > 0 && (
+                                                <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                                                    Compare {compareSymbols.join(', ')}
+                                                </span>
+                                            )}
+                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                Favorites {favoriteSymbols.length}
+                                            </span>
+                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                Notes {chartNotes.length}
+                                            </span>
+                                        </div>
                                         <pre className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs leading-6 text-zinc-300">{currentSnapshotSummary}</pre>
+                                        {topPinnedNotes.length > 0 && (
+                                            <div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
+                                                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300">Pinned Note Preview</p>
+                                                <div className="mt-2 space-y-2">
+                                                    {topPinnedNotes.map((note) => (
+                                                        <p key={note.id} className="text-xs text-zinc-300">
+                                                            {note.body}
+                                                        </p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                         {snapshotMessage && (
                                             <p className="mt-3 break-all text-xs text-zinc-500">{snapshotMessage}</p>
                                         )}

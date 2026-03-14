@@ -38,6 +38,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Shared Layout and Snapshot Surfaces Enriched With Real Trading Context**
+  - **Problem observed**:
+    - Initial share/snapshot tools worked, but the preview was too thin.
+    - A terminal share surface should answer more than "which symbol?":
+      - which watchlist context
+      - how many compare overlays
+      - whether favorites/notes exist
+      - what the pinned thesis note says
+  - **Implementation**:
+    - Snapshot summary now includes:
+      - active watchlist context
+      - favorite count
+      - compare summary
+      - pinned-note excerpt summary
+    - Shared-layout banner now surfaces:
+      - compare basket
+      - favorite count
+      - watchlist-linked badge
+    - Snapshot card now shows:
+      - context chips
+      - pinned-note preview block
+  - **Operational impact**:
+    - terminal sharing now carries more of the analyst’s actual context, not just raw symbol/range state
 - **2026-03-14**: **Terminal Snapshot Card Added for Sharing Current State Without Forcing a Saved Layout**
   - **Problem observed**:
     - Saved layouts are useful when a setup is worth keeping, but users also need a fast way to share or export the terminal exactly as it is right now.
