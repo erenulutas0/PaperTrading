@@ -244,6 +244,15 @@ function decodeSharedLayout(encoded: string): SharedTerminalLayoutPayload | null
     }
 }
 
+function escapeSvgText(value: string) {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
 export default function WatchlistPage() {
     const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
     const [selectedWatchlist, setSelectedWatchlist] = useState<string | null>(null);
@@ -1580,6 +1589,62 @@ export default function WatchlistPage() {
         setSnapshotMessage('Snapshot JSON downloaded.');
     };
 
+    const handleDownloadSnapshotSvg = () => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const lines = currentSnapshotSummary.split('\n');
+        const width = 1200;
+        const headerHeight = 180;
+        const lineHeight = 38;
+        const footerHeight = 100;
+        const height = headerHeight + (lines.length * lineHeight) + footerHeight;
+        const renderedLines = lines.map((line, index) => `
+            <text x="72" y="${220 + (index * lineHeight)}" fill="#E4E4E7" font-family="'Segoe UI', Arial, sans-serif" font-size="24">${escapeSvgText(line)}</text>
+        `).join('');
+
+        const pinnedPreview = topPinnedNotes.length > 0
+            ? topPinnedNotes.map((note, index) => `
+                <text x="72" y="${height - 110 + (index * 28)}" fill="#FCD34D" font-family="'Segoe UI', Arial, sans-serif" font-size="18">${escapeSvgText(note.body)}</text>
+            `).join('')
+            : `<text x="72" y="${height - 110}" fill="#71717A" font-family="'Segoe UI', Arial, sans-serif" font-size="18">No pinned notes</text>`;
+
+        const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#09090B" />
+      <stop offset="50%" stop-color="#111827" />
+      <stop offset="100%" stop-color="#052E16" />
+    </linearGradient>
+    <linearGradient id="title" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#22C55E" />
+    </linearGradient>
+  </defs>
+  <rect width="${width}" height="${height}" rx="36" fill="url(#bg)" />
+  <rect x="36" y="36" width="${width - 72}" height="${height - 72}" rx="28" fill="#0A0A0A" fill-opacity="0.42" stroke="#27272A" />
+  <text x="72" y="108" fill="url(#title)" font-family="'Segoe UI', Arial, sans-serif" font-size="44" font-weight="700">PaperTradePro Market Snapshot</text>
+  <text x="72" y="148" fill="#A1A1AA" font-family="'Segoe UI', Arial, sans-serif" font-size="20">Shared terminal state for ${escapeSvgText(selectedSymbol)} · ${escapeSvgText(selectedMarket)}</text>
+  ${renderedLines}
+  <line x1="72" y1="${height - 150}" x2="${width - 72}" y2="${height - 150}" stroke="#27272A" />
+  <text x="72" y="${height - 125}" fill="#A1A1AA" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="600">Pinned Note Preview</text>
+  ${pinnedPreview}
+</svg>`.trim();
+
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `terminal-snapshot-${selectedSymbol.toLowerCase()}.svg`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+        setSnapshotMessage('Snapshot SVG card downloaded.');
+    };
+
     const handleApplySharedLayout = () => {
         if (!sharedLayout) {
             return;
@@ -2288,6 +2353,12 @@ export default function WatchlistPage() {
                                                     className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
                                                 >
                                                     Download JSON
+                                                </button>
+                                                <button
+                                                    onClick={handleDownloadSnapshotSvg}
+                                                    className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300 transition hover:bg-amber-400/20"
+                                                >
+                                                    Download SVG Card
                                                 </button>
                                             </div>
                                         </div>

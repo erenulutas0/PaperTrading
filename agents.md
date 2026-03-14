@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-14**: **Snapshot Export Extended From Raw Data to Branded Visual Card**
+  - **Problem observed**:
+    - Plain-text summary and JSON snapshot are useful for fidelity, but not ideal for social sharing or lightweight reporting.
+    - A good terminal surface should also produce a visual artifact without requiring heavy screenshot dependencies.
+  - **Implementation**:
+    - Added client-side SVG card export for the current market terminal state.
+    - Export includes:
+      - instrument and market heading
+      - summary lines from the current snapshot
+      - pinned-note preview block
+    - Chose generated SVG instead of DOM screenshot tooling to avoid:
+      - new frontend dependencies
+      - canvas/browser compatibility drift
+      - build-risk from a rendering library
+  - **Operational impact**:
+    - the terminal can now emit a portable visual artifact for sharing and documentation
+    - export remains deterministic because it is derived from state, not the live DOM
 - **2026-03-14**: **Shared Layout and Snapshot Surfaces Enriched With Real Trading Context**
   - **Problem observed**:
     - Initial share/snapshot tools worked, but the preview was too thin.

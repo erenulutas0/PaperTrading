@@ -3,6 +3,9 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
+  - branded SVG share-card download for the current terminal state
+  - pinned-note preview embedded inside the exported card
 - [ ] Redeploy frontend after richer terminal snapshot/shared-layout preview rollout and verify `/watchlist` now surfaces:
   - watchlist context in snapshot output
   - compare/favorites counts in snapshot/share surfaces
