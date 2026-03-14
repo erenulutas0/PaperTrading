@@ -367,34 +367,40 @@ export default function WatchlistPage() {
         return alertHistory.filter((entry) => entry.direction === alertHistoryFilter);
     }, [alertHistory, alertHistoryFilter]);
 
-    const exportFilteredAlertHistory = useCallback(() => {
-        if (filteredAlertHistory.length === 0 || typeof window === 'undefined') {
+    const exportFilteredAlertHistory = useCallback(async () => {
+        if (!selectedWatchlistItem || typeof window === 'undefined') {
             return;
         }
+        try {
+            const url = new URL(`/api/v1/watchlists/items/${selectedWatchlistItem.id}/alert-history/export`, window.location.origin);
+            if (alertHistoryWindow === '24H') {
+                url.searchParams.set('days', '1');
+            } else if (alertHistoryWindow === '7D') {
+                url.searchParams.set('days', '7');
+            } else if (alertHistoryWindow === '30D') {
+                url.searchParams.set('days', '30');
+            }
+            if (alertHistoryFilter !== 'ALL') {
+                url.searchParams.set('direction', alertHistoryFilter);
+            }
 
-        const escapeCsv = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
-        const rows = [
-            ['symbol', 'direction', 'thresholdPrice', 'triggeredPrice', 'message', 'triggeredAt'],
-            ...filteredAlertHistory.map((entry) => [
-                entry.symbol,
-                entry.direction,
-                entry.thresholdPrice,
-                entry.triggeredPrice,
-                entry.message,
-                entry.triggeredAt,
-            ]),
-        ];
-        const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = `alert-history-${selectedSymbol}-${alertHistoryWindow.toLowerCase()}.csv`;
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
-        window.URL.revokeObjectURL(url);
-    }, [alertHistoryWindow, filteredAlertHistory, selectedSymbol]);
+            const res = await apiFetch(`${url.pathname}${url.search}`, { cache: 'no-store' });
+            if (!res.ok) {
+                return;
+            }
+            const blob = await res.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = downloadUrl;
+            anchor.download = `alert-history-${selectedSymbol}-${alertHistoryWindow.toLowerCase()}-${alertHistoryFilter.toLowerCase()}.csv`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            window.URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            console.error(error);
+        }
+    }, [alertHistoryFilter, alertHistoryWindow, selectedSymbol, selectedWatchlistItem]);
 
     const chartAlertLines = useMemo<AlertLine[]>(() => {
         if (!selectedWatchlistItem) {
@@ -777,6 +783,10 @@ export default function WatchlistPage() {
                 url.searchParams.set('days', '30');
             }
 
+            if (alertHistoryFilter !== 'ALL') {
+                url.searchParams.set('direction', alertHistoryFilter);
+            }
+
             const res = await apiFetch(`${url.pathname}${url.search}`, { cache: 'no-store' });
             if (!res.ok) {
                 setAlertHistory([]);
@@ -790,7 +800,7 @@ export default function WatchlistPage() {
         } finally {
             setAlertHistoryLoading(false);
         }
-    }, [alertHistoryWindow]);
+    }, [alertHistoryFilter, alertHistoryWindow]);
 
     const fetchChartNotes = useCallback(async () => {
         try {

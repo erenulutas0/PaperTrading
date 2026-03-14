@@ -1,6 +1,7 @@
 package com.finance.core.controller;
 
 import com.finance.core.domain.Watchlist;
+import com.finance.core.domain.WatchlistAlertDirection;
 import com.finance.core.domain.WatchlistItem;
 import com.finance.core.dto.WatchlistAlertEventResponse;
 import com.finance.core.service.WatchlistAlertHistoryService;
@@ -10,7 +11,9 @@ import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -117,8 +120,25 @@ public class WatchlistController {
             @PathVariable UUID itemId,
             @CurrentUserId UUID userId,
             @RequestParam(defaultValue = "10") int limit,
-            @RequestParam(required = false) Integer days) {
-        return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistory(itemId, userId, limit, days));
+            @RequestParam(required = false) Integer days,
+            @RequestParam(required = false) WatchlistAlertDirection direction) {
+        return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistory(itemId, userId, limit, days, direction));
+    }
+
+    @GetMapping("/items/{itemId}/alert-history/export")
+    public ResponseEntity<byte[]> exportAlertHistory(
+            @PathVariable UUID itemId,
+            @CurrentUserId UUID userId,
+            @RequestParam(required = false) Integer days,
+            @RequestParam(required = false) WatchlistAlertDirection direction) {
+        byte[] csv = watchlistAlertHistoryService.exportHistoryCsv(itemId, userId, days, direction);
+        String filename = direction == null
+                ? "alert-history.csv"
+                : "alert-history-" + direction.name().toLowerCase() + ".csv";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(csv);
     }
 
     @Data

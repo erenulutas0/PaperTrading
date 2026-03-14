@@ -196,6 +196,66 @@ class WatchlistControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].message").value("Recent trigger"));
     }
 
+    @Test
+    void testGetAlertHistory_withDirectionFilter() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+        watchlistAlertEventRepository.save(WatchlistAlertEvent.builder()
+                .watchlistItem(item)
+                .userId(userId)
+                .symbol("BTCUSDT")
+                .direction(WatchlistAlertDirection.ABOVE)
+                .thresholdPrice(java.math.BigDecimal.valueOf(61000))
+                .triggeredPrice(java.math.BigDecimal.valueOf(61500))
+                .message("Above trigger")
+                .build());
+        watchlistAlertEventRepository.save(WatchlistAlertEvent.builder()
+                .watchlistItem(item)
+                .userId(userId)
+                .symbol("BTCUSDT")
+                .direction(WatchlistAlertDirection.BELOW)
+                .thresholdPrice(java.math.BigDecimal.valueOf(59000))
+                .triggeredPrice(java.math.BigDecimal.valueOf(58500))
+                .message("Below trigger")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .param("limit", "10")
+                        .param("direction", "BELOW"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].direction").value("BELOW"))
+                .andExpect(jsonPath("$[0].message").value("Below trigger"));
+    }
+
+    @Test
+    void testExportAlertHistoryCsv() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+        watchlistAlertEventRepository.save(WatchlistAlertEvent.builder()
+                .watchlistItem(item)
+                .userId(userId)
+                .symbol("BTCUSDT")
+                .direction(WatchlistAlertDirection.ABOVE)
+                .thresholdPrice(java.math.BigDecimal.valueOf(61000))
+                .triggeredPrice(java.math.BigDecimal.valueOf(61500))
+                .message("CSV trigger")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("direction", "ABOVE"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition", org.hamcrest.Matchers.containsString("alert-history-above.csv")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("text/csv"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(org.hamcrest.Matchers.containsString("CSV trigger")));
+    }
+
         @Test
         void testGetInstruments() throws Exception {
                 mockMvc.perform(get("/api/v1/market/instruments"))
