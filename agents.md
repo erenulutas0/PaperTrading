@@ -3451,5 +3451,19 @@ A change is “done” when:
   - dashboard cards now feel more like entry points into the analytics system rather than simple CRUD cards
   - users get better context before deciding whether to inspect analytics, compare portfolios, or place another simulated trade
 
+### 2026-03-14: Dashboard Loading And Empty States Brought Up To The Same Product Quality Bar
+- Problem observed:
+  - Dashboard cards were improved, but first paint and empty-account behavior were still weak:
+    - plain `Loading...`
+    - no real zero-state when the account had no portfolios
+    - market sidebar looked sparse while price data was still connecting
+- Implementation:
+  - Added dashboard portfolio-card skeletons for loading.
+  - Added a reusable dashboard empty panel for accounts with no portfolios.
+  - Added lightweight market-data skeleton rows while live prices are still connecting.
+- Operational impact:
+  - dashboard now feels deliberate on first load instead of temporarily unfinished
+  - new accounts get a clearer first-step prompt instead of an ambiguous empty grid
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

@@ -1684,3 +1684,7 @@ Last updated: 2026-03-11
   - Add compact portfolio health, open-risk, and analytics-context strips
   - Keep quick-compare visible but frame it around sufficient snapshot history
   - Rename trade CTA to `Open Trade Ticket` for clearer intent
+- [x] Polish dashboard loading and empty states:
+  - Replace bare loading text with portfolio-card skeletons
+  - Add a clear empty state when the account has no portfolios yet
+  - Make market-data sidebar loading feel intentional instead of blank

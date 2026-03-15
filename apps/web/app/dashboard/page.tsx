@@ -50,6 +50,19 @@ export default function Dashboard() {
     const formatCompactCurrency = (value: number) =>
         `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
+    const DashboardEmptyPanel = ({
+        title,
+        body,
+    }: {
+        title: string;
+        body: string;
+    }) => (
+        <div className="rounded-2xl border border-dashed border-white/10 bg-black/30 px-5 py-6 text-zinc-400">
+            <p className="text-sm font-medium text-zinc-200">{title}</p>
+            <p className="mt-2 text-sm text-zinc-500">{body}</p>
+        </div>
+    );
+
     useEffect(() => {
         const userId = localStorage.getItem('userId');
         if (!userId) {
@@ -235,7 +248,12 @@ export default function Dashboard() {
                         </h2>
                         <div className="divide-y divide-white/5 relative z-10">
                             {Object.entries(prices).length === 0 ? (
-                                <p className="py-4 text-zinc-600 text-xs italic">Connecting to Binance WS...</p>
+                                <div className="space-y-3 py-2">
+                                    <div className="h-3 w-28 animate-pulse rounded bg-white/10"></div>
+                                    <div className="h-10 rounded-xl animate-pulse bg-white/5"></div>
+                                    <div className="h-10 rounded-xl animate-pulse bg-white/5"></div>
+                                    <p className="text-zinc-600 text-xs italic">Connecting to Binance WS...</p>
+                                </div>
                             ) : (
                                 Object.entries(prices).map(([symbol, price]) => (
                                     <div
@@ -285,7 +303,25 @@ export default function Dashboard() {
 
                     {/* List Portfolios */}
                     {loading ? (
-                        <p className="text-zinc-500">Loading...</p>
+                        Array.from({ length: 2 }).map((_, index) => (
+                            <div key={index} className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-2xl">
+                                <div className="h-6 w-40 animate-pulse rounded bg-white/10"></div>
+                                <div className="mt-2 h-3 w-24 animate-pulse rounded bg-white/5"></div>
+                                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                                    <div className="h-16 rounded-xl animate-pulse bg-white/5"></div>
+                                    <div className="h-16 rounded-xl animate-pulse bg-white/5"></div>
+                                </div>
+                                <div className="mt-6 h-28 rounded-xl animate-pulse bg-white/5"></div>
+                                <div className="mt-6 h-12 rounded-xl animate-pulse bg-white/5"></div>
+                            </div>
+                        ))
+                    ) : portfolios.length === 0 ? (
+                        <div className="md:col-span-2">
+                            <DashboardEmptyPanel
+                                title="No portfolios yet"
+                                body="Create your first portfolio to start building history, analytics, and leaderboard-eligible performance."
+                            />
+                        </div>
                     ) : portfolios.map((p) => (
                         <div key={p.id} className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl hover:border-green-500/30 hover:shadow-[0_0_30px_rgba(34,197,94,0.1)] transition-all duration-300 flex flex-col relative group overflow-hidden">
                             <div className="absolute top-0 left-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl pointer-events-none"></div>
