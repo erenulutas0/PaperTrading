@@ -1688,3 +1688,6 @@ Last updated: 2026-03-11
   - Replace bare loading text with portfolio-card skeletons
   - Add a clear empty state when the account has no portfolios yet
   - Make market-data sidebar loading feel intentional instead of blank
+- [x] Add dashboard account summary strip:
+  - Show total portfolios, public portfolios, total cash, open exposure, estimated equity, and trust
+  - Derive values from current portfolio and price state without expanding backend contracts

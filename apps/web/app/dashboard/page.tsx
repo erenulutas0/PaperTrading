@@ -199,6 +199,46 @@ export default function Dashboard() {
         }
     };
 
+    const dashboardMetrics = portfolios.reduce((acc, portfolio) => {
+        acc.totalPortfolios += 1;
+        if ((portfolio.visibility ?? 'PRIVATE') === 'PUBLIC') {
+            acc.publicPortfolios += 1;
+        }
+
+        const cash = portfolio.balance ?? 0;
+        acc.totalCash += cash;
+
+        let costBasis = 0;
+        let currentMarkedValue = 0;
+        portfolio.items?.forEach((item) => {
+            const currentPrice = prices[item.symbol] ?? item.averagePrice;
+            const leverage = item.leverage || 1;
+            const positionCostBasis = (item.quantity * item.averagePrice) / leverage;
+
+            let unrealizedPnl = 0;
+            if (item.side === 'SHORT') {
+                unrealizedPnl = (item.averagePrice - currentPrice) * item.quantity;
+            } else {
+                unrealizedPnl = (currentPrice - item.averagePrice) * item.quantity;
+            }
+
+            costBasis += positionCostBasis;
+            currentMarkedValue += positionCostBasis + unrealizedPnl;
+            acc.activePositions += 1;
+        });
+
+        acc.totalExposure += costBasis;
+        acc.estimatedEquity += cash + currentMarkedValue;
+        return acc;
+    }, {
+        totalPortfolios: 0,
+        publicPortfolios: 0,
+        totalCash: 0,
+        totalExposure: 0,
+        estimatedEquity: 0,
+        activePositions: 0,
+    });
+
     return (
         <div className="p-8 pb-20 relative z-10">
             <header className="mb-10 flex justify-between items-center bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-2xl">
@@ -236,6 +276,42 @@ export default function Dashboard() {
                     <LogoutButton className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-white transition-colors disabled:opacity-60" />
                 </div>
             </header>
+
+            <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4 backdrop-blur-xl">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Portfolios</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{dashboardMetrics.totalPortfolios}</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">{dashboardMetrics.publicPortfolios} public</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4 backdrop-blur-xl">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Estimated Equity</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{formatCompactCurrency(dashboardMetrics.estimatedEquity)}</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">Cash plus live marks</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4 backdrop-blur-xl">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Available Cash</p>
+                    <p className="mt-2 text-2xl font-bold text-emerald-300">{formatCompactCurrency(dashboardMetrics.totalCash)}</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">Across all portfolios</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4 backdrop-blur-xl">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Open Exposure</p>
+                    <p className="mt-2 text-2xl font-bold text-zinc-200">{formatCompactCurrency(dashboardMetrics.totalExposure)}</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">{dashboardMetrics.activePositions} active positions</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4 backdrop-blur-xl">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Trust</p>
+                    <p className={`mt-2 text-2xl font-bold ${
+                        currentProfile?.trustScore !== undefined && currentProfile.trustScore >= 70
+                            ? 'text-emerald-300'
+                            : currentProfile?.trustScore !== undefined && currentProfile.trustScore >= 40
+                                ? 'text-amber-300'
+                                : 'text-red-300'
+                    }`}>
+                        {currentProfile?.trustScore !== undefined ? currentProfile.trustScore.toFixed(1) : 'N/A'}
+                    </p>
+                    <p className="mt-1 text-[11px] text-zinc-500">Profile-level credibility</p>
+                </div>
+            </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Sidebar: Market + Social */}

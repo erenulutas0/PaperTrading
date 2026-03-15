@@ -3465,5 +3465,29 @@ A change is “done” when:
   - dashboard now feels deliberate on first load instead of temporarily unfinished
   - new accounts get a clearer first-step prompt instead of an ambiguous empty grid
 
+### 2026-03-14: Dashboard Added Account-Level Summary Strip
+- Problem observed:
+  - Even with stronger portfolio cards, the dashboard still opened at the per-card level.
+  - Users lacked an immediate account-wide read on:
+    - how many portfolios exist
+    - how many are public
+    - total cash
+    - open exposure
+    - estimated marked equity
+    - current trust posture
+- Implementation:
+  - Added a top summary strip to `app/dashboard/page.tsx`.
+  - Metrics are derived client-side from the existing portfolio list and live price state:
+    - total portfolios
+    - public portfolios
+    - total cash
+    - open exposure
+    - estimated equity
+    - trust score
+  - Avoided another dashboard-specific backend contract expansion.
+- Operational impact:
+  - dashboard now opens with both an account-level view and a portfolio-level view
+  - users can judge overall posture before drilling into any specific portfolio card
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
