@@ -20,6 +20,7 @@ public class UpdateTerminalPreferencesRequest {
     private String interval;
     private List<String> favoriteSymbols;
     private List<CompareBasket> compareBaskets;
+    private List<ScannerView> scannerViews;
 
     @Data
     @Builder
@@ -29,6 +30,19 @@ public class UpdateTerminalPreferencesRequest {
         private String name;
         private String market;
         private List<String> symbols;
+        private String updatedAt;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ScannerView {
+        private String name;
+        private String market;
+        private String quickFilter;
+        private String sortMode;
+        private String query;
         private String updatedAt;
     }
 }

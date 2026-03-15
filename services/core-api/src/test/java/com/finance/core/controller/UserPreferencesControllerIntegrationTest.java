@@ -64,6 +64,15 @@ class UserPreferencesControllerIntegrationTest {
                                         .symbols(java.util.List.of("ETHUSDT", "BNBUSDT"))
                                         .updatedAt("2026-03-15T00:00:00Z")
                                         .build()))
+                        .scannerViews(java.util.List.of(
+                                UserPreferencesResponse.ScannerView.builder()
+                                        .name("Crypto Movers")
+                                        .market("CRYPTO")
+                                        .quickFilter("GAINERS")
+                                        .sortMode("MOVE_DESC")
+                                        .query("btc")
+                                        .updatedAt("2026-03-15T00:00:00Z")
+                                        .build()))
                         .build())
                 .build();
 
@@ -79,7 +88,8 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.leaderboard.publicPage.direction").value("DESC"))
                 .andExpect(jsonPath("$.terminal.market").value("CRYPTO"))
                 .andExpect(jsonPath("$.terminal.symbol").value("BTCUSDT"))
-                .andExpect(jsonPath("$.terminal.compareBaskets[0].name").value("Majors"));
+                .andExpect(jsonPath("$.terminal.compareBaskets[0].name").value("Majors"))
+                .andExpect(jsonPath("$.terminal.scannerViews[0].name").value("Crypto Movers"));
     }
 
     @Test
@@ -163,6 +173,15 @@ class UserPreferencesControllerIntegrationTest {
                                         .symbols(java.util.List.of("ISCTR", "GARAN"))
                                         .updatedAt("2026-03-15T00:00:00Z")
                                         .build()))
+                        .scannerViews(java.util.List.of(
+                                UserPreferencesResponse.ScannerView.builder()
+                                        .name("Bank Winners")
+                                        .market("BIST100")
+                                        .quickFilter("GAINERS")
+                                        .sortMode("ALPHA")
+                                        .query("bank")
+                                        .updatedAt("2026-03-15T00:00:00Z")
+                                        .build()))
                         .build())
                 .build();
         when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
@@ -184,6 +203,16 @@ class UserPreferencesControllerIntegrationTest {
                       "symbols": ["ISCTR", "GARAN"],
                       "updatedAt": "2026-03-15T00:00:00Z"
                     }
+                  ],
+                  "scannerViews": [
+                    {
+                      "name": "Bank Winners",
+                      "market": "BIST100",
+                      "quickFilter": "GAINERS",
+                      "sortMode": "ALPHA",
+                      "query": "bank",
+                      "updatedAt": "2026-03-15T00:00:00Z"
+                    }
                   ]
                 }
                 """;
@@ -199,6 +228,7 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.terminal.compareVisible").value(false))
                 .andExpect(jsonPath("$.terminal.range").value("6M"))
                 .andExpect(jsonPath("$.terminal.interval").value("4h"))
-                .andExpect(jsonPath("$.terminal.compareBaskets[0].name").value("Banks"));
+                .andExpect(jsonPath("$.terminal.compareBaskets[0].name").value("Banks"))
+                .andExpect(jsonPath("$.terminal.scannerViews[0].name").value("Bank Winners"));
     }
 }

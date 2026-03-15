@@ -13,6 +13,7 @@ import {
     fetchUserPreferences,
     TerminalCompareBasketPayload,
     TerminalLayoutResponsePayload,
+    TerminalScannerViewPayload,
     updateTerminalLayout,
     updateTerminalPreferences,
 } from '../../lib/user-preferences';
@@ -309,6 +310,26 @@ function normalizeCompareBasketPayloads(
         .slice(0, 12);
 }
 
+function normalizeScannerViewPayloads(
+    views: TerminalScannerViewPayload[] | ScannerViewPreset[] | null | undefined,
+): ScannerViewPreset[] {
+    if (!Array.isArray(views)) {
+        return [];
+    }
+    return views
+        .filter((view): view is TerminalScannerViewPayload => !!view && typeof view === 'object')
+        .map((view): ScannerViewPreset => ({
+            id: crypto.randomUUID(),
+            name: typeof view.name === 'string' && view.name.trim() ? view.name.trim() : 'Scanner View',
+            market: view.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
+            quickFilter: ['ALL', 'GAINERS', 'LOSERS', 'FAVORITES', 'SECTOR'].includes(String(view.quickFilter)) ? view.quickFilter as UniverseQuickFilter : 'ALL',
+            sortMode: ['MOVE_DESC', 'MOVE_ASC', 'PRICE_DESC', 'ALPHA'].includes(String(view.sortMode)) ? view.sortMode as UniverseSortMode : 'MOVE_DESC',
+            query: typeof view.query === 'string' ? view.query : '',
+            updatedAt: typeof view.updatedAt === 'string' ? view.updatedAt : new Date().toISOString(),
+        }))
+        .slice(0, 12);
+}
+
 function getInitialAllHistoryChunkCount(interval: ChartInterval) {
     switch (interval) {
         case '1d':
@@ -412,6 +433,7 @@ export default function WatchlistPage() {
     const [sessionHydrated, setSessionHydrated] = useState(false);
     const [terminalPreferencesReady, setTerminalPreferencesReady] = useState(false);
     const [compareBasketsHydrated, setCompareBasketsHydrated] = useState(false);
+    const [scannerViewsHydrated, setScannerViewsHydrated] = useState(false);
     const candlesRef = useRef<CandlePoint[]>([]);
     const layoutImportInputRef = useRef<HTMLInputElement | null>(null);
     const compareBasketImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -852,6 +874,7 @@ export default function WatchlistPage() {
                 setSelectedInterval(terminal.interval);
                 setFavoriteSymbols(Array.isArray(terminal.favoriteSymbols) ? terminal.favoriteSymbols : []);
                 setCompareBaskets(normalizeCompareBasketPayloads(terminal.compareBaskets));
+                setScannerViews(normalizeScannerViewPayloads(terminal.scannerViews));
             } catch (error) {
                 console.error('Failed to hydrate terminal preferences:', error);
             } finally {
@@ -924,6 +947,10 @@ export default function WatchlistPage() {
             if (event.key === COMPARE_BASKET_STORAGE_KEY) {
                 setCompareBaskets(readPersistedCompareBaskets());
             }
+
+            if (event.key === SCANNER_VIEW_STORAGE_KEY) {
+                setScannerViews(readPersistedScannerViews());
+            }
         };
 
         window.addEventListener('storage', handleStorage);
@@ -975,6 +1002,14 @@ export default function WatchlistPage() {
                     symbols: basket.symbols,
                     updatedAt: basket.updatedAt,
                 })),
+                scannerViews: scannerViews.map((view) => ({
+                    name: view.name,
+                    market: view.market,
+                    quickFilter: view.quickFilter,
+                    sortMode: view.sortMode,
+                    query: view.query,
+                    updatedAt: view.updatedAt,
+                })),
             }).catch((error) => console.error('Failed to save terminal preferences:', error));
         }, 400);
 
@@ -985,6 +1020,7 @@ export default function WatchlistPage() {
         currentUserId,
         favoriteSymbols,
         compareBaskets,
+        scannerViews,
         selectedInterval,
         selectedMarket,
         selectedRange,
@@ -1092,14 +1128,15 @@ export default function WatchlistPage() {
 
     useEffect(() => {
         setScannerViews(readPersistedScannerViews());
+        setScannerViewsHydrated(true);
     }, []);
 
     useEffect(() => {
-        if (typeof window === 'undefined') {
+        if (typeof window === 'undefined' || !scannerViewsHydrated) {
             return;
         }
         window.localStorage.setItem(SCANNER_VIEW_STORAGE_KEY, JSON.stringify(scannerViews.slice(0, 12)));
-    }, [scannerViews]);
+    }, [scannerViews, scannerViewsHydrated]);
 
     const availableSymbols = useMemo(() => {
         const existingSymbols = new Set(enrichedItems.map((item) => item.symbol));

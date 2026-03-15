@@ -55,6 +55,7 @@ public class UserPreferencesResponse {
         private String interval;
         private java.util.List<String> favoriteSymbols;
         private java.util.List<CompareBasket> compareBaskets;
+        private java.util.List<ScannerView> scannerViews;
     }
 
     @Data
@@ -65,6 +66,19 @@ public class UserPreferencesResponse {
         private String name;
         private String market;
         private java.util.List<String> symbols;
+        private String updatedAt;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ScannerView {
+        private String name;
+        private String market;
+        private String quickFilter;
+        private String sortMode;
+        private String query;
         private String updatedAt;
     }
 }

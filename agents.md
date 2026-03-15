@@ -169,6 +169,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - saved compare baskets
   - **Operational impact**:
     - compare presets now communicate immediate market context before the user commits the overlay to the chart
+- **2026-03-15**: **Saved Scanner Views Promoted From Browser-Local Presets to Account-Scoped Terminal Preferences**
+  - **Problem observed**:
+    - Instrument-universe scanner views were useful, but they were still trapped in browser storage.
+    - That broke continuity across logout/login, browser reset, and multi-device use even though compare baskets were already account-backed.
+  - **Implementation**:
+    - Extended terminal preferences with `scannerViews`.
+    - `/watchlist` now hydrates scanner views from backend user preferences while keeping local storage as fallback and multi-tab sync path.
+    - Added normalization for:
+      - market
+      - quick filter
+      - sort mode
+      - search query
+  - **Operational impact**:
+    - saved scanner workflows now follow the account instead of the tab
+    - market-terminal scanning and compare presets now share the same persistence model
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

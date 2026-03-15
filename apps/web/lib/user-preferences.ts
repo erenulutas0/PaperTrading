@@ -39,12 +39,22 @@ export interface TerminalPreferencesResponsePayload {
   interval: "1m" | "15m" | "30m" | "1h" | "4h" | "1d";
   favoriteSymbols: string[];
   compareBaskets?: TerminalCompareBasketPayload[];
+  scannerViews?: TerminalScannerViewPayload[];
 }
 
 export interface TerminalCompareBasketPayload {
   name: string;
   market: TerminalPreferencesResponsePayload["market"];
   symbols: string[];
+  updatedAt?: string | null;
+}
+
+export interface TerminalScannerViewPayload {
+  name: string;
+  market: TerminalPreferencesResponsePayload["market"];
+  quickFilter: "ALL" | "GAINERS" | "LOSERS" | "FAVORITES" | "SECTOR";
+  sortMode: "MOVE_DESC" | "MOVE_ASC" | "PRICE_DESC" | "ALPHA";
+  query: string;
   updatedAt?: string | null;
 }
 
@@ -72,6 +82,7 @@ export interface UpdateTerminalPreferencesPayload {
   interval?: TerminalPreferencesResponsePayload["interval"];
   favoriteSymbols?: string[];
   compareBaskets?: TerminalCompareBasketPayload[];
+  scannerViews?: TerminalScannerViewPayload[];
 }
 
 export interface SaveTerminalLayoutPayload extends UpdateTerminalPreferencesPayload {

@@ -49,6 +49,7 @@ class UserPreferencesServiceTest {
         assertEquals("1D", response.getTerminal().getRange());
         assertEquals("1h", response.getTerminal().getInterval());
         assertEquals(java.util.List.of(), response.getTerminal().getCompareBaskets());
+        assertEquals(java.util.List.of(), response.getTerminal().getScannerViews());
     }
 
     @Test
@@ -108,6 +109,15 @@ class UserPreferencesServiceTest {
                                 .symbols(java.util.List.of("isctr", "garan", "isctr"))
                                 .updatedAt("2026-03-15T00:00:00Z")
                                 .build()))
+                .scannerViews(java.util.List.of(
+                        UpdateTerminalPreferencesRequest.ScannerView.builder()
+                                .name("Bank Winners")
+                                .market("bist100")
+                                .quickFilter("gainers")
+                                .sortMode("alpha")
+                                .query("bank")
+                                .updatedAt("2026-03-15T00:00:00Z")
+                                .build()))
                 .build();
 
         UserPreferencesResponse response = userPreferencesService.updateTerminalPreferences(userId, request);
@@ -123,6 +133,12 @@ class UserPreferencesServiceTest {
         assertEquals("Banks", response.getTerminal().getCompareBaskets().get(0).getName());
         assertEquals("BIST100", response.getTerminal().getCompareBaskets().get(0).getMarket());
         assertEquals(java.util.List.of("ISCTR", "GARAN"), response.getTerminal().getCompareBaskets().get(0).getSymbols());
+        assertEquals(1, response.getTerminal().getScannerViews().size());
+        assertEquals("Bank Winners", response.getTerminal().getScannerViews().get(0).getName());
+        assertEquals("BIST100", response.getTerminal().getScannerViews().get(0).getMarket());
+        assertEquals("GAINERS", response.getTerminal().getScannerViews().get(0).getQuickFilter());
+        assertEquals("ALPHA", response.getTerminal().getScannerViews().get(0).getSortMode());
+        assertEquals("bank", response.getTerminal().getScannerViews().get(0).getQuery());
         verify(userPreferenceRepository).save(org.mockito.ArgumentMatchers.any(UserPreference.class));
     }
 }

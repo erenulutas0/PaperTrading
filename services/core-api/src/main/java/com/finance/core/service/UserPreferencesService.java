@@ -41,6 +41,9 @@ public class UserPreferencesService {
     private static final Set<String> SUPPORTED_TERMINAL_RANGES = Set.of("1D", "1W", "1M", "3M", "6M", "1Y", "ALL");
     private static final Set<String> SUPPORTED_TERMINAL_INTERVALS = Set.of("1m", "15m", "30m", "1h", "4h", "1d");
     private static final int MAX_COMPARE_BASKETS = 12;
+    private static final int MAX_SCANNER_VIEWS = 12;
+    private static final Set<String> SUPPORTED_SCANNER_FILTERS = Set.of("ALL", "GAINERS", "LOSERS", "FAVORITES", "SECTOR");
+    private static final Set<String> SUPPORTED_SCANNER_SORTS = Set.of("MOVE_DESC", "MOVE_ASC", "PRICE_DESC", "ALPHA");
 
     private final UserPreferenceRepository userPreferenceRepository;
     private final UserRepository userRepository;
@@ -122,6 +125,9 @@ public class UserPreferencesService {
             if (request.getCompareBaskets() != null) {
                 preferences.setTerminalCompareBaskets(serializeCompareBaskets(request.getCompareBaskets()));
             }
+            if (request.getScannerViews() != null) {
+                preferences.setTerminalScannerViews(serializeScannerViews(request.getScannerViews()));
+            }
         }
 
         UserPreference saved = userPreferenceRepository.save(preferences);
@@ -151,6 +157,7 @@ public class UserPreferencesService {
                         .interval(normalizeTerminalInterval(preferences.getTerminalInterval()))
                         .favoriteSymbols(deserializeSymbols(preferences.getTerminalFavoriteSymbols()))
                         .compareBaskets(deserializeCompareBaskets(preferences.getTerminalCompareBaskets()))
+                        .scannerViews(deserializeScannerViews(preferences.getTerminalScannerViews()))
                         .build())
                 .build();
     }
@@ -295,6 +302,38 @@ public class UserPreferencesService {
         }
     }
 
+    private String serializeScannerViews(List<UpdateTerminalPreferencesRequest.ScannerView> rawViews) {
+        if (rawViews == null || rawViews.isEmpty()) {
+            return "";
+        }
+        List<UserPreferencesResponse.ScannerView> normalized = new ArrayList<>();
+        for (UpdateTerminalPreferencesRequest.ScannerView view : rawViews) {
+            if (view == null) {
+                continue;
+            }
+            normalized.add(UserPreferencesResponse.ScannerView.builder()
+                    .name((view.getName() == null || view.getName().isBlank()) ? "Scanner View" : view.getName().trim())
+                    .market(normalizeTerminalMarket(view.getMarket()))
+                    .quickFilter(normalizeScannerQuickFilter(view.getQuickFilter()))
+                    .sortMode(normalizeScannerSortMode(view.getSortMode()))
+                    .query(view.getQuery() == null ? "" : view.getQuery().trim())
+                    .updatedAt((view.getUpdatedAt() == null || view.getUpdatedAt().isBlank()) ? null : view.getUpdatedAt().trim())
+                    .build());
+            if (normalized.size() >= MAX_SCANNER_VIEWS) {
+                break;
+            }
+        }
+        if (normalized.isEmpty()) {
+            return "";
+        }
+        try {
+            return objectMapper.writeValueAsString(normalized);
+        } catch (Exception exception) {
+            log.warn("Failed to serialize scanner views: {}", exception.getMessage());
+            return "";
+        }
+    }
+
     private List<UserPreferencesResponse.CompareBasket> deserializeCompareBaskets(String raw) {
         if (raw == null || raw.isBlank()) {
             return List.of();
@@ -323,5 +362,47 @@ public class UserPreferencesService {
             log.warn("Failed to deserialize compare baskets: {}", exception.getMessage());
             return List.of();
         }
+    }
+
+    private List<UserPreferencesResponse.ScannerView> deserializeScannerViews(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<UserPreferencesResponse.ScannerView> parsed = objectMapper.readValue(
+                    raw,
+                    new TypeReference<List<UserPreferencesResponse.ScannerView>>() {});
+            return parsed.stream()
+                    .filter(view -> view != null)
+                    .map(view -> UserPreferencesResponse.ScannerView.builder()
+                            .name((view.getName() == null || view.getName().isBlank()) ? "Scanner View" : view.getName().trim())
+                            .market(normalizeTerminalMarket(view.getMarket()))
+                            .quickFilter(normalizeScannerQuickFilter(view.getQuickFilter()))
+                            .sortMode(normalizeScannerSortMode(view.getSortMode()))
+                            .query(view.getQuery() == null ? "" : view.getQuery().trim())
+                            .updatedAt(view.getUpdatedAt())
+                            .build())
+                    .limit(MAX_SCANNER_VIEWS)
+                    .toList();
+        } catch (Exception exception) {
+            log.warn("Failed to deserialize scanner views: {}", exception.getMessage());
+            return List.of();
+        }
+    }
+
+    private String normalizeScannerQuickFilter(String raw) {
+        if (raw == null) {
+            return "ALL";
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return SUPPORTED_SCANNER_FILTERS.contains(normalized) ? normalized : "ALL";
+    }
+
+    private String normalizeScannerSortMode(String raw) {
+        if (raw == null) {
+            return "MOVE_DESC";
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return SUPPORTED_SCANNER_SORTS.contains(normalized) ? normalized : "MOVE_DESC";
     }
 }

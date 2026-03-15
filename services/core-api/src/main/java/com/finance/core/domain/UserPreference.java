@@ -80,6 +80,10 @@ public class UserPreference {
     @Builder.Default
     private String terminalCompareBaskets = "";
 
+    @Column(name = "terminal_scanner_views", nullable = false, length = 8192)
+    @Builder.Default
+    private String terminalScannerViews = "";
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
