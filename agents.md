@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Compare Surface Hardened With Explicit Loading and Empty-State Guidance**
+  - **Problem observed**:
+    - Compare mode had become feature-rich, but transient states still felt abrupt:
+      - loading collapsed to plain text
+      - actions stayed visually live while compare data was unavailable
+      - users with only one portfolio got a generic empty state that did not explain why compare was unavailable
+  - **Implementation**:
+    - Added skeleton-style placeholders during compare analytics loading instead of a flat text line.
+    - Disabled compare actions (`Copy Summary`, `Copy Compare Link`) when the selected comparison is not yet ready.
+    - Added explicit guidance for the zero-alt-portfolio case:
+      - if the account has no second portfolio, compare mode now says so directly
+    - Also surfaced active compare context chips for:
+      - window
+      - symbol filter
+      - selected symbol detail
+  - **Operational impact**:
+    - compare mode now behaves more like an intentional analytics tool and less like a raw conditional render branch
+    - first-time users understand why compare is unavailable instead of reading it as a broken control
 - **2026-03-15**: **Portfolio Compare Surface Added Rolling Momentum Delta Strip**
   - **Problem observed**:
     - Compare mode had total return deltas and a rebased overlay, but still lacked a concise answer to:

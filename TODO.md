@@ -29,6 +29,7 @@ Last updated: 2026-03-11
   - compare state share link carrying compare portfolio, curve window, symbol filter, and selected symbol detail via URL
   - compare summary clipboard export for quick human-readable portfolio-vs-portfolio sharing
   - rolling `7D/30D` compare delta strip for recent-window momentum inspection
+  - compare loading skeletons, disabled actions, and explicit empty-state guidance when no second portfolio exists
   - resize-safe analytics canvases that redraw cleanly after viewport/layout changes and clear stale charts on empty states
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:

@@ -720,6 +720,11 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         void fetchCompareAnalytics(comparePortfolioId);
     }, [comparePortfolioId, fetchCompareAnalytics]);
 
+    useEffect(() => {
+        setCompareLinkCopied(false);
+        setCompareSummaryCopied(false);
+    }, [comparePortfolioId, selectedCurveWindow, symbolFilter, selectedSymbolDetail]);
+
     const ratingColor = (value: number, type: 'sharpe' | 'sortino' | 'drawdown' | 'winrate' | 'pf' | 'vol') => {
         switch (type) {
             case 'sharpe':
@@ -1159,14 +1164,30 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                         <div>
                             <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Portfolio Compare</h2>
                             <p className="mt-1 text-[10px] text-zinc-600">Load a second portfolio and compare core outcome, risk, and trade-quality metrics side by side.</p>
+                            <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-zinc-500">
+                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                    Window {selectedCurveWindow}
+                                </span>
+                                {normalizedSymbolFilter ? (
+                                    <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-300">
+                                        Filter {normalizedSymbolFilter}
+                                    </span>
+                                ) : null}
+                                {selectedSymbolDetail ? (
+                                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-300">
+                                        Detail {selectedSymbolDetail}
+                                    </span>
+                                ) : null}
+                            </div>
                         </div>
                         <div className="flex w-full flex-col gap-3 sm:flex-row xl:max-w-xl">
                             <select
                                 value={comparePortfolioId}
                                 onChange={(event) => setComparePortfolioId(event.target.value)}
-                                className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-cyan-500/40"
+                                disabled={portfolioOptions.length === 0}
+                                className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-cyan-500/40 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                <option value="">No comparison</option>
+                                <option value="">{portfolioOptions.length === 0 ? 'No other portfolios available' : 'No comparison'}</option>
                                 {portfolioOptions.map((portfolio) => (
                                     <option key={portfolio.id} value={portfolio.id}>
                                         {portfolio.name} {portfolio.visibility ? `(${portfolio.visibility})` : ''}
@@ -1178,14 +1199,16 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                     <button
                                         type="button"
                                         onClick={() => void copyCompareSummary()}
-                                        className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                                        disabled={compareLoading || !compareSummary || !compareRiskMetrics || !compareTradeStats}
+                                        className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {compareSummaryCopied ? 'Summary Copied' : 'Copy Summary'}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => void copyAnalyticsShareLink()}
-                                        className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20"
+                                        disabled={compareLoading}
+                                        className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {compareLinkCopied ? 'Link Copied' : 'Copy Compare Link'}
                                     </button>
@@ -1205,9 +1228,22 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                     </div>
                     {comparePortfolioId ? (
                         compareLoading ? (
-                            <p className="mt-5 rounded-xl border border-white/5 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                                Loading comparison analytics...
-                            </p>
+                            <div className="mt-5 space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                    {Array.from({ length: 4 }).map((_, index) => (
+                                        <div key={index} className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                            <div className="h-3 w-24 animate-pulse rounded bg-white/10"></div>
+                                            <div className="mt-4 h-8 w-28 animate-pulse rounded bg-white/10"></div>
+                                            <div className="mt-3 h-3 w-32 animate-pulse rounded bg-white/5"></div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <div className="h-3 w-32 animate-pulse rounded bg-white/10"></div>
+                                    <div className="mt-3 h-3 w-56 animate-pulse rounded bg-white/5"></div>
+                                    <div className="mt-4 h-64 animate-pulse rounded-xl bg-white/5"></div>
+                                </div>
+                            </div>
                         ) : compareSummary && compareRiskMetrics && compareTradeStats ? (
                             <div className="mt-5 space-y-4">
                                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1413,6 +1449,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                 Comparison analytics could not be loaded for the selected portfolio.
                             </p>
                         )
+                    ) : portfolioOptions.length === 0 ? (
+                        <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                            Create another portfolio first. Compare mode needs at least two portfolios owned by the same account.
+                        </p>
                     ) : (
                         <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
                             Pick one of your other portfolios to compare against this analytics surface.
