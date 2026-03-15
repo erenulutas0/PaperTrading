@@ -102,6 +102,7 @@ Last updated: 2026-03-11
   - highest price
   - alpha
 - [ ] Redeploy frontend after universe movers-strip rollout and verify `/watchlist` now surfaces quick top/bottom movers cards that jump into the corresponding scanner slice
+- [ ] Redeploy frontend after saved scanner-view rollout and verify `/watchlist` now supports saving and restoring instrument-universe filter/sort/search presets per market
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol

@@ -87,6 +87,16 @@ interface SuggestedCompareBasket {
     symbols: string[];
 }
 
+interface ScannerViewPreset {
+    id: string;
+    name: string;
+    market: MarketSelection;
+    quickFilter: UniverseQuickFilter;
+    sortMode: UniverseSortMode;
+    query: string;
+    updatedAt: string;
+}
+
 interface ChartNote {
     id: string;
     body: string;
@@ -121,6 +131,7 @@ const MARKET_OPTIONS: MarketSelection[] = ['CRYPTO', 'BIST100'];
 const ALL_HISTORY_CHUNK = 1000;
 const MARKET_SESSION_STORAGE_KEY = 'market.terminal.session';
 const COMPARE_BASKET_STORAGE_KEY = 'market.terminal.compare-baskets';
+const SCANNER_VIEW_STORAGE_KEY = 'market.terminal.scanner-views';
 const COMPARE_COLORS = ['#f59e0b', '#38bdf8', '#f472b6'];
 const CRYPTO_CORE_COMPARE_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'AVAXUSDT'];
 
@@ -208,6 +219,37 @@ function haveSameSymbols(left: string[], right: string[]) {
     return leftSorted.every((value, index) => value === rightSorted[index]);
 }
 
+function readPersistedScannerViews(): ScannerViewPreset[] {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+    try {
+        const stored = window.localStorage.getItem(SCANNER_VIEW_STORAGE_KEY);
+        if (!stored) {
+            return [];
+        }
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+        return parsed
+            .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+            .map((entry): ScannerViewPreset => ({
+                id: typeof entry.id === 'string' ? entry.id : crypto.randomUUID(),
+                name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Scanner View',
+                market: entry.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
+                quickFilter: ['ALL', 'GAINERS', 'LOSERS', 'FAVORITES', 'SECTOR'].includes(String(entry.quickFilter)) ? entry.quickFilter as UniverseQuickFilter : 'ALL',
+                sortMode: ['MOVE_DESC', 'MOVE_ASC', 'PRICE_DESC', 'ALPHA'].includes(String(entry.sortMode)) ? entry.sortMode as UniverseSortMode : 'MOVE_DESC',
+                query: typeof entry.query === 'string' ? entry.query : '',
+                updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
+            }))
+            .slice(0, 12);
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+}
+
 function normalizeCompareBasketPayloads(
     baskets: TerminalCompareBasketPayload[] | CompareBasketPreset[] | null | undefined,
 ): CompareBasketPreset[] {
@@ -285,6 +327,9 @@ export default function WatchlistPage() {
     const [instrumentQuery, setInstrumentQuery] = useState('');
     const [universeQuickFilter, setUniverseQuickFilter] = useState<UniverseQuickFilter>('ALL');
     const [universeSortMode, setUniverseSortMode] = useState<UniverseSortMode>('MOVE_DESC');
+    const [scannerViews, setScannerViews] = useState<ScannerViewPreset[]>([]);
+    const [scannerViewNameDraft, setScannerViewNameDraft] = useState('');
+    const [scannerViewMessage, setScannerViewMessage] = useState('');
     const [selectedMarket, setSelectedMarket] = useState<MarketSelection>('CRYPTO');
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
     const [compareSymbols, setCompareSymbols] = useState<string[]>([]);
@@ -949,6 +994,10 @@ export default function WatchlistPage() {
         { key: 'ALPHA', label: 'A-Z' },
     ]), []);
 
+    const availableScannerViews = useMemo(() => {
+        return scannerViews.filter((view) => view.market === selectedMarket);
+    }, [scannerViews, selectedMarket]);
+
     const topMoverInstruments = useMemo(() => {
         return [...instrumentUniverse]
             .sort((left, right) => right.changePercent24h - left.changePercent24h)
@@ -977,6 +1026,17 @@ export default function WatchlistPage() {
         }
         window.localStorage.setItem(COMPARE_BASKET_STORAGE_KEY, JSON.stringify(compareBaskets.slice(0, 12)));
     }, [compareBaskets, compareBasketsHydrated]);
+
+    useEffect(() => {
+        setScannerViews(readPersistedScannerViews());
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        window.localStorage.setItem(SCANNER_VIEW_STORAGE_KEY, JSON.stringify(scannerViews.slice(0, 12)));
+    }, [scannerViews]);
 
     const availableSymbols = useMemo(() => {
         const existingSymbols = new Set(enrichedItems.map((item) => item.symbol));
@@ -1703,6 +1763,37 @@ export default function WatchlistPage() {
         setCompareVisible(true);
         setCompareCandidate('');
         setCompareBasketMessage(`Applied suggested basket: ${basket.name}`);
+    };
+
+    const handleSaveScannerView = () => {
+        const trimmed = scannerViewNameDraft.trim();
+        if (!trimmed) {
+            return;
+        }
+        const nextView: ScannerViewPreset = {
+            id: crypto.randomUUID(),
+            name: trimmed,
+            market: selectedMarket,
+            quickFilter: universeQuickFilter,
+            sortMode: universeSortMode,
+            query: instrumentQuery,
+            updatedAt: new Date().toISOString(),
+        };
+        setScannerViews((current) => [nextView, ...current].slice(0, 12));
+        setScannerViewNameDraft('');
+        setScannerViewMessage(`Saved scanner view: ${nextView.name}`);
+    };
+
+    const handleApplyScannerView = (view: ScannerViewPreset) => {
+        setUniverseQuickFilter(view.quickFilter);
+        setUniverseSortMode(view.sortMode);
+        setInstrumentQuery(view.query);
+        setScannerViewMessage(`Applied scanner view: ${view.name}`);
+    };
+
+    const handleDeleteScannerView = (viewId: string) => {
+        setScannerViews((current) => current.filter((entry) => entry.id !== viewId));
+        setScannerViewMessage('Scanner view removed.');
     };
 
     const handleSaveCurrentLayout = async () => {
@@ -2938,6 +3029,68 @@ export default function WatchlistPage() {
                                                             </button>
                                                         ))}
                                                     </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
+                                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Saved Scanner Views</p>
+                                                        <p className="mt-1 text-xs text-zinc-400">Capture a filter + sort + search combination for this market.</p>
+                                                    </div>
+                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                                                        {availableScannerViews.length}/12
+                                                    </span>
+                                                </div>
+                                                <div className="mt-3 flex flex-col gap-3 lg:flex-row">
+                                                    <input
+                                                        type="text"
+                                                        value={scannerViewNameDraft}
+                                                        onChange={(event) => setScannerViewNameDraft(event.target.value)}
+                                                        placeholder="Save current scanner view as..."
+                                                        className="flex-1 rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
+                                                    />
+                                                    <button
+                                                        onClick={handleSaveScannerView}
+                                                        disabled={!scannerViewNameDraft.trim() || availableScannerViews.length >= 12}
+                                                        className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                    >
+                                                        Save View
+                                                    </button>
+                                                </div>
+                                                {scannerViewMessage && (
+                                                    <p className="mt-3 text-xs text-zinc-500">{scannerViewMessage}</p>
+                                                )}
+                                                <div className="mt-3 space-y-2">
+                                                    {availableScannerViews.length === 0 ? (
+                                                        <div className="rounded-2xl border border-dashed border-white/10 px-4 py-4 text-sm text-zinc-500">
+                                                            No saved scanner views for {selectedMarket} yet.
+                                                        </div>
+                                                    ) : (
+                                                        availableScannerViews.map((view) => (
+                                                            <div key={view.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                                                <div>
+                                                                    <p className="text-sm font-semibold text-white">{view.name}</p>
+                                                                    <p className="mt-1 text-[11px] text-zinc-500">
+                                                                        {view.quickFilter} · {view.sortMode} · {view.query || 'No search'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    <button
+                                                                        onClick={() => handleApplyScannerView(view)}
+                                                                        className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
+                                                                    >
+                                                                        Apply
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteScannerView(view.id)}
+                                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                                    >
+                                                                        Remove
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="mt-4 flex flex-wrap gap-2">

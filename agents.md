@@ -111,6 +111,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - has an `Open` action that activates the matching scanner filter/sort
   - **Operational impact**:
     - `/watchlist` now shows live market action at a glance before the user starts interacting with the scanner controls
+- **2026-03-15**: **Instrument Universe Added Saved Scanner Views**
+  - **Problem observed**:
+    - Once quick filters, sort controls, and movers surfaced, the scanner became useful but still ephemeral.
+    - Users could not preserve recurring scanner setups like:
+      - BIST losers by price
+      - crypto favorites sorted by move
+      - sector-peers with a search term applied
+  - **Implementation**:
+    - Added local saved scanner views per market.
+    - Each view stores:
+      - quick filter
+      - sort mode
+      - search query
+    - `/watchlist` now supports:
+      - save current scanner state
+      - apply a saved view
+      - remove a saved view
+  - **Operational impact**:
+    - the universe rail now supports reusable market-scanning workflows instead of only one-off filter/sort combinations
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
