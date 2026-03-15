@@ -21,13 +21,15 @@ export default function RootLayout({
           </div>
           <div className="lg:hidden min-h-screen bg-background text-foreground flex items-center justify-center p-6">
             <div className="w-full max-w-md glass-panel border border-border rounded-2xl p-6 text-center">
-              <h1 className="text-2xl font-bold tracking-tight">Desktop Required</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                This web app is desktop-only for now. Please open it on a larger screen.
+              <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Desktop Workspace</p>
+              <h1 className="mt-4 text-2xl font-black tracking-tight">Desktop Required</h1>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                Markets, analytics, layouts, and discussion surfaces are optimized for a wide workspace. Mobile is intentionally blocked until a real compact workflow exists.
               </p>
-              <p className="mt-4 text-xs text-muted-foreground">
-                Minimum supported width: 1024px
-              </p>
+              <div className="mt-6 rounded-xl border border-border bg-background/60 p-4 text-left">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Current requirement</p>
+                <p className="mt-2 text-sm text-foreground/85">Minimum supported width: 1024px</p>
+              </div>
             </div>
           </div>
         </LiveNotificationProvider>

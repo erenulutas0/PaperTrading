@@ -3636,5 +3636,21 @@ A change is “done” when:
   - notifications now reads like a first-class inbox tied to market, portfolio, and social accountability events
   - the compact bell and the full inbox now feel like the same product surface at different depths
 
+### 2026-03-14: Shared Workspace Shell Tightened Around Product Context
+- Problem observed:
+  - Even after many page-level upgrades, the shared workspace shell still lagged behind:
+    - dashboard layout nav felt like a thin link bar
+    - current section context was easy to lose while moving across dashboard, analysis, markets, and leaderboards
+    - the desktop-only fallback read like a technical block rather than an intentional product constraint
+- Implementation:
+  - Upgraded `app/dashboard/layout.tsx` with:
+    - stronger brand/context block
+    - current-section pill
+    - cleaner separation between workspace navigation and utility actions
+  - Upgraded `app/layout.tsx` mobile fallback with clearer product-language around why the desktop gate exists
+- Operational impact:
+  - the workspace now feels like one coherent control surface instead of a collection of polished pages under a generic top bar
+  - desktop-only behavior is framed as deliberate scope, not accidental incompleteness
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

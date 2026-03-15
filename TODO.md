@@ -1723,3 +1723,7 @@ Last updated: 2026-03-11
   - Add inbox summary strip and stronger context copy on `/notifications`
   - Enrich bell dropdown with quick metrics and a better empty state
   - Keep follow-back and read actions, but frame the inbox as an event stream instead of a raw list
+- [x] Tighten the shared workspace shell:
+  - Promote `dashboard/layout` from a thin nav bar into a clearer product header
+  - Surface current section context in the shared shell
+  - Upgrade the desktop-only fallback so it reads like an intentional product constraint
