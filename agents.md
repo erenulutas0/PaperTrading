@@ -221,6 +221,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - scanner workflows are now portable, not just persistent
     - the market terminal can move scanner state between users/sessions without creating another backend surface
+- **2026-03-15**: **Compare Basket Cards Added Directional Performance Pills**
+  - **Problem observed**:
+    - Compare basket cards already exposed an average-move snapshot line, but users still had to read the full text to infer the basket’s current tone.
+    - That was slower than it should be for quick pre-apply triage.
+  - **Implementation**:
+    - Added a short directional pill to compare basket cards:
+      - `Strong Up`
+      - `Positive`
+      - `Mixed`
+      - `Negative`
+      - `Strong Down`
+      - `Snapshot Pending`
+    - The pill is derived from the basket’s average 24h move using the active universe snapshot.
+    - Applied to:
+      - suggested compare baskets
+      - built-in compare baskets
+      - saved compare baskets
+  - **Operational impact**:
+    - compare presets now communicate direction with a one-glance cue before the user reads the full snapshot text
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

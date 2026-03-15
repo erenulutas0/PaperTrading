@@ -607,6 +607,47 @@ export default function WatchlistPage() {
         return `Avg ${formatPercent(averageMove)} · Leader ${leader.symbol} ${formatPercent(Number(leader.changePercent24h ?? 0))}`;
     }, [instrumentMap]);
 
+    const describeCompareBasketTone = useCallback((symbols: string[]) => {
+        const instruments = symbols
+            .map((symbol) => instrumentMap.get(symbol) ?? null)
+            .filter((instrument): instrument is InstrumentOption => instrument !== null);
+        if (instruments.length === 0) {
+            return {
+                label: 'Snapshot Pending',
+                className: 'border-white/10 bg-white/[0.03] text-zinc-400',
+            };
+        }
+        const averageMove = instruments.reduce((sum, instrument) => sum + Number(instrument.changePercent24h ?? 0), 0) / instruments.length;
+        if (averageMove >= 1.5) {
+            return {
+                label: 'Strong Up',
+                className: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300',
+            };
+        }
+        if (averageMove > 0) {
+            return {
+                label: 'Positive',
+                className: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
+            };
+        }
+        if (averageMove <= -1.5) {
+            return {
+                label: 'Strong Down',
+                className: 'border-red-400/25 bg-red-400/10 text-red-300',
+            };
+        }
+        if (averageMove < 0) {
+            return {
+                label: 'Negative',
+                className: 'border-red-400/20 bg-red-400/10 text-red-200',
+            };
+        }
+        return {
+            label: 'Mixed',
+            className: 'border-white/10 bg-white/[0.03] text-zinc-300',
+        };
+    }, [instrumentMap]);
+
     const topPinnedNotes = useMemo(() => {
         return chartNotes.filter((note) => note.pinned).slice(0, 2);
     }, [chartNotes]);
@@ -2830,6 +2871,16 @@ export default function WatchlistPage() {
                                                             onClick={() => handleApplySuggestedCompareBasket(basket)}
                                                             className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-left transition hover:border-sky-400/30 hover:bg-sky-400/10"
                                                         >
+                                                            {(() => {
+                                                                const tone = describeCompareBasketTone(basket.symbols);
+                                                                return (
+                                                                    <div className="mb-2">
+                                                                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.className}`}>
+                                                                            {tone.label}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                             <div className="flex items-center justify-between gap-2">
                                                                 <p className="text-sm font-semibold text-white">{basket.name}</p>
                                                                 <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
@@ -2878,6 +2929,16 @@ export default function WatchlistPage() {
                                                             onClick={() => handleApplyBuiltInCompareBasket(basket)}
                                                             className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-left transition hover:border-amber-400/25 hover:bg-amber-400/10"
                                                         >
+                                                            {(() => {
+                                                                const tone = describeCompareBasketTone(basket.symbols);
+                                                                return (
+                                                                    <div className="mb-2">
+                                                                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.className}`}>
+                                                                            {tone.label}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                             <div className="flex items-center justify-between gap-2">
                                                                 <p className="text-sm font-semibold text-white">{basket.name}</p>
                                                                 <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
@@ -2914,8 +2975,18 @@ export default function WatchlistPage() {
                                             ) : (
                                                 availableCompareBaskets.map((basket) => (
                                                     <div key={basket.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
+                                                        {(() => {
+                                                            const tone = describeCompareBasketTone(basket.symbols);
+                                                            return (
                                                         <div className="flex flex-wrap items-start justify-between gap-3">
                                                             <div className="min-w-0 flex-1">
+                                                                {editingCompareBasketId !== basket.id && (
+                                                                    <div className="mb-2">
+                                                                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.className}`}>
+                                                                            {tone.label}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
                                                                 {editingCompareBasketId === basket.id ? (
                                                                     <div className="space-y-3">
                                                                         <input
@@ -3010,6 +3081,8 @@ export default function WatchlistPage() {
                                                                 </div>
                                                             )}
                                                         </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 ))
                                             )}

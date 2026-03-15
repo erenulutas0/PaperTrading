@@ -108,6 +108,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy backend/frontend after scanner-view preference rollout and verify `/watchlist` saved scanner views now restore across refresh, logout/login, and device change
 - [ ] Redeploy frontend after heatmap-slice rollout and verify `/watchlist` now shows a clickable mini heatmap of the strongest movers in the active market universe
 - [ ] Redeploy frontend after scanner-view share/export/import rollout and verify `/watchlist` scanner presets now support portable JSON export/import plus shareable deep links
+- [ ] Redeploy frontend after compare-basket performance-pill rollout and verify `/watchlist` compare basket cards now show quick directional tone badges before apply
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol
