@@ -3508,5 +3508,20 @@ A change is “done” when:
   - the profile now reads more like a public proof-of-performance summary instead of a generic account page
   - trust evidence becomes easier to interpret without scanning the whole page
 
+### 2026-03-14: Profile Loading And Empty States Normalized
+- Problem observed:
+  - The profile/trust surface was stronger, but first paint and empty states still lagged behind the dashboard and analytics pages:
+    - bare spinner on load
+    - plain "User not found"
+    - generic empty blocks for portfolios and follower/following tabs
+- Implementation:
+  - Added a profile loading shell.
+  - Added reusable profile empty-state panel.
+  - Replaced portfolio and social-graph zero states with clearer copy.
+  - Added follower/following skeleton rows while those lists are loading.
+- Operational impact:
+  - profile now feels consistent with the rest of the product during loading and sparse-data cases
+  - social graph tabs no longer degrade into generic placeholder text
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

@@ -98,6 +98,61 @@ function buildSeriesPath(values: number[], width: number, height: number) {
         .join(' ');
 }
 
+function ProfileEmptyPanel({
+    title,
+    body,
+}: {
+    title: string;
+    body: string;
+}) {
+    return (
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">{title}</p>
+            <p className="mt-2">{body}</p>
+        </div>
+    );
+}
+
+function ProfileLoadingShell() {
+    return (
+        <div className="min-h-screen bg-background text-foreground">
+            <div className="noise" />
+            <div className="relative z-10 max-w-6xl mx-auto px-4 py-8 space-y-6">
+                <div className="flex items-center justify-between">
+                    <div className="h-4 w-32 animate-pulse rounded bg-white/10" />
+                    <div className="h-4 w-24 animate-pulse rounded bg-white/10" />
+                </div>
+                <div className="glass-panel rounded-2xl border border-border/80 p-6">
+                    <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                        <div className="flex gap-4">
+                            <div className="h-20 w-20 rounded-full animate-pulse bg-white/10" />
+                            <div className="space-y-3">
+                                <div className="h-8 w-56 animate-pulse rounded bg-white/10" />
+                                <div className="h-4 w-32 animate-pulse rounded bg-white/5" />
+                                <div className="h-4 w-72 max-w-full animate-pulse rounded bg-white/5" />
+                            </div>
+                        </div>
+                        <div className="h-10 w-28 animate-pulse rounded-full bg-white/10" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                        <div key={index} className="glass-panel rounded-xl border border-border/80 p-4">
+                            <div className="h-3 w-24 animate-pulse rounded bg-white/10" />
+                            <div className="mt-3 h-8 w-20 animate-pulse rounded bg-white/10" />
+                            <div className="mt-2 h-3 w-24 animate-pulse rounded bg-white/5" />
+                        </div>
+                    ))}
+                </div>
+                <div className="glass-panel rounded-2xl border border-border/80 p-5">
+                    <div className="h-4 w-40 animate-pulse rounded bg-white/10" />
+                    <div className="mt-4 h-48 animate-pulse rounded-xl bg-white/5" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function ProfilePage() {
     const params = useParams();
     const userId = params.userId as string;
@@ -250,17 +305,18 @@ export default function ProfilePage() {
     };
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                <div className="animate-spin w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full"></div>
-            </div>
-        );
+        return <ProfileLoadingShell />;
     }
 
     if (!profile) {
         return (
-            <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                <p className="text-zinc-400">User not found</p>
+            <div className="min-h-screen bg-background text-foreground">
+                <div className="relative z-10 max-w-3xl mx-auto px-4 py-12">
+                    <ProfileEmptyPanel
+                        title="User not found"
+                        body="This profile may have been removed, or the link is invalid."
+                    />
+                </div>
             </div>
         );
     }
@@ -583,9 +639,12 @@ export default function ProfilePage() {
                     {activeTab === 'portfolios' && (
                         <div className="space-y-3">
                             {portfolios.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                                    {isOwnProfile ? 'No portfolios yet. Create one from the dashboard to start building a public performance record.' : 'No public portfolios yet.'}
-                                </div>
+                                <ProfileEmptyPanel
+                                    title={isOwnProfile ? 'No portfolios yet' : 'No public portfolios yet'}
+                                    body={isOwnProfile
+                                        ? 'Create one from the dashboard to start building a public performance record.'
+                                        : 'This user has not exposed any public portfolios yet.'}
+                                />
                             ) : (
                                 portfolios.map((portfolio) => (
                                     <Link
@@ -628,13 +687,31 @@ export default function ProfilePage() {
                     {(isFollowersTab || isFollowingTab) && (
                         <div className="space-y-3">
                             {connectionLoading && connectionUsers.length === 0 ? (
-                                <div className="rounded-xl border border-border p-8 text-center text-sm text-muted-foreground">
-                                    Loading {isFollowersTab ? 'followers' : 'following'}...
+                                <div className="space-y-3">
+                                    {Array.from({ length: 3 }).map((_, index) => (
+                                        <div key={index} className="rounded-xl border border-border bg-background/60 p-4">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 rounded-full animate-pulse bg-white/10" />
+                                                    <div className="space-y-2">
+                                                        <div className="h-3 w-24 animate-pulse rounded bg-white/10" />
+                                                        <div className="h-3 w-16 animate-pulse rounded bg-white/5" />
+                                                    </div>
+                                                </div>
+                                                <div className="h-8 w-20 animate-pulse rounded-full bg-white/10" />
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             ) : connectionUsers.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                                    {isFollowersTab ? 'No followers yet.' : 'Not following anyone yet.'}
-                                </div>
+                                <ProfileEmptyPanel
+                                    title={isFollowersTab ? 'No followers yet' : 'Not following anyone yet'}
+                                    body={isFollowersTab
+                                        ? 'This profile has not attracted followers yet.'
+                                        : isOwnProfile
+                                            ? 'Use discover, leaderboards, and profiles to build your network.'
+                                            : 'This user is not following anyone yet.'}
+                                />
                             ) : (
                                 connectionUsers.map((user) => {
                                     const showFollowAction = !!currentUserId && currentUserId !== user.id;

@@ -1695,3 +1695,7 @@ Last updated: 2026-03-11
   - Replace flat top stats with a profile summary card strip
   - Surface trust evidence counts as compact chips near the trend block
   - Tighten zero-state copy for users with no portfolios yet
+- [x] Polish profile loading and empty states:
+  - Replace bare spinner with a profile loading shell
+  - Normalize profile, portfolio, and follower/following empty states
+  - Add follower/following skeleton rows while connection lists load
