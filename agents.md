@@ -20,7 +20,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
 | Portfolio CRUD | ✅ Done | Create, delete, deposit |
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
-| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, and market-provider split preparing delayed BIST100 support |
+| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, lightweight compare-basket presets, and market-provider split preparing delayed BIST100 support |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
 | Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
@@ -38,6 +38,30 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
+  - **Problem observed**:
+    - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
+    - Users often want to restore just a peer basket:
+      - crypto majors vs current symbol
+      - BIST banking peers
+      - a quick sector-relative overlay set
+    - Reusing a full layout for that adds unnecessary coupling to watchlist/range/interval context.
+  - **Implementation**:
+    - Added local compare-basket presets on `/watchlist` keyed by:
+      - `market`
+      - preset `name`
+      - compare `symbols`
+    - Added UI to:
+      - save the current compare basket
+      - reapply a basket to the current symbol
+      - remove a basket
+    - Basket application is market-aware and filters out:
+      - the currently selected primary symbol
+      - symbols not present in the active instrument universe
+    - Added active-basket highlighting when the current compare session matches a saved preset.
+  - **Operational impact**:
+    - compare workflows are now reusable without forcing users through full layout persistence
+    - layouts remain the durable whole-terminal preset, while compare baskets cover fast relative-analysis reuse
 - **2026-03-15**: **Analytics Chart Math Switched From Spread Aggregation To Safe Iteration**
   - **Problem observed**:
     - One portfolio could open while another consistently crashed the analytics route after data load.

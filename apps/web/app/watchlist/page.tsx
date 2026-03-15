@@ -71,6 +71,14 @@ interface CompareSeriesInput {
     color: string;
 }
 
+interface CompareBasketPreset {
+    id: string;
+    name: string;
+    market: MarketSelection;
+    symbols: string[];
+    updatedAt: string;
+}
+
 interface ChartNote {
     id: string;
     body: string;
@@ -102,6 +110,7 @@ const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d']
 const MARKET_OPTIONS: MarketSelection[] = ['CRYPTO', 'BIST100'];
 const ALL_HISTORY_CHUNK = 1000;
 const MARKET_SESSION_STORAGE_KEY = 'market.terminal.session';
+const COMPARE_BASKET_STORAGE_KEY = 'market.terminal.compare-baskets';
 const COMPARE_COLORS = ['#f59e0b', '#38bdf8', '#f472b6'];
 
 interface PersistedMarketSession {
@@ -145,6 +154,47 @@ function readPersistedMarketSession(): PersistedMarketSession | null {
         console.error(error);
         return null;
     }
+}
+
+function readPersistedCompareBaskets(): CompareBasketPreset[] {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+    try {
+        const stored = window.localStorage.getItem(COMPARE_BASKET_STORAGE_KEY);
+        if (!stored) {
+            return [];
+        }
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+        return parsed
+            .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+            .map((entry) => ({
+                id: typeof entry.id === 'string' ? entry.id : crypto.randomUUID(),
+                name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Compare Basket',
+                market: entry.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
+                symbols: Array.isArray(entry.symbols)
+                    ? entry.symbols.filter((value): value is string => typeof value === 'string' && value.length > 0).slice(0, 3)
+                    : [],
+                updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
+            }))
+            .filter((entry) => entry.symbols.length > 0)
+            .slice(0, 12);
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+}
+
+function haveSameSymbols(left: string[], right: string[]) {
+    if (left.length !== right.length) {
+        return false;
+    }
+    const leftSorted = [...left].sort();
+    const rightSorted = [...right].sort();
+    return leftSorted.every((value, index) => value === rightSorted[index]);
 }
 
 function getInitialAllHistoryChunkCount(interval: ChartInterval) {
@@ -206,6 +256,9 @@ export default function WatchlistPage() {
     const [compareSymbols, setCompareSymbols] = useState<string[]>([]);
     const [compareCandidate, setCompareCandidate] = useState<string>('');
     const [compareVisible, setCompareVisible] = useState<boolean>(true);
+    const [compareBaskets, setCompareBaskets] = useState<CompareBasketPreset[]>([]);
+    const [compareBasketNameDraft, setCompareBasketNameDraft] = useState('');
+    const [compareBasketMessage, setCompareBasketMessage] = useState('');
     const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
     const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
     const [drawingMode, setDrawingMode] = useState<DrawingMode>('none');
@@ -239,6 +292,7 @@ export default function WatchlistPage() {
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
     const [sessionHydrated, setSessionHydrated] = useState(false);
     const [terminalPreferencesReady, setTerminalPreferencesReady] = useState(false);
+    const [compareBasketsHydrated, setCompareBasketsHydrated] = useState(false);
     const candlesRef = useRef<CandlePoint[]>([]);
     const layoutImportInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -295,6 +349,23 @@ export default function WatchlistPage() {
                 ?? null)
             .filter((item): item is InstrumentOption | WatchlistItem => item !== null);
     }, [compareSymbols, enrichedItems, instrumentUniverse]);
+
+    const availableCompareBaskets = useMemo(() => {
+        return compareBaskets.filter((basket) => basket.market === selectedMarket);
+    }, [compareBaskets, selectedMarket]);
+
+    const activeCompareBasketId = useMemo(() => {
+        const active = availableCompareBaskets.find((basket) => haveSameSymbols(basket.symbols, compareSymbols));
+        return active?.id ?? null;
+    }, [availableCompareBaskets, compareSymbols]);
+
+    const canSaveCompareBasket = useMemo(() => {
+        if (!compareBasketNameDraft.trim() || compareSymbols.length === 0) {
+            return false;
+        }
+        const replacingExisting = compareBaskets.some((basket) => basket.market === selectedMarket && haveSameSymbols(basket.symbols, compareSymbols));
+        return compareBaskets.length < 12 || replacingExisting;
+    }, [compareBasketNameDraft, compareBaskets, compareSymbols, selectedMarket]);
 
     const selectedWatchlistItem = useMemo(() => {
         return enrichedItems.find((item) => item.symbol === selectedSymbol) ?? null;
@@ -725,6 +796,18 @@ export default function WatchlistPage() {
         const favoriteSet = new Set(favoriteSymbols);
         return instrumentUniverse.filter((instrument) => favoriteSet.has(instrument.symbol));
     }, [favoriteSymbols, instrumentUniverse]);
+
+    useEffect(() => {
+        setCompareBaskets(readPersistedCompareBaskets());
+        setCompareBasketsHydrated(true);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !compareBasketsHydrated) {
+            return;
+        }
+        window.localStorage.setItem(COMPARE_BASKET_STORAGE_KEY, JSON.stringify(compareBaskets.slice(0, 12)));
+    }, [compareBaskets, compareBasketsHydrated]);
 
     const availableSymbols = useMemo(() => {
         const existingSymbols = new Set(enrichedItems.map((item) => item.symbol));
@@ -1247,6 +1330,50 @@ export default function WatchlistPage() {
         }
         fetchCandles(selectedSymbol, selectedRange, selectedInterval, 'prepend');
     }, [fetchCandles, hasMoreHistory, loadingMoreHistory, selectedInterval, selectedRange, selectedSymbol]);
+
+    const handleSaveCurrentCompareBasket = () => {
+        const trimmed = compareBasketNameDraft.trim();
+        if (!trimmed || compareSymbols.length === 0) {
+            return;
+        }
+
+        const nextBasket: CompareBasketPreset = {
+            id: crypto.randomUUID(),
+            name: trimmed,
+            market: selectedMarket,
+            symbols: compareSymbols.slice(0, 3),
+            updatedAt: new Date().toISOString(),
+        };
+
+        setCompareBaskets((current) => [
+            nextBasket,
+            ...current.filter((entry) => entry.market !== nextBasket.market || !haveSameSymbols(entry.symbols, nextBasket.symbols)),
+        ].slice(0, 12));
+        setCompareBasketNameDraft('');
+        setCompareBasketMessage(`Saved compare basket: ${nextBasket.name}`);
+    };
+
+    const handleApplyCompareBasket = (basket: CompareBasketPreset) => {
+        const filteredSymbols = basket.symbols
+            .filter((symbol) => symbol !== selectedSymbol)
+            .filter((symbol) => instrumentMap.has(symbol))
+            .slice(0, 3);
+
+        if (filteredSymbols.length === 0) {
+            setCompareBasketMessage('This basket has no usable symbols for the current symbol or market universe.');
+            return;
+        }
+
+        setCompareSymbols(filteredSymbols);
+        setCompareVisible(true);
+        setCompareCandidate('');
+        setCompareBasketMessage(`Applied compare basket: ${basket.name}`);
+    };
+
+    const handleDeleteCompareBasket = (basketId: string) => {
+        setCompareBaskets((current) => current.filter((entry) => entry.id !== basketId));
+        setCompareBasketMessage(activeCompareBasketId === basketId ? 'Removed active compare basket.' : 'Compare basket removed.');
+    };
 
     const handleSaveCurrentLayout = async () => {
         const trimmed = layoutNameDraft.trim();
@@ -1953,6 +2080,98 @@ export default function WatchlistPage() {
                                             </div>
                                         </div>
                                     )}
+
+                                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="flex flex-wrap items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Compare Baskets</p>
+                                                <p className="mt-1 text-sm text-zinc-400">
+                                                    Save small peer sets without storing the whole terminal. Faster than full layouts when you only want the compare overlay back.
+                                                </p>
+                                            </div>
+                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                                                {availableCompareBaskets.length}/12
+                                            </span>
+                                        </div>
+                                        <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+                                            <input
+                                                type="text"
+                                                value={compareBasketNameDraft}
+                                                onChange={(event) => setCompareBasketNameDraft(event.target.value)}
+                                                placeholder="Save current compare basket as..."
+                                                className="flex-1 rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
+                                            />
+                                            <button
+                                                onClick={handleSaveCurrentCompareBasket}
+                                                disabled={!canSaveCompareBasket}
+                                                className="rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                            >
+                                                Save Basket
+                                            </button>
+                                        </div>
+                                        {compareBasketMessage && (
+                                            <p className="mt-3 text-xs text-zinc-500">{compareBasketMessage}</p>
+                                        )}
+                                        <div className="mt-4 space-y-2">
+                                            {availableCompareBaskets.length === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-zinc-500">
+                                                    No compare baskets saved for {selectedMarket} yet. Build a compare session first, then save it as a reusable peer set.
+                                                </div>
+                                            ) : (
+                                                availableCompareBaskets.map((basket) => (
+                                                    <div key={basket.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
+                                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <p className="text-sm font-semibold text-white">{basket.name}</p>
+                                                                    {activeCompareBasketId === basket.id && (
+                                                                        <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300">
+                                                                            Active
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                                                                        {basket.market}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                                    {basket.symbols.map((symbol, index) => (
+                                                                        <span
+                                                                            key={`${basket.id}-${symbol}`}
+                                                                            className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                                                            style={{
+                                                                                borderColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}55`,
+                                                                                backgroundColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}20`,
+                                                                                color: COMPARE_COLORS[index % COMPARE_COLORS.length],
+                                                                            }}
+                                                                        >
+                                                                            {symbol}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <p className="mt-2 text-[11px] text-zinc-500">
+                                                                    Updated {new Date(basket.updatedAt).toLocaleString()}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                <button
+                                                                    onClick={() => handleApplyCompareBasket(basket)}
+                                                                    className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
+                                                                >
+                                                                    Apply
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteCompareBasket(basket.id)}
+                                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
 
                                     {favoriteInstruments.length > 0 && (
                                         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">

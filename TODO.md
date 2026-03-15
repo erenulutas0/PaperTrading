@@ -80,6 +80,11 @@ Last updated: 2026-03-11
   - selected-item recent alert trigger history
   - triggered alert messages/threshold/triggered-price inspection from the terminal
 - [ ] Redeploy frontend after multi-symbol compare rollout and verify `/watchlist` now supports up to three simultaneous overlay symbols with independent removal, persisted session state, and compare summaries
+- [ ] Redeploy frontend after compare-basket preset rollout and verify `/watchlist` now supports:
+  - saving current compare overlays as lightweight market-aware baskets
+  - reapplying compare baskets without restoring the entire terminal layout
+  - removing saved compare baskets
+  - active-basket highlighting against the current compare session
 - [ ] Redeploy backend/frontend after market instrument metadata enrichment and verify `/watchlist` now surfaces market/exchange/currency/delay chips, richer BIST/crypto search, and descriptive names inside the right-rail watch basket
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
