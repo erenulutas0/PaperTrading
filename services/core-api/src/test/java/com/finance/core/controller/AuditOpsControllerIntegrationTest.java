@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
@@ -28,6 +29,9 @@ class AuditOpsControllerIntegrationTest {
     @Autowired
     private AuditLogRepository auditLogRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setUp() {
         auditLogRepository.deleteAll();
@@ -45,6 +49,7 @@ class AuditOpsControllerIntegrationTest {
                 .requestMethod("POST")
                 .requestPath("/api/v1/portfolios")
                 .details("{\"name\":\"Ops Smoke\"}")
+                .createdAt(java.time.LocalDateTime.now())
                 .build());
         auditLogRepository.save(AuditLogEntry.builder()
                 .actorId(UUID.randomUUID())
@@ -55,6 +60,7 @@ class AuditOpsControllerIntegrationTest {
                 .requestMethod("POST")
                 .requestPath("/api/v1/users/follow")
                 .details("{\"target\":\"user-1\"}")
+                .createdAt(java.time.LocalDateTime.now().minusDays(10))
                 .build());
 
         mockMvc.perform(get("/api/v1/ops/auditlog")
@@ -70,6 +76,44 @@ class AuditOpsControllerIntegrationTest {
                 .andExpect(jsonPath("$.resourceType").value("PORTFOLIO"))
                 .andExpect(jsonPath("$.entries[0].requestId").value("req-ops-audit"))
                 .andExpect(jsonPath("$.entries[0].details.name").value("Ops Smoke"));
+    }
+
+    @Test
+    void auditOpsEndpoint_shouldApplyDateWindowFilter() throws Exception {
+        AuditLogEntry recent = auditLogRepository.save(AuditLogEntry.builder()
+                .actorId(UUID.randomUUID())
+                .actionType(AuditActionType.PORTFOLIO_CREATED)
+                .resourceType(AuditResourceType.PORTFOLIO)
+                .resourceId(UUID.randomUUID())
+                .requestId("req-recent")
+                .requestMethod("POST")
+                .requestPath("/api/v1/portfolios")
+                .build());
+        AuditLogEntry old = auditLogRepository.save(AuditLogEntry.builder()
+                .actorId(UUID.randomUUID())
+                .actionType(AuditActionType.PORTFOLIO_CREATED)
+                .resourceType(AuditResourceType.PORTFOLIO)
+                .resourceId(UUID.randomUUID())
+                .requestId("req-old")
+                .requestMethod("POST")
+                .requestPath("/api/v1/portfolios")
+                .build());
+
+        jdbcTemplate.update(
+                "update audit_logs set created_at = ? where id = ?",
+                java.sql.Timestamp.valueOf(java.time.LocalDateTime.now().minusHours(6)),
+                recent.getId());
+        jdbcTemplate.update(
+                "update audit_logs set created_at = ? where id = ?",
+                java.sql.Timestamp.valueOf(java.time.LocalDateTime.now().minusDays(5)),
+                old.getId());
+
+        mockMvc.perform(get("/api/v1/ops/auditlog")
+                        .param("days", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days").value(1))
+                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.entries[0].requestId").value("req-recent"));
     }
 
     @Test

@@ -3691,5 +3691,24 @@ A change is “done” when:
   - audit inspection is now part of the workspace instead of an API-only operator trick
   - read/export behavior stays aligned with the backend filter contract, reducing drift between UI and ops usage
 
+### 2026-03-15: Audit Ops Inspection Extended With Date Windows
+- Problem observed:
+  - Actor/action/resource filters improved the audit surface, but operators still lacked a fast time-window slice.
+  - Without that, common questions like "what happened in the last 24 hours?" still required manual narrowing through row count or request correlation.
+- Implementation:
+  - Added optional `days` filtering to:
+    - `/api/v1/ops/auditlog`
+    - `/api/v1/ops/auditlog/export`
+    - `/actuator/auditlog`
+  - `AuditLogInspectionService` now constrains `created_at` when a window is supplied.
+  - `/dashboard/audit` now exposes quick presets:
+    - `24H`
+    - `7D`
+    - `30D`
+    - `ALL`
+- Operational impact:
+  - audit review can now answer recent-activity questions directly from the workspace
+  - export and visual inspection remain aligned because both use the same date-window contract
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

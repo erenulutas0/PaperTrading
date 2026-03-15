@@ -33,13 +33,15 @@ public class AuditLogInspectionService {
         this.objectMapper = objectMapper;
     }
 
-    public Map<String, Object> snapshot(Integer limit, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    public Map<String, Object> snapshot(Integer limit, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         int safeLimit = normalizeLimit(limit);
-        List<Map<String, Object>> entries = fetchEntries(safeLimit, requestId, actorId, actionType, resourceType);
+        Integer safeDays = normalizeDays(days);
+        List<Map<String, Object>> entries = fetchEntries(safeLimit, safeDays, requestId, actorId, actionType, resourceType);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("checkedAt", LocalDateTime.now());
         payload.put("limit", safeLimit);
+        payload.put("days", safeDays);
         payload.put("requestId", requestId);
         payload.put("actorId", actorId);
         payload.put("actionType", actionType);
@@ -49,9 +51,10 @@ public class AuditLogInspectionService {
         return payload;
     }
 
-    public String exportCsv(Integer limit, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    public String exportCsv(Integer limit, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         int safeLimit = normalizeLimit(limit);
-        List<Map<String, Object>> entries = fetchEntries(safeLimit, requestId, actorId, actionType, resourceType);
+        Integer safeDays = normalizeDays(days);
+        List<Map<String, Object>> entries = fetchEntries(safeLimit, safeDays, requestId, actorId, actionType, resourceType);
         List<String> rows = new ArrayList<>();
         rows.add("id,actorId,actionType,resourceType,resourceId,requestId,ipAddress,requestMethod,requestPath,createdAt");
         entries.forEach(entry -> rows.add(String.join(",",
@@ -69,7 +72,7 @@ public class AuditLogInspectionService {
         return rows.stream().collect(Collectors.joining(System.lineSeparator()));
     }
 
-    private List<Map<String, Object>> fetchEntries(int limit, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    private List<Map<String, Object>> fetchEntries(int limit, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         String baseSql = """
                 select id, actor_id, action_type, resource_type, resource_id, request_id,
                        ip_address, user_agent, request_method, request_path, details, created_at
@@ -94,6 +97,10 @@ public class AuditLogInspectionService {
             clauses.add("resource_type = ?");
             params.add(resourceType.name());
         }
+        if (days != null) {
+            clauses.add("created_at >= ?");
+            params.add(Timestamp.valueOf(LocalDateTime.now().minusDays(days)));
+        }
 
         StringBuilder sql = new StringBuilder(baseSql);
         if (!clauses.isEmpty()) {
@@ -113,6 +120,13 @@ public class AuditLogInspectionService {
             return DEFAULT_LIMIT;
         }
         return Math.max(1, Math.min(MAX_LIMIT, limit));
+    }
+
+    private Integer normalizeDays(Integer days) {
+        if (days == null) {
+            return null;
+        }
+        return Math.max(1, Math.min(365, days));
     }
 
     private Map<String, Object> toPayload(ResultSet rs) throws SQLException {

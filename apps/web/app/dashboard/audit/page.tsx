@@ -20,6 +20,7 @@ interface AuditEntry {
 interface AuditResponse {
     checkedAt: string;
     limit: number;
+    days: number | null;
     requestId: string | null;
     actorId: string | null;
     actionType: string | null;
@@ -85,6 +86,7 @@ export default function AuditPage() {
     const [exporting, setExporting] = useState(false);
     const [filters, setFilters] = useState({
         limit: '20',
+        days: '',
         requestId: '',
         actorId: '',
         actionType: '',
@@ -97,6 +99,7 @@ export default function AuditPage() {
         try {
             const params = new URLSearchParams();
             if (filters.limit) params.set('limit', filters.limit);
+            if (filters.days) params.set('days', filters.days);
             if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
             if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
             if (filters.actionType) params.set('actionType', filters.actionType);
@@ -132,7 +135,14 @@ export default function AuditPage() {
     }, [data]);
 
     const activeFilterCount = useMemo(() => {
-        return [filters.requestId, filters.actorId, filters.actionType, filters.resourceType].filter(Boolean).length;
+        return [filters.days, filters.requestId, filters.actorId, filters.actionType, filters.resourceType].filter(Boolean).length;
+    }, [filters]);
+
+    const activeWindowLabel = useMemo(() => {
+        if (!filters.days) {
+            return 'ALL';
+        }
+        return `${filters.days}D`;
     }, [filters]);
 
     const exportCsv = async () => {
@@ -140,6 +150,7 @@ export default function AuditPage() {
         try {
             const params = new URLSearchParams();
             if (filters.limit) params.set('limit', filters.limit);
+            if (filters.days) params.set('days', filters.days);
             if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
             if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
             if (filters.actionType) params.set('actionType', filters.actionType);
@@ -180,13 +191,37 @@ export default function AuditPage() {
             <section className="mt-6 grid gap-4 md:grid-cols-4">
                 <AuditSummaryCard label="Loaded Rows" value={loading ? '...' : filteredCountLabel} />
                 <AuditSummaryCard label="Active Filters" value={activeFilterCount.toString()} />
-                <AuditSummaryCard label="Limit" value={filters.limit} />
+                <AuditSummaryCard label="Window" value={activeWindowLabel} />
                 <AuditSummaryCard label="Checked At" value={data?.checkedAt ? new Date(data.checkedAt).toLocaleTimeString() : '...'} />
             </section>
 
             <section className="mt-6 grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
                 <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
                     <h2 className="text-lg font-bold text-white">Filters</h2>
+                    <div className="mt-5">
+                        <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-zinc-500">Date Window</label>
+                        <div className="flex flex-wrap gap-2">
+                            {[
+                                { label: '24H', value: '1' },
+                                { label: '7D', value: '7' },
+                                { label: '30D', value: '30' },
+                                { label: 'ALL', value: '' },
+                            ].map((windowOption) => (
+                                <button
+                                    key={windowOption.label}
+                                    type="button"
+                                    onClick={() => setFilters((current) => ({ ...current, days: windowOption.value }))}
+                                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${filters.days === windowOption.value
+                                        ? 'border-primary/40 bg-primary/15 text-primary'
+                                        : 'border-zinc-800 bg-black text-zinc-400 hover:text-white'
+                                        }`}
+                                >
+                                    {windowOption.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="mt-5 grid gap-4">
                         <div>
                             <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-zinc-500">Limit</label>
@@ -265,6 +300,7 @@ export default function AuditPage() {
                             type="button"
                             onClick={() => setFilters({
                                 limit: '20',
+                                days: '',
                                 requestId: '',
                                 actorId: '',
                                 actionType: '',
@@ -285,7 +321,7 @@ export default function AuditPage() {
                     </div>
 
                     <p className="mt-4 text-xs leading-6 text-zinc-500">
-                        Filters are optional. The export matches the current filter set exactly.
+                        Filters are optional. Date window and export always match the current slice exactly.
                     </p>
                 </div>
 

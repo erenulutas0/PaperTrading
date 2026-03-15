@@ -29,13 +29,14 @@ public class AuditOpsController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> auditLog(
             @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer days,
             @RequestParam(required = false) String requestId,
             @RequestParam(required = false) UUID actorId,
             @RequestParam(required = false) AuditActionType actionType,
             @RequestParam(required = false) AuditResourceType resourceType,
             HttpServletRequest request) {
         try {
-            return ResponseEntity.ok(inspectionService.snapshot(limit, requestId, actorId, actionType, resourceType));
+            return ResponseEntity.ok(inspectionService.snapshot(limit, days, requestId, actorId, actionType, resourceType));
         } catch (Throwable ex) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("requestId", request.getAttribute(RequestCorrelation.REQUEST_ID_ATTRIBUTE));
@@ -48,11 +49,12 @@ public class AuditOpsController {
     @GetMapping(value = "/export", produces = "text/csv")
     public ResponseEntity<String> exportAuditLog(
             @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer days,
             @RequestParam(required = false) String requestId,
             @RequestParam(required = false) UUID actorId,
             @RequestParam(required = false) AuditActionType actionType,
             @RequestParam(required = false) AuditResourceType resourceType) {
-        String csv = inspectionService.exportCsv(limit, requestId, actorId, actionType, resourceType);
+        String csv = inspectionService.exportCsv(limit, days, requestId, actorId, actionType, resourceType);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                         .filename("audit-log-export.csv")

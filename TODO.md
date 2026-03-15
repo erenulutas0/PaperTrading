@@ -1735,3 +1735,7 @@ Last updated: 2026-03-11
   - Add `/dashboard/audit` page for filtered audit inspection
   - Wire audit into the shared workspace navigation
   - Match CSV export behavior with the backend filter set
+- [x] Add audit date windows:
+  - Support `days` filtering in ops audit read/export endpoints
+  - Add `24H / 7D / 30D / ALL` audit inbox window presets
+  - Keep actuator compatibility while widening the ops slice controls
