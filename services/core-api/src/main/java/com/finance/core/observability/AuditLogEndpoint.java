@@ -1,14 +1,18 @@
 package com.finance.core.observability;
 
+import com.finance.core.domain.AuditActionType;
+import com.finance.core.domain.AuditResourceType;
 import com.finance.core.service.AuditLogInspectionService;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 @Endpoint(id = "auditlog")
@@ -21,14 +25,22 @@ public class AuditLogEndpoint {
     }
 
     @ReadOperation
-    public Map<String, Object> auditLog() {
+    public Map<String, Object> auditLog(
+            @Nullable Integer limit,
+            @Nullable String requestId,
+            @Nullable UUID actorId,
+            @Nullable AuditActionType actionType,
+            @Nullable AuditResourceType resourceType) {
         try {
-            return inspectionService.snapshot(null, null);
+            return inspectionService.snapshot(limit, requestId, actorId, actionType, resourceType);
         } catch (Throwable ex) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("checkedAt", LocalDateTime.now());
-            payload.put("limit", null);
-            payload.put("requestId", null);
+            payload.put("limit", limit);
+            payload.put("requestId", requestId);
+            payload.put("actorId", actorId);
+            payload.put("actionType", actionType);
+            payload.put("resourceType", resourceType);
             payload.put("count", 0);
             payload.put("entries", List.of());
             payload.put("error", ex.getMessage());

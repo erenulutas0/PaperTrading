@@ -3652,5 +3652,29 @@ A change is “done” when:
   - the workspace now feels like one coherent control surface instead of a collection of polished pages under a generic top bar
   - desktop-only behavior is framed as deliberate scope, not accidental incompleteness
 
+### 2026-03-15: Audit Ops Surface Extended From Snapshot Peek To Filtered Read And CSV Export
+- Problem observed:
+  - Audit writes were already being persisted, but operational readout was still narrow:
+    - `/api/v1/ops/auditlog` only exposed `limit` and `requestId`
+    - there was no direct export path for filtered audit rows
+    - widening the service contract risked breaking the actuator audit endpoint if done carelessly
+- Implementation:
+  - Extended `AuditLogInspectionService` to support optional filters for:
+    - `requestId`
+    - `actorId`
+    - `actionType`
+    - `resourceType`
+  - Upgraded `AuditOpsController` so `/api/v1/ops/auditlog` accepts the same filter set.
+  - Added `GET /api/v1/ops/auditlog/export` returning CSV for the filtered row set.
+  - Kept `/actuator/auditlog` backward-compatible while widening it to understand the richer optional filter contract.
+  - Added/updated integration coverage for:
+    - filtered ops read
+    - CSV export
+    - actuator compatibility
+- Operational impact:
+  - audit persistence is now paired with a practical inspection/export surface instead of a minimal smoke endpoint
+  - ops can isolate actor/action/resource slices without dropping to raw SQL
+  - actuator consumers keep working while the dedicated ops path becomes more useful
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

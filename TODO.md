@@ -1727,3 +1727,7 @@ Last updated: 2026-03-11
   - Promote `dashboard/layout` from a thin nav bar into a clearer product header
   - Surface current section context in the shared shell
   - Upgrade the desktop-only fallback so it reads like an intentional product constraint
+- [x] Finish audit read/export tooling for ops:
+  - Extend `/api/v1/ops/auditlog` with actor/action/resource filters
+  - Add CSV export endpoint for filtered audit rows
+  - Keep actuator audit endpoint backward-compatible while widening ops inspection capability

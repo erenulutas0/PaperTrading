@@ -1,6 +1,8 @@
 package com.finance.core.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.domain.AuditActionType;
+import com.finance.core.domain.AuditResourceType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -9,10 +11,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -29,38 +33,79 @@ public class AuditLogInspectionService {
         this.objectMapper = objectMapper;
     }
 
-    public Map<String, Object> snapshot(Integer limit, String requestId) {
+    public Map<String, Object> snapshot(Integer limit, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         int safeLimit = normalizeLimit(limit);
-        List<Map<String, Object>> entries = fetchEntries(safeLimit, requestId);
+        List<Map<String, Object>> entries = fetchEntries(safeLimit, requestId, actorId, actionType, resourceType);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("checkedAt", LocalDateTime.now());
         payload.put("limit", safeLimit);
         payload.put("requestId", requestId);
+        payload.put("actorId", actorId);
+        payload.put("actionType", actionType);
+        payload.put("resourceType", resourceType);
         payload.put("count", entries.size());
         payload.put("entries", entries);
         return payload;
     }
 
-    private List<Map<String, Object>> fetchEntries(int limit, String requestId) {
+    public String exportCsv(Integer limit, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+        int safeLimit = normalizeLimit(limit);
+        List<Map<String, Object>> entries = fetchEntries(safeLimit, requestId, actorId, actionType, resourceType);
+        List<String> rows = new ArrayList<>();
+        rows.add("id,actorId,actionType,resourceType,resourceId,requestId,ipAddress,requestMethod,requestPath,createdAt");
+        entries.forEach(entry -> rows.add(String.join(",",
+                csv(entry.get("id")),
+                csv(entry.get("actorId")),
+                csv(entry.get("actionType")),
+                csv(entry.get("resourceType")),
+                csv(entry.get("resourceId")),
+                csv(entry.get("requestId")),
+                csv(entry.get("ipAddress")),
+                csv(entry.get("requestMethod")),
+                csv(entry.get("requestPath")),
+                csv(entry.get("createdAt"))
+        )));
+        return rows.stream().collect(Collectors.joining(System.lineSeparator()));
+    }
+
+    private List<Map<String, Object>> fetchEntries(int limit, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         String baseSql = """
                 select id, actor_id, action_type, resource_type, resource_id, request_id,
                        ip_address, user_agent, request_method, request_path, details, created_at
                 from audit_logs
                 """;
+        List<String> clauses = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
 
         if (requestId != null && !requestId.isBlank()) {
-            return jdbcTemplate.query(
-                    baseSql + " where request_id = ? order by created_at desc limit ?",
-                    (rs, rowNum) -> toPayload(rs),
-                    requestId.trim(),
-                    limit);
+            clauses.add("request_id = ?");
+            params.add(requestId.trim());
+        }
+        if (actorId != null) {
+            clauses.add("actor_id = ?");
+            params.add(actorId);
+        }
+        if (actionType != null) {
+            clauses.add("action_type = ?");
+            params.add(actionType.name());
+        }
+        if (resourceType != null) {
+            clauses.add("resource_type = ?");
+            params.add(resourceType.name());
         }
 
+        StringBuilder sql = new StringBuilder(baseSql);
+        if (!clauses.isEmpty()) {
+            sql.append(" where ").append(String.join(" and ", clauses));
+        }
+        sql.append(" order by created_at desc limit ?");
+        params.add(limit);
+
         return jdbcTemplate.query(
-                baseSql + " order by created_at desc limit ?",
+                sql.toString(),
                 (rs, rowNum) -> toPayload(rs),
-                limit);
+                params.toArray());
     }
 
     private int normalizeLimit(Integer limit) {
@@ -113,5 +158,13 @@ public class AuditLogInspectionService {
             log.warn("Failed to parse audit details payload, returning raw text", ex);
             return details;
         }
+    }
+
+    private String csv(Object value) {
+        if (value == null) {
+            return "";
+        }
+        String raw = value.toString().replace("\"", "\"\"");
+        return "\"" + raw + "\"";
     }
 }
