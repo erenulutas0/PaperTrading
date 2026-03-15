@@ -3582,5 +3582,24 @@ A change is “done” when:
   - analysis publishing now reads like a proof-of-performance workflow instead of a generic content form
   - immutable/timestamped semantics are visible before and after publication, not only implied by backend rules
 
+### 2026-03-14: Auth Entry Surfaces Reframed As Product Onboarding Rather Than Plain Session Gates
+- Problem observed:
+  - Login and register worked technically, but both pages still behaved like thin forms:
+    - little reminder of what account state actually unlocks
+    - weak connection to trust, analytics, terminal persistence, and immutable research workflow
+    - low perceived product quality compared with dashboard, analytics, profile, and market terminal surfaces
+- Implementation:
+  - Upgraded `app/auth/login/page.tsx` with:
+    - account-backed context panel
+    - explanation of what auth restores and why identity matters
+    - stronger form framing around dashboard/terminal/analytics access
+  - Upgraded `app/auth/register/page.tsx` with:
+    - proof-of-performance onboarding language
+    - explanation of what registration anchors in the system
+    - clearer "what happens next" expectations after account creation
+- Operational impact:
+  - auth now feels like entry into a serious tracked-investing product, not a generic email/password gate
+  - first-time and returning users get immediate context for why identity, persistence, and accountability are linked
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

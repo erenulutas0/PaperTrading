@@ -1711,3 +1711,7 @@ Last updated: 2026-03-11
   - Add analysis hub summary strip and stronger immutable-flow context
   - Replace bare loading and empty states on analysis feed/detail with intentional shells
   - Reframe new analysis form around locked-in thesis semantics and auto-resolution expectations
+- [x] Bring auth entry surfaces up to the same product-quality bar:
+  - Reframe login around account-backed terminal, analytics, and trust context
+  - Reframe register around proof-of-performance identity creation instead of plain form submission
+  - Add expectation panels so auth feels like a product entry point, not a raw gate
