@@ -949,6 +949,18 @@ export default function WatchlistPage() {
         { key: 'ALPHA', label: 'A-Z' },
     ]), []);
 
+    const topMoverInstruments = useMemo(() => {
+        return [...instrumentUniverse]
+            .sort((left, right) => right.changePercent24h - left.changePercent24h)
+            .slice(0, 4);
+    }, [instrumentUniverse]);
+
+    const bottomMoverInstruments = useMemo(() => {
+        return [...instrumentUniverse]
+            .sort((left, right) => left.changePercent24h - right.changePercent24h)
+            .slice(0, 4);
+    }, [instrumentUniverse]);
+
     const favoriteInstruments = useMemo(() => {
         const favoriteSet = new Set(favoriteSymbols);
         return instrumentUniverse.filter((instrument) => favoriteSet.has(instrument.symbol));
@@ -2868,6 +2880,66 @@ export default function WatchlistPage() {
                                         <div className="rounded-3xl border border-white/8 bg-zinc-950/55 p-4">
                                             <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument Universe</p>
                                             <p className="mt-2 text-sm text-zinc-400">Chart sembolunu watchlist'e eklemeden de dogrudan degistirebilirsin.</p>
+                                            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                                                <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-3">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-300">Top Movers</p>
+                                                        <button
+                                                            onClick={() => {
+                                                                setUniverseQuickFilter('GAINERS');
+                                                                setUniverseSortMode('MOVE_DESC');
+                                                            }}
+                                                            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300 transition hover:text-emerald-200"
+                                                        >
+                                                            Open
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-3 space-y-2">
+                                                        {topMoverInstruments.map((instrument) => (
+                                                            <button
+                                                                key={`top-${instrument.symbol}`}
+                                                                onClick={() => setSelectedSymbol(instrument.symbol)}
+                                                                className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-left transition hover:border-emerald-400/25"
+                                                            >
+                                                                <div>
+                                                                    <p className="text-xs font-semibold text-white">{instrument.symbol}</p>
+                                                                    <p className="text-[10px] text-zinc-500">{instrument.displayName}</p>
+                                                                </div>
+                                                                <span className="text-xs font-semibold text-emerald-300">{formatPercent(instrument.changePercent24h)}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl border border-red-400/15 bg-red-400/5 p-3">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className="text-[10px] uppercase tracking-[0.18em] text-red-300">Bottom Movers</p>
+                                                        <button
+                                                            onClick={() => {
+                                                                setUniverseQuickFilter('LOSERS');
+                                                                setUniverseSortMode('MOVE_ASC');
+                                                            }}
+                                                            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-red-300 transition hover:text-red-200"
+                                                        >
+                                                            Open
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-3 space-y-2">
+                                                        {bottomMoverInstruments.map((instrument) => (
+                                                            <button
+                                                                key={`bottom-${instrument.symbol}`}
+                                                                onClick={() => setSelectedSymbol(instrument.symbol)}
+                                                                className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-left transition hover:border-red-400/25"
+                                                            >
+                                                                <div>
+                                                                    <p className="text-xs font-semibold text-white">{instrument.symbol}</p>
+                                                                    <p className="text-[10px] text-zinc-500">{instrument.displayName}</p>
+                                                                </div>
+                                                                <span className="text-xs font-semibold text-red-300">{formatPercent(instrument.changePercent24h)}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
                                             <div className="mt-4 flex flex-wrap gap-2">
                                                 {universeFilterOptions.map((option) => (
                                                     <button

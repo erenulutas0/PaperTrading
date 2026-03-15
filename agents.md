@@ -99,6 +99,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Sorting applies after quick-filter + text search so the scanner stack behaves predictably.
   - **Operational impact**:
     - the universe rail now behaves more like a lightweight scanner instead of a raw searchable list
+- **2026-03-15**: **Instrument Universe Added Top/Bottom Movers Strip**
+  - **Problem observed**:
+    - Quick filters and sort controls improved the scanner, but the user still had to choose a mode before seeing any obvious action.
+    - A serious market surface should expose fast movers immediately, not only after deliberate filtering.
+  - **Implementation**:
+    - Added compact `Top Movers` and `Bottom Movers` cards above the universe rail.
+    - Each card:
+      - lists the strongest names for the current market universe
+      - lets the user jump directly to the symbol
+      - has an `Open` action that activates the matching scanner filter/sort
+  - **Operational impact**:
+    - `/watchlist` now shows live market action at a glance before the user starts interacting with the scanner controls
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
