@@ -36,6 +36,7 @@ Last updated: 2026-03-11
   - analytics redraw now uses window-resize-only fallback after container-observer loop risk in production
   - analytics page now gates rich render until client mount to avoid hydration drift across locale/date/canvas-heavy sections
   - analytics compare share links are now generated on demand instead of syncing query params on every state change
+  - analytics chart helpers now avoid spread-based min/max on large arrays to prevent stack overflow on long-history portfolios
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state

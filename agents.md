@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Analytics Chart Math Switched From Spread Aggregation To Safe Iteration**
+  - **Problem observed**:
+    - One portfolio could open while another consistently crashed the analytics route after data load.
+    - That pattern pointed away from generic routing issues and toward data-volume sensitivity.
+    - The analytics page used spread-based aggregation in multiple chart helpers:
+      - `Math.min(...values)`
+      - `Math.max(...values)`
+    - On long-history portfolios, that can overflow the call stack because the array is expanded into too many arguments.
+  - **Implementation**:
+    - Added safe iterative min/max helpers for analytics chart calculations.
+    - Replaced spread-based extrema calls in:
+      - equity curve drawing
+      - PnL timeline drawing
+      - compare overlay drawing
+      - symbol sparkline/detail visuals
+    - Kept behavior identical while removing the argument-explosion failure mode.
+  - **Operational impact**:
+    - analytics now scales to longer snapshot/trade histories without crashing only the heaviest portfolios
+    - route reliability no longer depends on portfolio history being short enough for spread-based math
 - **2026-03-15**: **Analytics Page Now Waits For Client Mount Before Rendering The Full Surface**
   - **Problem observed**:
     - `/analytics/[portfolioId]` had accumulated:

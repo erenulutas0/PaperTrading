@@ -181,6 +181,34 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         initializeCanvas(canvas);
     }, [initializeCanvas]);
 
+    const getSafeMin = useCallback((values: number[], fallback = 0) => {
+        if (values.length === 0) {
+            return fallback;
+        }
+
+        let currentMin = values[0];
+        for (let index = 1; index < values.length; index += 1) {
+            if (values[index] < currentMin) {
+                currentMin = values[index];
+            }
+        }
+        return currentMin;
+    }, []);
+
+    const getSafeMax = useCallback((values: number[], fallback = 0) => {
+        if (values.length === 0) {
+            return fallback;
+        }
+
+        let currentMax = values[0];
+        for (let index = 1; index < values.length; index += 1) {
+            if (values[index] > currentMax) {
+                currentMax = values[index];
+            }
+        }
+        return currentMax;
+    }, []);
+
     const fetchAnalytics = useCallback(async () => {
         try {
             const userId = localStorage.getItem('userId') || '';
@@ -322,8 +350,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const equities = curve.map(p => p.equity);
         const drawdowns = curve.map(p => p.drawdown);
         const peaks = curve.map(p => p.peak);
-        const minEq = Math.min(...equities) * 0.998;
-        const maxEq = Math.max(...peaks) * 1.002;
+        const minEq = getSafeMin(equities, 0) * 0.998;
+        const maxEq = getSafeMax(peaks, 0) * 1.002;
 
         const padL = 60, padR = 20, padT = 20, padB = 40;
         const plotW = W - padL - padR;
@@ -408,7 +436,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             const d = new Date(ts);
             ctx.fillText(d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), xPos(idx), H - 10);
         }
-    }, [filteredEquityCurve, initializeCanvas]);
+    }, [filteredEquityCurve, getSafeMax, getSafeMin, initializeCanvas]);
 
     const filteredPnlTimeline = useMemo(() => {
         if (!data?.pnlTimeline?.length) {
@@ -460,8 +488,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const plotW = W - padL - padR;
         const plotH = H - padT - padB;
         const values = filteredPnlTimeline.flatMap((point) => [point.realizedPnl, point.unrealizedPnl, point.netPnl]);
-        const minValue = Math.min(...values, 0);
-        const maxValue = Math.max(...values, 0);
+        const minValue = Math.min(getSafeMin(values, 0), 0);
+        const maxValue = Math.max(getSafeMax(values, 0), 0);
         const span = maxValue - minValue || 1;
 
         const xPos = (i: number) => filteredPnlTimeline.length === 1
@@ -511,7 +539,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             const d = new Date(ts);
             ctx.fillText(d.toLocaleDateString(), xPos(idx), H - 10);
         }
-    }, [filteredPnlTimeline, initializeCanvas]);
+    }, [filteredPnlTimeline, getSafeMax, getSafeMin, initializeCanvas]);
 
     const drawCompareOverlay = useCallback(() => {
         const canvas = compareCanvasRef.current;
@@ -535,8 +563,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const primaryIndexed = toIndexed(filteredEquityCurve);
         const compareIndexed = toIndexed(filteredCompareEquityCurve);
         const allValues = [...primaryIndexed, ...compareIndexed];
-        const minValue = Math.min(...allValues) * 0.995;
-        const maxValue = Math.max(...allValues) * 1.005;
+        const minValue = getSafeMin(allValues, 100) * 0.995;
+        const maxValue = getSafeMax(allValues, 100) * 1.005;
         const span = maxValue - minValue || 1;
 
         const xPos = (index: number, length: number) => {
@@ -591,7 +619,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             const d = new Date(ts);
             ctx.fillText(d.toLocaleDateString(), xPos(idx, filteredEquityCurve.length), H - 10);
         }
-    }, [filteredCompareEquityCurve, filteredEquityCurve, initializeCanvas]);
+    }, [filteredCompareEquityCurve, filteredEquityCurve, getSafeMax, getSafeMin, initializeCanvas]);
 
     useEffect(() => {
         let frameId: number | null = null;
@@ -772,8 +800,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         }
 
         const values = points.map((point) => point.cumulativePnl);
-        const minValue = Math.min(...values);
-        const maxValue = Math.max(...values);
+        const minValue = getSafeMin(values, 0);
+        const maxValue = getSafeMax(values, 0);
         const span = maxValue - minValue || 1;
 
         return points.map((point, index) => {
@@ -791,8 +819,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         const chartHeight = 96;
         const baselineValue = points.length ? points[points.length - 1].cumulativePnl : 0;
         const values = [...points.map((point) => point.cumulativePnl), currentUnrealized, baselineValue, 0];
-        const minValue = Math.min(...values);
-        const maxValue = Math.max(...values);
+        const minValue = getSafeMin(values, 0);
+        const maxValue = getSafeMax(values, 0);
         const span = maxValue - minValue || 1;
         const yForValue = (value: number) => chartHeight - (((value - minValue) / span) * chartHeight);
 
