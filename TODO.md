@@ -114,6 +114,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy backend/frontend after scanner-view anchor-symbol rollout and verify sector-based scanner presets now restore with the correct symbol context and support one-click save from `Sector Pulse`
 - [ ] Redeploy frontend after compare-basket sparkline rollout and verify compare basket cards now show a mini relative-strength curve derived from current basket 24h moves
 - [ ] Redeploy frontend after session-rail rollout and verify `/watchlist` now surfaces compact market/watchlist/compare/scanner/favorites context cards above the instrument header
+- [ ] Redeploy frontend after universe-metric-pill rollout and verify instrument cards now surface move-rank plus watchlist/compare/active state pills for faster scanner reads
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol

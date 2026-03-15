@@ -326,6 +326,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the terminal now communicates session state before the user reads the deeper panels
     - navigation between scanner, compare, and chart contexts is less error-prone because the current working state is explicit
+- **2026-03-15**: **Instrument Universe Cards Added Multi-Metric Scanner Pills**
+  - **Problem observed**:
+    - Instrument cards already showed metadata and price, but not enough working-state context for fast scanner decisions.
+    - Users still had to infer basic questions manually:
+      - where does this symbol rank by move?
+      - is it already in the active watchlist?
+      - is it in the current compare basket?
+      - is it the active chart symbol?
+  - **Implementation**:
+    - Added compact scanner pills to universe cards for:
+      - move rank
+      - active watchlist membership
+      - compare membership
+      - active-symbol state
+  - **Operational impact**:
+    - scanner cards now communicate both market state and workspace state in one place
+    - watchlist and compare workflows require fewer context switches while scanning the universe
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

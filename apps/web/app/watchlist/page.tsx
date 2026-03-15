@@ -600,6 +600,10 @@ export default function WatchlistPage() {
         return Array.isArray(selectedWatchlistMeta?.items) ? selectedWatchlistMeta.items.length : 0;
     }, [selectedWatchlistMeta]);
 
+    const selectedWatchlistSymbolSet = useMemo(() => {
+        return new Set(enrichedItems.map((item) => item.symbol));
+    }, [enrichedItems]);
+
     const describeCompareBasketSnapshot = useCallback((symbols: string[]) => {
         const instruments = symbols
             .map((symbol) => instrumentMap.get(symbol) ?? null)
@@ -1373,6 +1377,12 @@ export default function WatchlistPage() {
         return [...instrumentUniverse]
             .sort((left, right) => Math.abs(right.changePercent24h) - Math.abs(left.changePercent24h))
             .slice(0, 8);
+    }, [instrumentUniverse]);
+
+    const instrumentMoveRankMap = useMemo(() => {
+        const sorted = [...instrumentUniverse]
+            .sort((left, right) => right.changePercent24h - left.changePercent24h);
+        return new Map(sorted.map((instrument, index) => [instrument.symbol, index + 1]));
     }, [instrumentUniverse]);
 
     const sectorPulseGroups = useMemo(() => {
@@ -4052,6 +4062,28 @@ export default function WatchlistPage() {
                                                                     {instrument.sector && (
                                                                         <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
                                                                             {instrument.sector}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {instrumentMoveRankMap.get(instrument.symbol) && (
+                                                                        <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                                                                            Move #{instrumentMoveRankMap.get(instrument.symbol)}
+                                                                        </span>
+                                                                    )}
+                                                                    {selectedWatchlistSymbolSet.has(instrument.symbol) && (
+                                                                        <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+                                                                            In Watchlist
+                                                                        </span>
+                                                                    )}
+                                                                    {compareSymbols.includes(instrument.symbol) && (
+                                                                        <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-fuchsia-300">
+                                                                            Compare
+                                                                        </span>
+                                                                    )}
+                                                                    {instrument.symbol === selectedSymbol && (
+                                                                        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+                                                                            Active
                                                                         </span>
                                                                     )}
                                                                 </div>
