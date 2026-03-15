@@ -365,6 +365,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - high-signal compare presets now move directly into durable terminal setups
     - the path from discovery basket to named layout is now one click across all compare-source types
+- **2026-03-15**: **Compare Basket Cards Added Leader, Weakest, and Spread Chips**
+  - **Problem observed**:
+    - Compare basket cards already showed average move, tone, and sparkline, but they still hid intra-basket dispersion.
+    - Users could not immediately see:
+      - the strongest member
+      - the weakest member
+      - how wide the internal spread is
+  - **Implementation**:
+    - Added compact delta chips to suggested, built-in, and saved compare basket cards for:
+      - leader symbol + move
+      - weakest symbol + move
+      - spread between top and bottom basket members
+  - **Operational impact**:
+    - compare baskets now communicate internal breadth, not just average direction
+    - users can reject noisy or overly dispersed baskets before applying them to the chart
 - **2026-03-15**: **Right Rail Added Compact Terminal Working Summary**
   - **Problem observed**:
     - The top session rail made terminal context visible, but the right rail still opened cold.

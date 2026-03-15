@@ -665,6 +665,33 @@ export default function WatchlistPage() {
         };
     }, [instrumentMap]);
 
+    const getCompareBasketDeltaChips = useCallback((symbols: string[]) => {
+        const instruments = symbols
+            .map((symbol) => instrumentMap.get(symbol) ?? null)
+            .filter((instrument): instrument is InstrumentOption => instrument !== null);
+        if (instruments.length === 0) {
+            return [];
+        }
+        const sorted = [...instruments].sort((left, right) => Number(right.changePercent24h ?? 0) - Number(left.changePercent24h ?? 0));
+        const leader = sorted[0];
+        const weakest = sorted[sorted.length - 1];
+        const spread = Number(leader.changePercent24h ?? 0) - Number(weakest.changePercent24h ?? 0);
+        return [
+            {
+                label: `Leader ${leader.symbol} ${formatPercent(Number(leader.changePercent24h ?? 0))}`,
+                className: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
+            },
+            {
+                label: `Weakest ${weakest.symbol} ${formatPercent(Number(weakest.changePercent24h ?? 0))}`,
+                className: 'border-red-400/20 bg-red-400/10 text-red-200',
+            },
+            {
+                label: `Spread ${formatPercent(spread)}`,
+                className: 'border-white/10 bg-white/[0.03] text-zinc-300',
+            },
+        ];
+    }, [instrumentMap]);
+
     const getCompareBasketSparklineModel = useCallback((symbols: string[]) => {
         const items = symbols
             .map((symbol) => {
@@ -3292,6 +3319,16 @@ export default function WatchlistPage() {
                                                                 </div>
                                                                 <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
                                                                 <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketDeltaChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
                                                                 {renderCompareBasketSparkline(basket.symbols)}
                                                                 <div className="mt-3 flex flex-wrap gap-2">
                                                                     {basket.symbols.map((symbol, index) => (
@@ -3370,6 +3407,16 @@ export default function WatchlistPage() {
                                                                 </div>
                                                                 <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
                                                                 <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketDeltaChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
                                                                 {renderCompareBasketSparkline(basket.symbols)}
                                                                 <div className="mt-3 flex flex-wrap gap-2">
                                                                     {basket.symbols.map((symbol, index) => (
@@ -3484,6 +3531,16 @@ export default function WatchlistPage() {
                                                                 <p className="mt-2 text-[11px] font-semibold text-zinc-300">
                                                                     {describeCompareBasketSnapshot(basket.symbols)}
                                                                 </p>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketDeltaChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
                                                                 {renderCompareBasketSparkline(basket.symbols)}
                                                             </div>
                                                             {editingCompareBasketId !== basket.id && (
