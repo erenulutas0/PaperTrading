@@ -87,6 +87,7 @@ export default function AuditPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [exporting, setExporting] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
     const [page, setPage] = useState(0);
     const [filters, setFilters] = useState({
         limit: '20',
@@ -96,6 +97,24 @@ export default function AuditPage() {
         actionType: '',
         resourceType: '',
     });
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        setFilters((current) => ({
+            ...current,
+            limit: params.get('limit') || current.limit,
+            days: params.get('days') || '',
+            requestId: params.get('requestId') || '',
+            actorId: params.get('actorId') || '',
+            actionType: params.get('actionType') || '',
+            resourceType: params.get('resourceType') || '',
+        }));
+        setPage(Math.max(0, Number.parseInt(params.get('page') || '0', 10) || 0));
+    }, []);
 
     const fetchAudit = useCallback(async () => {
         setLoading(true);
@@ -185,6 +204,62 @@ export default function AuditPage() {
         } finally {
             setExporting(false);
         }
+    };
+
+    const buildViewQuery = () => {
+        const params = new URLSearchParams();
+        if (filters.limit) params.set('limit', filters.limit);
+        if (filters.days) params.set('days', filters.days);
+        if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
+        if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
+        if (filters.actionType) params.set('actionType', filters.actionType);
+        if (filters.resourceType) params.set('resourceType', filters.resourceType);
+        params.set('page', page.toString());
+        return params;
+    };
+
+    const copyViewLink = async () => {
+        try {
+            const params = buildViewQuery();
+            const url = `${window.location.origin}/dashboard/audit?${params.toString()}`;
+            await navigator.clipboard.writeText(url);
+            setCopiedLink(true);
+            window.setTimeout(() => setCopiedLink(false), 1600);
+        } catch (copyError) {
+            setError(copyError instanceof Error ? copyError.message : 'Failed to copy audit view link');
+        }
+    };
+
+    const exportJson = async () => {
+        try {
+            const payload = {
+                filters: {
+                    ...filters,
+                    page,
+                },
+                snapshot: data,
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = 'audit-log-view.json';
+            anchor.click();
+            window.URL.revokeObjectURL(url);
+        } catch (jsonError) {
+            setError(jsonError instanceof Error ? jsonError.message : 'Failed to export audit JSON');
+        }
+    };
+
+    const focusRequestId = (requestId: string | null) => {
+        if (!requestId) {
+            return;
+        }
+        setPage(0);
+        setFilters((current) => ({
+            ...current,
+            requestId,
+        }));
     };
 
     return (
@@ -327,6 +402,20 @@ export default function AuditPage() {
                         >
                             {exporting ? 'Exporting...' : 'Export CSV'}
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => exportJson()}
+                            className="rounded-xl border border-sky-500/35 bg-sky-500/10 px-4 py-3 text-sm font-semibold text-sky-300 transition hover:bg-sky-500/20"
+                        >
+                            Export JSON
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void copyViewLink()}
+                            className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:border-zinc-600 hover:text-white"
+                        >
+                            {copiedLink ? 'Link Copied' : 'Copy View Link'}
+                        </button>
                     </div>
 
                     <p className="mt-4 text-xs leading-6 text-zinc-500">
@@ -383,7 +472,18 @@ export default function AuditPage() {
                                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                                         <div className="rounded-xl border border-zinc-800 bg-black/50 p-3">
                                             <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-600">Request Id</p>
-                                            <p className="mt-2 break-all text-xs text-zinc-300">{entry.requestId ?? 'N/A'}</p>
+                                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                <p className="break-all text-xs text-zinc-300">{entry.requestId ?? 'N/A'}</p>
+                                                {entry.requestId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => focusRequestId(entry.requestId)}
+                                                        className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary transition hover:bg-primary/20"
+                                                    >
+                                                        Focus
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="rounded-xl border border-zinc-800 bg-black/50 p-3">
                                             <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-600">Actor Id</p>

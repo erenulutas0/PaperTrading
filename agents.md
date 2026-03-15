@@ -3728,5 +3728,23 @@ A change is “done” when:
   - audit browsing now behaves like an actual inbox/list surface instead of a one-shot snapshot window
   - export remains unpaged while on-screen inspection gains predictable traversal
 
+### 2026-03-15: Audit Ops Views Became Portable And Request-Focused
+- Problem observed:
+  - Pagination improved browsing, but audit views were still trapped in the current tab state.
+  - Operators also had no quick way to pivot from a row into a request-focused slice.
+- Implementation:
+  - Added `Export JSON` for the current audit workspace state.
+  - Added `Copy View Link`, with query-param restore for:
+    - page
+    - limit
+    - days
+    - requestId
+    - actorId
+    - action/resource filters
+  - Added row-level `Focus` action for `requestId`.
+- Operational impact:
+  - audit review can now be shared or reopened as a stable filtered view instead of being limited to one session
+  - request-level forensics now takes one click from the row list instead of manual copy/paste
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

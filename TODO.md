@@ -1743,3 +1743,7 @@ Last updated: 2026-03-11
   - Support `page` navigation in ops audit read endpoints
   - Return `totalCount` and `hasMore` so the UI can paginate safely
   - Add `Prev/Next` controls to `/dashboard/audit`
+- [x] Make audit views portable:
+  - Add audit JSON export from the current filtered workspace state
+  - Add `Copy View Link` and row-level request focus
+  - Rehydrate audit filter state from URL query params on load
