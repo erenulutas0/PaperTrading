@@ -38,6 +38,21 @@ const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS'
 const SORT_DIRECTION_OPTIONS: LeaderboardDirection[] = ['DESC', 'ASC'];
 const ACCOUNT_SORT_OPTIONS: LeaderboardSortBy[] = ['WIN_RATE', 'TRUST_SCORE'];
 
+function LeaderboardEmptyPanel({
+    title,
+    body,
+}: {
+    title: string;
+    body: string;
+}) {
+    return (
+        <div className="rounded-2xl border border-dashed border-zinc-800 bg-black/30 px-5 py-8 text-center">
+            <p className="text-sm font-medium text-white">{title}</p>
+            <p className="mt-2 text-sm text-zinc-500">{body}</p>
+        </div>
+    );
+}
+
 export default function LeaderboardPage() {
     const [entries, setEntries] = useState<(PortfolioLeaderboardEntry | AccountLeaderboardEntry)[]>([]);
     const [sortBy, setSortBy] = useState<LeaderboardSortBy>('RETURN_PERCENTAGE');
@@ -49,6 +64,10 @@ export default function LeaderboardPage() {
     const [loading, setLoading] = useState(true);
     const skipFirstPersistRef = useRef(true);
     const isAccountMode = ACCOUNT_SORT_OPTIONS.includes(sortBy);
+    const positiveEntries = entries.filter((entry) => entry.returnPercentage >= 0).length;
+    const averageEquity = entries.length > 0
+        ? entries.reduce((sum, entry) => sum + entry.totalEquity, 0) / entries.length
+        : 0;
 
     useEffect(() => {
         let cancelled = false;
@@ -187,6 +206,29 @@ export default function LeaderboardPage() {
             </header>
 
             <main className="max-w-6xl mx-auto">
+                <section className="mb-6 grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Mode</p>
+                        <p className={`mt-2 text-2xl font-bold ${isAccountMode ? 'text-blue-300' : 'text-green-300'}`}>
+                            {isAccountMode ? 'Account' : 'Portfolio'}
+                        </p>
+                        <p className="mt-1 text-[11px] text-zinc-500">
+                            {isAccountMode ? 'Trust and win rate rank traders.' : 'Return and P/L rank public portfolios.'}
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Visible Results</p>
+                        <p className="mt-2 text-2xl font-bold text-white">{totalElements}</p>
+                        <p className="mt-1 text-[11px] text-zinc-500">{positiveEntries} positive rows on current page</p>
+                    </div>
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 px-5 py-4">
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Avg Equity</p>
+                        <p className="mt-2 text-2xl font-bold text-zinc-200">
+                            ${averageEquity.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </p>
+                        <p className="mt-1 text-[11px] text-zinc-500">Across current page rows</p>
+                    </div>
+                </section>
                 <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em]">
                         <span className={`rounded-full border px-3 py-1 ${isAccountMode ? 'border-blue-500/30 bg-blue-500/10 text-blue-300' : 'border-green-500/30 bg-green-500/10 text-green-300'}`}>
@@ -216,7 +258,31 @@ export default function LeaderboardPage() {
 
                     {/* Table Body */}
                     {loading ? (
-                        <div className="p-12 text-center text-zinc-500">Updating ranks...</div>
+                        <div className="p-6 space-y-3">
+                            {Array.from({ length: 6 }).map((_, index) => (
+                                <div key={index} className="grid grid-cols-12 gap-4 items-center rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <div className="col-span-1 flex justify-center">
+                                        <div className="h-8 w-8 rounded-full animate-pulse bg-white/10" />
+                                    </div>
+                                    <div className="col-span-5">
+                                        <div className="h-4 w-36 animate-pulse rounded bg-white/10" />
+                                        <div className="mt-2 h-3 w-24 animate-pulse rounded bg-white/5" />
+                                    </div>
+                                    <div className="col-span-2 ml-auto h-4 w-16 animate-pulse rounded bg-white/5" />
+                                    <div className="col-span-2 ml-auto h-4 w-20 animate-pulse rounded bg-white/5" />
+                                    <div className="col-span-2 ml-auto h-4 w-24 animate-pulse rounded bg-white/10" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : entries.length === 0 ? (
+                        <div className="p-6">
+                            <LeaderboardEmptyPanel
+                                title={isAccountMode ? 'No public accounts yet' : 'No public portfolios yet'}
+                                body={isAccountMode
+                                    ? 'Accounts appear here after users expose at least one public portfolio.'
+                                    : 'Public portfolios will appear here once users enable visibility and accumulate performance.'}
+                            />
+                        </div>
                     ) : (
                         entries.map((entry, index) => {
                             const roi = entry.returnPercentage;

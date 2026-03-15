@@ -42,6 +42,21 @@ const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS'
 const SORT_DIRECTION_OPTIONS: LeaderboardDirection[] = ['DESC', 'ASC'];
 const ACCOUNT_SORT_OPTIONS: LeaderboardSortBy[] = ['WIN_RATE', 'TRUST_SCORE'];
 
+function LeaderboardEmptyPanel({
+    title,
+    body,
+}: {
+    title: string;
+    body: string;
+}) {
+    return (
+        <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-5 py-8 text-center">
+            <p className="text-sm font-medium text-white">{title}</p>
+            <p className="mt-2 text-sm text-zinc-500">{body}</p>
+        </div>
+    );
+}
+
 export default function LeaderboardPage() {
     const [entries, setEntries] = useState<(PortfolioLeaderboardEntry | AccountLeaderboardEntry)[]>([]);
     const [period, setPeriod] = useState<LeaderboardPeriod>('1D');
@@ -55,6 +70,13 @@ export default function LeaderboardPage() {
     const [loading, setLoading] = useState(true);
     const skipFirstPersistRef = useRef(true);
     const isAccountMode = ACCOUNT_SORT_OPTIONS.includes(sortBy);
+    const averageEquity = totalElements > 0 && entries.length > 0
+        ? entries.reduce((sum, entry) => sum + entry.totalEquity, 0) / entries.length
+        : 0;
+    const positiveEntries = entries.filter((entry) => entry.returnPercentage >= 0).length;
+    const modeSummary = isAccountMode
+        ? 'Trust and win rate rank the account itself.'
+        : `Period ${period} ranks individual public portfolios by performance.`;
 
     useEffect(() => {
         let cancelled = false;
@@ -234,6 +256,33 @@ export default function LeaderboardPage() {
                 </nav>
             </header>
 
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Mode</p>
+                    <p className={`mt-2 text-2xl font-bold ${isAccountMode ? 'text-blue-300' : 'text-green-300'}`}>
+                        {isAccountMode ? 'Account' : 'Portfolio'}
+                    </p>
+                    <p className="mt-1 text-[11px] text-zinc-500">{modeSummary}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Visible Results</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{totalElements}</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">Current sort {sortBy.replace('_', ' ')}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Positive Entries</p>
+                    <p className="mt-2 text-2xl font-bold text-emerald-300">{positiveEntries}</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">{entries.length > 0 ? `${((positiveEntries / entries.length) * 100).toFixed(0)}% of current page` : 'No data yet'}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Avg Equity</p>
+                    <p className="mt-2 text-2xl font-bold text-zinc-200">
+                        ${averageEquity.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="mt-1 text-[11px] text-zinc-500">Across current page rows</p>
+                </div>
+            </section>
+
             <div className="flex justify-center gap-2 mb-8">
                 {PERIOD_OPTIONS.map((p) => (
                     <button
@@ -291,17 +340,33 @@ export default function LeaderboardPage() {
                     </thead>
                     <tbody className="divide-y divide-zinc-800/50">
                         {loading ? (
-                            <tr>
-                                <td colSpan={isAccountMode ? 8 : 6} className="p-8 text-center text-zinc-500 animate-pulse">
-                                    Loading rankings...
-                                </td>
-                            </tr>
+                            Array.from({ length: 6 }).map((_, index) => (
+                                <tr key={index}>
+                                    <td colSpan={isAccountMode ? 8 : 6} className="p-4">
+                                        <div className="grid grid-cols-12 gap-4 items-center">
+                                            <div className="col-span-1 flex justify-center">
+                                                <div className="h-8 w-8 rounded-full animate-pulse bg-white/10" />
+                                            </div>
+                                            <div className="col-span-4">
+                                                <div className="h-4 w-40 animate-pulse rounded bg-white/10" />
+                                                <div className="mt-2 h-3 w-24 animate-pulse rounded bg-white/5" />
+                                            </div>
+                                            <div className="col-span-2 ml-auto h-4 w-20 animate-pulse rounded bg-white/5" />
+                                            <div className="col-span-2 ml-auto h-4 w-20 animate-pulse rounded bg-white/5" />
+                                            <div className="col-span-3 ml-auto h-4 w-28 animate-pulse rounded bg-white/10" />
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
                         ) : entries.length === 0 ? (
                             <tr>
-                                <td colSpan={isAccountMode ? 8 : 6} className="p-8 text-center text-zinc-600 italic">
-                                    {isAccountMode
-                                        ? 'No public accounts found. Users appear here when they have at least one public portfolio.'
-                                        : 'No public portfolios found for this period. Set your portfolio visibility to PUBLIC to appear here.'}
+                                <td colSpan={isAccountMode ? 8 : 6} className="p-6">
+                                    <LeaderboardEmptyPanel
+                                        title={isAccountMode ? 'No public accounts yet' : 'No public portfolios for this period'}
+                                        body={isAccountMode
+                                            ? 'Accounts appear here after users expose at least one public portfolio.'
+                                            : 'Set portfolio visibility to PUBLIC and allow snapshots to accumulate for the selected period.'}
+                                    />
                                 </td>
                             </tr>
                         ) : (

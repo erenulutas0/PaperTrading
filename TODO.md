@@ -1699,3 +1699,7 @@ Last updated: 2026-03-11
   - Replace bare spinner with a profile loading shell
   - Normalize profile, portfolio, and follower/following empty states
   - Add follower/following skeleton rows while connection lists load
+- [x] Bring leaderboard surfaces up to the same product quality bar:
+  - Add summary strips for dashboard and public leaderboard pages
+  - Replace bare loading copy with ranking skeletons
+  - Normalize empty states for portfolio-mode and account-mode leaderboards

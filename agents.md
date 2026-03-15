@@ -3523,5 +3523,24 @@ A change is “done” when:
   - profile now feels consistent with the rest of the product during loading and sparse-data cases
   - social graph tabs no longer degrade into generic placeholder text
 
+### 2026-03-14: Leaderboard Surfaces Upgraded With Summary, Skeletons, And Proper Empty States
+- Problem observed:
+  - Leaderboard logic was already strong, but both leaderboard surfaces still had weaker presentation quality than dashboard, analytics, and profile:
+    - bare loading copy
+    - thin contextual summary
+    - basic empty-state messaging
+- Implementation:
+  - Added summary strips to:
+    - `app/dashboard/leaderboard/page.tsx`
+    - `app/leaderboards/page.tsx`
+  - Summary now surfaces mode, visible results, positive-row count, and average equity for the current page.
+  - Replaced bare loading text with ranking skeleton rows.
+  - Added normalized empty panels for both:
+    - portfolio mode
+    - account mode
+- Operational impact:
+  - leaderboards now communicate state more clearly before the table is fully populated
+  - public and dashboard leaderboard pages now feel like first-class product surfaces rather than raw ranking tables
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
