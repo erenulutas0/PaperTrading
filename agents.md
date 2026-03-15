@@ -3790,5 +3790,23 @@ A change is “done” when:
   - active audit state is now visible and reversible without dropping back into the raw filter form
   - request-scoped investigation reads like a deliberate mode, not just a hidden field value
 
+### 2026-03-15: Audit JSON Export Moved From Browser Snapshot To Backend-Owned Export
+- Problem observed:
+  - CSV export already came from the backend, but JSON export was still assembled client-side from the currently loaded data.
+  - That made the export path less authoritative and duplicated the filter serialization logic in the browser.
+- Implementation:
+  - Added `GET /api/v1/ops/auditlog/export/json`.
+  - Backend now returns a JSON file containing:
+    - normalized filter state
+    - the same snapshot payload shape used by the audit workspace
+  - `/dashboard/audit` now reuses a single query-builder helper for:
+    - fetch
+    - CSV export
+    - JSON export
+    - view-link generation
+- Operational impact:
+  - audit exports now come from one backend-owned reporting surface instead of split browser/server semantics
+  - frontend query drift risk is lower because all audit actions now share the same parameter builder
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

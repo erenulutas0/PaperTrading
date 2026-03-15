@@ -64,4 +64,22 @@ public class AuditOpsController {
                 .contentType(new MediaType("text", "csv"))
                 .body(csv);
     }
+
+    @GetMapping(value = "/export/json", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Map<String, Object>> exportAuditLogJson(
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer days,
+            @RequestParam(required = false) String requestId,
+            @RequestParam(required = false) UUID actorId,
+            @RequestParam(required = false) AuditActionType actionType,
+            @RequestParam(required = false) AuditResourceType resourceType) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("audit-log-view.json")
+                        .build()
+                        .toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(inspectionService.exportJson(limit, page, days, requestId, actorId, actionType, resourceType));
+    }
 }

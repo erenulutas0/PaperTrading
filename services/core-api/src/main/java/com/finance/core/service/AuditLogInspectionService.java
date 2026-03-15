@@ -79,6 +79,22 @@ public class AuditLogInspectionService {
         return rows.stream().collect(Collectors.joining(System.lineSeparator()));
     }
 
+    public Map<String, Object> exportJson(Integer limit, Integer page, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+        Map<String, Object> filters = new LinkedHashMap<>();
+        filters.put("limit", normalizeLimit(limit));
+        filters.put("page", normalizePage(page));
+        filters.put("days", normalizeDays(days));
+        filters.put("requestId", requestId == null ? "" : requestId.trim());
+        filters.put("actorId", actorId);
+        filters.put("actionType", actionType);
+        filters.put("resourceType", resourceType);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("filters", filters);
+        payload.put("snapshot", snapshot(limit, page, days, requestId, actorId, actionType, resourceType));
+        return payload;
+    }
+
     private List<Map<String, Object>> fetchEntries(int limit, int page, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         String baseSql = """
                 select id, actor_id, action_type, resource_type, resource_id, request_id,

@@ -142,6 +142,32 @@ class AuditOpsControllerIntegrationTest {
     }
 
     @Test
+    void auditOpsExport_shouldReturnJsonForAppliedFiltersAndPageState() throws Exception {
+        UUID actorId = UUID.randomUUID();
+        auditLogRepository.save(AuditLogEntry.builder()
+                .actorId(actorId)
+                .actionType(AuditActionType.TRADE_BUY_EXECUTED)
+                .resourceType(AuditResourceType.TRADE)
+                .resourceId(UUID.randomUUID())
+                .requestId("req-export-json")
+                .requestMethod("POST")
+                .requestPath("/api/v1/trades/buy")
+                .build());
+
+        mockMvc.perform(get("/api/v1/ops/auditlog/export/json")
+                        .param("limit", "10")
+                        .param("page", "0")
+                        .param("actorId", actorId.toString())
+                        .param("actionType", "TRADE_BUY_EXECUTED")
+                        .param("resourceType", "TRADE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.filters.limit").value(10))
+                .andExpect(jsonPath("$.filters.page").value(0))
+                .andExpect(jsonPath("$.snapshot.actorId").value(actorId.toString()))
+                .andExpect(jsonPath("$.snapshot.entries[0].requestId").value("req-export-json"));
+    }
+
+    @Test
     void auditOpsEndpoint_shouldPaginateResults() throws Exception {
         for (int i = 0; i < 3; i++) {
             auditLogRepository.save(AuditLogEntry.builder()

@@ -1759,3 +1759,7 @@ Last updated: 2026-03-11
   - Show removable active filter chips above the workspace
   - Promote `requestId` focus into a dedicated summary banner
   - Keep row-level focus actions and portable links intact
+- [x] Move audit JSON export to the backend:
+  - Add authenticated JSON export endpoint for the current filtered/page state
+  - Keep frontend export and view-link queries on the same parameter model
+  - Align JSON export reliability with the existing CSV export path

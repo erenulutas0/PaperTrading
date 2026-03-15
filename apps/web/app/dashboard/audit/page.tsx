@@ -173,19 +173,23 @@ export default function AuditPage() {
         setPage(Math.max(0, Number.parseInt(params.get('page') || '0', 10) || 0));
     }, []);
 
+    const buildAuditQuery = useCallback((includePage: boolean) => {
+        const params = new URLSearchParams();
+        if (filters.limit) params.set('limit', filters.limit);
+        if (includePage) params.set('page', page.toString());
+        if (filters.days) params.set('days', filters.days);
+        if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
+        if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
+        if (filters.actionType) params.set('actionType', filters.actionType);
+        if (filters.resourceType) params.set('resourceType', filters.resourceType);
+        return params;
+    }, [filters, page]);
+
     const fetchAudit = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
-            const params = new URLSearchParams();
-            if (filters.limit) params.set('limit', filters.limit);
-            params.set('page', page.toString());
-            if (filters.days) params.set('days', filters.days);
-            if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
-            if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
-            if (filters.actionType) params.set('actionType', filters.actionType);
-            if (filters.resourceType) params.set('resourceType', filters.resourceType);
-
+            const params = buildAuditQuery(true);
             const response = await apiFetch(`/api/v1/ops/auditlog?${params.toString()}`, {
                 cache: 'no-store',
             });
@@ -202,7 +206,7 @@ export default function AuditPage() {
         } finally {
             setLoading(false);
         }
-    }, [filters, page]);
+    }, [buildAuditQuery]);
 
     useEffect(() => {
         void fetchAudit();
@@ -347,14 +351,7 @@ export default function AuditPage() {
     const exportCsv = async () => {
         setExporting(true);
         try {
-            const params = new URLSearchParams();
-            if (filters.limit) params.set('limit', filters.limit);
-            if (filters.days) params.set('days', filters.days);
-            if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
-            if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
-            if (filters.actionType) params.set('actionType', filters.actionType);
-            if (filters.resourceType) params.set('resourceType', filters.resourceType);
-
+            const params = buildAuditQuery(false);
             const response = await apiFetch(`/api/v1/ops/auditlog/export?${params.toString()}`, {
                 cache: 'no-store',
             });
@@ -378,13 +375,7 @@ export default function AuditPage() {
     };
 
     const buildViewQuery = () => {
-        const params = new URLSearchParams();
-        if (filters.limit) params.set('limit', filters.limit);
-        if (filters.days) params.set('days', filters.days);
-        if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
-        if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
-        if (filters.actionType) params.set('actionType', filters.actionType);
-        if (filters.resourceType) params.set('resourceType', filters.resourceType);
+        const params = buildAuditQuery(false);
         params.set('page', page.toString());
         return params;
     };
@@ -403,14 +394,15 @@ export default function AuditPage() {
 
     const exportJson = async () => {
         try {
-            const payload = {
-                filters: {
-                    ...filters,
-                    page,
-                },
-                snapshot: data,
-            };
-            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const params = buildAuditQuery(true);
+            const response = await apiFetch(`/api/v1/ops/auditlog/export/json?${params.toString()}`, {
+                cache: 'no-store',
+            });
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || `Audit JSON export failed (${response.status})`);
+            }
+            const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const anchor = document.createElement('a');
             anchor.href = url;
