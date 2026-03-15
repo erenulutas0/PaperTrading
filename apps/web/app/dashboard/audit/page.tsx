@@ -269,6 +269,13 @@ export default function AuditPage() {
         return `${filters.days}D`;
     }, [filters]);
 
+    const activePreset = useMemo(() => {
+        return AUDIT_PRESETS.find((preset) =>
+            preset.actionType === filters.actionType &&
+            preset.resourceType === filters.resourceType
+        ) ?? null;
+    }, [filters.actionType, filters.resourceType]);
+
     const activeFilterPills = useMemo(() => {
         const pills: { key: string; label: string; value: string; onClear: () => void }[] = [];
         if (filters.days) {
@@ -658,7 +665,25 @@ export default function AuditPage() {
                     </div>
 
                     <div className="mt-5">
-                        <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-zinc-500">Quick Presets</label>
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                            <label className="block text-xs uppercase tracking-[0.24em] text-zinc-500">Quick Presets</label>
+                            {activePreset && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPage(0);
+                                        setFilters((current) => ({
+                                            ...current,
+                                            actionType: '',
+                                            resourceType: '',
+                                        }));
+                                    }}
+                                    className="text-[10px] font-semibold uppercase tracking-wide text-primary transition hover:text-white"
+                                >
+                                    Clear Preset
+                                </button>
+                            )}
+                        </div>
                         <div className="grid gap-3">
                             {AUDIT_PRESETS.map((preset) => (
                                 <button
@@ -672,13 +697,30 @@ export default function AuditPage() {
                                             resourceType: preset.resourceType,
                                         }));
                                     }}
-                                    className="rounded-2xl border border-zinc-800 bg-black/50 p-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                                    className={`rounded-2xl border p-3 text-left transition ${activePreset?.label === preset.label
+                                        ? 'border-primary/35 bg-primary/10'
+                                        : 'border-zinc-800 bg-black/50 hover:border-primary/30 hover:bg-primary/5'
+                                        }`}
                                 >
-                                    <p className="text-sm font-semibold text-white">{preset.label}</p>
-                                    <p className="mt-1 text-xs leading-5 text-zinc-500">{preset.description}</p>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-white">{preset.label}</p>
+                                            <p className="mt-1 text-xs leading-5 text-zinc-500">{preset.description}</p>
+                                        </div>
+                                        {activePreset?.label === preset.label && (
+                                            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                                Active
+                                            </span>
+                                        )}
+                                    </div>
                                 </button>
                             ))}
                         </div>
+                        {activePreset && (
+                            <p className="mt-3 text-xs leading-5 text-zinc-500">
+                                Current preset: <span className="font-semibold text-zinc-300">{activePreset.label}</span>. You can still narrow further with manual filters or facet chips.
+                            </p>
+                        )}
                     </div>
 
                     <div className="mt-5 grid gap-4">

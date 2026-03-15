@@ -1783,3 +1783,7 @@ Last updated: 2026-03-11
   - Surface one-click slices for portfolio, trade, follow, analysis, and interaction activity
   - Apply preset filters without leaving the audit workspace
   - Keep manual filter form available for refinement after preset selection
+- [x] Add active state and reset behavior to audit presets:
+  - Show which preset currently owns the action/resource filter pair
+  - Allow one-click reset back to baseline from the preset strip
+  - Keep manual filters and preset selection compatible

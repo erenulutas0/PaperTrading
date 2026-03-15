@@ -3885,5 +3885,17 @@ A change is “done” when:
   - the audit workspace now opens common operational slices with one click instead of making every investigation start from a blank filter form
   - presets complement backend facets by covering known workflows, not just observed counts
 
+### 2026-03-15: Audit Presets Added Active-State And Baseline Reset
+- Problem observed:
+  - The first preset pass applied the right filters, but the UI did not clearly indicate which preset was currently active.
+  - Operators also lacked a direct "back to baseline" action without manually clearing action/resource filters.
+- Implementation:
+  - Audit presets now render an explicit active state.
+  - Added `Clear Preset` to reset the preset-owned action/resource pair while leaving other filters untouched.
+  - Added inline preset context copy so operators can tell when they are refining inside a preset-derived slice.
+- Operational impact:
+  - preset use is now readable and reversible instead of feeling like a hidden filter mutation
+  - audit workflows stay fast without making the filter state ambiguous
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
