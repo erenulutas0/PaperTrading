@@ -146,6 +146,7 @@ export default function AuditPage() {
     const [exporting, setExporting] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
     const [page, setPage] = useState(0);
+    const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
     const [filters, setFilters] = useState({
         limit: '20',
         days: '',
@@ -286,6 +287,16 @@ export default function AuditPage() {
         return data.entries[0];
     }, [data, filters.requestId]);
 
+    const selectedEntry = useMemo(() => {
+        if (!data?.entries.length) {
+            return null;
+        }
+        if (!selectedEntryId) {
+            return data.entries[0];
+        }
+        return data.entries.find((entry) => entry.id === selectedEntryId) ?? data.entries[0];
+    }, [data, selectedEntryId]);
+
     const topActionFacets = useMemo(() => {
         if (!data) {
             return [];
@@ -425,6 +436,19 @@ export default function AuditPage() {
         }));
     };
 
+    useEffect(() => {
+        if (!data?.entries.length) {
+            setSelectedEntryId(null);
+            return;
+        }
+        setSelectedEntryId((current) => {
+            if (!current) {
+                return data.entries[0].id;
+            }
+            return data.entries.some((entry) => entry.id === current) ? current : data.entries[0].id;
+        });
+    }, [data]);
+
     return (
         <div className="mx-auto max-w-[1400px] px-8 py-8 pb-20">
             <header className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
@@ -536,7 +560,7 @@ export default function AuditPage() {
                 </section>
             )}
 
-            <section className="mt-6 grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+            <section className="mt-6 grid gap-6 xl:grid-cols-[0.72fr_1.08fr_0.8fr]">
                 <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
                     <h2 className="text-lg font-bold text-white">Filters</h2>
                     <div className="mt-5">
@@ -708,7 +732,13 @@ export default function AuditPage() {
                     ) : (
                         <div className="mt-5 space-y-3">
                             {data.entries.map((entry) => (
-                                <article key={entry.id} className="rounded-2xl border border-white/10 bg-zinc-950/50 p-4">
+                                <article
+                                    key={entry.id}
+                                    className={`rounded-2xl border p-4 transition ${selectedEntry?.id === entry.id
+                                        ? 'border-primary/35 bg-primary/5'
+                                        : 'border-white/10 bg-zinc-950/50'
+                                        }`}
+                                >
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
                                             <div className="flex flex-wrap items-center gap-2">
@@ -740,6 +770,16 @@ export default function AuditPage() {
                                                         Focus
                                                     </button>
                                                 )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedEntryId(entry.id)}
+                                                    className={`rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide transition ${selectedEntry?.id === entry.id
+                                                        ? 'border-primary/30 bg-primary/10 text-primary'
+                                                        : 'border-zinc-700 bg-black text-zinc-300 hover:border-zinc-600 hover:text-white'
+                                                        }`}
+                                                >
+                                                    Inspect
+                                                </button>
                                             </div>
                                         </div>
                                         <div className="rounded-xl border border-zinc-800 bg-black/50 p-3">
@@ -747,15 +787,6 @@ export default function AuditPage() {
                                             <p className="mt-2 break-all text-xs text-zinc-300">{entry.actorId ?? 'N/A'}</p>
                                         </div>
                                     </div>
-
-                                    {entry.details != null && (
-                                        <div className="mt-4 rounded-xl border border-zinc-800 bg-black/50 p-3">
-                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-600">Details</p>
-                                            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6 text-zinc-300">
-                                                {JSON.stringify(entry.details, null, 2)}
-                                            </pre>
-                                        </div>
-                                    )}
                                 </article>
                             ))}
                             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3">
@@ -780,6 +811,70 @@ export default function AuditPage() {
                                         Next
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">Row Detail</p>
+                            <h2 className="mt-2 text-lg font-bold text-white">Selected Audit Entry</h2>
+                        </div>
+                        {selectedEntry && (
+                            <div className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300">
+                                Inspecting {selectedEntry.actionType}
+                            </div>
+                        )}
+                    </div>
+
+                    {!selectedEntry ? (
+                        <div className="mt-5 rounded-2xl border border-dashed border-zinc-800 bg-zinc-950/40 px-5 py-10 text-center">
+                            <p className="text-[11px] uppercase tracking-[0.32em] text-zinc-600">No Selection</p>
+                            <p className="mt-3 text-sm font-semibold text-zinc-200">Pick an audit row to inspect full metadata here.</p>
+                        </div>
+                    ) : (
+                        <div className="mt-5 space-y-4">
+                            <div className="rounded-2xl border border-white/10 bg-zinc-950/50 p-4">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
+                                        {selectedEntry.actionType}
+                                    </span>
+                                    <span className="rounded-full border border-zinc-800 bg-black px-2 py-1 text-[11px] font-semibold text-zinc-300">
+                                        {selectedEntry.resourceType}
+                                    </span>
+                                </div>
+                                <p className="mt-3 text-sm text-zinc-300">
+                                    {selectedEntry.requestMethod ?? 'METHOD'} {selectedEntry.requestPath ?? 'path unavailable'}
+                                </p>
+                            </div>
+
+                            <div className="grid gap-3">
+                                <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Request Id</p>
+                                    <p className="mt-2 break-all text-sm text-white">{selectedEntry.requestId ?? 'N/A'}</p>
+                                </div>
+                                <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Actor Id</p>
+                                    <p className="mt-2 break-all text-sm text-white">{selectedEntry.actorId ?? 'N/A'}</p>
+                                </div>
+                                <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Resource Id</p>
+                                    <p className="mt-2 break-all text-sm text-white">{selectedEntry.resourceId ?? 'N/A'}</p>
+                                </div>
+                                <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Occurred At</p>
+                                    <p className="mt-2 text-sm text-white">{formatTimestamp(selectedEntry.createdAt)}</p>
+                                </div>
+                                {selectedEntry.details != null && (
+                                    <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Details</p>
+                                        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6 text-zinc-300">
+                                            {JSON.stringify(selectedEntry.details, null, 2)}
+                                        </pre>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

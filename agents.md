@@ -3808,5 +3808,23 @@ A change is “done” when:
   - audit exports now come from one backend-owned reporting surface instead of split browser/server semantics
   - frontend query drift risk is lower because all audit actions now share the same parameter builder
 
+### 2026-03-15: Audit Workspace Added A Dedicated Row Detail Side Panel
+- Problem observed:
+  - Inline detail blocks inside each audit row worked, but they made the row list noisy and slowed repeated inspection across multiple entries.
+  - Operators need a stable place to inspect one row deeply while keeping the surrounding result set visible.
+- Implementation:
+  - `/dashboard/audit` now treats the row list as a selectable stream.
+  - Added a dedicated side panel that surfaces the currently selected row’s:
+    - action/resource context
+    - request id
+    - actor id
+    - resource id
+    - timestamp
+    - parsed details payload
+  - Row cards now use an explicit `Inspect` action instead of dumping full detail inline.
+- Operational impact:
+  - audit browsing is faster because the list stays compact while detail inspection remains one click away
+  - request-focus and row-selection workflows now complement each other instead of competing for space
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

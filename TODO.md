@@ -1763,3 +1763,7 @@ Last updated: 2026-03-11
   - Add authenticated JSON export endpoint for the current filtered/page state
   - Keep frontend export and view-link queries on the same parameter model
   - Align JSON export reliability with the existing CSV export path
+- [x] Add audit row detail side panel:
+  - Let operators inspect a selected row without expanding every card inline
+  - Keep row-level request focus intact
+  - Surface request, actor, resource, timestamp, and parsed details in one place
