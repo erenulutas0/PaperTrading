@@ -341,7 +341,7 @@ export default function AuditPage() {
                                         </div>
                                     </div>
 
-                                    {entry.details && (
+                                    {entry.details != null && (
                                         <div className="mt-4 rounded-xl border border-zinc-800 bg-black/50 p-3">
                                             <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-600">Details</p>
                                             <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6 text-zinc-300">
