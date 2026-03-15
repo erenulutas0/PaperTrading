@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Compare Surface Added Rolling Momentum Delta Strip**
+  - **Problem observed**:
+    - Compare mode had total return deltas and a rebased overlay, but still lacked a concise answer to:
+      - who has stronger recent momentum over `7D` and `30D`
+    - Users could infer this by leaving compare mode and scanning the separate rolling-performance cards, but that was unnecessary friction.
+  - **Implementation**:
+    - Reused `performanceWindows` from both loaded analytics payloads.
+    - Added a `Rolling Delta Strip` inside `Portfolio Compare` for:
+      - `7D`
+      - `30D`
+    - Each card shows:
+      - return-percentage delta
+      - both portfolios’ absolute and percentage window returns
+      - snapshot counts for context
+    - Extended the clipboard compare summary to include `7D` and `30D` return deltas as well.
+  - **Operational impact**:
+    - compare mode now separates long-run outperformance from recent acceleration or loss of momentum
+    - users can judge whether the leading portfolio is still leading right now, not just in total
 - **2026-03-15**: **Analytics Compare Surface Added Human-Readable Summary Export**
   - **Problem observed**:
     - URL-based compare sharing is useful for exact reconstruction, but not ideal when an operator just wants to paste the comparison result into chat or notes.

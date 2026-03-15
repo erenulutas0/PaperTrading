@@ -945,6 +945,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const compareSummary = compareData?.summary ?? null;
     const compareRiskMetrics = compareData?.riskMetrics ?? null;
     const compareTradeStats = compareData?.tradeStats ?? null;
+    const comparePerformanceWindows = compareData?.performanceWindows ?? {
+        '7d': { startingEquity: 0, endingEquity: 0, absoluteReturn: 0, returnPercentage: 0, snapshotCount: 0 },
+        '30d': { startingEquity: 0, endingEquity: 0, absoluteReturn: 0, returnPercentage: 0, snapshotCount: 0 },
+    };
     const selectedComparePortfolio = portfolioOptions.find((portfolio) => portfolio.id === comparePortfolioId) ?? null;
 
     const copyCompareSummary = async () => {
@@ -961,6 +965,8 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             `Equity delta: ${formatCurrency(summary.currentEquity - compareSummary.currentEquity)}`,
             `Drawdown delta: ${(rm.maxDrawdown - compareRiskMetrics.maxDrawdown) >= 0 ? '+' : ''}${(rm.maxDrawdown - compareRiskMetrics.maxDrawdown).toFixed(2)} pts`,
             `Win-rate delta: ${(ts.tradeWinRate - compareTradeStats.tradeWinRate) >= 0 ? '+' : ''}${(ts.tradeWinRate - compareTradeStats.tradeWinRate).toFixed(2)} pts`,
+            `7D return delta: ${(performanceWindows['7d'].returnPercentage - comparePerformanceWindows['7d'].returnPercentage) >= 0 ? '+' : ''}${(performanceWindows['7d'].returnPercentage - comparePerformanceWindows['7d'].returnPercentage).toFixed(2)} pts`,
+            `30D return delta: ${(performanceWindows['30d'].returnPercentage - comparePerformanceWindows['30d'].returnPercentage) >= 0 ? '+' : ''}${(performanceWindows['30d'].returnPercentage - comparePerformanceWindows['30d'].returnPercentage).toFixed(2)} pts`,
             `Sharpe: ${rm.sharpeRatio.toFixed(2)} vs ${compareRiskMetrics.sharpeRatio.toFixed(2)}`,
             `Sortino: ${rm.sortinoRatio.toFixed(2)} vs ${compareRiskMetrics.sortinoRatio.toFixed(2)}`,
             `Profit factor: ${rm.profitFactor.toFixed(2)} vs ${compareRiskMetrics.profitFactor.toFixed(2)}`,
@@ -1261,6 +1267,60 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                         </div>
                                     </div>
                                     <canvas ref={compareCanvasRef} className="mt-4 h-64 w-full rounded-xl" />
+                                </div>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Rolling Delta Strip</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Recent-window momentum gap between the two portfolios.</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                        {([
+                                            {
+                                                label: '7D Momentum Delta',
+                                                primary: performanceWindows['7d'],
+                                                compare: comparePerformanceWindows['7d'],
+                                            },
+                                            {
+                                                label: '30D Momentum Delta',
+                                                primary: performanceWindows['30d'],
+                                                compare: comparePerformanceWindows['30d'],
+                                            },
+                                        ] as const).map((windowMetric) => {
+                                            const delta = windowMetric.primary.returnPercentage - windowMetric.compare.returnPercentage;
+                                            const positive = delta >= 0;
+                                            return (
+                                                <div key={windowMetric.label} className="rounded-xl border border-white/5 bg-zinc-950/70 p-4">
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">{windowMetric.label}</p>
+                                                        <span className="text-[10px] text-zinc-600">
+                                                            {windowMetric.primary.snapshotCount} vs {windowMetric.compare.snapshotCount} snapshots
+                                                        </span>
+                                                    </div>
+                                                    <p className={`mt-3 text-2xl font-bold font-mono ${positive ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {delta >= 0 ? '+' : ''}{delta.toFixed(2)} pts
+                                                    </p>
+                                                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-zinc-500">
+                                                        <div>
+                                                            <p className="text-zinc-600">{summary.portfolioName}</p>
+                                                            <p className="mt-1 font-mono text-zinc-200">
+                                                                {windowMetric.primary.returnPercentage >= 0 ? '+' : ''}{windowMetric.primary.returnPercentage.toFixed(2)}%
+                                                            </p>
+                                                            <p className="mt-1 font-mono text-zinc-500">{formatCurrency(windowMetric.primary.absoluteReturn)}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-zinc-600">{selectedComparePortfolio?.name ?? compareSummary.portfolioName}</p>
+                                                            <p className="mt-1 font-mono text-zinc-200">
+                                                                {windowMetric.compare.returnPercentage >= 0 ? '+' : ''}{windowMetric.compare.returnPercentage.toFixed(2)}%
+                                                            </p>
+                                                            <p className="mt-1 font-mono text-zinc-500">{formatCurrency(windowMetric.compare.absoluteReturn)}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                                 <div className="rounded-xl border border-white/5 bg-black/20 p-4">
                                     <div className="flex items-center justify-between">
