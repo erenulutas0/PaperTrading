@@ -115,6 +115,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after compare-basket sparkline rollout and verify compare basket cards now show a mini relative-strength curve derived from current basket 24h moves
 - [ ] Redeploy frontend after session-rail rollout and verify `/watchlist` now surfaces compact market/watchlist/compare/scanner/favorites context cards above the instrument header
 - [ ] Redeploy frontend after universe-metric-pill rollout and verify instrument cards now surface move-rank plus watchlist/compare/active state pills for faster scanner reads
+- [ ] Redeploy frontend after universe-signal-pill rollout and verify instrument cards now surface market-relative, sector-relative, and velocity scanner pills
 - [ ] Redeploy frontend after compare-basket-to-layout rollout and verify saved compare baskets can now be promoted into full named terminal layouts without manually rebuilding the entire state
 - [ ] Redeploy frontend after compare-source-to-layout rollout and verify suggested, built-in, and saved compare baskets can all be promoted into full named terminal layouts
 - [ ] Redeploy frontend after compare-basket-delta-chip rollout and verify compare basket cards now surface leader, weakest, and spread chips before apply

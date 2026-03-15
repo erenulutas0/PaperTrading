@@ -1420,6 +1420,100 @@ export default function WatchlistPage() {
         return new Map(sorted.map((instrument, index) => [instrument.symbol, index + 1]));
     }, [instrumentUniverse]);
 
+    const marketAverageMove = useMemo(() => {
+        if (instrumentUniverse.length === 0) {
+            return 0;
+        }
+        return instrumentUniverse.reduce((sum, instrument) => sum + Number(instrument.changePercent24h ?? 0), 0) / instrumentUniverse.length;
+    }, [instrumentUniverse]);
+
+    const sectorStatsMap = useMemo(() => {
+        const grouped = instrumentUniverse.reduce<Map<string, InstrumentOption[]>>((acc, instrument) => {
+            const sector = instrument.sector?.trim();
+            if (!sector) {
+                return acc;
+            }
+            const current = acc.get(sector) ?? [];
+            current.push(instrument);
+            acc.set(sector, current);
+            return acc;
+        }, new Map());
+
+        return new Map(
+            [...grouped.entries()].map(([sector, instruments]) => {
+                const sorted = [...instruments].sort((left, right) => Number(right.changePercent24h ?? 0) - Number(left.changePercent24h ?? 0));
+                const averageMove = instruments.reduce((sum, instrument) => sum + Number(instrument.changePercent24h ?? 0), 0) / instruments.length;
+                return [sector, {
+                    averageMove,
+                    leaderSymbol: sorted[0]?.symbol ?? null,
+                    weakestSymbol: sorted[sorted.length - 1]?.symbol ?? null,
+                }] as const;
+            }),
+        );
+    }, [instrumentUniverse]);
+
+    const getInstrumentSignalPills = useCallback((instrument: InstrumentOption) => {
+        const pills: Array<{ label: string; className: string }> = [];
+        const marketDelta = Number(instrument.changePercent24h ?? 0) - marketAverageMove;
+        if (marketDelta >= 1) {
+            pills.push({
+                label: `Beat Mkt ${formatPercent(marketDelta)}`,
+                className: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
+            });
+        } else if (marketDelta <= -1) {
+            pills.push({
+                label: `Trail Mkt ${formatPercent(marketDelta)}`,
+                className: 'border-red-400/20 bg-red-400/10 text-red-200',
+            });
+        } else {
+            pills.push({
+                label: 'Near Market',
+                className: 'border-white/10 bg-white/[0.03] text-zinc-300',
+            });
+        }
+
+        const sector = instrument.sector?.trim();
+        const sectorStats = sector ? sectorStatsMap.get(sector) : null;
+        if (sectorStats) {
+            if (sectorStats.leaderSymbol === instrument.symbol) {
+                pills.push({
+                    label: 'Sector Lead',
+                    className: 'border-sky-400/20 bg-sky-400/10 text-sky-300',
+                });
+            } else if (sectorStats.weakestSymbol === instrument.symbol) {
+                pills.push({
+                    label: 'Sector Lag',
+                    className: 'border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-300',
+                });
+            } else if (Number(instrument.changePercent24h ?? 0) >= sectorStats.averageMove) {
+                pills.push({
+                    label: 'Above Sector',
+                    className: 'border-cyan-400/20 bg-cyan-400/10 text-cyan-300',
+                });
+            } else {
+                pills.push({
+                    label: 'Below Sector',
+                    className: 'border-violet-400/20 bg-violet-400/10 text-violet-300',
+                });
+            }
+        }
+
+        const moveMagnitude = Math.abs(Number(instrument.changePercent24h ?? 0));
+        if (moveMagnitude >= 3) {
+            pills.push({
+                label: 'High Velocity',
+                className: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
+            });
+        } else if (moveMagnitude >= 1) {
+            pills.push({
+                label: 'In Motion',
+                className: 'border-zinc-500/20 bg-zinc-500/10 text-zinc-200',
+            });
+        }
+
+        return pills.slice(0, 3);
+    }, [marketAverageMove, sectorStatsMap]);
+
     const sectorPulseGroups = useMemo(() => {
         const grouped = instrumentUniverse.reduce<Map<string, InstrumentOption[]>>((acc, instrument) => {
             const sector = instrument.sector?.trim();
@@ -4268,6 +4362,16 @@ export default function WatchlistPage() {
                                                                             Active
                                                                         </span>
                                                                     )}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getInstrumentSignalPills(instrument).map((pill) => (
+                                                                        <span
+                                                                            key={`${instrument.symbol}-${pill.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${pill.className}`}
+                                                                        >
+                                                                            {pill.label}
+                                                                        </span>
+                                                                    ))}
                                                                 </div>
                                                             </div>
                                                             <div className="text-right">

@@ -380,6 +380,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare baskets now communicate internal breadth, not just average direction
     - users can reject noisy or overly dispersed baskets before applying them to the chart
+- **2026-03-15**: **Instrument Universe Cards Added Market, Sector, and Velocity Signals**
+  - **Problem observed**:
+    - Workspace-state pills helped answer "where is this symbol in my workflow?", but cards still lacked enough market-relative context.
+    - Users still had to infer whether a symbol was:
+      - beating the market
+      - leading or lagging its sector
+      - actually moving with enough speed to matter
+  - **Implementation**:
+    - Added a second scanner-pill row to universe cards driven by existing terminal data:
+      - market-relative signal
+      - sector-relative signal
+      - move-velocity signal
+  - **Operational impact**:
+    - scanner cards now communicate both workspace context and relative market context
+    - users can rank opportunities faster without opening the chart for every candidate
 - **2026-03-15**: **Right Rail Added Compact Terminal Working Summary**
   - **Problem observed**:
     - The top session rail made terminal context visible, but the right rail still opened cold.
