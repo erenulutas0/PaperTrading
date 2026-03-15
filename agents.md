@@ -529,6 +529,16 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - scanner capture now sits next to the symbol-level actions that usually trigger scanner refinement
     - the path from live scanner slice to reusable preset is shorter
+- **2026-03-15**: **Right Rail Quick Actions Can Now Share Current Terminal State**
+  - **Problem observed**:
+    - The terminal already had snapshot-share actions, but they lived away from the right-rail control surface.
+    - That meant the same operator surface that could change watchlist, alerts, layouts, and scanner state still could not immediately share the result.
+  - **Implementation**:
+    - Added `Share Current State` to the right-rail selected-symbol quick actions.
+    - The action reuses the existing current-state shared-layout link generator and surfaces the result inline in the right rail.
+  - **Operational impact**:
+    - right-rail control and right-rail sharing now happen in the same place
+    - the path from terminal adjustment to collaboration link is shorter
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
