@@ -33,6 +33,7 @@ Last updated: 2026-03-11
   - dashboard portfolio-card quick compare deep-link into analytics with preselected compare target
   - resize-safe analytics canvases that redraw cleanly after viewport/layout changes and clear stale charts on empty states
   - analytics redraw now uses window-resize-only fallback after container-observer loop risk in production
+  - analytics page now gates rich render until client mount to avoid hydration drift across locale/date/canvas-heavy sections
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state

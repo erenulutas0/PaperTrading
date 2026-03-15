@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Analytics Page Now Waits For Client Mount Before Rendering The Full Surface**
+  - **Problem observed**:
+    - `/analytics/[portfolioId]` had accumulated:
+      - locale-sensitive timestamp formatting
+      - canvas-driven chart sections
+      - URL-hydrated compare state
+    - That combination increases hydration-risk in production, especially when server and client formatting/runtime assumptions diverge.
+  - **Implementation**:
+    - Added a simple client-mount gate to the analytics page.
+    - Until mount completes, the route shows the existing loading spinner instead of attempting to hydrate the full analytics surface immediately.
+    - This keeps the rich analytics UI client-owned and avoids asking React to reconcile locale/date/canvas-heavy server markup against browser-rendered output.
+  - **Operational impact**:
+    - analytics page prioritizes reliable opening over initial server-rendered richness
+    - reduces the class of hydration mismatches that can cascade into opaque client-side route failures
 - **2026-03-15**: **Analytics Canvas Redraw Fallback Reduced From Container Observation to Window Resize**
   - **Problem observed**:
     - The analytics stabilization pass introduced container-aware redraw triggers using `ResizeObserver`.

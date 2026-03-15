@@ -140,6 +140,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const portfolioId = resolvedParams.portfolioId;
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isMounted, setIsMounted] = useState(false);
     const [portfolioOptions, setPortfolioOptions] = useState<PortfolioOption[]>([]);
     const [comparePortfolioId, setComparePortfolioId] = useState('');
     const [compareData, setCompareData] = useState<AnalyticsData | null>(null);
@@ -615,6 +616,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     }, []);
 
     useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const compare = params.get('compare');
         const curveWindow = params.get('curveWindow');
@@ -862,7 +867,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         }
     };
 
-    if (loading) {
+    if (!isMounted || loading) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="animate-spin w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full"></div>
