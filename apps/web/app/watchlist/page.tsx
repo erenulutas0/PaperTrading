@@ -1347,6 +1347,69 @@ export default function WatchlistPage() {
         { key: 'ALPHA', label: 'A-Z' },
     ]), []);
 
+    const getScannerViewSnapshot = useCallback((view: ScannerViewPreset) => {
+        const query = view.query.trim().toLowerCase();
+        const anchorInstrument = view.anchorSymbol
+            ? instrumentUniverse.find((instrument) => instrument.symbol === view.anchorSymbol) ?? null
+            : null;
+        const sectorKey = anchorInstrument?.sector?.trim() ?? '';
+
+        const quickFiltered = instrumentUniverse.filter((instrument) => {
+            switch (view.quickFilter) {
+                case 'GAINERS':
+                    return instrument.changePercent24h > 0;
+                case 'LOSERS':
+                    return instrument.changePercent24h < 0;
+                case 'FAVORITES':
+                    return favoriteSymbols.includes(instrument.symbol);
+                case 'SECTOR':
+                    return !!sectorKey && instrument.symbol !== view.anchorSymbol && instrument.sector === sectorKey;
+                default:
+                    return true;
+            }
+        });
+
+        const queryFiltered = !query
+            ? quickFiltered
+            : quickFiltered.filter((instrument) =>
+                instrument.symbol.toLowerCase().includes(query)
+                || instrument.displayName.toLowerCase().includes(query)
+                || (instrument.market ?? '').toLowerCase().includes(query)
+                || (instrument.exchange ?? '').toLowerCase().includes(query)
+                || (instrument.currency ?? '').toLowerCase().includes(query)
+                || (instrument.sector ?? '').toLowerCase().includes(query));
+
+        const sorted = [...queryFiltered].sort((left, right) => {
+            switch (view.sortMode) {
+                case 'MOVE_ASC':
+                    return left.changePercent24h - right.changePercent24h;
+                case 'PRICE_DESC':
+                    return right.currentPrice - left.currentPrice;
+                case 'ALPHA':
+                    return left.symbol.localeCompare(right.symbol);
+                case 'MOVE_DESC':
+                default:
+                    return right.changePercent24h - left.changePercent24h;
+            }
+        });
+
+        if (sorted.length === 0) {
+            return {
+                count: 0,
+                averageMove: 0,
+                leader: null as InstrumentOption | null,
+                anchorInstrument,
+            };
+        }
+
+        return {
+            count: sorted.length,
+            averageMove: sorted.reduce((sum, instrument) => sum + Number(instrument.changePercent24h ?? 0), 0) / sorted.length,
+            leader: sorted[0],
+            anchorInstrument,
+        };
+    }, [favoriteSymbols, instrumentUniverse]);
+
     const availableScannerViews = useMemo(() => {
         return scannerViews.filter((view) => view.market === selectedMarket);
     }, [scannerViews, selectedMarket]);
@@ -4296,6 +4359,37 @@ export default function WatchlistPage() {
                                                                                     Anchor {view.anchorSymbol}
                                                                                 </p>
                                                                             )}
+                                                                            {(() => {
+                                                                                const snapshot = getScannerViewSnapshot(view);
+                                                                                return (
+                                                                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                                        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                                                            {snapshot.count} matches
+                                                                                        </span>
+                                                                                        {snapshot.count > 0 && (
+                                                                                            <>
+                                                                                                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${snapshot.averageMove >= 0
+                                                                                                    ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                                                                                                    : 'border-red-400/20 bg-red-400/10 text-red-200'}`}>
+                                                                                                    Avg {formatPercent(snapshot.averageMove)}
+                                                                                                </span>
+                                                                                                {snapshot.leader && (
+                                                                                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${snapshot.leader.changePercent24h >= 0
+                                                                                                        ? 'border-sky-400/20 bg-sky-400/10 text-sky-300'
+                                                                                                        : 'border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-300'}`}>
+                                                                                                        Lead {snapshot.leader.symbol} {formatPercent(snapshot.leader.changePercent24h)}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </>
+                                                                                        )}
+                                                                                        {view.quickFilter === 'SECTOR' && snapshot.anchorInstrument?.sector && (
+                                                                                            <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+                                                                                                {snapshot.anchorInstrument.sector}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
                                                                         </>
                                                                     )}
                                                                 </div>

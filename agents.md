@@ -465,6 +465,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - layout capture is now available at the same point where users are already managing watchlist, favorites, and alerts
     - the path from live terminal state to reusable preset is shorter
+- **2026-03-15**: **Saved Scanner View Cards Added Small Performance Summary Strips**
+  - **Problem observed**:
+    - Saved scanner views already described their filter/sort/query state, but not what that state currently resolves to.
+    - Users still had to apply a view just to see whether it currently produced:
+      - enough matches
+      - a healthy average move
+      - a clear leader
+  - **Implementation**:
+    - Added a per-view snapshot helper in `/watchlist` that replays scanner filters against the current instrument universe.
+    - Saved scanner view cards now show:
+      - current match count
+      - average move
+      - leading symbol
+      - sector context for sector-anchored views
+  - **Operational impact**:
+    - saved scanner views now read like live presets rather than static labels
+    - users can choose the right preset without first applying it
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
