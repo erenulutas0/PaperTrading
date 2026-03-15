@@ -257,6 +257,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - scanner presets now behave like reusable working views, not disposable snapshots
     - the scanner workflow matches the maturity level already present in compare baskets and layouts
+- **2026-03-15**: **Heatmap Surface Expanded Into Sector Pulse Scanner Pivots**
+  - **Problem observed**:
+    - The heatmap slice made single-name pressure visible, but users still had no fast grouped read on where momentum or weakness was clustering.
+    - A serious universe browser should support not just symbol triage, but sector triage.
+  - **Implementation**:
+    - Added `Sector Pulse` cards derived from the active universe’s sector metadata.
+    - Each card shows:
+      - sector name
+      - average 24h sector move
+      - symbol count
+      - sector leader and its move
+    - Clicking a card pivots the terminal into:
+      - that leader symbol
+      - `SECTOR` quick filter
+      - `MOVE_DESC` sort
+  - **Operational impact**:
+    - the market terminal now supports grouped scanner pivots instead of only symbol-level navigation
+    - sector pressure can be inspected in one click without hand-building a filter path
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

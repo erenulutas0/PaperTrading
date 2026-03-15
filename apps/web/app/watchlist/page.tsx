@@ -1196,6 +1196,33 @@ export default function WatchlistPage() {
             .slice(0, 8);
     }, [instrumentUniverse]);
 
+    const sectorPulseGroups = useMemo(() => {
+        const grouped = instrumentUniverse.reduce<Map<string, InstrumentOption[]>>((acc, instrument) => {
+            const sector = instrument.sector?.trim();
+            if (!sector) {
+                return acc;
+            }
+            const current = acc.get(sector) ?? [];
+            current.push(instrument);
+            acc.set(sector, current);
+            return acc;
+        }, new Map());
+
+        return [...grouped.entries()]
+            .map(([sector, instruments]) => {
+                const averageMove = instruments.reduce((sum, instrument) => sum + instrument.changePercent24h, 0) / instruments.length;
+                const leader = [...instruments].sort((left, right) => right.changePercent24h - left.changePercent24h)[0];
+                return {
+                    sector,
+                    averageMove,
+                    count: instruments.length,
+                    leader,
+                };
+            })
+            .sort((left, right) => Math.abs(right.averageMove) - Math.abs(left.averageMove))
+            .slice(0, 4);
+    }, [instrumentUniverse]);
+
     const favoriteInstruments = useMemo(() => {
         const favoriteSet = new Set(favoriteSymbols);
         return instrumentUniverse.filter((instrument) => favoriteSet.has(instrument.symbol));
@@ -3510,6 +3537,56 @@ export default function WatchlistPage() {
                                                     })}
                                                 </div>
                                             </div>
+                                            {sectorPulseGroups.length > 0 && (
+                                                <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
+                                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                                        <div>
+                                                            <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Sector Pulse</p>
+                                                            <p className="mt-1 text-xs text-zinc-400">Highest-pressure sectors in the active market universe. Click to pivot the scanner into that peer group.</p>
+                                                        </div>
+                                                        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                                                            {sectorPulseGroups.length} groups
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                                                        {sectorPulseGroups.map((group) => {
+                                                            const positive = group.averageMove >= 0;
+                                                            return (
+                                                                <button
+                                                                    key={`sector-pulse-${group.sector}`}
+                                                                    onClick={() => {
+                                                                        setSelectedSymbol(group.leader.symbol);
+                                                                        setUniverseQuickFilter('SECTOR');
+                                                                        setUniverseSortMode('MOVE_DESC');
+                                                                        setInstrumentQuery('');
+                                                                    }}
+                                                                    className={`rounded-2xl border px-4 py-3 text-left transition ${positive
+                                                                        ? 'border-emerald-400/20 bg-emerald-400/5 hover:bg-emerald-400/10'
+                                                                        : 'border-red-400/20 bg-red-400/5 hover:bg-red-400/10'}`}
+                                                                >
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <div>
+                                                                            <p className="text-sm font-semibold text-white">{group.sector}</p>
+                                                                            <p className="mt-1 text-[11px] text-zinc-400">
+                                                                                {group.count} symbols · leader {group.leader.symbol}
+                                                                            </p>
+                                                                        </div>
+                                                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${positive ? 'bg-emerald-950/60 text-emerald-200' : 'bg-red-950/60 text-red-200'}`}>
+                                                                            {formatPercent(group.averageMove)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-100/80">
+                                                                        <span>{group.leader.displayName}</span>
+                                                                        <span className={`font-semibold ${group.leader.changePercent24h >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                                                            {group.leader.symbol} {formatPercent(group.leader.changePercent24h)}
+                                                                        </span>
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
                                             <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
                                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                                     <div>

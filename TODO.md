@@ -110,6 +110,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after scanner-view share/export/import rollout and verify `/watchlist` scanner presets now support portable JSON export/import plus shareable deep links
 - [ ] Redeploy frontend after compare-basket performance-pill rollout and verify `/watchlist` compare basket cards now show quick directional tone badges before apply
 - [ ] Redeploy frontend after scanner-view rename/overwrite rollout and verify `/watchlist` saved scanner presets now support inline rename plus overwriting with the current scanner state
+- [ ] Redeploy frontend after sector-pulse rollout and verify `/watchlist` heatmap area now includes clickable sector-group scanner pivots based on average 24h sector move
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol
