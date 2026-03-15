@@ -36,6 +36,7 @@ interface CurrentUserProfile {
 export default function Dashboard() {
     const router = useRouter();
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+    const [compareTargets, setCompareTargets] = useState<Record<string, string>>({});
     const [prices, setPrices] = useState<Record<string, number>>({});
     const [name, setName] = useState('');
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -92,7 +93,18 @@ export default function Dashboard() {
             });
             if (!res.ok) throw new Error('Failed to fetch');
             const data = await res.json();
-            setPortfolios(extractContent<Portfolio>(data));
+            const nextPortfolios = extractContent<Portfolio>(data);
+            setPortfolios(nextPortfolios);
+            setCompareTargets((current) => {
+                const nextState: Record<string, string> = {};
+                nextPortfolios.forEach((portfolio) => {
+                    const currentTarget = current[portfolio.id];
+                    nextState[portfolio.id] = currentTarget && currentTarget !== portfolio.id
+                        ? currentTarget
+                        : '';
+                });
+                return nextState;
+            });
         } catch (error) {
             console.error(error);
         } finally {
@@ -353,6 +365,11 @@ export default function Dashboard() {
                             {(() => {
                                 let totalCostBasis = 0;
                                 let totalCurrentValue = 0;
+                                const compareCandidates = portfolios.filter((candidate) => candidate.id !== p.id);
+                                const compareTargetId = compareTargets[p.id] ?? '';
+                                const compareHref = compareTargetId
+                                    ? `/analytics/${p.id}?compare=${encodeURIComponent(compareTargetId)}`
+                                    : `/analytics/${p.id}`;
 
                                 p.items?.forEach(item => {
                                     const currentPrice = prices[item.symbol] ?? item.averagePrice;
@@ -390,6 +407,46 @@ export default function Dashboard() {
                                                 <Link href={`/dashboard/portfolio/${p.id}`} className="text-xs bg-white/5 border border-white/10 hover:bg-white/10 px-4 py-2 rounded-lg transition-colors text-zinc-300">
                                                     View History
                                                 </Link>
+                                            </div>
+                                        </div>
+
+                                        <div className="mb-4 rounded-xl border border-white/5 bg-black/20 p-3 relative z-10">
+                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Quick Compare</p>
+                                                    <p className="mt-1 text-[11px] text-zinc-600">Open analytics with another portfolio already loaded as the compare target.</p>
+                                                </div>
+                                                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                                                    <select
+                                                        value={compareTargetId}
+                                                        onChange={(event) => {
+                                                            const nextTarget = event.target.value;
+                                                            setCompareTargets((current) => ({
+                                                                ...current,
+                                                                [p.id]: nextTarget,
+                                                            }));
+                                                        }}
+                                                        disabled={compareCandidates.length === 0}
+                                                        className="min-w-[220px] rounded-lg border border-white/10 bg-zinc-950/80 px-3 py-2 text-xs text-white outline-none transition-colors focus:border-cyan-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        <option value="">{compareCandidates.length === 0 ? 'No other portfolios' : 'Select compare portfolio'}</option>
+                                                        {compareCandidates.map((candidate) => (
+                                                            <option key={candidate.id} value={candidate.id}>
+                                                                {candidate.name} {candidate.visibility ? `(${candidate.visibility})` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <Link
+                                                        href={compareHref}
+                                                        className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs font-bold transition-colors ${
+                                                            compareTargetId
+                                                                ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20'
+                                                                : 'pointer-events-none border-white/10 bg-white/5 text-zinc-500'
+                                                        }`}
+                                                    >
+                                                        Compare In Analytics
+                                                    </Link>
+                                                </div>
                                             </div>
                                         </div>
 

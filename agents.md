@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Dashboard Portfolio Cards Added Quick Compare Deep-Link Into Analytics**
+  - **Problem observed**:
+    - Compare mode in analytics had become strong, but the entry point still started from a single-portfolio mindset.
+    - Users had to:
+      - open analytics
+      - then choose a compare portfolio
+    - even when they already knew which two portfolios they wanted to inspect.
+  - **Implementation**:
+    - Added a `Quick Compare` control block to each dashboard portfolio card.
+    - Each card now offers:
+      - a selector of the user’s other portfolios
+      - a deep-link into `/analytics/{portfolioId}?compare=...`
+    - Kept the deep-link lightweight by reusing the compare-state URL hydration already added to analytics.
+  - **Operational impact**:
+    - dashboard now acts as a real launch surface for portfolio-vs-portfolio inspection instead of only linking to single-portfolio analytics
+    - compare workflows require fewer clicks and less context switching
 - **2026-03-15**: **Portfolio Compare Surface Hardened With Explicit Loading and Empty-State Guidance**
   - **Problem observed**:
     - Compare mode had become feature-rich, but transient states still felt abrupt:
