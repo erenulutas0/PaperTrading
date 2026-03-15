@@ -437,6 +437,7 @@ export default function WatchlistPage() {
     const candlesRef = useRef<CandlePoint[]>([]);
     const layoutImportInputRef = useRef<HTMLInputElement | null>(null);
     const compareBasketImportInputRef = useRef<HTMLInputElement | null>(null);
+    const scannerViewImportInputRef = useRef<HTMLInputElement | null>(null);
 
     const [newName, setNewName] = useState('');
     const [addSymbol, setAddSymbol] = useState('BTCUSDT');
@@ -852,6 +853,32 @@ export default function WatchlistPage() {
     }, []);
 
     useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const params = new URLSearchParams(window.location.search);
+        const scannerFilter = params.get('scannerFilter');
+        const scannerSort = params.get('scannerSort');
+        const scannerQuery = params.get('scannerQuery');
+        const scannerMarket = params.get('scannerMarket');
+        if (!scannerFilter && !scannerSort && !scannerQuery && !scannerMarket) {
+            return;
+        }
+        if (scannerMarket === 'CRYPTO' || scannerMarket === 'BIST100') {
+            setSelectedMarket(scannerMarket);
+        }
+        if (scannerFilter && ['ALL', 'GAINERS', 'LOSERS', 'FAVORITES', 'SECTOR'].includes(scannerFilter)) {
+            setUniverseQuickFilter(scannerFilter as UniverseQuickFilter);
+        }
+        if (scannerSort && ['MOVE_DESC', 'MOVE_ASC', 'PRICE_DESC', 'ALPHA'].includes(scannerSort)) {
+            setUniverseSortMode(scannerSort as UniverseSortMode);
+        }
+        if (typeof scannerQuery === 'string') {
+            setInstrumentQuery(scannerQuery);
+        }
+    }, []);
+
+    useEffect(() => {
         if (!sessionHydrated || !currentUserId) {
             setTerminalPreferencesReady(sessionHydrated);
             return;
@@ -1096,6 +1123,17 @@ export default function WatchlistPage() {
     const availableScannerViews = useMemo(() => {
         return scannerViews.filter((view) => view.market === selectedMarket);
     }, [scannerViews, selectedMarket]);
+
+    const activeScannerViewId = useMemo(() => {
+        const normalizedQuery = instrumentQuery.trim();
+        const match = availableScannerViews.find((view) => (
+            view.market === selectedMarket
+            && view.quickFilter === universeQuickFilter
+            && view.sortMode === universeSortMode
+            && view.query.trim() === normalizedQuery
+        ));
+        return match?.id ?? null;
+    }, [availableScannerViews, instrumentQuery, selectedMarket, universeQuickFilter, universeSortMode]);
 
     const topMoverInstruments = useMemo(() => {
         return [...instrumentUniverse]
@@ -1907,6 +1945,110 @@ export default function WatchlistPage() {
     const handleDeleteScannerView = (viewId: string) => {
         setScannerViews((current) => current.filter((entry) => entry.id !== viewId));
         setScannerViewMessage('Scanner view removed.');
+    };
+
+    const handleExportScannerViews = () => {
+        if (availableScannerViews.length === 0 || typeof window === 'undefined') {
+            return;
+        }
+        const payload = availableScannerViews.map((view) => ({
+            name: view.name,
+            market: view.market,
+            quickFilter: view.quickFilter,
+            sortMode: view.sortMode,
+            query: view.query,
+            updatedAt: view.updatedAt,
+        }));
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `scanner-views-${selectedMarket.toLowerCase()}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+        setScannerViewMessage(`Exported ${availableScannerViews.length} scanner view${availableScannerViews.length === 1 ? '' : 's'}.`);
+    };
+
+    const handleImportScannerViews = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+        try {
+            const raw = await file.text();
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                setScannerViewMessage('Scanner view import failed: file must contain an array.');
+                return;
+            }
+
+            const imported = parsed
+                .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+                .map((entry): ScannerViewPreset => ({
+                    id: typeof entry.id === 'string' ? entry.id : crypto.randomUUID(),
+                    name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Imported Scanner View',
+                    market: entry.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
+                    quickFilter: ['ALL', 'GAINERS', 'LOSERS', 'FAVORITES', 'SECTOR'].includes(String(entry.quickFilter)) ? entry.quickFilter as UniverseQuickFilter : 'ALL',
+                    sortMode: ['MOVE_DESC', 'MOVE_ASC', 'PRICE_DESC', 'ALPHA'].includes(String(entry.sortMode)) ? entry.sortMode as UniverseSortMode : 'MOVE_DESC',
+                    query: typeof entry.query === 'string' ? entry.query : '',
+                    updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
+                }))
+                .slice(0, 12);
+
+            if (imported.length === 0) {
+                setScannerViewMessage('Scanner view import failed: no valid views found.');
+                return;
+            }
+
+            setScannerViews((current) => {
+                const merged = [...imported, ...current].reduce<ScannerViewPreset[]>((acc, view) => {
+                    const existingIndex = acc.findIndex((entry) => (
+                        entry.market === view.market
+                        && entry.quickFilter === view.quickFilter
+                        && entry.sortMode === view.sortMode
+                        && entry.query.trim() === view.query.trim()
+                    ));
+                    if (existingIndex >= 0) {
+                        acc[existingIndex] = view;
+                        return acc;
+                    }
+                    acc.push(view);
+                    return acc;
+                }, []);
+                return merged.slice(0, 12);
+            });
+            setScannerViewMessage(`Imported ${imported.length} scanner view${imported.length === 1 ? '' : 's'}.`);
+        } catch (error) {
+            console.error(error);
+            setScannerViewMessage('Scanner view import failed: invalid JSON.');
+        } finally {
+            if (scannerViewImportInputRef.current) {
+                scannerViewImportInputRef.current.value = '';
+            }
+        }
+    };
+
+    const handleShareScannerView = async (view: ScannerViewPreset) => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const params = new URLSearchParams();
+        params.set('scannerMarket', view.market);
+        params.set('scannerFilter', view.quickFilter);
+        params.set('scannerSort', view.sortMode);
+        if (view.query.trim()) {
+            params.set('scannerQuery', view.query.trim());
+        }
+        const shareUrl = `${window.location.origin}/watchlist?${params.toString()}`;
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setScannerViewMessage(`Share link copied for ${view.name}.`);
+        } catch (error) {
+            console.error(error);
+            setScannerViewMessage(shareUrl);
+        }
     };
 
     const handleSaveCurrentLayout = async () => {
@@ -3254,10 +3396,32 @@ export default function WatchlistPage() {
                                                         <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Saved Scanner Views</p>
                                                         <p className="mt-1 text-xs text-zinc-400">Capture a filter + sort + search combination for this market.</p>
                                                     </div>
-                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
-                                                        {availableScannerViews.length}/12
-                                                    </span>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                                                            {availableScannerViews.length}/12
+                                                        </span>
+                                                        <button
+                                                            onClick={handleExportScannerViews}
+                                                            disabled={availableScannerViews.length === 0}
+                                                            className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        >
+                                                            Export
+                                                        </button>
+                                                        <button
+                                                            onClick={() => scannerViewImportInputRef.current?.click()}
+                                                            className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                        >
+                                                            Import
+                                                        </button>
+                                                    </div>
                                                 </div>
+                                                <input
+                                                    ref={scannerViewImportInputRef}
+                                                    type="file"
+                                                    accept="application/json"
+                                                    className="hidden"
+                                                    onChange={handleImportScannerViews}
+                                                />
                                                 <div className="mt-3 flex flex-col gap-3 lg:flex-row">
                                                     <input
                                                         type="text"
@@ -3286,7 +3450,14 @@ export default function WatchlistPage() {
                                                         availableScannerViews.map((view) => (
                                                             <div key={view.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                                                                 <div>
-                                                                    <p className="text-sm font-semibold text-white">{view.name}</p>
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <p className="text-sm font-semibold text-white">{view.name}</p>
+                                                                        {activeScannerViewId === view.id && (
+                                                                            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300">
+                                                                                Active
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                     <p className="mt-1 text-[11px] text-zinc-500">
                                                                         {view.quickFilter} · {view.sortMode} · {view.query || 'No search'}
                                                                     </p>
@@ -3297,6 +3468,12 @@ export default function WatchlistPage() {
                                                                         className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
                                                                     >
                                                                         Apply
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleShareScannerView(view)}
+                                                                        className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300 transition hover:bg-amber-400/20"
+                                                                    >
+                                                                        Share
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleDeleteScannerView(view.id)}

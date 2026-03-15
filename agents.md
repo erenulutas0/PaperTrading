@@ -200,6 +200,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - terminal users can visually triage the market before dropping into the full scanner list
     - the instrument universe now has a faster “where is the action?” surface than a plain sorted list
+- **2026-03-15**: **Saved Scanner Views Became Portable Presets With Share and Import/Export**
+  - **Problem observed**:
+    - Account-backed scanner views solved persistence, but they were still trapped inside one account/session surface.
+    - Users still lacked a fast way to:
+      - share a scanner slice
+      - back up scanner presets
+      - import a preset pack into another session
+  - **Implementation**:
+    - Added scanner-view actions in `/watchlist`:
+      - `Export`
+      - `Import`
+      - `Share`
+    - Shared scanner links encode:
+      - market
+      - quick filter
+      - sort mode
+      - search query
+    - The watchlist page now hydrates those query params into the instrument-universe controls on load.
+  - **Operational impact**:
+    - scanner workflows are now portable, not just persistent
+    - the market terminal can move scanner state between users/sessions without creating another backend surface
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
