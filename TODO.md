@@ -67,6 +67,7 @@ Last updated: 2026-03-11
   - keeps draw + alert controls grouped above the chart workspace
   - uses a compact chart-toolbar treatment for search / market / range / interval / compare controls
   - keeps right-rail monitoring counters compressed instead of stacking more tall cards
+  - lets scanner discovery / universe / saved views render as tabs instead of one long vertical wall
 - [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol

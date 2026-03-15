@@ -134,6 +134,7 @@ type AlertHistoryFilter = 'ALL' | 'ABOVE' | 'BELOW';
 type AlertHistoryWindow = 'ALL' | '24H' | '7D' | '30D';
 type UniverseQuickFilter = 'ALL' | 'GAINERS' | 'LOSERS' | 'FAVORITES' | 'SECTOR';
 type UniverseSortMode = 'MOVE_DESC' | 'MOVE_ASC' | 'PRICE_DESC' | 'ALPHA';
+type ScannerWorkspaceTab = 'DISCOVERY' | 'UNIVERSE' | 'VIEWS';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
@@ -389,6 +390,7 @@ export default function WatchlistPage() {
     const [instrumentQuery, setInstrumentQuery] = useState('');
     const [universeQuickFilter, setUniverseQuickFilter] = useState<UniverseQuickFilter>('ALL');
     const [universeSortMode, setUniverseSortMode] = useState<UniverseSortMode>('MOVE_DESC');
+    const [scannerWorkspaceTab, setScannerWorkspaceTab] = useState<ScannerWorkspaceTab>('DISCOVERY');
     const [scannerViews, setScannerViews] = useState<ScannerViewPreset[]>([]);
     const [scannerViewNameDraft, setScannerViewNameDraft] = useState('');
     const [scannerViewMessage, setScannerViewMessage] = useState('');
@@ -4302,12 +4304,34 @@ export default function WatchlistPage() {
                                                     Reset Slice
                                                 </button>
                                             </div>
+                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                {([
+                                                    ['DISCOVERY', 'Discovery'],
+                                                    ['UNIVERSE', 'Universe'],
+                                                    ['VIEWS', 'Views'],
+                                                ] as const).map(([key, label]) => (
+                                                    <button
+                                                        key={key}
+                                                        onClick={() => setScannerWorkspaceTab(key)}
+                                                        className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition ${
+                                                            scannerWorkspaceTab === key
+                                                                ? 'border-amber-400/25 bg-amber-400/10 text-amber-300'
+                                                                : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {scannerWorkspaceTab === 'DISCOVERY' && (
+                                            <>
                                             <div className="mt-4 grid gap-3 lg:grid-cols-2">
                                                 <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-3">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-300">Top Movers</p>
                                                         <button
                                                             onClick={() => {
+                                                                setScannerWorkspaceTab('UNIVERSE');
                                                                 setUniverseQuickFilter('GAINERS');
                                                                 setUniverseSortMode('MOVE_DESC');
                                                             }}
@@ -4337,6 +4361,7 @@ export default function WatchlistPage() {
                                                         <p className="text-[10px] uppercase tracking-[0.18em] text-red-300">Bottom Movers</p>
                                                         <button
                                                             onClick={() => {
+                                                                setScannerWorkspaceTab('UNIVERSE');
                                                                 setUniverseQuickFilter('LOSERS');
                                                                 setUniverseSortMode('MOVE_ASC');
                                                             }}
@@ -4432,6 +4457,7 @@ export default function WatchlistPage() {
                                                                 <button
                                                                     key={`sector-pulse-${group.sector}`}
                                                                     onClick={() => {
+                                                                        setScannerWorkspaceTab('UNIVERSE');
                                                                         setSelectedSymbol(group.leader.symbol);
                                                                         setUniverseQuickFilter('SECTOR');
                                                                         setUniverseSortMode('MOVE_DESC');
@@ -4475,6 +4501,9 @@ export default function WatchlistPage() {
                                                     </div>
                                                 </div>
                                             )}
+                                            </>
+                                            )}
+                                            {scannerWorkspaceTab === 'VIEWS' && (
                                             <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
                                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                                     <div>
@@ -4669,6 +4698,9 @@ export default function WatchlistPage() {
                                                     )}
                                                 </div>
                                             </div>
+                                            )}
+                                            {scannerWorkspaceTab === 'UNIVERSE' && (
+                                            <>
                                             <div className="mt-4 flex flex-wrap gap-2">
                                                 {universeFilterOptions.map((option) => (
                                                     <button
@@ -4788,6 +4820,8 @@ export default function WatchlistPage() {
                                                     </div>
                                                 ))}
                                             </div>
+                                            </>
+                                            )}
                                         </div>
                                     </div>
 

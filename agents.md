@@ -54,6 +54,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Followed with a second compaction pass:
       - search / market / range / interval / compare moved into a more explicit chart-toolbar treatment
       - right-rail alert/trigger/note counters collapsed from tall cards into compact chips
+    - Followed with a third hierarchy pass:
+      - scanner workspace split into `Discovery / Universe / Views` tabs
+      - discovery cards no longer compete vertically with the full universe list and saved-view management at the same time
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible
