@@ -3826,5 +3826,20 @@ A change is “done” when:
   - audit browsing is faster because the list stays compact while detail inspection remains one click away
   - request-focus and row-selection workflows now complement each other instead of competing for space
 
+### 2026-03-15: Audit Row Detail Panel Added Clipboard Actions
+- Problem observed:
+  - Once the detail panel existed, operators still had to manually select text to reuse request ids, actor ids, resource ids, or the full payload.
+  - That is unnecessary friction in ops/debug workflows where those values are routinely pasted into other tools.
+- Implementation:
+  - Added copy actions in the audit detail panel for:
+    - request id
+    - actor id
+    - resource id
+    - full selected row JSON
+  - Copy state is surfaced inline so operators know which artifact was just sent to the clipboard.
+- Operational impact:
+  - audit detail now behaves more like an ops console than a passive viewer
+  - request correlation and follow-up investigation across tools is faster
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

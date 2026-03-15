@@ -1767,3 +1767,7 @@ Last updated: 2026-03-11
   - Let operators inspect a selected row without expanding every card inline
   - Keep row-level request focus intact
   - Surface request, actor, resource, timestamp, and parsed details in one place
+- [x] Add copy actions to audit row detail:
+  - Copy selected request id, actor id, and resource id
+  - Copy full selected row JSON
+  - Keep inspection workflow compact and clipboard-friendly

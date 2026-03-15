@@ -145,6 +145,7 @@ export default function AuditPage() {
     const [error, setError] = useState('');
     const [exporting, setExporting] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
+    const [copiedDetailField, setCopiedDetailField] = useState('');
     const [page, setPage] = useState(0);
     const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
     const [filters, setFilters] = useState({
@@ -434,6 +435,19 @@ export default function AuditPage() {
             ...current,
             requestId,
         }));
+    };
+
+    const copyDetailValue = async (label: string, value: string | null) => {
+        if (!value) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopiedDetailField(label);
+            window.setTimeout(() => setCopiedDetailField(''), 1600);
+        } catch (copyError) {
+            setError(copyError instanceof Error ? copyError.message : `Failed to copy ${label}`);
+        }
     };
 
     useEffect(() => {
@@ -823,8 +837,17 @@ export default function AuditPage() {
                             <h2 className="mt-2 text-lg font-bold text-white">Selected Audit Entry</h2>
                         </div>
                         {selectedEntry && (
-                            <div className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300">
-                                Inspecting {selectedEntry.actionType}
+                            <div className="flex flex-wrap gap-2">
+                                <div className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300">
+                                    Inspecting {selectedEntry.actionType}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => void copyDetailValue('json', JSON.stringify(selectedEntry, null, 2))}
+                                    className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                >
+                                    {copiedDetailField === 'json' ? 'JSON Copied' : 'Copy JSON'}
+                                </button>
                             </div>
                         )}
                     </div>
@@ -852,15 +875,48 @@ export default function AuditPage() {
 
                             <div className="grid gap-3">
                                 <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
-                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Request Id</p>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Request Id</p>
+                                        {selectedEntry.requestId && (
+                                            <button
+                                                type="button"
+                                                onClick={() => void copyDetailValue('requestId', selectedEntry.requestId)}
+                                                className="text-[10px] font-semibold uppercase tracking-wide text-primary transition hover:text-white"
+                                            >
+                                                {copiedDetailField === 'requestId' ? 'Copied' : 'Copy'}
+                                            </button>
+                                        )}
+                                    </div>
                                     <p className="mt-2 break-all text-sm text-white">{selectedEntry.requestId ?? 'N/A'}</p>
                                 </div>
                                 <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
-                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Actor Id</p>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Actor Id</p>
+                                        {selectedEntry.actorId && (
+                                            <button
+                                                type="button"
+                                                onClick={() => void copyDetailValue('actorId', selectedEntry.actorId)}
+                                                className="text-[10px] font-semibold uppercase tracking-wide text-primary transition hover:text-white"
+                                            >
+                                                {copiedDetailField === 'actorId' ? 'Copied' : 'Copy'}
+                                            </button>
+                                        )}
+                                    </div>
                                     <p className="mt-2 break-all text-sm text-white">{selectedEntry.actorId ?? 'N/A'}</p>
                                 </div>
                                 <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
-                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Resource Id</p>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Resource Id</p>
+                                        {selectedEntry.resourceId && (
+                                            <button
+                                                type="button"
+                                                onClick={() => void copyDetailValue('resourceId', selectedEntry.resourceId)}
+                                                className="text-[10px] font-semibold uppercase tracking-wide text-primary transition hover:text-white"
+                                            >
+                                                {copiedDetailField === 'resourceId' ? 'Copied' : 'Copy'}
+                                            </button>
+                                        )}
+                                    </div>
                                     <p className="mt-2 break-all text-sm text-white">{selectedEntry.resourceId ?? 'N/A'}</p>
                                 </div>
                                 <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
