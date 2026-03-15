@@ -1667,3 +1667,7 @@ Last updated: 2026-03-11
   - Add Yahoo quote request headers/params for more stable delayed responses
   - Fallback missing quote rows to per-symbol chart metadata
   - Cache successful BIST snapshots briefly to avoid repeated fallback churn
+- [x] Add analytics snapshot/report-card surface:
+  - Add frontend snapshot card on `/analytics/[portfolioId]`
+  - Support `Copy Summary`, `Download JSON`, and `Download SVG Card`
+  - Derive report context from current analytics state including compare/filter/detail selections

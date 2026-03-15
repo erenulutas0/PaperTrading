@@ -3362,5 +3362,30 @@ A change is “done” when:
 - No sensitive data leaked
 - Performance is acceptable (no N+1, no per-request heavy compute)
 
+### 2026-03-14: Portfolio Analytics Added Snapshot / Report Card Surface
+- Problem observed:
+  - `/analytics/{portfolioId}` had deep inspection tools, but no lightweight artifact for sharing or documenting the current portfolio state.
+  - Export existed, but it was data-first rather than operator-friendly.
+- Implementation:
+  - Added an in-page `Snapshot Card` to `app/analytics/[portfolioId]`.
+  - Snapshot card derives a portable report from the live analytics state:
+    - current equity
+    - return
+    - drawdown
+    - trade win rate
+    - Sharpe / Sortino
+    - top realized symbol
+    - top live exposure
+    - best / worst interval move
+    - active compare delta when compare mode is loaded
+  - Added actions for:
+    - `Copy Summary`
+    - `Download JSON`
+    - `Download SVG Card`
+  - Kept the feature frontend-only by deriving the snapshot from the existing analytics payload rather than expanding the backend contract again.
+- Operational impact:
+  - analytics now supports quick sharing and documentation without forcing users to parse the full page or rely only on raw export files
+  - report artifacts stay aligned with the exact current filter/window/detail context shown in the UI
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

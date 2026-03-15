@@ -150,6 +150,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
     const [compareLinkCopied, setCompareLinkCopied] = useState(false);
     const [compareSummaryCopied, setCompareSummaryCopied] = useState(false);
+    const [snapshotSummaryCopied, setSnapshotSummaryCopied] = useState(false);
     const [chartRenderVersion, setChartRenderVersion] = useState(0);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pnlCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -723,6 +724,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     useEffect(() => {
         setCompareLinkCopied(false);
         setCompareSummaryCopied(false);
+        setSnapshotSummaryCopied(false);
     }, [comparePortfolioId, selectedCurveWindow, symbolFilter, selectedSymbolDetail]);
 
     const ratingColor = (value: number, type: 'sharpe' | 'sortino' | 'drawdown' | 'winrate' | 'pf' | 'vol') => {
@@ -970,6 +972,71 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         '30d': { startingEquity: 0, endingEquity: 0, absoluteReturn: 0, returnPercentage: 0, snapshotCount: 0 },
     };
     const selectedComparePortfolio = portfolioOptions.find((portfolio) => portfolio.id === comparePortfolioId) ?? null;
+    const topRealizedAttribution = filteredSymbolAttribution[0] ?? null;
+    const topExposureAttribution = filteredRiskAttribution
+        .slice()
+        .sort((left, right) => right.exposure - left.exposure)[0] ?? null;
+    const snapshotContextChips = [
+        summary.visibility,
+        selectedCurveWindow,
+        normalizedSymbolFilter ? `Filter ${normalizedSymbolFilter}` : null,
+        selectedSymbolDetail ? `Detail ${selectedSymbolDetail}` : null,
+        compareSummary ? `Compare ${selectedComparePortfolio?.name ?? compareSummary.portfolioName}` : null,
+    ].filter(Boolean) as string[];
+    const snapshotSummaryLines = [
+        `Analytics Snapshot`,
+        `${summary.portfolioName} (${summary.visibility})`,
+        `Window: ${selectedCurveWindow}`,
+        `Current equity: ${formatEquity(summary.currentEquity)}`,
+        `Net return: ${formatCurrency(summary.absoluteReturn)} (${summary.returnPercentage >= 0 ? '+' : ''}${summary.returnPercentage.toFixed(2)}%)`,
+        `Max drawdown: ${rm.maxDrawdown.toFixed(2)}%`,
+        `Trade win rate: ${ts.tradeWinRate.toFixed(2)}%`,
+        `Sharpe / Sortino: ${rm.sharpeRatio.toFixed(2)} / ${rm.sortinoRatio.toFixed(2)}`,
+        `Prediction quality: ${data.predictionWinRate.toFixed(2)}%`,
+        `Open positions: ${positionSummary.openPositions} | Gross exposure: ${formatEquity(positionSummary.grossExposure)}`,
+        topRealizedAttribution
+            ? `Top realized symbol: ${topRealizedAttribution.symbol} (${formatCurrency(topRealizedAttribution.realizedPnl)} across ${topRealizedAttribution.tradeCount} trades)`
+            : `Top realized symbol: N/A`,
+        topExposureAttribution
+            ? `Top live exposure: ${topExposureAttribution.symbol} (${formatEquity(topExposureAttribution.exposure)} | unrealized ${formatCurrency(topExposureAttribution.unrealizedPnl)})`
+            : `Top live exposure: N/A`,
+        `Best interval move: ${formatCurrency(periodExtremes.bestMove.absoluteReturn)} (${periodExtremes.bestMove.returnPercentage >= 0 ? '+' : ''}${periodExtremes.bestMove.returnPercentage.toFixed(2)}%)`,
+        `Worst interval move: ${formatCurrency(periodExtremes.worstMove.absoluteReturn)} (${periodExtremes.worstMove.returnPercentage >= 0 ? '+' : ''}${periodExtremes.worstMove.returnPercentage.toFixed(2)}%)`,
+        compareSummary
+            ? `Compare delta: return ${(summary.returnPercentage - compareSummary.returnPercentage) >= 0 ? '+' : ''}${(summary.returnPercentage - compareSummary.returnPercentage).toFixed(2)} pts | equity ${formatCurrency(summary.currentEquity - compareSummary.currentEquity)}`
+            : null,
+    ].filter(Boolean) as string[];
+    const snapshotPayload = {
+        portfolioId: summary.portfolioId,
+        portfolioName: summary.portfolioName,
+        generatedAt: new Date().toISOString(),
+        curveWindow: selectedCurveWindow,
+        symbolFilter: normalizedSymbolFilter || null,
+        selectedSymbolDetail: selectedSymbolDetail || null,
+        summary,
+        riskMetrics: rm,
+        predictionWinRate: data.predictionWinRate,
+        tradeStats: ts,
+        positionSummary,
+        performanceWindows,
+        periodExtremes,
+        topRealizedAttribution,
+        topExposureAttribution,
+        compare: compareSummary ? {
+            portfolioId: compareSummary.portfolioId,
+            portfolioName: selectedComparePortfolio?.name ?? compareSummary.portfolioName,
+            returnDelta: summary.returnPercentage - compareSummary.returnPercentage,
+            equityDelta: summary.currentEquity - compareSummary.currentEquity,
+        } : null,
+    };
+
+    const escapeSvgText = (value: string) =>
+        value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
 
     const copyCompareSummary = async () => {
         if (!compareSummary || !compareRiskMetrics || !compareTradeStats) {
@@ -1001,6 +1068,53 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         } catch (error) {
             console.error(error);
         }
+    };
+
+    const copySnapshotSummary = async () => {
+        try {
+            await navigator.clipboard.writeText(snapshotSummaryLines.join('\n'));
+            setSnapshotSummaryCopied(true);
+            window.setTimeout(() => setSnapshotSummaryCopied(false), 1800);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const downloadSnapshotJson = () => {
+        const blob = new Blob([JSON.stringify(snapshotPayload, null, 2)], { type: 'application/json;charset=utf-8' });
+        downloadBlob(blob, `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics-snapshot.json`);
+    };
+
+    const downloadSnapshotSvgCard = () => {
+        const title = escapeSvgText(`${summary.portfolioName} Analytics Snapshot`);
+        const chips = snapshotContextChips
+            .map((chip, index) => {
+                const x = 40 + index * 140;
+                return `<rect x="${x}" y="84" rx="14" ry="14" width="128" height="28" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.08)" />
+<text x="${x + 64}" y="102" text-anchor="middle" fill="#d4d4d8" font-size="11" font-family="Arial, sans-serif">${escapeSvgText(chip)}</text>`;
+            })
+            .join('');
+        const lines = snapshotSummaryLines.slice(1, 9)
+            .map((line, index) => `<text x="40" y="${170 + (index * 28)}" fill="#e4e4e7" font-size="16" font-family="Arial, sans-serif">${escapeSvgText(line)}</text>`)
+            .join('');
+        const footer = topRealizedAttribution
+            ? `Top realized ${topRealizedAttribution.symbol} ${formatCurrency(topRealizedAttribution.realizedPnl)}`
+            : 'Top realized symbol unavailable';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" fill="none">
+<rect width="1200" height="620" rx="28" fill="#09090b"/>
+<rect x="24" y="24" width="1152" height="572" rx="24" fill="#111827" stroke="rgba(255,255,255,0.08)"/>
+<text x="40" y="56" fill="#22d3ee" font-size="14" font-family="Arial, sans-serif" letter-spacing="4">PAPERTRADEPRO ANALYTICS</text>
+<text x="40" y="126" fill="#ffffff" font-size="34" font-weight="700" font-family="Arial, sans-serif">${title}</text>
+${chips}
+${lines}
+<rect x="40" y="436" width="1120" height="128" rx="20" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)"/>
+<text x="64" y="474" fill="#a1a1aa" font-size="12" font-family="Arial, sans-serif" letter-spacing="3">PERFORMANCE FOCUS</text>
+<text x="64" y="512" fill="#fafafa" font-size="24" font-weight="700" font-family="Arial, sans-serif">${escapeSvgText(footer)}</text>
+<text x="64" y="544" fill="#d4d4d8" font-size="16" font-family="Arial, sans-serif">${escapeSvgText(`Exposure ${topExposureAttribution ? formatEquity(topExposureAttribution.exposure) : 'N/A'} | Win rate ${ts.tradeWinRate.toFixed(2)}% | Sharpe ${rm.sharpeRatio.toFixed(2)}`)}</text>
+<text x="64" y="572" fill="#71717a" font-size="12" font-family="Arial, sans-serif">${escapeSvgText(`Generated ${formatTimestamp(new Date().toISOString())}`)}</text>
+</svg>`;
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+        downloadBlob(blob, `${summary.portfolioName.replace(/\s+/g, '-').toLowerCase()}-analytics-card.svg`);
     };
 
     const exportAnalytics = async (format: 'csv' | 'json') => {
@@ -1110,7 +1224,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                 </div>
 
                 <div className="mb-6 grid gap-6 xl:grid-cols-12">
-                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-7">
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Analytics Controls</h2>
                         <p className="mt-1 text-[10px] text-zinc-600">Filter symbol-facing blocks and export the current analytics snapshot.</p>
                         <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -1136,7 +1250,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                             </button>
                         </div>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-3">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Curve Window</h2>
                         <p className="mt-1 text-[10px] text-zinc-600">Limit the equity chart to the window you want to inspect.</p>
                         <div className="mt-5 flex flex-wrap gap-2">
@@ -1170,6 +1284,68 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
                                     Current account history is shorter than {selectedCurveWindow}, so this view matches full history.
                                 </p>
                             ) : null}
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Snapshot Card</h2>
+                                <p className="mt-1 text-[10px] text-zinc-600">Portable report view for sharing, exporting, and documenting this portfolio state.</p>
+                            </div>
+                            <span className={`rounded-full border px-3 py-1 text-[10px] ${performancePositive ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-red-500/20 bg-red-500/10 text-red-300'}`}>
+                                {summary.returnPercentage >= 0 ? '+' : ''}{summary.returnPercentage.toFixed(2)}%
+                            </span>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
+                            {snapshotContextChips.map((chip) => (
+                                <span key={chip} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-zinc-300">
+                                    {chip}
+                                </span>
+                            ))}
+                        </div>
+                        <div className="mt-4 rounded-xl border border-white/5 bg-black/20 p-4">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Top Realized</p>
+                                    <p className="mt-2 text-sm font-bold text-white">{topRealizedAttribution?.symbol ?? 'N/A'}</p>
+                                    <p className={`mt-1 text-xs font-mono ${((topRealizedAttribution?.realizedPnl ?? 0) >= 0) ? 'text-green-300' : 'text-red-300'}`}>
+                                        {topRealizedAttribution ? formatCurrency(topRealizedAttribution.realizedPnl) : 'No realized attribution'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Top Exposure</p>
+                                    <p className="mt-2 text-sm font-bold text-white">{topExposureAttribution?.symbol ?? 'N/A'}</p>
+                                    <p className="mt-1 text-xs font-mono text-zinc-400">
+                                        {topExposureAttribution ? formatEquity(topExposureAttribution.exposure) : 'No live exposure'}
+                                    </p>
+                                </div>
+                            </div>
+                            <p className="mt-4 text-xs text-zinc-500">
+                                Best/Worst interval {formatCurrency(periodExtremes.bestMove.absoluteReturn)} / {formatCurrency(periodExtremes.worstMove.absoluteReturn)}
+                            </p>
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                            <button
+                                type="button"
+                                onClick={() => void copySnapshotSummary()}
+                                className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20"
+                            >
+                                {snapshotSummaryCopied ? 'Summary Copied' : 'Copy Summary'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => downloadSnapshotJson()}
+                                className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
+                            >
+                                Download JSON
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => downloadSnapshotSvgCard()}
+                                className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 text-sm font-medium text-fuchsia-300 transition-colors hover:bg-fuchsia-500/20"
+                            >
+                                Download SVG Card
+                            </button>
                         </div>
                     </div>
                 </div>
