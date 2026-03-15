@@ -240,6 +240,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - saved compare baskets
   - **Operational impact**:
     - compare presets now communicate direction with a one-glance cue before the user reads the full snapshot text
+- **2026-03-15**: **Saved Scanner Views Reached Full Preset Lifecycle With Rename and Overwrite**
+  - **Problem observed**:
+    - Scanner views were already persistent and portable, but they still behaved like append-only presets.
+    - Users needed to iteratively refine an existing scanner setup instead of saving a new one every time.
+  - **Implementation**:
+    - Added scanner-view actions:
+      - `Rename`
+      - `Overwrite`
+    - `Rename` opens an inline edit state.
+    - `Overwrite` replaces the preset with the current:
+      - market
+      - quick filter
+      - sort mode
+      - search query
+  - **Operational impact**:
+    - scanner presets now behave like reusable working views, not disposable snapshots
+    - the scanner workflow matches the maturity level already present in compare baskets and layouts
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
