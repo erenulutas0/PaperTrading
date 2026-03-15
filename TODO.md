@@ -1672,3 +1672,7 @@ Last updated: 2026-03-11
   - Support `Copy Summary`, `Copy Share Link`, `Download JSON`, and `Download SVG Card`
   - Derive report context from current analytics state including compare/filter/detail selections
   - Keep action buttons mobile-safe and surface compare delta directly inside the card when compare mode is active
+- [x] Start analytics loading/empty-state cleanup:
+  - Replace bare spinner with page-level loading shell
+  - Normalize compare/list/detail empty states through a reusable empty panel
+  - Improve no-data messaging for low-history portfolios

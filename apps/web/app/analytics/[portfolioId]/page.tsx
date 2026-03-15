@@ -887,18 +887,76 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
         }
     };
 
-    if (!isMounted || loading) {
+    const AnalyticsEmptyPanel = ({
+        title,
+        body,
+        accent = 'zinc',
+    }: {
+        title: string;
+        body: string;
+        accent?: 'zinc' | 'cyan' | 'emerald' | 'amber';
+    }) => {
+        const accentClass = {
+            zinc: 'border-white/10 bg-black/20 text-zinc-500',
+            cyan: 'border-cyan-500/15 bg-cyan-500/5 text-cyan-200',
+            emerald: 'border-emerald-500/15 bg-emerald-500/5 text-emerald-200',
+            amber: 'border-amber-500/15 bg-amber-500/5 text-amber-200',
+        }[accent];
+
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center">
-                <div className="animate-spin w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+            <div className={`rounded-xl border border-dashed px-4 py-6 ${accentClass}`}>
+                <p className="text-sm font-medium">{title}</p>
+                <p className="mt-2 text-sm opacity-80">{body}</p>
             </div>
         );
+    };
+
+    const AnalyticsLoadingShell = () => (
+        <div className="min-h-screen bg-black text-white">
+            <nav className="border-b border-white/10 px-6 py-4 flex items-center justify-between backdrop-blur-md bg-black/50 sticky top-0 z-50">
+                <div className="font-bold text-xl tracking-tight flex items-center gap-2">
+                    <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center text-black font-bold">P</div>
+                    <span>PaperTrade<span className="text-green-500">Pro</span></span>
+                </div>
+            </nav>
+            <div className="max-w-6xl mx-auto px-6 py-10 space-y-6">
+                <div className="space-y-3">
+                    <div className="h-3 w-28 animate-pulse rounded bg-white/10"></div>
+                    <div className="h-10 w-80 animate-pulse rounded bg-white/10"></div>
+                    <div className="h-4 w-[28rem] max-w-full animate-pulse rounded bg-white/5"></div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                        <div key={index} className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
+                            <div className="h-3 w-24 animate-pulse rounded bg-white/10"></div>
+                            <div className="mt-4 h-9 w-32 animate-pulse rounded bg-white/10"></div>
+                            <div className="mt-3 h-3 w-24 animate-pulse rounded bg-white/5"></div>
+                        </div>
+                    ))}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
+                    <div className="h-3 w-36 animate-pulse rounded bg-white/10"></div>
+                    <div className="mt-3 h-3 w-56 animate-pulse rounded bg-white/5"></div>
+                    <div className="mt-6 h-64 animate-pulse rounded-xl bg-white/5"></div>
+                </div>
+            </div>
+        </div>
+    );
+
+    if (!isMounted || loading) {
+        return <AnalyticsLoadingShell />;
     }
 
     if (!data) {
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center text-zinc-500">
-                <p>No analytics data available for this portfolio.</p>
+            <div className="min-h-screen bg-black text-white px-6 py-16">
+                <div className="mx-auto max-w-2xl">
+                    <AnalyticsEmptyPanel
+                        title="No analytics data available"
+                        body="This portfolio does not have enough snapshot or trade history yet. Open the portfolio, let snapshots accumulate, then return to analytics."
+                        accent="amber"
+                    />
+                </div>
             </div>
         );
     }
@@ -1657,18 +1715,29 @@ ${lines}
                                 </div>
                             </div>
                         ) : (
-                            <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                                Comparison analytics could not be loaded for the selected portfolio.
-                            </p>
+                            <div className="mt-5">
+                                <AnalyticsEmptyPanel
+                                    title="Comparison analytics unavailable"
+                                    body="The selected portfolio could not be loaded for compare mode. Try another portfolio or clear the compare state."
+                                    accent="amber"
+                                />
+                            </div>
                         )
                     ) : portfolioOptions.length === 0 ? (
-                        <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                            Create another portfolio first. Compare mode needs at least two portfolios owned by the same account.
-                        </p>
+                        <div className="mt-5">
+                            <AnalyticsEmptyPanel
+                                title="Compare mode unavailable"
+                                body="Create another portfolio first. Compare mode needs at least two portfolios owned by the same account."
+                            />
+                        </div>
                     ) : (
-                        <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                            Pick one of your other portfolios to compare against this analytics surface.
-                        </p>
+                        <div className="mt-5">
+                            <AnalyticsEmptyPanel
+                                title="Compare mode ready"
+                                body="Pick one of your other portfolios to compare against this analytics surface."
+                                accent="cyan"
+                            />
+                        </div>
                     )}
                 </div>
 
@@ -1709,11 +1778,12 @@ ${lines}
                         </div>
                         <div className="mt-5 space-y-3">
                             {filteredTopPositions.length === 0 ? (
-                                <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                                    {normalizedSymbolFilter
+                                <AnalyticsEmptyPanel
+                                    title="No open positions"
+                                    body={normalizedSymbolFilter
                                         ? 'No open positions match the current symbol filter.'
-                                        : 'No open positions. Analytics is currently driven by historical trade and snapshot data.'}
-                                </p>
+                                        : 'Analytics is currently driven by historical trade and snapshot data because the portfolio has no live holdings.'}
+                                />
                             ) : (
                                 filteredTopPositions.map((position) => (
                                     <div key={`${position.symbol}-${position.side}`} className="rounded-xl border border-white/5 bg-black/20 px-4 py-4">
@@ -1789,11 +1859,12 @@ ${lines}
                         </div>
                         <div className="mt-5 space-y-3">
                             {filteredSymbolAttribution.length === 0 ? (
-                                <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                                    {normalizedSymbolFilter
+                                <AnalyticsEmptyPanel
+                                    title="No realized attribution"
+                                    body={normalizedSymbolFilter
                                         ? 'No realized attribution rows match the current symbol filter.'
-                                        : 'No realized trade history yet. Attribution appears as trades close and realized PnL is recorded.'}
-                                </p>
+                                        : 'Realized attribution appears once trades close and realized PnL is recorded.'}
+                                />
                             ) : (
                                 filteredSymbolAttribution.map((row) => (
                                     <div key={row.symbol} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-4 py-4">
@@ -1823,11 +1894,12 @@ ${lines}
                     </div>
                     <div className="mt-5 space-y-3">
                         {filteredRiskAttribution.length === 0 ? (
-                            <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                            {normalizedSymbolFilter
+                            <AnalyticsEmptyPanel
+                                title="No live exposure"
+                                body={normalizedSymbolFilter
                                     ? 'No live exposure rows match the current symbol filter.'
-                                    : 'No live positions. Exposure attribution appears when the portfolio has open holdings.'}
-                            </p>
+                                    : 'Exposure attribution appears when the portfolio has open holdings.'}
+                            />
                         ) : (
                             <>
                                 <div className="rounded-xl border border-white/5 bg-black/20 p-4">
@@ -1927,11 +1999,14 @@ ${lines}
                     </div>
                     <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {filteredSymbolMiniTimelines.length === 0 ? (
-                            <p className="rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500 md:col-span-2 xl:col-span-3">
-                                {normalizedSymbolFilter
-                                    ? 'No symbol timelines match the current symbol filter.'
-                                    : 'No realized trade sequences yet. Mini timelines appear once symbols accumulate trade history.'}
-                            </p>
+                            <div className="md:col-span-2 xl:col-span-3">
+                                <AnalyticsEmptyPanel
+                                    title="No symbol timelines"
+                                    body={normalizedSymbolFilter
+                                        ? 'No symbol timelines match the current symbol filter.'
+                                        : 'Mini timelines appear once symbols accumulate realized trade history.'}
+                                />
+                            </div>
                         ) : (
                             filteredSymbolMiniTimelines.map((timeline) => {
                                 const path = buildMiniSparklinePath(timeline.points);
@@ -2114,9 +2189,12 @@ ${lines}
                             </div>
                         </div>
                     ) : (
-                        <p className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
-                            No symbol detail is available for the current analytics filter.
-                        </p>
+                        <div className="mt-5">
+                            <AnalyticsEmptyPanel
+                                title="No symbol detail available"
+                                body="The current symbol filter excludes all symbol detail rows, or the portfolio does not yet have enough symbol-level history."
+                            />
+                        </div>
                     )}
                 </div>
 

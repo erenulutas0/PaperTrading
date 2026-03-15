@@ -3389,5 +3389,26 @@ A change is “done” when:
   - analytics now supports quick sharing and documentation without forcing users to parse the full page or rely only on raw export files
   - report artifacts stay aligned with the exact current filter/window/detail context shown in the UI
 
+### 2026-03-14: Portfolio Analytics Loading And Empty States Normalized
+- Problem observed:
+  - The analytics surface had become richer, but loading and empty states were still inconsistent:
+    - a bare spinner on first paint
+    - repeated ad-hoc empty paragraphs across compare, exposure, attribution, and symbol detail blocks
+    - weak guidance for low-history portfolios
+- Implementation:
+  - Added a page-level analytics loading shell instead of a standalone spinner.
+  - Introduced a reusable empty-state panel inside `app/analytics/[portfolioId]`.
+  - Replaced repeated inline empty-state paragraphs across:
+    - compare mode
+    - top positions
+    - realized attribution
+    - live exposure
+    - symbol mini timelines
+    - selected-symbol detail
+  - Upgraded the no-data route message so low-history portfolios explain why analytics may still be sparse.
+- Operational impact:
+  - analytics now degrades more coherently while data is sparse or filters exclude rows
+  - repeated empty-state logic is more maintainable and less visually inconsistent
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
