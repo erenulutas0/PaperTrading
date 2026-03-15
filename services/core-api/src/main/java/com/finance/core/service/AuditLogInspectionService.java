@@ -33,20 +33,25 @@ public class AuditLogInspectionService {
         this.objectMapper = objectMapper;
     }
 
-    public Map<String, Object> snapshot(Integer limit, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    public Map<String, Object> snapshot(Integer limit, Integer page, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         int safeLimit = normalizeLimit(limit);
+        int safePage = normalizePage(page);
         Integer safeDays = normalizeDays(days);
-        List<Map<String, Object>> entries = fetchEntries(safeLimit, safeDays, requestId, actorId, actionType, resourceType);
+        long totalCount = countEntries(safeDays, requestId, actorId, actionType, resourceType);
+        List<Map<String, Object>> entries = fetchEntries(safeLimit, safePage, safeDays, requestId, actorId, actionType, resourceType);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("checkedAt", LocalDateTime.now());
         payload.put("limit", safeLimit);
+        payload.put("page", safePage);
         payload.put("days", safeDays);
         payload.put("requestId", requestId);
         payload.put("actorId", actorId);
         payload.put("actionType", actionType);
         payload.put("resourceType", resourceType);
         payload.put("count", entries.size());
+        payload.put("totalCount", totalCount);
+        payload.put("hasMore", ((long) (safePage + 1) * safeLimit) < totalCount);
         payload.put("entries", entries);
         return payload;
     }
@@ -54,7 +59,7 @@ public class AuditLogInspectionService {
     public String exportCsv(Integer limit, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         int safeLimit = normalizeLimit(limit);
         Integer safeDays = normalizeDays(days);
-        List<Map<String, Object>> entries = fetchEntries(safeLimit, safeDays, requestId, actorId, actionType, resourceType);
+        List<Map<String, Object>> entries = fetchEntries(safeLimit, 0, safeDays, requestId, actorId, actionType, resourceType);
         List<String> rows = new ArrayList<>();
         rows.add("id,actorId,actionType,resourceType,resourceId,requestId,ipAddress,requestMethod,requestPath,createdAt");
         entries.forEach(entry -> rows.add(String.join(",",
@@ -72,12 +77,40 @@ public class AuditLogInspectionService {
         return rows.stream().collect(Collectors.joining(System.lineSeparator()));
     }
 
-    private List<Map<String, Object>> fetchEntries(int limit, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    private List<Map<String, Object>> fetchEntries(int limit, int page, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         String baseSql = """
                 select id, actor_id, action_type, resource_type, resource_id, request_id,
                        ip_address, user_agent, request_method, request_path, details, created_at
                 from audit_logs
                 """;
+        QueryParts queryParts = buildWhereClause(days, requestId, actorId, actionType, resourceType);
+        List<Object> params = new ArrayList<>(queryParts.params());
+
+        StringBuilder sql = new StringBuilder(baseSql);
+        if (!queryParts.clauses().isEmpty()) {
+            sql.append(" where ").append(String.join(" and ", queryParts.clauses()));
+        }
+        sql.append(" order by created_at desc limit ? offset ?");
+        params.add(limit);
+        params.add(page * limit);
+
+        return jdbcTemplate.query(
+                sql.toString(),
+                (rs, rowNum) -> toPayload(rs),
+                params.toArray());
+    }
+
+    private long countEntries(Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+        StringBuilder sql = new StringBuilder("select count(*) from audit_logs");
+        QueryParts queryParts = buildWhereClause(days, requestId, actorId, actionType, resourceType);
+        if (!queryParts.clauses().isEmpty()) {
+            sql.append(" where ").append(String.join(" and ", queryParts.clauses()));
+        }
+        Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, queryParts.params().toArray());
+        return count == null ? 0L : count;
+    }
+
+    private QueryParts buildWhereClause(Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         List<String> clauses = new ArrayList<>();
         List<Object> params = new ArrayList<>();
 
@@ -102,17 +135,7 @@ public class AuditLogInspectionService {
             params.add(Timestamp.valueOf(LocalDateTime.now().minusDays(days)));
         }
 
-        StringBuilder sql = new StringBuilder(baseSql);
-        if (!clauses.isEmpty()) {
-            sql.append(" where ").append(String.join(" and ", clauses));
-        }
-        sql.append(" order by created_at desc limit ?");
-        params.add(limit);
-
-        return jdbcTemplate.query(
-                sql.toString(),
-                (rs, rowNum) -> toPayload(rs),
-                params.toArray());
+        return new QueryParts(clauses, params);
     }
 
     private int normalizeLimit(Integer limit) {
@@ -127,6 +150,13 @@ public class AuditLogInspectionService {
             return null;
         }
         return Math.max(1, Math.min(365, days));
+    }
+
+    private int normalizePage(Integer page) {
+        if (page == null) {
+            return 0;
+        }
+        return Math.max(0, page);
     }
 
     private Map<String, Object> toPayload(ResultSet rs) throws SQLException {
@@ -180,5 +210,8 @@ public class AuditLogInspectionService {
         }
         String raw = value.toString().replace("\"", "\"\"");
         return "\"" + raw + "\"";
+    }
+
+    private record QueryParts(List<String> clauses, List<Object> params) {
     }
 }

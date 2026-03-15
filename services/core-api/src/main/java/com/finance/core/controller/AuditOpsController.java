@@ -29,6 +29,7 @@ public class AuditOpsController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> auditLog(
             @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer days,
             @RequestParam(required = false) String requestId,
             @RequestParam(required = false) UUID actorId,
@@ -36,7 +37,7 @@ public class AuditOpsController {
             @RequestParam(required = false) AuditResourceType resourceType,
             HttpServletRequest request) {
         try {
-            return ResponseEntity.ok(inspectionService.snapshot(limit, days, requestId, actorId, actionType, resourceType));
+            return ResponseEntity.ok(inspectionService.snapshot(limit, page, days, requestId, actorId, actionType, resourceType));
         } catch (Throwable ex) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("requestId", request.getAttribute(RequestCorrelation.REQUEST_ID_ATTRIBUTE));

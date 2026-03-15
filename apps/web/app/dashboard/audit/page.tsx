@@ -20,12 +20,15 @@ interface AuditEntry {
 interface AuditResponse {
     checkedAt: string;
     limit: number;
+    page: number;
     days: number | null;
     requestId: string | null;
     actorId: string | null;
     actionType: string | null;
     resourceType: string | null;
     count: number;
+    totalCount: number;
+    hasMore: boolean;
     entries: AuditEntry[];
 }
 
@@ -84,6 +87,7 @@ export default function AuditPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [exporting, setExporting] = useState(false);
+    const [page, setPage] = useState(0);
     const [filters, setFilters] = useState({
         limit: '20',
         days: '',
@@ -99,6 +103,7 @@ export default function AuditPage() {
         try {
             const params = new URLSearchParams();
             if (filters.limit) params.set('limit', filters.limit);
+            params.set('page', page.toString());
             if (filters.days) params.set('days', filters.days);
             if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
             if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
@@ -121,11 +126,15 @@ export default function AuditPage() {
         } finally {
             setLoading(false);
         }
-    }, [filters]);
+    }, [filters, page]);
 
     useEffect(() => {
         void fetchAudit();
     }, [fetchAudit]);
+
+    useEffect(() => {
+        setPage(0);
+    }, [filters.limit, filters.days, filters.requestId, filters.actorId, filters.actionType, filters.resourceType]);
 
     const filteredCountLabel = useMemo(() => {
         if (!data) {
@@ -326,7 +335,12 @@ export default function AuditPage() {
                 </div>
 
                 <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
-                    <h2 className="text-lg font-bold text-white">Recent Rows</h2>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h2 className="text-lg font-bold text-white">Recent Rows</h2>
+                        <div className="rounded-full border border-zinc-800 bg-black px-3 py-1.5 text-[11px] uppercase tracking-[0.24em] text-zinc-400">
+                            Page {data?.page != null ? data.page + 1 : page + 1}
+                        </div>
+                    </div>
                     {error && (
                         <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-300">
                             {error}
@@ -387,6 +401,29 @@ export default function AuditPage() {
                                     )}
                                 </article>
                             ))}
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3">
+                                <div className="text-xs text-zinc-500">
+                                    Showing {data.count} of {data.totalCount} filtered row{data.totalCount === 1 ? '' : 's'}
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPage((current) => Math.max(0, current - 1))}
+                                        disabled={page === 0}
+                                        className="rounded-lg border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white disabled:opacity-40"
+                                    >
+                                        Prev
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPage((current) => current + 1)}
+                                        disabled={!data.hasMore}
+                                        className="rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary/20 disabled:opacity-40"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

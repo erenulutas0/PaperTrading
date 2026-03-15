@@ -3710,5 +3710,23 @@ A change is “done” when:
   - audit review can now answer recent-activity questions directly from the workspace
   - export and visual inspection remain aligned because both use the same date-window contract
 
+### 2026-03-15: Audit Ops Workspace Extended With Real Pagination
+- Problem observed:
+  - Date windows improved audit slicing, but row navigation was still tied to a hard `limit`.
+  - That forced operators to widen the result size instead of moving through a stable filtered sequence.
+- Implementation:
+  - Added optional `page` support to ops audit reads and actuator reads.
+  - `AuditLogInspectionService` now returns:
+    - `page`
+    - `totalCount`
+    - `hasMore`
+  - `/dashboard/audit` now shows:
+    - current page
+    - filtered total row count
+    - `Prev / Next` controls
+- Operational impact:
+  - audit browsing now behaves like an actual inbox/list surface instead of a one-shot snapshot window
+  - export remains unpaged while on-screen inspection gains predictable traversal
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

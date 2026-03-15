@@ -27,17 +27,19 @@ public class AuditLogEndpoint {
     @ReadOperation
     public Map<String, Object> auditLog(
             @Nullable Integer limit,
+            @Nullable Integer page,
             @Nullable Integer days,
             @Nullable String requestId,
             @Nullable UUID actorId,
             @Nullable AuditActionType actionType,
             @Nullable AuditResourceType resourceType) {
         try {
-            return inspectionService.snapshot(limit, days, requestId, actorId, actionType, resourceType);
+            return inspectionService.snapshot(limit, page, days, requestId, actorId, actionType, resourceType);
         } catch (Throwable ex) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("checkedAt", LocalDateTime.now());
             payload.put("limit", limit);
+            payload.put("page", page);
             payload.put("days", days);
             payload.put("requestId", requestId);
             payload.put("actorId", actorId);

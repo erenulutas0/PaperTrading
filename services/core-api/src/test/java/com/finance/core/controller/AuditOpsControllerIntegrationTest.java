@@ -137,4 +137,37 @@ class AuditOpsControllerIntegrationTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("TRADE_BUY_EXECUTED")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("req-export-audit")));
     }
+
+    @Test
+    void auditOpsEndpoint_shouldPaginateResults() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            auditLogRepository.save(AuditLogEntry.builder()
+                    .actorId(UUID.randomUUID())
+                    .actionType(AuditActionType.PORTFOLIO_CREATED)
+                    .resourceType(AuditResourceType.PORTFOLIO)
+                    .resourceId(UUID.randomUUID())
+                    .requestId("req-page-" + i)
+                    .requestMethod("POST")
+                    .requestPath("/api/v1/portfolios")
+                    .build());
+        }
+
+        mockMvc.perform(get("/api/v1/ops/auditlog")
+                        .param("limit", "2")
+                        .param("page", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.count").value(2))
+                .andExpect(jsonPath("$.totalCount").value(3))
+                .andExpect(jsonPath("$.hasMore").value(true));
+
+        mockMvc.perform(get("/api/v1/ops/auditlog")
+                        .param("limit", "2")
+                        .param("page", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.totalCount").value(3))
+                .andExpect(jsonPath("$.hasMore").value(false));
+    }
 }

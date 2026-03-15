@@ -1739,3 +1739,7 @@ Last updated: 2026-03-11
   - Support `days` filtering in ops audit read/export endpoints
   - Add `24H / 7D / 30D / ALL` audit inbox window presets
   - Keep actuator compatibility while widening the ops slice controls
+- [x] Add audit pagination:
+  - Support `page` navigation in ops audit read endpoints
+  - Return `totalCount` and `hasMore` so the UI can paginate safely
+  - Add `Prev/Next` controls to `/dashboard/audit`
