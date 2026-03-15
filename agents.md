@@ -353,6 +353,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare experimentation and full-layout persistence are now connected instead of living as separate workflows
     - a good compare basket can be promoted into a durable terminal preset with one click
+- **2026-03-15**: **Suggested and Built-In Compare Sources Now Promote Directly Into Layouts**
+  - **Problem observed**:
+    - Saved compare baskets could already become full layouts, but suggested and built-in baskets still stopped at apply-only behavior.
+    - That forced users to first save a compare basket, then save a layout, even when the preset was already good enough.
+  - **Implementation**:
+    - Refactored compare-source layout capture into a reusable `/watchlist` helper.
+    - Suggested and built-in compare cards now expose:
+      - `Apply`
+      - `Save Layout`
+  - **Operational impact**:
+    - high-signal compare presets now move directly into durable terminal setups
+    - the path from discovery basket to named layout is now one click across all compare-source types
 - **2026-03-15**: **Right Rail Added Compact Terminal Working Summary**
   - **Problem observed**:
     - The top session rail made terminal context visible, but the right rail still opened cold.

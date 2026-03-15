@@ -116,6 +116,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after session-rail rollout and verify `/watchlist` now surfaces compact market/watchlist/compare/scanner/favorites context cards above the instrument header
 - [ ] Redeploy frontend after universe-metric-pill rollout and verify instrument cards now surface move-rank plus watchlist/compare/active state pills for faster scanner reads
 - [ ] Redeploy frontend after compare-basket-to-layout rollout and verify saved compare baskets can now be promoted into full named terminal layouts without manually rebuilding the entire state
+- [ ] Redeploy frontend after compare-source-to-layout rollout and verify suggested, built-in, and saved compare baskets can all be promoted into full named terminal layouts
 - [ ] Redeploy frontend after right-rail-summary rollout and verify `/watchlist` now surfaces compact watchlist/compare/scanner/favorites context inside the right rail
 - [ ] Redeploy frontend after right-rail-counter rollout and verify `/watchlist` right rail now surfaces alert-binding, triggered-alert, and note counters beside the compact session summary
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:

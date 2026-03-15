@@ -2446,18 +2446,22 @@ export default function WatchlistPage() {
         setLayoutNameDraft('');
     };
 
-    const handleSaveCompareBasketAsLayout = async (basket: CompareBasketPreset) => {
+    const handleSaveCompareSourceAsLayout = async (name: string, symbols: string[]) => {
         if (terminalLayouts.length >= 10) {
             setCompareBasketMessage('Layout limit reached. Remove one saved layout before capturing another.');
             return;
         }
-        const layout = await saveLayoutSnapshot(`Compare Layout · ${basket.name}`, basket.symbols);
+        const layout = await saveLayoutSnapshot(`Compare Layout · ${name}`, symbols);
         if (!layout) {
             setCompareBasketMessage('Failed to save compare basket as layout.');
             return;
         }
         setTerminalLayouts((current) => [layout, ...current].slice(0, 10));
         setCompareBasketMessage(`Saved compare basket as layout: ${layout.name}`);
+    };
+
+    const handleSaveCompareBasketAsLayout = async (basket: CompareBasketPreset) => {
+        await handleSaveCompareSourceAsLayout(basket.name, basket.symbols);
     };
 
     const handleApplyLayout = (layout: TerminalLayoutResponsePayload) => {
@@ -3226,46 +3230,65 @@ export default function WatchlistPage() {
                                                 </div>
                                                 <div className="mt-3 grid gap-2 xl:grid-cols-3">
                                                     {suggestedCompareBaskets.map((basket) => (
-                                                        <button
+                                                        <div
                                                             key={basket.id}
-                                                            onClick={() => handleApplySuggestedCompareBasket(basket)}
-                                                            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-left transition hover:border-sky-400/30 hover:bg-sky-400/10"
+                                                            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 transition hover:border-sky-400/30 hover:bg-sky-400/10"
                                                         >
-                                                            {(() => {
-                                                                const tone = describeCompareBasketTone(basket.symbols);
-                                                                return (
-                                                                    <div className="mb-2">
-                                                                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.className}`}>
-                                                                            {tone.label}
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <p className="text-sm font-semibold text-white">{basket.name}</p>
-                                                                <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                                                                    {basket.symbols.length} symbols
-                                                                </span>
-                                                            </div>
-                                                            <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
-                                                            <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
-                                                            {renderCompareBasketSparkline(basket.symbols)}
-                                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                                {basket.symbols.map((symbol, index) => (
-                                                                    <span
-                                                                        key={`${basket.id}-${symbol}`}
-                                                                        className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
-                                                                        style={{
-                                                                            borderColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}55`,
-                                                                            backgroundColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}20`,
-                                                                            color: COMPARE_COLORS[index % COMPARE_COLORS.length],
-                                                                        }}
-                                                                    >
-                                                                        {symbol}
+                                                            <button
+                                                                onClick={() => handleApplySuggestedCompareBasket(basket)}
+                                                                className="w-full text-left"
+                                                            >
+                                                                {(() => {
+                                                                    const tone = describeCompareBasketTone(basket.symbols);
+                                                                    return (
+                                                                        <div className="mb-2">
+                                                                            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.className}`}>
+                                                                                {tone.label}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <p className="text-sm font-semibold text-white">{basket.name}</p>
+                                                                    <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                                                                        {basket.symbols.length} symbols
                                                                     </span>
-                                                                ))}
+                                                                </div>
+                                                                <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
+                                                                <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
+                                                                {renderCompareBasketSparkline(basket.symbols)}
+                                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                                    {basket.symbols.map((symbol, index) => (
+                                                                        <span
+                                                                            key={`${basket.id}-${symbol}`}
+                                                                            className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                                                            style={{
+                                                                                borderColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}55`,
+                                                                                backgroundColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}20`,
+                                                                                color: COMPARE_COLORS[index % COMPARE_COLORS.length],
+                                                                            }}
+                                                                        >
+                                                                            {symbol}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </button>
+                                                            <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
+                                                                <button
+                                                                    onClick={() => handleApplySuggestedCompareBasket(basket)}
+                                                                    className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
+                                                                >
+                                                                    Apply
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleSaveCompareSourceAsLayout(basket.name, basket.symbols)}
+                                                                    disabled={!currentUserId || terminalLayouts.length >= 10}
+                                                                    className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-violet-300 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                                >
+                                                                    Save Layout
+                                                                </button>
                                                             </div>
-                                                        </button>
+                                                        </div>
                                                     ))}
                                                 </div>
                                             </div>
@@ -3285,46 +3308,65 @@ export default function WatchlistPage() {
                                                 </div>
                                                 <div className="mt-3 grid gap-2 xl:grid-cols-2">
                                                     {builtInCompareBaskets.map((basket) => (
-                                                        <button
+                                                        <div
                                                             key={basket.id}
-                                                            onClick={() => handleApplyBuiltInCompareBasket(basket)}
-                                                            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-left transition hover:border-amber-400/25 hover:bg-amber-400/10"
+                                                            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 transition hover:border-amber-400/25 hover:bg-amber-400/10"
                                                         >
-                                                            {(() => {
-                                                                const tone = describeCompareBasketTone(basket.symbols);
-                                                                return (
-                                                                    <div className="mb-2">
-                                                                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.className}`}>
-                                                                            {tone.label}
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <p className="text-sm font-semibold text-white">{basket.name}</p>
-                                                                <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                                                                    {basket.symbols.length} symbols
-                                                                </span>
-                                                            </div>
-                                                            <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
-                                                            <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
-                                                            {renderCompareBasketSparkline(basket.symbols)}
-                                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                                {basket.symbols.map((symbol, index) => (
-                                                                    <span
-                                                                        key={`${basket.id}-${symbol}`}
-                                                                        className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
-                                                                        style={{
-                                                                            borderColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}55`,
-                                                                            backgroundColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}20`,
-                                                                            color: COMPARE_COLORS[index % COMPARE_COLORS.length],
-                                                                        }}
-                                                                    >
-                                                                        {symbol}
+                                                            <button
+                                                                onClick={() => handleApplyBuiltInCompareBasket(basket)}
+                                                                className="w-full text-left"
+                                                            >
+                                                                {(() => {
+                                                                    const tone = describeCompareBasketTone(basket.symbols);
+                                                                    return (
+                                                                        <div className="mb-2">
+                                                                            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.className}`}>
+                                                                                {tone.label}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <p className="text-sm font-semibold text-white">{basket.name}</p>
+                                                                    <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                                                                        {basket.symbols.length} symbols
                                                                     </span>
-                                                                ))}
+                                                                </div>
+                                                                <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
+                                                                <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
+                                                                {renderCompareBasketSparkline(basket.symbols)}
+                                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                                    {basket.symbols.map((symbol, index) => (
+                                                                        <span
+                                                                            key={`${basket.id}-${symbol}`}
+                                                                            className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                                                            style={{
+                                                                                borderColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}55`,
+                                                                                backgroundColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}20`,
+                                                                                color: COMPARE_COLORS[index % COMPARE_COLORS.length],
+                                                                            }}
+                                                                        >
+                                                                            {symbol}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </button>
+                                                            <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
+                                                                <button
+                                                                    onClick={() => handleApplyBuiltInCompareBasket(basket)}
+                                                                    className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300 transition hover:bg-amber-400/20"
+                                                                >
+                                                                    Apply
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleSaveCompareSourceAsLayout(basket.name, basket.symbols)}
+                                                                    disabled={!currentUserId || terminalLayouts.length >= 10}
+                                                                    className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-violet-300 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                                >
+                                                                    Save Layout
+                                                                </button>
                                                             </div>
-                                                        </button>
+                                                        </div>
                                                     ))}
                                                 </div>
                                             </div>
