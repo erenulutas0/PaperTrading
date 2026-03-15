@@ -3276,11 +3276,11 @@ export default function WatchlistPage() {
                         <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+                    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
                         <section className="space-y-5">
                             <div className="rounded-3xl border border-white/10 bg-black/40 p-5 shadow-[0_0_60px_rgba(0,0,0,0.4)] backdrop-blur-xl">
                                 <div className="flex flex-col gap-5">
-                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
                                         {sessionContextCards.map((card) => (
                                             <article key={card.label} className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
                                                 <div className="flex items-center justify-between gap-3">
@@ -3339,94 +3339,108 @@ export default function WatchlistPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
-                                        <input
-                                            type="text"
-                                            value={instrumentQuery}
-                                            onChange={(event) => setInstrumentQuery(event.target.value)}
-                                            placeholder="Search symbol, company, sector, exchange..."
-                                            className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-amber-400"
-                                        />
-                                        <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
-                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Market</p>
-                                            <select
-                                                value={selectedMarket}
-                                                onChange={(event) => setSelectedMarket(event.target.value as MarketSelection)}
-                                                className="mt-2 w-full bg-transparent text-sm font-semibold text-sky-300 outline-none"
-                                            >
-                                                <option value="CRYPTO" className="bg-zinc-950 text-white">Crypto</option>
-                                                <option value="BIST100" className="bg-zinc-950 text-white">BIST 100</option>
-                                            </select>
-                                        </label>
-                                        <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
-                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Range</p>
-                                            <select
-                                                value={selectedRange}
-                                                onChange={(event) => setSelectedRange(event.target.value as ChartRange)}
-                                                className="mt-2 w-full bg-transparent text-sm font-semibold text-amber-300 outline-none"
-                                            >
-                                                {RANGE_OPTIONS.map((range) => (
-                                                    <option key={range} value={range} className="bg-zinc-950 text-white">
-                                                        {range}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </label>
-                                        <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
-                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Interval</p>
-                                            <select
-                                                value={selectedInterval}
-                                                onChange={(event) => setSelectedInterval(event.target.value as ChartInterval)}
-                                                className="mt-2 w-full bg-transparent text-sm font-semibold text-green-300 outline-none"
-                                            >
-                                                {INTERVAL_OPTIONS.map((interval) => {
-                                                    const disabled = selectedRange === 'ALL' && interval === '1m';
-                                                    return (
-                                                        <option
-                                                            key={interval}
-                                                            value={interval}
-                                                            disabled={disabled}
-                                                            className="bg-zinc-950 text-white"
-                                                        >
-                                                            {interval}
-                                                        </option>
-                                                    );
-                                                })}
-                                            </select>
-                                        </label>
-                                        <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3">
-                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compare</p>
-                                            <select
-                                                value={compareCandidate}
-                                                onChange={(event) => {
-                                                    const nextSymbol = event.target.value;
-                                                    setCompareCandidate('');
-                                                    if (!nextSymbol) {
-                                                        return;
-                                                    }
-                                                    setCompareSymbols((current) => {
-                                                        if (current.includes(nextSymbol) || current.length >= 3) {
-                                                            return current;
-                                                        }
-                                                        return [...current, nextSymbol];
-                                                    });
-                                                }}
-                                                className="mt-2 w-full bg-transparent text-sm font-semibold text-sky-300 outline-none"
-                                            >
-                                                <option value="" className="bg-zinc-950 text-white">Add symbol</option>
-                                                {instrumentUniverse
-                                                    .filter((instrument) => instrument.symbol !== selectedSymbol && !compareSymbols.includes(instrument.symbol))
-                                                    .map((instrument) => (
-                                                        <option key={instrument.symbol} value={instrument.symbol} className="bg-zinc-950 text-white">
-                                                            {instrument.symbol} · {instrument.displayName}
+                                    <div className="rounded-2xl border border-white/10 bg-zinc-950/55 p-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Chart Toolbar</p>
+                                                <p className="mt-1 text-xs text-zinc-400">Search, market, window, interval, and compare live together above the chart.</p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                                                <span>{selectedMarket}</span>
+                                                <span>{selectedRange}</span>
+                                                <span>{selectedInterval}</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,0.8fr))]">
+                                            <input
+                                                type="text"
+                                                value={instrumentQuery}
+                                                onChange={(event) => setInstrumentQuery(event.target.value)}
+                                                placeholder="Search symbol, company, sector, exchange..."
+                                                className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-amber-400"
+                                            />
+                                            <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2.5">
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Market</p>
+                                                <select
+                                                    value={selectedMarket}
+                                                    onChange={(event) => setSelectedMarket(event.target.value as MarketSelection)}
+                                                    className="mt-1.5 w-full bg-transparent text-sm font-semibold text-sky-300 outline-none"
+                                                >
+                                                    <option value="CRYPTO" className="bg-zinc-950 text-white">Crypto</option>
+                                                    <option value="BIST100" className="bg-zinc-950 text-white">BIST 100</option>
+                                                </select>
+                                            </label>
+                                            <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2.5">
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Range</p>
+                                                <select
+                                                    value={selectedRange}
+                                                    onChange={(event) => setSelectedRange(event.target.value as ChartRange)}
+                                                    className="mt-1.5 w-full bg-transparent text-sm font-semibold text-amber-300 outline-none"
+                                                >
+                                                    {RANGE_OPTIONS.map((range) => (
+                                                        <option key={range} value={range} className="bg-zinc-950 text-white">
+                                                            {range}
                                                         </option>
                                                     ))}
-                                            </select>
-                                        </label>
+                                                </select>
+                                            </label>
+                                            <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2.5">
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Interval</p>
+                                                <select
+                                                    value={selectedInterval}
+                                                    onChange={(event) => setSelectedInterval(event.target.value as ChartInterval)}
+                                                    className="mt-1.5 w-full bg-transparent text-sm font-semibold text-green-300 outline-none"
+                                                >
+                                                    {INTERVAL_OPTIONS.map((interval) => {
+                                                        const disabled = selectedRange === 'ALL' && interval === '1m';
+                                                        return (
+                                                            <option
+                                                                key={interval}
+                                                                value={interval}
+                                                                disabled={disabled}
+                                                                className="bg-zinc-950 text-white"
+                                                            >
+                                                                {interval}
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </select>
+                                            </label>
+                                            <label className="rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2.5">
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compare</p>
+                                                <select
+                                                    value={compareCandidate}
+                                                    onChange={(event) => {
+                                                        const nextSymbol = event.target.value;
+                                                        setCompareCandidate('');
+                                                        if (!nextSymbol) {
+                                                            return;
+                                                        }
+                                                        setCompareSymbols((current) => {
+                                                            if (current.includes(nextSymbol) || current.length >= 3) {
+                                                                return current;
+                                                            }
+                                                            return [...current, nextSymbol];
+                                                        });
+                                                    }}
+                                                    className="mt-1.5 w-full bg-transparent text-sm font-semibold text-sky-300 outline-none"
+                                                >
+                                                    <option value="" className="bg-zinc-950 text-white">Add symbol</option>
+                                                    {instrumentUniverse
+                                                        .filter((instrument) => instrument.symbol !== selectedSymbol && !compareSymbols.includes(instrument.symbol))
+                                                        .map((instrument) => (
+                                                            <option key={instrument.symbol} value={instrument.symbol} className="bg-zinc-950 text-white">
+                                                                {instrument.symbol} · {instrument.displayName}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                            </label>
+                                        </div>
                                     </div>
 
                                     <div className="grid gap-3 xl:grid-cols-2">
-                                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                        <div className="flex flex-wrap items-center gap-2">
                                         <p className="mr-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Draw</p>
                                         <button
                                             onClick={() => setDrawingMode((current) => current === 'horizontal' ? 'none' : 'horizontal')}
@@ -3453,7 +3467,8 @@ export default function WatchlistPage() {
                                         >
                                             Clear Drawings
                                         </button>
-                                        <span className="mt-2 block text-xs text-zinc-500 xl:ml-auto">
+                                        </div>
+                                        <span className="mt-3 block text-xs text-zinc-500">
                                             {drawingMode === 'none'
                                                 ? 'Select a tool to place levels or trend lines.'
                                                 : (drawingMode === 'horizontal'
@@ -3462,7 +3477,8 @@ export default function WatchlistPage() {
                                         </span>
                                     </div>
 
-                                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                        <div className="flex flex-wrap items-center gap-2">
                                         <p className="mr-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Alerts</p>
                                         <button
                                             onClick={() => updateSelectedSymbolAlerts(
@@ -3504,7 +3520,8 @@ export default function WatchlistPage() {
                                         >
                                             Clear Below
                                         </button>
-                                        <span className="mt-2 block text-xs text-zinc-500 xl:ml-auto">
+                                        </div>
+                                        <span className="mt-3 block text-xs text-zinc-500">
                                             {selectedWatchlistItem
                                                 ? (chartActivePoint ? `Anchor alerts to ${formatMoney(chartActivePoint.close)} from the active candle.` : 'Move the crosshair over a candle to anchor alerts.')
                                                 : 'Add this symbol to the selected watchlist to manage alerts from the chart.'}
@@ -5217,28 +5234,21 @@ export default function WatchlistPage() {
                                         </span>
                                     )}
                                 </div>
-                                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
-                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Alert Bindings</p>
-                                        <p className="mt-1 text-sm font-semibold text-white">{watchlistAlertBindingCount}</p>
-                                        <p className="mt-1 text-xs text-zinc-400">
-                                            {watchlistAlertBindingCount > 0 ? 'Symbols with active above/below levels' : 'No alert thresholds set'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
-                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Triggered</p>
-                                        <p className="mt-1 text-sm font-semibold text-white">{watchlistTriggeredAlertCount}</p>
-                                        <p className="mt-1 text-xs text-zinc-400">
-                                            {watchlistTriggeredAlertCount > 0 ? 'Watchlist rows already crossed a level' : 'No triggered basket alerts'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
-                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Notes</p>
-                                        <p className="mt-1 text-sm font-semibold text-white">{chartNotes.length}</p>
-                                        <p className="mt-1 text-xs text-zinc-400">
-                                            {topPinnedNotes.length > 0 ? `${topPinnedNotes.length} pinned for ${selectedSymbol}` : `No pinned notes for ${selectedSymbol}`}
-                                        </p>
-                                    </div>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                        Alert Bindings {watchlistAlertBindingCount}
+                                    </span>
+                                    <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                        Triggered {watchlistTriggeredAlertCount}
+                                    </span>
+                                    <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                        Notes {chartNotes.length}
+                                    </span>
+                                    {topPinnedNotes.length > 0 && (
+                                        <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+                                            {topPinnedNotes.length} pinned
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
                                     <div className="flex items-start justify-between gap-3">

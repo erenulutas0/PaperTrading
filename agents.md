@@ -51,6 +51,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - scanner/discovery surfaces render below the chart instead of beside it
       - draw and alert controls stay grouped in the chart control band
     - Tightened scanner card layout with additional `min-w-0`, truncation, line-clamp, and more forgiving grid breakpoints.
+    - Followed with a second compaction pass:
+      - search / market / range / interval / compare moved into a more explicit chart-toolbar treatment
+      - right-rail alert/trigger/note counters collapsed from tall cards into compact chips
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible

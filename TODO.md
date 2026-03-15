@@ -65,6 +65,8 @@ Last updated: 2026-03-11
   - keeps the chart in its own full-width row instead of compressing it against the scanner rail
   - renders instrument universe / heatmap / sector pulse / saved scanner views without text overflow
   - keeps draw + alert controls grouped above the chart workspace
+  - uses a compact chart-toolbar treatment for search / market / range / interval / compare controls
+  - keeps right-rail monitoring counters compressed instead of stacking more tall cards
 - [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol
