@@ -2451,6 +2451,25 @@ export default function WatchlistPage() {
         setScannerViewMessage(`Saved scanner view: ${nextView.name}`);
     };
 
+    const handleSaveCurrentScannerView = () => {
+        if (availableScannerViews.length >= 12) {
+            setScannerViewMessage('Scanner view limit reached. Remove one saved view before capturing another.');
+            return;
+        }
+        const nextView: ScannerViewPreset = {
+            id: crypto.randomUUID(),
+            name: `Rail Scanner · ${universeQuickFilter} · ${selectedSymbol}`,
+            market: selectedMarket,
+            quickFilter: universeQuickFilter,
+            sortMode: universeSortMode,
+            query: instrumentQuery,
+            anchorSymbol: selectedSymbol,
+            updatedAt: new Date().toISOString(),
+        };
+        setScannerViews((current) => [nextView, ...current].slice(0, 12));
+        setScannerViewMessage(`Saved current scanner view: ${nextView.name}`);
+    };
+
     const handleApplyScannerView = (view: ScannerViewPreset) => {
         if (view.anchorSymbol) {
             setSelectedSymbol(view.anchorSymbol);
@@ -5084,6 +5103,13 @@ export default function WatchlistPage() {
                                             className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-violet-300 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40"
                                         >
                                             Save Layout
+                                        </button>
+                                        <button
+                                            onClick={handleSaveCurrentScannerView}
+                                            disabled={availableScannerViews.length >= 12}
+                                            className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-300 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Save Scanner View
                                         </button>
                                     </div>
                                 </div>

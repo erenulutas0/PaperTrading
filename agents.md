@@ -482,6 +482,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - saved scanner views now read like live presets rather than static labels
     - users can choose the right preset without first applying it
+- **2026-03-15**: **Right Rail Quick Actions Can Now Capture Scanner State**
+  - **Problem observed**:
+    - Scanner presets became easier to evaluate, but saving the current scanner state still required moving back into the saved-scanner panel.
+    - That was unnecessary friction when users were already managing the active symbol from the right rail.
+  - **Implementation**:
+    - Added `Save Scanner View` to the right-rail selected-symbol quick actions.
+    - The action captures:
+      - current market
+      - quick filter
+      - sort mode
+      - query
+      - selected symbol as anchor
+  - **Operational impact**:
+    - scanner capture now sits next to the symbol-level actions that usually trigger scanner refinement
+    - the path from live scanner slice to reusable preset is shorter
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
