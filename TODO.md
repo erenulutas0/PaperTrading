@@ -119,6 +119,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after compare-source-to-layout rollout and verify suggested, built-in, and saved compare baskets can all be promoted into full named terminal layouts
 - [ ] Redeploy frontend after right-rail-summary rollout and verify `/watchlist` now surfaces compact watchlist/compare/scanner/favorites context inside the right rail
 - [ ] Redeploy frontend after right-rail-counter rollout and verify `/watchlist` right rail now surfaces alert-binding, triggered-alert, and note counters beside the compact session summary
+- [ ] Redeploy frontend after right-rail-quick-actions rollout and verify `/watchlist` right rail now exposes fast favorite/basket/alert actions for the active symbol
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol

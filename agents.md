@@ -393,6 +393,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - note count and pinned-note context for the active symbol
   - **Operational impact**:
     - the right rail now communicates both terminal context and monitoring density without forcing a deeper scan into alerts or notes panels
+- **2026-03-15**: **Right Rail Added Selected-Symbol Quick Actions**
+  - **Problem observed**:
+    - The right rail showed state, but not enough fast actions for the active symbol.
+    - Operators still had to move between header, chart controls, and basket form to do simple tasks like:
+      - star/unstar the symbol
+      - add/remove it from the active basket
+      - bind spot-based alert thresholds
+  - **Implementation**:
+    - Added a compact selected-symbol action strip inside the right-rail summary.
+    - The strip now exposes:
+      - favorite toggle
+      - add/remove from active watchlist
+      - set spot as above/below alert
+      - clear alerts
+  - **Operational impact**:
+    - the right rail now acts as both context surface and low-friction control surface for the active symbol
+    - common watchlist and alert actions no longer require bouncing between multiple terminal regions
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

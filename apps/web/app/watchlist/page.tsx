@@ -1846,6 +1846,42 @@ export default function WatchlistPage() {
         }
     };
 
+    const handleAddSelectedSymbolToWatchlist = async () => {
+        if (!selectedWatchlist || !currentUserId || selectedWatchlistItem) {
+            return;
+        }
+        try {
+            const res = await apiFetch(`/api/v1/watchlists/${selectedWatchlist}/items`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    symbol: selectedSymbol,
+                    alertPriceAbove: null,
+                    alertPriceBelow: null,
+                    notes: null,
+                }),
+            });
+            if (!res.ok) {
+                return;
+            }
+            await fetchItems();
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleSetSpotAlert = async (direction: 'ABOVE' | 'BELOW') => {
+        const currentPrice = Number(selectedInstrument?.currentPrice ?? 0);
+        if (!selectedWatchlistItem || !Number.isFinite(currentPrice) || currentPrice <= 0) {
+            return;
+        }
+        if (direction === 'ABOVE') {
+            await updateSelectedSymbolAlerts(currentPrice, Number(selectedWatchlistItem.alertPriceBelow) > 0 ? Number(selectedWatchlistItem.alertPriceBelow) : null);
+            return;
+        }
+        await updateSelectedSymbolAlerts(Number(selectedWatchlistItem.alertPriceAbove) > 0 ? Number(selectedWatchlistItem.alertPriceAbove) : null, currentPrice);
+    };
+
     const handleDeleteWatchlist = async (id: string) => {
         if (!currentUserId) {
             return;
@@ -4657,6 +4693,64 @@ export default function WatchlistPage() {
                                         <p className="mt-1 text-xs text-zinc-400">
                                             {topPinnedNotes.length > 0 ? `${topPinnedNotes.length} pinned for ${selectedSymbol}` : `No pinned notes for ${selectedSymbol}`}
                                         </p>
+                                    </div>
+                                </div>
+                                <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Selected Symbol Actions</p>
+                                            <p className="mt-1 text-sm font-semibold text-white">{selectedSymbol}</p>
+                                            <p className="mt-1 text-xs text-zinc-400">
+                                                Fast basket, favorite, and alert actions for the active chart symbol.
+                                            </p>
+                                        </div>
+                                        <span className="rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                            {formatMoney(Number(selectedInstrument?.currentPrice ?? 0))}
+                                        </span>
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            onClick={() => toggleFavoriteSymbol(selectedSymbol)}
+                                            className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition ${
+                                                favoriteSymbols.includes(selectedSymbol)
+                                                    ? 'border-amber-400/20 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20'
+                                                    : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'
+                                            }`}
+                                        >
+                                            {favoriteSymbols.includes(selectedSymbol) ? 'Unstar' : 'Star'}
+                                        </button>
+                                        <button
+                                            onClick={() => (selectedWatchlistItem ? handleRemoveItem(selectedWatchlistItem.id) : handleAddSelectedSymbolToWatchlist())}
+                                            disabled={!selectedWatchlist}
+                                            className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition ${
+                                                selectedWatchlistItem
+                                                    ? 'border-red-400/20 bg-red-400/10 text-red-300 hover:bg-red-400/20'
+                                                    : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20'
+                                            } disabled:cursor-not-allowed disabled:opacity-40`}
+                                        >
+                                            {selectedWatchlistItem ? 'Remove From Basket' : 'Add To Basket'}
+                                        </button>
+                                        <button
+                                            onClick={() => handleSetSpotAlert('ABOVE')}
+                                            disabled={!selectedWatchlistItem}
+                                            className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Spot As Above
+                                        </button>
+                                        <button
+                                            onClick={() => handleSetSpotAlert('BELOW')}
+                                            disabled={!selectedWatchlistItem}
+                                            className="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-fuchsia-300 transition hover:bg-fuchsia-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Spot As Below
+                                        </button>
+                                        <button
+                                            onClick={() => updateSelectedSymbolAlerts(null, null)}
+                                            disabled={!selectedWatchlistItem || chartAlertLines.length === 0}
+                                            className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Clear Alerts
+                                        </button>
                                     </div>
                                 </div>
                             </div>
