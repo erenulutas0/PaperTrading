@@ -96,6 +96,11 @@ Last updated: 2026-03-11
   - losers
   - favorites
   - sector peers
+- [ ] Redeploy frontend after instrument-universe sorting rollout and verify `/watchlist` now supports scanner-style sorting for:
+  - top move
+  - worst move
+  - highest price
+  - alpha
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol

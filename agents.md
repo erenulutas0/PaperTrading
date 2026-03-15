@@ -83,6 +83,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - `/watchlist` now supports both directed lookup and fast market scanning
     - metadata enrichment is now materially useful because sector information drives peer filtering directly
+- **2026-03-15**: **Instrument Universe Added Scanner-Style Sorting Controls**
+  - **Problem observed**:
+    - Quick filters improved slice selection, but the list still lacked a fast way to answer:
+      - who is moving the most
+      - who is lagging the most
+      - which names are highest-priced
+    - Search + filter without sort still leaves too much scanning friction.
+  - **Implementation**:
+    - Added client-side sort controls above the universe rail for:
+      - `Top Move`
+      - `Worst Move`
+      - `Highest Price`
+      - `A-Z`
+    - Sorting applies after quick-filter + text search so the scanner stack behaves predictably.
+  - **Operational impact**:
+    - the universe rail now behaves more like a lightweight scanner instead of a raw searchable list
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

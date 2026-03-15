@@ -113,6 +113,7 @@ type ChartNoteFilter = 'ALL' | 'PINNED' | 'UNPINNED';
 type AlertHistoryFilter = 'ALL' | 'ABOVE' | 'BELOW';
 type AlertHistoryWindow = 'ALL' | '24H' | '7D' | '30D';
 type UniverseQuickFilter = 'ALL' | 'GAINERS' | 'LOSERS' | 'FAVORITES' | 'SECTOR';
+type UniverseSortMode = 'MOVE_DESC' | 'MOVE_ASC' | 'PRICE_DESC' | 'ALPHA';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
@@ -283,6 +284,7 @@ export default function WatchlistPage() {
     const [instrumentUniverse, setInstrumentUniverse] = useState<InstrumentOption[]>([]);
     const [instrumentQuery, setInstrumentQuery] = useState('');
     const [universeQuickFilter, setUniverseQuickFilter] = useState<UniverseQuickFilter>('ALL');
+    const [universeSortMode, setUniverseSortMode] = useState<UniverseSortMode>('MOVE_DESC');
     const [selectedMarket, setSelectedMarket] = useState<MarketSelection>('CRYPTO');
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
     const [compareSymbols, setCompareSymbols] = useState<string[]>([]);
@@ -898,17 +900,30 @@ export default function WatchlistPage() {
                     return true;
             }
         });
-        if (!query) {
-            return quickFiltered;
-        }
-        return quickFiltered.filter((instrument) =>
+        const queryFiltered = !query
+            ? quickFiltered
+            : quickFiltered.filter((instrument) =>
             instrument.symbol.toLowerCase().includes(query)
             || instrument.displayName.toLowerCase().includes(query)
             || (instrument.market ?? '').toLowerCase().includes(query)
             || (instrument.exchange ?? '').toLowerCase().includes(query)
             || (instrument.currency ?? '').toLowerCase().includes(query)
             || (instrument.sector ?? '').toLowerCase().includes(query));
-    }, [favoriteSymbols, instrumentQuery, instrumentUniverse, selectedInstrumentMetadata?.sector, selectedSymbol, universeQuickFilter]);
+
+        return [...queryFiltered].sort((left, right) => {
+            switch (universeSortMode) {
+                case 'MOVE_ASC':
+                    return left.changePercent24h - right.changePercent24h;
+                case 'PRICE_DESC':
+                    return right.currentPrice - left.currentPrice;
+                case 'ALPHA':
+                    return left.symbol.localeCompare(right.symbol);
+                case 'MOVE_DESC':
+                default:
+                    return right.changePercent24h - left.changePercent24h;
+            }
+        });
+    }, [favoriteSymbols, instrumentQuery, instrumentUniverse, selectedInstrumentMetadata?.sector, selectedSymbol, universeQuickFilter, universeSortMode]);
 
     const universeFilterOptions = useMemo<Array<{ key: UniverseQuickFilter; label: string; hint: string }>>(() => {
         const options: Array<{ key: UniverseQuickFilter; label: string; hint: string }> = [
@@ -926,6 +941,13 @@ export default function WatchlistPage() {
         }
         return options;
     }, [selectedInstrumentMetadata?.sector]);
+
+    const universeSortOptions = useMemo<Array<{ key: UniverseSortMode; label: string }>>(() => ([
+        { key: 'MOVE_DESC', label: 'Top Move' },
+        { key: 'MOVE_ASC', label: 'Worst Move' },
+        { key: 'PRICE_DESC', label: 'Highest Price' },
+        { key: 'ALPHA', label: 'A-Z' },
+    ]), []);
 
     const favoriteInstruments = useMemo(() => {
         const favoriteSet = new Set(favoriteSymbols);
@@ -2853,6 +2875,19 @@ export default function WatchlistPage() {
                                                         onClick={() => setUniverseQuickFilter(option.key)}
                                                         className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${universeQuickFilter === option.key
                                                             ? 'border-sky-400/25 bg-sky-400/10 text-sky-300'
+                                                            : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'}`}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {universeSortOptions.map((option) => (
+                                                    <button
+                                                        key={option.key}
+                                                        onClick={() => setUniverseSortMode(option.key)}
+                                                        className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${universeSortMode === option.key
+                                                            ? 'border-amber-400/25 bg-amber-400/10 text-amber-300'
                                                             : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'}`}
                                                     >
                                                         {option.label}
