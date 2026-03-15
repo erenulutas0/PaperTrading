@@ -97,6 +97,14 @@ interface ScannerViewPreset {
     updatedAt: string;
 }
 
+interface BuiltInCompareBasketTemplate {
+    id: string;
+    name: string;
+    market: MarketSelection;
+    description: string;
+    symbols: string[];
+}
+
 interface ChartNote {
     id: string;
     body: string;
@@ -134,6 +142,36 @@ const COMPARE_BASKET_STORAGE_KEY = 'market.terminal.compare-baskets';
 const SCANNER_VIEW_STORAGE_KEY = 'market.terminal.scanner-views';
 const COMPARE_COLORS = ['#f59e0b', '#38bdf8', '#f472b6'];
 const CRYPTO_CORE_COMPARE_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'AVAXUSDT'];
+const BUILT_IN_COMPARE_BASKETS: BuiltInCompareBasketTemplate[] = [
+    {
+        id: 'crypto-majors',
+        name: 'Crypto Majors',
+        market: 'CRYPTO',
+        description: 'Large-cap crypto benchmark basket.',
+        symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
+    },
+    {
+        id: 'crypto-alt-beta',
+        name: 'Alt Beta',
+        market: 'CRYPTO',
+        description: 'Higher-beta liquid alt basket.',
+        symbols: ['SOLUSDT', 'AVAXUSDT', 'BNBUSDT'],
+    },
+    {
+        id: 'bist-banks',
+        name: 'BIST Banks',
+        market: 'BIST100',
+        description: 'Large Turkish banking names.',
+        symbols: ['AKBNK', 'GARAN', 'ISCTR'],
+    },
+    {
+        id: 'bist-holdings',
+        name: 'BIST Holdings',
+        market: 'BIST100',
+        description: 'Large holding-company basket.',
+        symbols: ['KCHOL', 'SAHOL', 'DOHOL'],
+    },
+];
 
 interface PersistedMarketSession {
     selectedWatchlist: string | null;
@@ -497,6 +535,19 @@ export default function WatchlistPage() {
 
         return suggestions.filter((suggestion) => suggestion.symbols.length > 0);
     }, [favoriteSymbols, instrumentMap, instrumentUniverse, selectedInstrumentMetadata?.sector, selectedMarket, selectedSymbol]);
+
+    const builtInCompareBaskets = useMemo(() => {
+        return BUILT_IN_COMPARE_BASKETS
+            .filter((basket) => basket.market === selectedMarket)
+            .map((basket) => ({
+                ...basket,
+                symbols: basket.symbols
+                    .filter((symbol) => symbol !== selectedSymbol)
+                    .filter((symbol) => instrumentMap.has(symbol))
+                    .slice(0, 3),
+            }))
+            .filter((basket) => basket.symbols.length > 0);
+    }, [instrumentMap, selectedMarket, selectedSymbol]);
 
     const canSaveCompareBasket = useMemo(() => {
         if (!compareBasketNameDraft.trim() || compareSymbols.length === 0) {
@@ -1765,6 +1816,13 @@ export default function WatchlistPage() {
         setCompareBasketMessage(`Applied suggested basket: ${basket.name}`);
     };
 
+    const handleApplyBuiltInCompareBasket = (basket: BuiltInCompareBasketTemplate) => {
+        setCompareSymbols(basket.symbols.slice(0, 3));
+        setCompareVisible(true);
+        setCompareCandidate('');
+        setCompareBasketMessage(`Applied built-in basket: ${basket.name}`);
+    };
+
     const handleSaveScannerView = () => {
         const trimmed = scannerViewNameDraft.trim();
         if (!trimmed) {
@@ -2574,6 +2632,53 @@ export default function WatchlistPage() {
                                                             key={basket.id}
                                                             onClick={() => handleApplySuggestedCompareBasket(basket)}
                                                             className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-left transition hover:border-sky-400/30 hover:bg-sky-400/10"
+                                                        >
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <p className="text-sm font-semibold text-white">{basket.name}</p>
+                                                                <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                                                                    {basket.symbols.length} symbols
+                                                                </span>
+                                                            </div>
+                                                            <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
+                                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                                {basket.symbols.map((symbol, index) => (
+                                                                    <span
+                                                                        key={`${basket.id}-${symbol}`}
+                                                                        className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                                                        style={{
+                                                                            borderColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}55`,
+                                                                            backgroundColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}20`,
+                                                                            color: COMPARE_COLORS[index % COMPARE_COLORS.length],
+                                                                        }}
+                                                                    >
+                                                                        {symbol}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {builtInCompareBaskets.length > 0 && (
+                                            <div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-[10px] uppercase tracking-[0.24em] text-amber-300">Built-In Baskets</p>
+                                                        <p className="mt-1 text-xs text-zinc-400">
+                                                            Reusable market-defined peer baskets for fast relative checks.
+                                                        </p>
+                                                    </div>
+                                                    <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+                                                        {selectedMarket}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                                                    {builtInCompareBaskets.map((basket) => (
+                                                        <button
+                                                            key={basket.id}
+                                                            onClick={() => handleApplyBuiltInCompareBasket(basket)}
+                                                            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-left transition hover:border-amber-400/25 hover:bg-amber-400/10"
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
                                                                 <p className="text-sm font-semibold text-white">{basket.name}</p>

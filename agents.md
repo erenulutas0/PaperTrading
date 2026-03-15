@@ -130,6 +130,31 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - remove a saved view
   - **Operational impact**:
     - the universe rail now supports reusable market-scanning workflows instead of only one-off filter/sort combinations
+- **2026-03-15**: **Compare Surface Added Built-In Market Basket Library**
+  - **Problem observed**:
+    - Suggested baskets are adaptive, but they are still context-derived and somewhat fluid.
+    - The terminal also benefits from a fixed library of known market baskets such as:
+      - crypto majors
+      - alt beta
+      - BIST banks
+      - BIST holdings
+    - Those should exist even before favorites/sector context is rich.
+  - **Implementation**:
+    - Added a built-in compare-basket library on `/watchlist`.
+    - Current rollout includes:
+      - `Crypto Majors`
+      - `Alt Beta`
+      - `BIST Banks`
+      - `BIST Holdings`
+    - Basket symbols are filtered against:
+      - current market
+      - current primary symbol
+      - active instrument universe
+  - **Operational impact**:
+    - the compare surface now has both:
+      - adaptive suggested baskets
+      - fixed market-defined baskets
+    - this makes relative analysis faster even on a fresh account with little personal terminal history
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
