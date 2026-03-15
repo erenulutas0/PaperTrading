@@ -38,23 +38,6 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
-- **2026-03-15**: **Dashboard Quick Compare Links Added Window Presets**
-  - **Problem observed**:
-    - Dashboard quick-compare links already removed one step by preselecting the second portfolio, but users still had to choose the analytics window after navigation.
-    - That left the compare launch flow half-finished for the common cases:
-      - inspect all history
-      - inspect recent `30D`
-      - inspect recent `7D`
-  - **Implementation**:
-    - Added per-portfolio quick-compare window presets on the dashboard card:
-      - `ALL`
-      - `30D`
-      - `7D`
-    - The dashboard deep-link now includes `curveWindow` alongside `compare`, reusing the analytics page’s existing URL hydration.
-    - Kept window state local to the dashboard card so users can prepare different compare launch presets per portfolio.
-  - **Operational impact**:
-    - dashboard can now launch analytics compare in the intended time horizon instead of always falling back to a generic full-history view
-    - compare launch intent is preserved end-to-end without another click on the analytics page
 - **2026-03-15**: **Dashboard Portfolio Cards Added Quick Compare Deep-Link Into Analytics**
   - **Problem observed**:
     - Compare mode in analytics had become strong, but the entry point still started from a single-portfolio mindset.
