@@ -171,7 +171,7 @@ function readPersistedCompareBaskets(): CompareBasketPreset[] {
         }
         return parsed
             .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
-            .map((entry) => ({
+            .map((entry): CompareBasketPreset => ({
                 id: typeof entry.id === 'string' ? entry.id : crypto.randomUUID(),
                 name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Compare Basket',
                 market: entry.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
