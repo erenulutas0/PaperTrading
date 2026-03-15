@@ -184,6 +184,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - saved scanner workflows now follow the account instead of the tab
     - market-terminal scanning and compare presets now share the same persistence model
+- **2026-03-15**: **Market Terminal Added Mini Heatmap Slice for Fast Universe Triage**
+  - **Problem observed**:
+    - Even with movers cards, scanner filters, and sorting, the instrument universe still started from list-reading.
+    - Users needed a faster visual read on where the current pressure sits before opening a scanner slice or changing the chart symbol.
+  - **Implementation**:
+    - Added a mini heatmap strip to `/watchlist` driven by the highest absolute 24h movers in the active market universe.
+    - Each tile shows:
+      - symbol
+      - display name
+      - 24h move
+      - current price
+      - sector/exchange context
+    - Tile intensity is derived from move magnitude, and clicking a tile jumps the active chart symbol.
+  - **Operational impact**:
+    - terminal users can visually triage the market before dropping into the full scanner list
+    - the instrument universe now has a faster “where is the action?” surface than a plain sorted list
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

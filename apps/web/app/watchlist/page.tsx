@@ -1109,6 +1109,12 @@ export default function WatchlistPage() {
             .slice(0, 4);
     }, [instrumentUniverse]);
 
+    const heatmapInstruments = useMemo(() => {
+        return [...instrumentUniverse]
+            .sort((left, right) => Math.abs(right.changePercent24h) - Math.abs(left.changePercent24h))
+            .slice(0, 8);
+    }, [instrumentUniverse]);
+
     const favoriteInstruments = useMemo(() => {
         const favoriteSet = new Set(favoriteSymbols);
         return instrumentUniverse.filter((instrument) => favoriteSet.has(instrument.symbol));
@@ -3188,6 +3194,58 @@ export default function WatchlistPage() {
                                                             </button>
                                                         ))}
                                                     </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Heatmap Slice</p>
+                                                        <p className="mt-1 text-xs text-zinc-400">Fast visual snapshot of the strongest movers in the current market universe.</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setUniverseQuickFilter('ALL');
+                                                            setUniverseSortMode('MOVE_DESC');
+                                                            setInstrumentQuery('');
+                                                        }}
+                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                    >
+                                                        Reset Slice
+                                                    </button>
+                                                </div>
+                                                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                                                    {heatmapInstruments.map((instrument) => {
+                                                        const positive = instrument.changePercent24h >= 0;
+                                                        const intensity = Math.min(Math.abs(instrument.changePercent24h) / 10, 1);
+                                                        const backgroundColor = positive
+                                                            ? `rgba(16, 185, 129, ${0.16 + intensity * 0.3})`
+                                                            : `rgba(248, 113, 113, ${0.16 + intensity * 0.3})`;
+                                                        const borderColor = positive
+                                                            ? `rgba(16, 185, 129, ${0.2 + intensity * 0.35})`
+                                                            : `rgba(248, 113, 113, ${0.2 + intensity * 0.35})`;
+                                                        return (
+                                                            <button
+                                                                key={`heatmap-${instrument.symbol}`}
+                                                                onClick={() => setSelectedSymbol(instrument.symbol)}
+                                                                className="rounded-2xl border p-3 text-left transition hover:scale-[1.01]"
+                                                                style={{ backgroundColor, borderColor }}
+                                                            >
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div>
+                                                                        <p className="text-xs font-semibold text-white">{instrument.symbol}</p>
+                                                                        <p className="mt-1 line-clamp-2 text-[10px] text-zinc-200/80">{instrument.displayName}</p>
+                                                                    </div>
+                                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${positive ? 'bg-emerald-950/60 text-emerald-200' : 'bg-red-950/60 text-red-200'}`}>
+                                                                        {formatPercent(instrument.changePercent24h)}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-100/80">
+                                                                    <span>{instrument.sector || instrument.exchange || instrument.market || 'Universe'}</span>
+                                                                    <span className="font-mono">{formatMoney(instrument.currentPrice)}</span>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                             <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-3">
