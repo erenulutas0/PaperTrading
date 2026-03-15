@@ -3601,5 +3601,21 @@ A change is “done” when:
   - auth now feels like entry into a serious tracked-investing product, not a generic email/password gate
   - first-time and returning users get immediate context for why identity, persistence, and accountability are linked
 
+### 2026-03-14: Shared Discussion Surface Reframed As Public Review Instead Of Bare Like/Comment Controls
+- Problem observed:
+  - `LikeCommentWidget` worked functionally, but it still looked like a thin interaction strip:
+    - weak loading states
+    - generic empty copy
+    - little framing around what comments are for on analysis and portfolio surfaces
+- Implementation:
+  - Upgraded `apps/web/components/LikeCommentWidget.tsx` to render a full discussion panel with:
+    - title and context copy for analysis vs portfolio targets
+    - stronger loading shells
+    - better empty states for comments and replies
+    - more explicit composer placeholders tied to evidence/risk/execution discussion
+- Operational impact:
+  - comment threads now feel like accountable public review rather than generic social noise
+  - the same component lifts both analysis detail and portfolio discussion surfaces without changing backend contracts
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

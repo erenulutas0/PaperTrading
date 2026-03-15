@@ -1715,3 +1715,7 @@ Last updated: 2026-03-11
   - Reframe login around account-backed terminal, analytics, and trust context
   - Reframe register around proof-of-performance identity creation instead of plain form submission
   - Add expectation panels so auth feels like a product entry point, not a raw gate
+- [x] Polish shared discussion surfaces for analysis and portfolio pages:
+  - Upgrade `LikeCommentWidget` from a raw interaction bar into a discussion panel
+  - Add stronger loading, empty, and reply states
+  - Frame comments as public review/evidence instead of generic chatter

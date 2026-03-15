@@ -34,6 +34,20 @@ interface InteractionSummary {
     commentCount: number;
 }
 
+function DiscussionEmptyState({ targetType }: { targetType: 'PORTFOLIO' | 'ANALYSIS_POST' }) {
+    const noun = targetType === 'ANALYSIS_POST' ? 'thesis' : 'portfolio';
+
+    return (
+        <div className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-950/40 px-4 py-8 text-center">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-600">Discussion Empty</p>
+            <p className="mt-3 text-sm font-semibold text-zinc-200">No responses on this {noun} yet.</p>
+            <p className="mt-2 text-xs leading-6 text-zinc-500">
+                The first comment sets the tone for public review, disagreement, or follow-up evidence.
+            </p>
+        </div>
+    );
+}
+
 function formatRelativeTime(createdAt: string): string {
     const ts = new Date(createdAt).getTime();
     if (!Number.isFinite(ts)) return '';
@@ -213,9 +227,14 @@ function CommentThread({
                     </form>
 
                     {loadingReplies ? (
-                        <p className="text-[11px] text-zinc-500">Loading replies...</p>
+                        <div className="space-y-2">
+                            <div className="h-10 rounded-lg bg-white/5 animate-pulse" />
+                            <div className="h-10 rounded-lg bg-white/5 animate-pulse" />
+                        </div>
                     ) : replies.length === 0 ? (
-                        <p className="text-[11px] italic text-zinc-600">No replies yet.</p>
+                        <p className="rounded-lg border border-dashed border-zinc-800 px-3 py-3 text-[11px] italic text-zinc-600">
+                            No replies yet. Use this thread to challenge the thesis or add supporting context.
+                        </p>
                     ) : (
                         replies.map((reply) => (
                             <CommentThread
@@ -426,65 +445,96 @@ export default function LikeCommentWidget({ targetId, targetType }: LikeCommentW
         }
     };
 
-    if (loading) return <div className="animate-pulse flex gap-2"><div className="w-16 h-8 bg-zinc-800 rounded"></div></div>;
+    if (loading) {
+        return (
+            <div className="mt-4 rounded-2xl border border-zinc-800/80 bg-zinc-950/50 p-4">
+                <div className="animate-pulse space-y-4">
+                    <div className="flex gap-3">
+                        <div className="h-8 w-16 rounded-full bg-zinc-800" />
+                        <div className="h-8 w-16 rounded-full bg-zinc-800" />
+                    </div>
+                    <div className="h-16 rounded-xl bg-zinc-900" />
+                </div>
+            </div>
+        );
+    }
+
+    const discussionTitle = targetType === 'ANALYSIS_POST' ? 'Thesis Discussion' : 'Portfolio Discussion';
+    const discussionHint = targetType === 'ANALYSIS_POST'
+        ? 'Use comments to challenge assumptions, confirm catalysts, or pressure-test the target and stop.'
+        : 'Use comments to inspect portfolio intent, risk posture, and execution quality.';
 
     return (
         <div className="mt-4 flex w-full flex-col border-t border-zinc-800 pt-4">
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={toggleLike}
-                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${hasLiked
-                        ? 'border-red-500/20 bg-red-500/10 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
-                        : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white'
-                        }`}
-                >
-                    <svg className={`h-4 w-4 ${hasLiked ? 'fill-current' : 'fill-none stroke-current'}`} viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                    </svg>
-                    {likes}
-                </button>
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-zinc-500">Public Review</p>
+                        <h3 className="mt-2 text-lg font-bold text-white">{discussionTitle}</h3>
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">{discussionHint}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={toggleLike}
+                            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition-all ${hasLiked
+                                ? 'border-red-500/20 bg-red-500/10 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
+                                : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                                }`}
+                        >
+                            <svg className={`h-4 w-4 ${hasLiked ? 'fill-current' : 'fill-none stroke-current'}`} viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                            </svg>
+                            {likes}
+                        </button>
 
-                <button
-                    onClick={() => {
-                        const next = !showComments;
-                        setShowComments(next);
-                        if (next) {
-                            void fetchComments();
-                        }
-                    }}
-                    className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-bold text-zinc-400 transition-all hover:bg-zinc-800 hover:text-white"
-                >
-                    <svg className="h-4 w-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                    </svg>
-                    {commentCount}
-                </button>
+                        <button
+                            onClick={() => {
+                                const next = !showComments;
+                                setShowComments(next);
+                                if (next) {
+                                    void fetchComments();
+                                }
+                            }}
+                            className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-bold text-zinc-400 transition-all hover:bg-zinc-800 hover:text-white"
+                        >
+                            <svg className="h-4 w-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                            </svg>
+                            {commentCount}
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {showComments && (
                 <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <form onSubmit={postComment} className="flex gap-2">
-                        <input
-                            type="text"
-                            className="flex-1 rounded-lg border border-zinc-800 bg-black p-2 text-xs text-white placeholder:text-zinc-600 focus:border-green-500 focus:outline-none"
-                            placeholder="Add a comment..."
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                        />
-                        <button
-                            type="submit"
-                            disabled={!newComment.trim()}
-                            className="rounded-lg bg-green-600 px-4 text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Post
-                        </button>
-                    </form>
+                    <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/50 p-4">
+                        <form onSubmit={postComment} className="flex gap-2">
+                            <input
+                                type="text"
+                                className="flex-1 rounded-lg border border-zinc-800 bg-black p-2 text-xs text-white placeholder:text-zinc-600 focus:border-green-500 focus:outline-none"
+                                placeholder={targetType === 'ANALYSIS_POST' ? 'Add evidence, risk challenge, or follow-up thesis...' : 'Add execution or risk commentary...'}
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                            />
+                            <button
+                                type="submit"
+                                disabled={!newComment.trim()}
+                                className="rounded-lg bg-green-600 px-4 text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Post
+                            </button>
+                        </form>
+                    </div>
 
                     <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-2 custom-scrollbar">
                         {commentsLoading ? (
-                            <p className="py-2 text-center text-[10px] italic text-zinc-600">Loading comments...</p>
+                            <div className="space-y-3">
+                                <div className="h-24 rounded-xl bg-zinc-900 animate-pulse" />
+                                <div className="h-24 rounded-xl bg-zinc-900 animate-pulse" />
+                            </div>
                         ) : comments.length === 0 ? (
-                            <p className="py-2 text-center text-[10px] italic text-zinc-600">No comments yet. Be the first!</p>
+                            <DiscussionEmptyState targetType={targetType} />
                         ) : (
                             comments.map((comment) => (
                                 <CommentThread
