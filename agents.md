@@ -440,6 +440,16 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the right rail now acts as both context surface and low-friction control surface for the active symbol
     - common watchlist and alert actions no longer require bouncing between multiple terminal regions
+- **2026-03-15**: **Right Rail Quick Actions Can Now Capture a Full Terminal Layout**
+  - **Problem observed**:
+    - Right-rail actions improved symbol control, but turning the current terminal state into a reusable layout still required moving to the saved-layout panel.
+    - That extra jump slowed down the "see a setup, keep it" workflow.
+  - **Implementation**:
+    - Added `Save Layout` to the right-rail selected-symbol quick actions.
+    - The action reuses the existing terminal-layout create path and captures the full current session with an auto-generated layout name.
+  - **Operational impact**:
+    - layout capture is now available at the same point where users are already managing watchlist, favorites, and alerts
+    - the path from live terminal state to reusable preset is shorter
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

@@ -2603,6 +2603,20 @@ export default function WatchlistPage() {
         setLayoutNameDraft('');
     };
 
+    const handleSaveCurrentStateAsLayout = async () => {
+        if (terminalLayouts.length >= 10) {
+            setLayoutImportMessage('Layout limit reached. Remove one saved layout before capturing another.');
+            return;
+        }
+        const layout = await saveLayoutSnapshot(`Rail Layout · ${selectedSymbol} ${selectedRange}/${selectedInterval}`);
+        if (!layout) {
+            setLayoutImportMessage('Failed to save current rail state as layout.');
+            return;
+        }
+        setTerminalLayouts((current) => [layout, ...current].slice(0, 10));
+        setLayoutImportMessage(`Saved current state as layout: ${layout.name}`);
+    };
+
     const handleSaveCompareSourceAsLayout = async (name: string, symbols: string[]) => {
         if (terminalLayouts.length >= 10) {
             setCompareBasketMessage('Layout limit reached. Remove one saved layout before capturing another.');
@@ -4911,6 +4925,13 @@ export default function WatchlistPage() {
                                             className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                                         >
                                             Clear Alerts
+                                        </button>
+                                        <button
+                                            onClick={handleSaveCurrentStateAsLayout}
+                                            disabled={!currentUserId || terminalLayouts.length >= 10}
+                                            className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-violet-300 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Save Layout
                                         </button>
                                     </div>
                                 </div>
