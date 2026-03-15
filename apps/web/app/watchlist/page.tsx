@@ -11,6 +11,7 @@ import {
     deleteTerminalLayout,
     fetchTerminalLayouts,
     fetchUserPreferences,
+    TerminalCompareBasketPayload,
     TerminalLayoutResponsePayload,
     updateTerminalLayout,
     updateTerminalPreferences,
@@ -203,6 +204,27 @@ function haveSameSymbols(left: string[], right: string[]) {
     const leftSorted = [...left].sort();
     const rightSorted = [...right].sort();
     return leftSorted.every((value, index) => value === rightSorted[index]);
+}
+
+function normalizeCompareBasketPayloads(
+    baskets: TerminalCompareBasketPayload[] | CompareBasketPreset[] | null | undefined,
+): CompareBasketPreset[] {
+    if (!Array.isArray(baskets)) {
+        return [];
+    }
+    return baskets
+        .filter((basket): basket is TerminalCompareBasketPayload => !!basket && typeof basket === 'object')
+        .map((basket) => ({
+            id: crypto.randomUUID(),
+            name: typeof basket.name === 'string' && basket.name.trim() ? basket.name.trim() : 'Compare Basket',
+            market: basket.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
+            symbols: Array.isArray(basket.symbols)
+                ? basket.symbols.filter((value): value is string => typeof value === 'string' && value.length > 0).slice(0, 3)
+                : [],
+            updatedAt: typeof basket.updatedAt === 'string' ? basket.updatedAt : new Date().toISOString(),
+        }))
+        .filter((basket) => basket.symbols.length > 0)
+        .slice(0, 12);
 }
 
 function getInitialAllHistoryChunkCount(interval: ChartInterval) {
@@ -717,6 +739,7 @@ export default function WatchlistPage() {
                 setSelectedRange(terminal.range);
                 setSelectedInterval(terminal.interval);
                 setFavoriteSymbols(Array.isArray(terminal.favoriteSymbols) ? terminal.favoriteSymbols : []);
+                setCompareBaskets(normalizeCompareBasketPayloads(terminal.compareBaskets));
             } catch (error) {
                 console.error('Failed to hydrate terminal preferences:', error);
             } finally {
@@ -785,6 +808,10 @@ export default function WatchlistPage() {
                     console.error(error);
                 }
             }
+
+            if (event.key === COMPARE_BASKET_STORAGE_KEY) {
+                setCompareBaskets(readPersistedCompareBaskets());
+            }
         };
 
         window.addEventListener('storage', handleStorage);
@@ -830,6 +857,12 @@ export default function WatchlistPage() {
                 range: selectedRange,
                 interval: selectedInterval,
                 favoriteSymbols,
+                compareBaskets: compareBaskets.map((basket) => ({
+                    name: basket.name,
+                    market: basket.market,
+                    symbols: basket.symbols,
+                    updatedAt: basket.updatedAt,
+                })),
             }).catch((error) => console.error('Failed to save terminal preferences:', error));
         }, 400);
 
@@ -839,6 +872,7 @@ export default function WatchlistPage() {
         compareVisible,
         currentUserId,
         favoriteSymbols,
+        compareBaskets,
         selectedInterval,
         selectedMarket,
         selectedRange,

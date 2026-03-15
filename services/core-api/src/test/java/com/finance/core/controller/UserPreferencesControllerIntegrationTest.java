@@ -57,6 +57,13 @@ class UserPreferencesControllerIntegrationTest {
                         .range("1D")
                         .interval("1h")
                         .favoriteSymbols(java.util.List.of("BTCUSDT"))
+                        .compareBaskets(java.util.List.of(
+                                UserPreferencesResponse.CompareBasket.builder()
+                                        .name("Majors")
+                                        .market("CRYPTO")
+                                        .symbols(java.util.List.of("ETHUSDT", "BNBUSDT"))
+                                        .updatedAt("2026-03-15T00:00:00Z")
+                                        .build()))
                         .build())
                 .build();
 
@@ -71,7 +78,8 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.leaderboard.publicPage.sortBy").value("RETURN_PERCENTAGE"))
                 .andExpect(jsonPath("$.leaderboard.publicPage.direction").value("DESC"))
                 .andExpect(jsonPath("$.terminal.market").value("CRYPTO"))
-                .andExpect(jsonPath("$.terminal.symbol").value("BTCUSDT"));
+                .andExpect(jsonPath("$.terminal.symbol").value("BTCUSDT"))
+                .andExpect(jsonPath("$.terminal.compareBaskets[0].name").value("Majors"));
     }
 
     @Test
@@ -96,6 +104,7 @@ class UserPreferencesControllerIntegrationTest {
                         .range("1D")
                         .interval("1h")
                         .favoriteSymbols(java.util.List.of())
+                        .compareBaskets(java.util.List.of())
                         .build())
                 .build();
         when(userPreferencesService.updateLeaderboardPreferences(any(UUID.class), any(UpdateLeaderboardPreferencesRequest.class)))
@@ -147,6 +156,13 @@ class UserPreferencesControllerIntegrationTest {
                         .range("6M")
                         .interval("4h")
                         .favoriteSymbols(java.util.List.of("THYAO"))
+                        .compareBaskets(java.util.List.of(
+                                UserPreferencesResponse.CompareBasket.builder()
+                                        .name("Banks")
+                                        .market("BIST100")
+                                        .symbols(java.util.List.of("ISCTR", "GARAN"))
+                                        .updatedAt("2026-03-15T00:00:00Z")
+                                        .build()))
                         .build())
                 .build();
         when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
@@ -160,7 +176,15 @@ class UserPreferencesControllerIntegrationTest {
                   "compareVisible": false,
                   "range": "6M",
                   "interval": "4h",
-                  "favoriteSymbols": ["THYAO"]
+                  "favoriteSymbols": ["THYAO"],
+                  "compareBaskets": [
+                    {
+                      "name": "Banks",
+                      "market": "BIST100",
+                      "symbols": ["ISCTR", "GARAN"],
+                      "updatedAt": "2026-03-15T00:00:00Z"
+                    }
+                  ]
                 }
                 """;
 
@@ -174,6 +198,7 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.terminal.compareSymbols[0]").value("ISCTR"))
                 .andExpect(jsonPath("$.terminal.compareVisible").value(false))
                 .andExpect(jsonPath("$.terminal.range").value("6M"))
-                .andExpect(jsonPath("$.terminal.interval").value("4h"));
+                .andExpect(jsonPath("$.terminal.interval").value("4h"))
+                .andExpect(jsonPath("$.terminal.compareBaskets[0].name").value("Banks"));
     }
 }

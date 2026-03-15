@@ -19,4 +19,16 @@ public class UpdateTerminalPreferencesRequest {
     private String range;
     private String interval;
     private List<String> favoriteSymbols;
+    private List<CompareBasket> compareBaskets;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CompareBasket {
+        private String name;
+        private String market;
+        private List<String> symbols;
+        private String updatedAt;
+    }
 }

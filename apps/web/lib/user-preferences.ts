@@ -38,6 +38,14 @@ export interface TerminalPreferencesResponsePayload {
   range: "1D" | "1W" | "1M" | "3M" | "6M" | "1Y" | "ALL";
   interval: "1m" | "15m" | "30m" | "1h" | "4h" | "1d";
   favoriteSymbols: string[];
+  compareBaskets?: TerminalCompareBasketPayload[];
+}
+
+export interface TerminalCompareBasketPayload {
+  name: string;
+  market: TerminalPreferencesResponsePayload["market"];
+  symbols: string[];
+  updatedAt?: string | null;
 }
 
 export interface TerminalLayoutResponsePayload {
@@ -63,6 +71,7 @@ export interface UpdateTerminalPreferencesPayload {
   range?: TerminalPreferencesResponsePayload["range"];
   interval?: TerminalPreferencesResponsePayload["interval"];
   favoriteSymbols?: string[];
+  compareBaskets?: TerminalCompareBasketPayload[];
 }
 
 export interface SaveTerminalLayoutPayload extends UpdateTerminalPreferencesPayload {

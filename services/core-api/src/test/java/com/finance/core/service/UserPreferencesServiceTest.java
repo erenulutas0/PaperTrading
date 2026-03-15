@@ -48,6 +48,7 @@ class UserPreferencesServiceTest {
         assertEquals("BTCUSDT", response.getTerminal().getSymbol());
         assertEquals("1D", response.getTerminal().getRange());
         assertEquals("1h", response.getTerminal().getInterval());
+        assertEquals(java.util.List.of(), response.getTerminal().getCompareBaskets());
     }
 
     @Test
@@ -100,6 +101,13 @@ class UserPreferencesServiceTest {
                 .range("6m")
                 .interval("4h")
                 .favoriteSymbols(java.util.List.of("thyao", "isctr"))
+                .compareBaskets(java.util.List.of(
+                        UpdateTerminalPreferencesRequest.CompareBasket.builder()
+                                .name("Banks")
+                                .market("bist100")
+                                .symbols(java.util.List.of("isctr", "garan", "isctr"))
+                                .updatedAt("2026-03-15T00:00:00Z")
+                                .build()))
                 .build();
 
         UserPreferencesResponse response = userPreferencesService.updateTerminalPreferences(userId, request);
@@ -111,6 +119,10 @@ class UserPreferencesServiceTest {
         assertEquals("6M", response.getTerminal().getRange());
         assertEquals("4h", response.getTerminal().getInterval());
         assertEquals(java.util.List.of("THYAO", "ISCTR"), response.getTerminal().getFavoriteSymbols());
+        assertEquals(1, response.getTerminal().getCompareBaskets().size());
+        assertEquals("Banks", response.getTerminal().getCompareBaskets().get(0).getName());
+        assertEquals("BIST100", response.getTerminal().getCompareBaskets().get(0).getMarket());
+        assertEquals(java.util.List.of("ISCTR", "GARAN"), response.getTerminal().getCompareBaskets().get(0).getSymbols());
         verify(userPreferenceRepository).save(org.mockito.ArgumentMatchers.any(UserPreference.class));
     }
 }

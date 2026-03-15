@@ -54,5 +54,17 @@ public class UserPreferencesResponse {
         private String range;
         private String interval;
         private java.util.List<String> favoriteSymbols;
+        private java.util.List<CompareBasket> compareBaskets;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CompareBasket {
+        private String name;
+        private String market;
+        private java.util.List<String> symbols;
+        private String updatedAt;
     }
 }

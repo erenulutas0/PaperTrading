@@ -76,6 +76,10 @@ public class UserPreference {
     @Builder.Default
     private String terminalFavoriteSymbols = "";
 
+    @Column(name = "terminal_compare_baskets", nullable = false, length = 8192)
+    @Builder.Default
+    private String terminalCompareBaskets = "";
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

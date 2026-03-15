@@ -80,7 +80,8 @@ Last updated: 2026-03-11
   - selected-item recent alert trigger history
   - triggered alert messages/threshold/triggered-price inspection from the terminal
 - [ ] Redeploy frontend after multi-symbol compare rollout and verify `/watchlist` now supports up to three simultaneous overlay symbols with independent removal, persisted session state, and compare summaries
-- [ ] Redeploy frontend after compare-basket preset rollout and verify `/watchlist` now supports:
+- [ ] Redeploy backend/frontend after account-backed compare-basket rollout and verify `/watchlist` now supports:
+  - compare baskets restored from authenticated terminal preferences across logout/login and device changes
   - saving current compare overlays as lightweight market-aware baskets
   - reapplying compare baskets without restoring the entire terminal layout
   - rename + overwrite flows for saved compare baskets

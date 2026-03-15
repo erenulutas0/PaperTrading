@@ -1,5 +1,7 @@
 package com.finance.core.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.UserPreference;
 import com.finance.core.dto.UpdateTerminalPreferencesRequest;
 import com.finance.core.dto.UpdateLeaderboardPreferencesRequest;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,9 +40,11 @@ public class UserPreferencesService {
     private static final Set<String> SUPPORTED_DIRECTIONS = Set.of("ASC", "DESC");
     private static final Set<String> SUPPORTED_TERMINAL_RANGES = Set.of("1D", "1W", "1M", "3M", "6M", "1Y", "ALL");
     private static final Set<String> SUPPORTED_TERMINAL_INTERVALS = Set.of("1m", "15m", "30m", "1h", "4h", "1d");
+    private static final int MAX_COMPARE_BASKETS = 12;
 
     private final UserPreferenceRepository userPreferenceRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public UserPreferencesResponse getPreferences(UUID userId) {
         ensureUserExists(userId);
@@ -114,6 +119,9 @@ public class UserPreferencesService {
             if (request.getFavoriteSymbols() != null) {
                 preferences.setTerminalFavoriteSymbols(serializeSymbols(request.getFavoriteSymbols(), 32));
             }
+            if (request.getCompareBaskets() != null) {
+                preferences.setTerminalCompareBaskets(serializeCompareBaskets(request.getCompareBaskets()));
+            }
         }
 
         UserPreference saved = userPreferenceRepository.save(preferences);
@@ -142,6 +150,7 @@ public class UserPreferencesService {
                         .range(normalizeTerminalRange(preferences.getTerminalRange()))
                         .interval(normalizeTerminalInterval(preferences.getTerminalInterval()))
                         .favoriteSymbols(deserializeSymbols(preferences.getTerminalFavoriteSymbols()))
+                        .compareBaskets(deserializeCompareBaskets(preferences.getTerminalCompareBaskets()))
                         .build())
                 .build();
     }
@@ -245,5 +254,74 @@ public class UserPreferencesService {
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .toList();
+    }
+
+    private String serializeCompareBaskets(List<UpdateTerminalPreferencesRequest.CompareBasket> rawBaskets) {
+        if (rawBaskets == null || rawBaskets.isEmpty()) {
+            return "";
+        }
+        List<UserPreferencesResponse.CompareBasket> normalized = new ArrayList<>();
+        for (UpdateTerminalPreferencesRequest.CompareBasket basket : rawBaskets) {
+            if (basket == null) {
+                continue;
+            }
+            List<String> symbols = basket.getSymbols() == null ? List.of() : basket.getSymbols().stream()
+                    .filter(symbol -> symbol != null && !symbol.isBlank())
+                    .map(this::normalizeTerminalSymbol)
+                    .distinct()
+                    .limit(3)
+                    .toList();
+            if (symbols.isEmpty()) {
+                continue;
+            }
+            normalized.add(UserPreferencesResponse.CompareBasket.builder()
+                    .name((basket.getName() == null || basket.getName().isBlank()) ? "Compare Basket" : basket.getName().trim())
+                    .market(normalizeTerminalMarket(basket.getMarket()))
+                    .symbols(symbols)
+                    .updatedAt((basket.getUpdatedAt() == null || basket.getUpdatedAt().isBlank()) ? null : basket.getUpdatedAt().trim())
+                    .build());
+            if (normalized.size() >= MAX_COMPARE_BASKETS) {
+                break;
+            }
+        }
+        if (normalized.isEmpty()) {
+            return "";
+        }
+        try {
+            return objectMapper.writeValueAsString(normalized);
+        } catch (Exception exception) {
+            log.warn("Failed to serialize compare baskets: {}", exception.getMessage());
+            return "";
+        }
+    }
+
+    private List<UserPreferencesResponse.CompareBasket> deserializeCompareBaskets(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<UserPreferencesResponse.CompareBasket> parsed = objectMapper.readValue(
+                    raw,
+                    new TypeReference<List<UserPreferencesResponse.CompareBasket>>() {});
+            return parsed.stream()
+                    .filter(basket -> basket != null && basket.getSymbols() != null)
+                    .map(basket -> UserPreferencesResponse.CompareBasket.builder()
+                            .name((basket.getName() == null || basket.getName().isBlank()) ? "Compare Basket" : basket.getName().trim())
+                            .market(normalizeTerminalMarket(basket.getMarket()))
+                            .symbols(basket.getSymbols().stream()
+                                    .filter(symbol -> symbol != null && !symbol.isBlank())
+                                    .map(this::normalizeTerminalSymbol)
+                                    .distinct()
+                                    .limit(3)
+                                    .toList())
+                            .updatedAt(basket.getUpdatedAt())
+                            .build())
+                    .filter(basket -> !basket.getSymbols().isEmpty())
+                    .limit(MAX_COMPARE_BASKETS)
+                    .toList();
+        } catch (Exception exception) {
+            log.warn("Failed to deserialize compare baskets: {}", exception.getMessage());
+            return List.of();
+        }
     }
 }

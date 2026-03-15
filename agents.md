@@ -20,7 +20,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
 | Portfolio CRUD | ✅ Done | Create, delete, deposit |
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
-| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, lightweight compare-basket presets, and market-provider split preparing delayed BIST100 support |
+| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, account-backed compare-basket presets, and market-provider split preparing delayed BIST100 support |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
 | Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
@@ -38,6 +38,30 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Compare Basket Presets Moved From Browser Convenience To Account-Backed Terminal Preference**
+  - **Problem observed**:
+    - Compare baskets had become useful, but they still lived only in browser storage.
+    - That broke continuity across:
+      - logout/login
+      - device changes
+      - clean browser sessions
+    - Terminal session state was already account-backed, so leaving compare baskets local created an inconsistent ownership model.
+  - **Implementation**:
+    - Extended `user_preferences` with `terminal_compare_baskets`.
+    - Added compare-basket support to:
+      - `UpdateTerminalPreferencesRequest`
+      - `UserPreferencesResponse`
+      - `UserPreferencesService`
+    - Chose a normalized JSON-string field inside `user_preferences` instead of a new table because:
+      - compare baskets are still a lightweight terminal preference, not a first-class collaborative entity
+      - the existing `/users/me/preferences/terminal` contract already owns the surrounding terminal session
+    - `/watchlist` now:
+      - hydrates compare baskets from backend terminal preferences
+      - saves compare baskets through the existing terminal preference debounce path
+      - keeps local storage as a fast fallback and multi-tab sync layer
+  - **Operational impact**:
+    - compare baskets now follow the authenticated account instead of staying trapped in one browser
+    - terminal session and terminal compare presets now share the same persistence authority
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
