@@ -287,6 +287,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - scanner presets now restore the full scanner intent, not just partial controls
     - sector pivots can be converted into reusable account-backed presets in one click
+- **2026-03-15**: **Compare Basket Cards Added Mini Relative-Strength Sparklines**
+  - **Problem observed**:
+    - Compare basket cards already surfaced text snapshot and directional tone, but they still lacked a fast visual read of dispersion inside the basket.
+    - Users had to mentally parse the text line to understand whether the basket was tightly aligned or internally split.
+  - **Implementation**:
+    - Added a small sparkline block to compare basket cards using current basket constituent 24h moves.
+    - The sparkline includes:
+      - zero baseline
+      - color-coded line
+      - per-symbol point markers
+      - compact per-symbol move chips
+    - Applied to:
+      - suggested compare baskets
+      - built-in compare baskets
+      - saved compare baskets
+  - **Operational impact**:
+    - compare presets now expose internal strength distribution before the user applies the overlay
+    - pre-apply scanning is faster because the card is no longer text-only
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

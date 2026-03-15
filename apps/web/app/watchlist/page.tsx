@@ -653,6 +653,115 @@ export default function WatchlistPage() {
         };
     }, [instrumentMap]);
 
+    const getCompareBasketSparklineModel = useCallback((symbols: string[]) => {
+        const items = symbols
+            .map((symbol) => {
+                const instrument = instrumentMap.get(symbol) ?? null;
+                if (!instrument) {
+                    return null;
+                }
+                return {
+                    symbol,
+                    move: Number(instrument.changePercent24h ?? 0),
+                };
+            })
+            .filter((item): item is { symbol: string; move: number } => item !== null);
+        if (items.length === 0) {
+            return null;
+        }
+
+        const min = items.reduce((current, item) => Math.min(current, item.move), items[0].move);
+        const max = items.reduce((current, item) => Math.max(current, item.move), items[0].move);
+        const range = Math.max(max - min, 1);
+        const width = 96;
+        const height = 28;
+        const points = items.map((item, index) => {
+            const x = items.length === 1 ? width / 2 : (index * width) / (items.length - 1);
+            const y = height - (((item.move - min) / range) * height);
+            return `${x},${y}`;
+        }).join(' ');
+        const baseline = max <= 0
+            ? 0
+            : min >= 0
+                ? height
+                : height - (((0 - min) / range) * height);
+        const positive = items.reduce((sum, item) => sum + item.move, 0) >= 0;
+
+        return {
+            items,
+            points,
+            baseline,
+            positive,
+            width,
+            height,
+            min,
+            range,
+        };
+    }, [instrumentMap]);
+
+    const renderCompareBasketSparkline = useCallback((symbols: string[]) => {
+        const model = getCompareBasketSparklineModel(symbols);
+        if (!model) {
+            return (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                    Strength Curve Pending
+                </div>
+            );
+        }
+
+        return (
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
+                <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                    <span>Strength Curve</span>
+                    <span>{model.items.length} points</span>
+                </div>
+                <svg viewBox={`0 0 ${model.width} ${model.height}`} className="mt-2 h-10 w-full overflow-visible">
+                    <line
+                        x1="0"
+                        x2={model.width}
+                        y1={model.baseline}
+                        y2={model.baseline}
+                        stroke="rgba(255,255,255,0.16)"
+                        strokeDasharray="3 3"
+                    />
+                    <polyline
+                        fill="none"
+                        stroke={model.positive ? '#34d399' : '#f87171'}
+                        strokeWidth="2.5"
+                        points={model.points}
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                    />
+                    {model.items.map((item, index) => {
+                        const x = model.items.length === 1 ? model.width / 2 : (index * model.width) / (model.items.length - 1);
+                        const y = model.height - (((item.move - model.min) / model.range) * model.height);
+                        return (
+                            <circle
+                                key={`${item.symbol}-spark-${index}`}
+                                cx={x}
+                                cy={y}
+                                r="2.5"
+                                fill={item.move >= 0 ? '#34d399' : '#f87171'}
+                            />
+                        );
+                    })}
+                </svg>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                    {model.items.map((item) => (
+                        <span
+                            key={`${item.symbol}-spark-label`}
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${item.move >= 0
+                                ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                                : 'border-red-400/20 bg-red-400/10 text-red-200'}`}
+                        >
+                            {item.symbol} {formatPercent(item.move)}
+                        </span>
+                    ))}
+                </div>
+            </div>
+        );
+    }, [getCompareBasketSparklineModel]);
+
     const topPinnedNotes = useMemo(() => {
         return chartNotes.filter((note) => note.pinned).slice(0, 2);
     }, [chartNotes]);
@@ -3014,6 +3123,7 @@ export default function WatchlistPage() {
                                                             </div>
                                                             <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
                                                             <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
+                                                            {renderCompareBasketSparkline(basket.symbols)}
                                                             <div className="mt-3 flex flex-wrap gap-2">
                                                                 {basket.symbols.map((symbol, index) => (
                                                                     <span
@@ -3072,6 +3182,7 @@ export default function WatchlistPage() {
                                                             </div>
                                                             <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
                                                             <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
+                                                            {renderCompareBasketSparkline(basket.symbols)}
                                                             <div className="mt-3 flex flex-wrap gap-2">
                                                                 {basket.symbols.map((symbol, index) => (
                                                                     <span
@@ -3169,6 +3280,7 @@ export default function WatchlistPage() {
                                                                 <p className="mt-2 text-[11px] font-semibold text-zinc-300">
                                                                     {describeCompareBasketSnapshot(basket.symbols)}
                                                                 </p>
+                                                                {renderCompareBasketSparkline(basket.symbols)}
                                                             </div>
                                                             {editingCompareBasketId !== basket.id && (
                                                                 <div className="flex flex-wrap gap-2">
