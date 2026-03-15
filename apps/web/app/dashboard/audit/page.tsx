@@ -61,6 +61,39 @@ const RESOURCE_OPTIONS = [
     'COMMENT',
 ] as const;
 
+const AUDIT_PRESETS = [
+    {
+        label: 'Portfolio Writes',
+        description: 'Portfolio creation, funding, visibility, and deletion flow.',
+        actionType: '',
+        resourceType: 'PORTFOLIO',
+    },
+    {
+        label: 'Trade Flow',
+        description: 'Buy and sell executions on trade resources.',
+        actionType: '',
+        resourceType: 'TRADE',
+    },
+    {
+        label: 'Follow Graph',
+        description: 'User follow and unfollow actions.',
+        actionType: 'USER_FOLLOWED',
+        resourceType: 'USER',
+    },
+    {
+        label: 'Analysis Lifecycle',
+        description: 'Immutable post creation and tombstone activity.',
+        actionType: 'ANALYSIS_POST_CREATED',
+        resourceType: 'ANALYSIS_POST',
+    },
+    {
+        label: 'Interactions',
+        description: 'Like and comment events.',
+        actionType: 'INTERACTION_COMMENTED',
+        resourceType: 'COMMENT',
+    },
+] as const;
+
 function formatTimestamp(value: string | null) {
     if (!value) {
         return 'N/A';
@@ -619,6 +652,30 @@ export default function AuditPage() {
                                         }`}
                                 >
                                     {windowOption.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mt-5">
+                        <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-zinc-500">Quick Presets</label>
+                        <div className="grid gap-3">
+                            {AUDIT_PRESETS.map((preset) => (
+                                <button
+                                    key={preset.label}
+                                    type="button"
+                                    onClick={() => {
+                                        setPage(0);
+                                        setFilters((current) => ({
+                                            ...current,
+                                            actionType: preset.actionType,
+                                            resourceType: preset.resourceType,
+                                        }));
+                                    }}
+                                    className="rounded-2xl border border-zinc-800 bg-black/50 p-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                                >
+                                    <p className="text-sm font-semibold text-white">{preset.label}</p>
+                                    <p className="mt-1 text-xs leading-5 text-zinc-500">{preset.description}</p>
                                 </button>
                             ))}
                         </div>

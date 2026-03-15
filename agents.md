@@ -3870,5 +3870,20 @@ A change is “done” when:
   - request-level narrowing is now available directly from the row-inspection surface
   - focused audit views are easier to share without manually rebuilding query parameters
 
+### 2026-03-15: Audit Workspace Added Quick Preset Strips
+- Problem observed:
+  - Even with facets and filter chips, operators still needed a faster way to jump into the most common audit slices without manually choosing resource/action combinations.
+- Implementation:
+  - Added one-click audit presets for:
+    - portfolio writes
+    - trade flow
+    - follow graph
+    - analysis lifecycle
+    - interactions
+  - Presets live inside the filter panel and apply their seed filters immediately while still allowing manual refinement afterward.
+- Operational impact:
+  - the audit workspace now opens common operational slices with one click instead of making every investigation start from a blank filter form
+  - presets complement backend facets by covering known workflows, not just observed counts
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

@@ -1779,3 +1779,7 @@ Last updated: 2026-03-11
   - Open request-focused audit view directly from the selected row
   - Copy a focused audit link from the detail panel
   - Keep detail actions aligned with existing request focus behavior
+- [x] Add audit quick presets:
+  - Surface one-click slices for portfolio, trade, follow, analysis, and interaction activity
+  - Apply preset filters without leaving the audit workspace
+  - Keep manual filter form available for refinement after preset selection
