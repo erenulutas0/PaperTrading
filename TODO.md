@@ -1680,3 +1680,7 @@ Last updated: 2026-03-11
   - Split execution activity from closed-trade outcomes in the trade stats surface
   - Explicitly explain why realized metrics and prediction accuracy can stay flat while positions remain open
   - Rename win/loss distribution to closed win/loss distribution
+- [x] Strengthen dashboard portfolio cards as analytics entry surfaces:
+  - Add compact portfolio health, open-risk, and analytics-context strips
+  - Keep quick-compare visible but frame it around sufficient snapshot history
+  - Rename trade CTA to `Open Trade Ticket` for clearer intent

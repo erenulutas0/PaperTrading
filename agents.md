@@ -3433,5 +3433,23 @@ A change is “done” when:
   - users are less likely to interpret unresolved outcome metrics as broken analytics
   - the page better separates what is live activity from what is actually realized performance
 
+### 2026-03-14: Dashboard Portfolio Cards Promoted Into Better Analytics Entry Surfaces
+- Problem observed:
+  - Analytics had become much stronger than the dashboard cards that lead into it.
+  - Portfolio cards still showed holdings and unrealized PnL, but lacked a quick sense of:
+    - estimated portfolio health
+    - live open risk
+    - whether the card represents a public leaderboard-facing portfolio or a private analytics-only one
+- Implementation:
+  - Added a compact status strip to each dashboard portfolio card with:
+    - estimated portfolio health
+    - open-risk / gross exposure
+    - analytics context and created date
+  - Tightened the quick-compare helper copy to nudge users toward comparing portfolios with enough snapshot history.
+  - Renamed the trading CTA from `Buy / Sell Assets` to `Open Trade Ticket` to better match actual behavior.
+- Operational impact:
+  - dashboard cards now feel more like entry points into the analytics system rather than simple CRUD cards
+  - users get better context before deciding whether to inspect analytics, compare portfolios, or place another simulated trade
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

@@ -47,6 +47,9 @@ export default function Dashboard() {
     // Trade Modal state
     const [tradeConfig, setTradeConfig] = useState<{ symbol: string; portfolioId?: string } | null>(null);
 
+    const formatCompactCurrency = (value: number) =>
+        `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
     useEffect(() => {
         const userId = localStorage.getItem('userId');
         if (!userId) {
@@ -390,9 +393,33 @@ export default function Dashboard() {
                                 const pl = totalCurrentValue - totalCostBasis;
                                 const plPercent = totalCostBasis > 0 ? (pl / totalCostBasis) * 100 : 0;
                                 const isPositive = pl >= 0;
+                                const holdingsCount = p.items?.length ?? 0;
+                                const grossExposure = totalCostBasis;
+                                const estimatedEquity = (p.balance ?? 0) + totalCurrentValue;
+                                const createdLabel = p.createdAt
+                                    ? new Date(p.createdAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: '2-digit' })
+                                    : 'N/A';
 
                                 return (
                                     <div className="mt-auto pt-6 border-t border-zinc-800">
+                                        <div className="mb-4 grid gap-3 sm:grid-cols-3 relative z-10">
+                                            <div className="rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Portfolio Health</p>
+                                                <p className="mt-2 text-lg font-bold text-white">{formatCompactCurrency(estimatedEquity)}</p>
+                                                <p className="mt-1 text-[11px] text-zinc-500">Cash plus live marked positions</p>
+                                            </div>
+                                            <div className="rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Open Risk</p>
+                                                <p className="mt-2 text-lg font-bold text-zinc-200">{formatCompactCurrency(grossExposure)}</p>
+                                                <p className="mt-1 text-[11px] text-zinc-500">{holdingsCount} active holdings</p>
+                                            </div>
+                                            <div className="rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Analytics Context</p>
+                                                <p className="mt-2 text-sm font-bold text-zinc-200">{p.visibility === 'PUBLIC' ? 'Leaderboard eligible' : 'Private analytics only'}</p>
+                                                <p className="mt-1 text-[11px] text-zinc-500">Created {createdLabel}</p>
+                                            </div>
+                                        </div>
+
                                         <div className="flex justify-between items-center mb-4">
                                             <div className="flex flex-col relative z-10">
                                                 <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Unrealized P/L</span>
@@ -400,7 +427,7 @@ export default function Dashboard() {
                                                     {isPositive ? '▲' : '▼'} {Math.abs(plPercent).toFixed(2)}% (${Math.abs(pl).toLocaleString(undefined, { maximumFractionDigits: 2 })})
                                                 </span>
                                             </div>
-                                            <div className="flex gap-2 relative z-10">
+                                            <div className="flex gap-2 relative z-10 flex-wrap justify-end">
                                                 <Link href={`/analytics/${p.id}`} className="text-xs bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 px-4 py-2 rounded-lg transition-colors text-blue-300">
                                                     Analytics
                                                 </Link>
@@ -414,7 +441,7 @@ export default function Dashboard() {
                                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                                                 <div className="min-w-0 flex-1">
                                                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Quick Compare</p>
-                                                    <p className="mt-1 text-[11px] text-zinc-600">Open analytics with another portfolio already loaded as the compare target.</p>
+                                                    <p className="mt-1 text-[11px] text-zinc-600">Open analytics with another portfolio already loaded as the compare target. Best used after both portfolios have enough snapshot history.</p>
                                                 </div>
                                                 <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                                                     <select
@@ -461,7 +488,7 @@ export default function Dashboard() {
                                             onClick={() => setTradeConfig({ symbol: 'BTCUSDT', portfolioId: p.id })}
                                             className="w-full bg-green-600/90 hover:bg-green-500 text-white font-bold py-3 rounded-xl border border-green-500/50 text-sm transition-all shadow-[0_0_15px_rgba(34,197,94,0.2)] active:scale-95 relative z-10"
                                         >
-                                            Buy / Sell Assets
+                                            Open Trade Ticket
                                         </button>
                                     </div>
                                 );
