@@ -12,6 +12,7 @@ const navigation = [
     { name: 'Leaderboard', href: '/dashboard/leaderboard' },
     { name: 'Tournaments', href: '/tournaments' },
     { name: 'Markets', href: '/watchlist' },
+    { name: 'Audit', href: '/dashboard/audit' },
 ];
 
 export default function DashboardLayout({

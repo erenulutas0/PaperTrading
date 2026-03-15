@@ -1731,3 +1731,7 @@ Last updated: 2026-03-11
   - Extend `/api/v1/ops/auditlog` with actor/action/resource filters
   - Add CSV export endpoint for filtered audit rows
   - Keep actuator audit endpoint backward-compatible while widening ops inspection capability
+- [x] Expose audit ops tooling in the web workspace:
+  - Add `/dashboard/audit` page for filtered audit inspection
+  - Wire audit into the shared workspace navigation
+  - Match CSV export behavior with the backend filter set

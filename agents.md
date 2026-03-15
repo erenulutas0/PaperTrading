@@ -3676,5 +3676,20 @@ A change is “done” when:
   - ops can isolate actor/action/resource slices without dropping to raw SQL
   - actuator consumers keep working while the dedicated ops path becomes more useful
 
+### 2026-03-15: Audit Ops Tooling Surfaced Inside The Main Workspace
+- Problem observed:
+  - Backend audit inspection/export had become useful, but it was still effectively hidden unless an operator manually hit the API.
+  - That left the product with a backend capability but no corresponding web surface.
+- Implementation:
+  - Added `app/dashboard/audit/page.tsx` with:
+    - filter form for limit, request, actor, action, and resource
+    - audit summary cards
+    - recent-row list with parsed details
+    - CSV export action matching the active filter set
+  - Added `Audit` to the shared dashboard navigation in `app/dashboard/layout.tsx`.
+- Operational impact:
+  - audit inspection is now part of the workspace instead of an API-only operator trick
+  - read/export behavior stays aligned with the backend filter contract, reducing drift between UI and ops usage
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
