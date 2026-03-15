@@ -604,6 +604,14 @@ export default function WatchlistPage() {
         return new Set(enrichedItems.map((item) => item.symbol));
     }, [enrichedItems]);
 
+    const watchlistAlertBindingCount = useMemo(() => {
+        return enrichedItems.filter((item) => Number(item.alertPriceAbove) > 0 || Number(item.alertPriceBelow) > 0).length;
+    }, [enrichedItems]);
+
+    const watchlistTriggeredAlertCount = useMemo(() => {
+        return enrichedItems.filter((item) => item.alertAboveTriggered || item.alertBelowTriggered).length;
+    }, [enrichedItems]);
+
     const describeCompareBasketSnapshot = useCallback((symbols: string[]) => {
         const instruments = symbols
             .map((symbol) => instrumentMap.get(symbol) ?? null)
@@ -4585,6 +4593,29 @@ export default function WatchlistPage() {
                                             Compare Preset
                                         </span>
                                     )}
+                                </div>
+                                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Alert Bindings</p>
+                                        <p className="mt-1 text-sm font-semibold text-white">{watchlistAlertBindingCount}</p>
+                                        <p className="mt-1 text-xs text-zinc-400">
+                                            {watchlistAlertBindingCount > 0 ? 'Symbols with active above/below levels' : 'No alert thresholds set'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Triggered</p>
+                                        <p className="mt-1 text-sm font-semibold text-white">{watchlistTriggeredAlertCount}</p>
+                                        <p className="mt-1 text-xs text-zinc-400">
+                                            {watchlistTriggeredAlertCount > 0 ? 'Watchlist rows already crossed a level' : 'No triggered basket alerts'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Notes</p>
+                                        <p className="mt-1 text-sm font-semibold text-white">{chartNotes.length}</p>
+                                        <p className="mt-1 text-xs text-zinc-400">
+                                            {topPinnedNotes.length > 0 ? `${topPinnedNotes.length} pinned for ${selectedSymbol}` : `No pinned notes for ${selectedSymbol}`}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 

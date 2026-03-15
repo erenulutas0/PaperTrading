@@ -368,6 +368,19 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - right-rail work now starts with immediate session context instead of requiring a page-level cross-reference
     - watch-basket edits and scanner/compare state are easier to reconcile at a glance
+- **2026-03-15**: **Right Rail Summary Added Alert and Note Counters**
+  - **Problem observed**:
+    - Even with compact session context, the right rail still did not answer basic monitoring questions quickly:
+      - how many basket rows have alert thresholds?
+      - how many rows already triggered?
+      - how much note context exists on the active symbol?
+  - **Implementation**:
+    - Extended the right-rail summary with compact counters for:
+      - alert-bound watchlist rows
+      - triggered watchlist rows
+      - note count and pinned-note context for the active symbol
+  - **Operational impact**:
+    - the right rail now communicates both terminal context and monitoring density without forcing a deeper scan into alerts or notes panels
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
