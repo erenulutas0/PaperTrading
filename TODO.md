@@ -1751,3 +1751,7 @@ Last updated: 2026-03-11
   - Surface top actions, resources, and actors from the current slice
   - Allow one-click narrowing from facet chips
   - Keep pagination and portable-view behavior intact
+- [x] Promote audit quick facets to backend-backed summaries:
+  - Return top actions, resources, and actors for the full filtered result set
+  - Keep frontend fallback logic for older payloads during rollout
+  - Preserve current filter, pagination, and export behavior

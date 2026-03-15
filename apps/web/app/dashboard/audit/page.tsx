@@ -29,6 +29,11 @@ interface AuditResponse {
     count: number;
     totalCount: number;
     hasMore: boolean;
+    facets?: {
+        actions?: { value: string; count: number }[];
+        resources?: { value: string; count: number }[];
+        actors?: { value: string; count: number }[];
+    };
     entries: AuditEntry[];
 }
 
@@ -209,6 +214,9 @@ export default function AuditPage() {
         if (!data) {
             return [];
         }
+        if (data.facets?.actions?.length) {
+            return data.facets.actions.map((item) => ({ value: item.value, count: item.count, label: item.value }));
+        }
         const counts = new Map<string, number>();
         data.entries.forEach((entry) => {
             counts.set(entry.actionType, (counts.get(entry.actionType) ?? 0) + 1);
@@ -223,6 +231,9 @@ export default function AuditPage() {
         if (!data) {
             return [];
         }
+        if (data.facets?.resources?.length) {
+            return data.facets.resources.map((item) => ({ value: item.value, count: item.count, label: item.value }));
+        }
         const counts = new Map<string, number>();
         data.entries.forEach((entry) => {
             counts.set(entry.resourceType, (counts.get(entry.resourceType) ?? 0) + 1);
@@ -236,6 +247,13 @@ export default function AuditPage() {
     const topActorFacets = useMemo(() => {
         if (!data) {
             return [];
+        }
+        if (data.facets?.actors?.length) {
+            return data.facets.actors.map((item) => ({
+                value: item.value,
+                count: item.count,
+                label: item.value.length > 12 ? `${item.value.slice(0, 8)}...` : item.value,
+            }));
         }
         const counts = new Map<string, number>();
         data.entries.forEach((entry) => {

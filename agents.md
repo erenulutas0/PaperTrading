@@ -3760,5 +3760,20 @@ A change is “done” when:
   - audit narrowing is faster because the page now suggests the next obvious slice instead of forcing all refinement through manual inputs
   - the facet layer stays lightweight and UI-only, so it does not expand backend contract surface unnecessarily
 
+### 2026-03-15: Audit Quick Facets Promoted From Page Slice Hints To Filtered-Set Summaries
+- Problem observed:
+  - The first audit facet pass only counted the currently loaded page.
+  - That was useful as a hint, but it could mislead operators once pagination was involved because the chip counts did not represent the full filtered result set.
+- Implementation:
+  - `AuditLogInspectionService.snapshot(...)` now includes backend facet summaries for:
+    - `actions`
+    - `resources`
+    - `actors`
+  - Facets are computed against the same active filter set as the row query, but independently of the current page window.
+  - `/dashboard/audit` now consumes those backend facet summaries and keeps the old page-slice counting as a rollout fallback only.
+- Operational impact:
+  - facet counts now match the true filtered audit set instead of the visible page only
+  - audit drill-down remains fast while becoming materially more trustworthy on paged views
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

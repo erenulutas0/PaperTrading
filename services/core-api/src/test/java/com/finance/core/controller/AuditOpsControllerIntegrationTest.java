@@ -74,6 +74,9 @@ class AuditOpsControllerIntegrationTest {
                 .andExpect(jsonPath("$.actorId").value(actorId.toString()))
                 .andExpect(jsonPath("$.actionType").value("PORTFOLIO_CREATED"))
                 .andExpect(jsonPath("$.resourceType").value("PORTFOLIO"))
+                .andExpect(jsonPath("$.facets.actions[0].value").value("PORTFOLIO_CREATED"))
+                .andExpect(jsonPath("$.facets.resources[0].value").value("PORTFOLIO"))
+                .andExpect(jsonPath("$.facets.actors[0].value").value(actorId.toString()))
                 .andExpect(jsonPath("$.entries[0].requestId").value("req-ops-audit"))
                 .andExpect(jsonPath("$.entries[0].details.name").value("Ops Smoke"));
     }
@@ -159,6 +162,7 @@ class AuditOpsControllerIntegrationTest {
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.count").value(2))
                 .andExpect(jsonPath("$.totalCount").value(3))
+                .andExpect(jsonPath("$.facets.actions[0].count").value(3))
                 .andExpect(jsonPath("$.hasMore").value(true));
 
         mockMvc.perform(get("/api/v1/ops/auditlog")

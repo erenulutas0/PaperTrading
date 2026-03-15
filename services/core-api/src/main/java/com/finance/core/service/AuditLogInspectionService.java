@@ -39,6 +39,7 @@ public class AuditLogInspectionService {
         Integer safeDays = normalizeDays(days);
         long totalCount = countEntries(safeDays, requestId, actorId, actionType, resourceType);
         List<Map<String, Object>> entries = fetchEntries(safeLimit, safePage, safeDays, requestId, actorId, actionType, resourceType);
+        Map<String, Object> facets = buildFacetSummary(safeDays, requestId, actorId, actionType, resourceType);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("checkedAt", LocalDateTime.now());
@@ -52,6 +53,7 @@ public class AuditLogInspectionService {
         payload.put("count", entries.size());
         payload.put("totalCount", totalCount);
         payload.put("hasMore", ((long) (safePage + 1) * safeLimit) < totalCount);
+        payload.put("facets", facets);
         payload.put("entries", entries);
         return payload;
     }
@@ -108,6 +110,44 @@ public class AuditLogInspectionService {
         }
         Long count = jdbcTemplate.queryForObject(sql.toString(), Long.class, queryParts.params().toArray());
         return count == null ? 0L : count;
+    }
+
+    private Map<String, Object> buildFacetSummary(Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+        Map<String, Object> facets = new LinkedHashMap<>();
+        facets.put("actions", fetchFacetCounts("action_type", days, requestId, actorId, actionType, resourceType, false));
+        facets.put("resources", fetchFacetCounts("resource_type", days, requestId, actorId, actionType, resourceType, false));
+        facets.put("actors", fetchFacetCounts("actor_id", days, requestId, actorId, actionType, resourceType, true));
+        return facets;
+    }
+
+    private List<Map<String, Object>> fetchFacetCounts(
+            String column,
+            Integer days,
+            String requestId,
+            UUID actorId,
+            AuditActionType actionType,
+            AuditResourceType resourceType,
+            boolean excludeNulls) {
+        StringBuilder sql = new StringBuilder("select ")
+                .append(column)
+                .append(" as value, count(*) as count from audit_logs");
+        QueryParts queryParts = buildWhereClause(days, requestId, actorId, actionType, resourceType);
+        List<String> clauses = new ArrayList<>(queryParts.clauses());
+        List<Object> params = new ArrayList<>(queryParts.params());
+        if (excludeNulls) {
+            clauses.add(column + " is not null");
+        }
+        if (!clauses.isEmpty()) {
+            sql.append(" where ").append(String.join(" and ", clauses));
+        }
+        sql.append(" group by ").append(column).append(" order by count(*) desc, ").append(column).append(" asc limit 6");
+
+        return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("value", rs.getString("value"));
+            item.put("count", rs.getLong("count"));
+            return item;
+        }, params.toArray());
     }
 
     private QueryParts buildWhereClause(Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
