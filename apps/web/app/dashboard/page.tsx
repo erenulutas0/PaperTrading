@@ -37,6 +37,7 @@ export default function Dashboard() {
     const router = useRouter();
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [compareTargets, setCompareTargets] = useState<Record<string, string>>({});
+    const [compareWindows, setCompareWindows] = useState<Record<string, 'ALL' | '30D' | '7D'>>({});
     const [prices, setPrices] = useState<Record<string, number>>({});
     const [name, setName] = useState('');
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -102,6 +103,13 @@ export default function Dashboard() {
                     nextState[portfolio.id] = currentTarget && currentTarget !== portfolio.id
                         ? currentTarget
                         : '';
+                });
+                return nextState;
+            });
+            setCompareWindows((current) => {
+                const nextState: Record<string, 'ALL' | '30D' | '7D'> = {};
+                nextPortfolios.forEach((portfolio) => {
+                    nextState[portfolio.id] = current[portfolio.id] ?? 'ALL';
                 });
                 return nextState;
             });
@@ -367,8 +375,9 @@ export default function Dashboard() {
                                 let totalCurrentValue = 0;
                                 const compareCandidates = portfolios.filter((candidate) => candidate.id !== p.id);
                                 const compareTargetId = compareTargets[p.id] ?? '';
+                                const compareWindow = compareWindows[p.id] ?? 'ALL';
                                 const compareHref = compareTargetId
-                                    ? `/analytics/${p.id}?compare=${encodeURIComponent(compareTargetId)}`
+                                    ? `/analytics/${p.id}?compare=${encodeURIComponent(compareTargetId)}${compareWindow !== 'ALL' ? `&curveWindow=${encodeURIComponent(compareWindow)}` : ''}`
                                     : `/analytics/${p.id}`;
 
                                 p.items?.forEach(item => {
@@ -433,9 +442,30 @@ export default function Dashboard() {
                                                         {compareCandidates.map((candidate) => (
                                                             <option key={candidate.id} value={candidate.id}>
                                                                 {candidate.name} {candidate.visibility ? `(${candidate.visibility})` : ''}
-                                                            </option>
-                                                        ))}
+                                                        </option>
+                                                    ))}
                                                     </select>
+                                                    <div className="flex rounded-lg border border-white/10 bg-zinc-950/80 p-1">
+                                                        {(['ALL', '30D', '7D'] as const).map((windowOption) => (
+                                                            <button
+                                                                key={windowOption}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setCompareWindows((current) => ({
+                                                                        ...current,
+                                                                        [p.id]: windowOption,
+                                                                    }));
+                                                                }}
+                                                                className={`rounded-md px-3 py-2 text-[10px] font-bold tracking-[0.22em] transition-colors ${
+                                                                    compareWindow === windowOption
+                                                                        ? 'bg-cyan-500/15 text-cyan-300'
+                                                                        : 'text-zinc-500 hover:text-white'
+                                                                }`}
+                                                            >
+                                                                {windowOption}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                     <Link
                                                         href={compareHref}
                                                         className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs font-bold transition-colors ${
