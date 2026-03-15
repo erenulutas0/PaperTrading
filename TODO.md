@@ -1676,3 +1676,7 @@ Last updated: 2026-03-11
   - Replace bare spinner with page-level loading shell
   - Normalize compare/list/detail empty states through a reusable empty panel
   - Improve no-data messaging for low-history portfolios
+- [x] Clarify analytics trade semantics:
+  - Split execution activity from closed-trade outcomes in the trade stats surface
+  - Explicitly explain why realized metrics and prediction accuracy can stay flat while positions remain open
+  - Rename win/loss distribution to closed win/loss distribution

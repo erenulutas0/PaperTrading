@@ -2308,42 +2308,75 @@ ${lines}
                 <div className="grid gap-6 mb-6 xl:grid-cols-12">
                     {/* Trade Stats */}
                     <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 xl:col-span-7">
-                        <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-4">Trade Statistics</h2>
+                        <div className="flex items-start justify-between gap-4 mb-4">
+                            <div>
+                                <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Trade Activity And Outcomes</h2>
+                                <p className="mt-1 text-[10px] text-zinc-600">
+                                    Entry counts update on execution. Realized outcome metrics stay flat until positions close.
+                                </p>
+                            </div>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] text-zinc-400">
+                                {positionSummary.openPositions > 0 ? `${positionSummary.openPositions} live positions` : 'No live positions'}
+                            </span>
+                        </div>
 
                         <div className="grid gap-4 mb-6 sm:grid-cols-3">
                             <div className="text-center p-3 bg-black/30 rounded-xl">
                                 <p className="text-2xl font-bold text-white">{ts.totalTrades}</p>
-                                <p className="text-[10px] text-zinc-500 uppercase">Total Trades</p>
+                                <p className="text-[10px] text-zinc-500 uppercase">Recorded Executions</p>
                             </div>
                             <div className="text-center p-3 bg-black/30 rounded-xl">
                                 <p className={`text-2xl font-bold ${ts.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {formatCurrency(ts.totalPnl)}
                                 </p>
-                                <p className="text-[10px] text-zinc-500 uppercase">Total PnL</p>
+                                <p className="text-[10px] text-zinc-500 uppercase">Closed Trade PnL</p>
                             </div>
                             <div className="text-center p-3 bg-black/30 rounded-xl">
                                 <p className={`text-2xl font-bold ${ratingColor(ts.tradeWinRate, 'winrate')}`}>{ts.tradeWinRate}%</p>
-                                <p className="text-[10px] text-zinc-500 uppercase">Win Rate</p>
+                                <p className="text-[10px] text-zinc-500 uppercase">Closed Trade Win Rate</p>
                             </div>
                         </div>
 
-                        <div className="grid gap-3 text-sm md:grid-cols-2">
-                            {[
-                                { label: 'Buy Orders', value: ts.buyCount, color: 'text-green-400' },
-                                { label: 'Sell Orders', value: ts.sellCount, color: 'text-red-400' },
-                                { label: 'Long Positions', value: ts.longCount, color: 'text-emerald-400' },
-                                { label: 'Short Positions', value: ts.shortCount, color: 'text-orange-400' },
-                                { label: 'Best Trade', value: `+$${ts.bestTrade.toLocaleString()}`, color: 'text-green-400' },
-                                { label: 'Worst Trade', value: `$${ts.worstTrade.toLocaleString()}`, color: 'text-red-400' },
-                                { label: 'Avg Win', value: `+$${ts.avgWin.toLocaleString()}`, color: 'text-green-400' },
-                                { label: 'Avg Loss', value: `-$${ts.avgLoss.toLocaleString()}`, color: 'text-red-400' },
-                            ].map(stat => (
-                                <div key={stat.label} className="flex justify-between items-center py-2 px-3 bg-black/20 rounded-lg">
-                                    <span className="text-zinc-500 text-xs">{stat.label}</span>
-                                    <span className={`font-mono font-bold text-xs ${stat.color}`}>{stat.value}</span>
+                        <div className="grid gap-6 lg:grid-cols-2">
+                            <div>
+                                <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Execution Activity</p>
+                                <div className="grid gap-3 text-sm">
+                                    {[
+                                        { label: 'Buy Orders', value: ts.buyCount, color: 'text-green-400' },
+                                        { label: 'Sell Orders', value: ts.sellCount, color: 'text-red-400' },
+                                        { label: 'Long Positions', value: ts.longCount, color: 'text-emerald-400' },
+                                        { label: 'Short Positions', value: ts.shortCount, color: 'text-orange-400' },
+                                    ].map(stat => (
+                                        <div key={stat.label} className="flex justify-between items-center py-2 px-3 bg-black/20 rounded-lg">
+                                            <span className="text-zinc-500 text-xs">{stat.label}</span>
+                                            <span className={`font-mono font-bold text-xs ${stat.color}`}>{stat.value}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
+                            </div>
+                            <div>
+                                <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Closed Outcomes</p>
+                                <div className="grid gap-3 text-sm">
+                                    {[
+                                        { label: 'Best Closed Trade', value: `+$${ts.bestTrade.toLocaleString()}`, color: 'text-green-400' },
+                                        { label: 'Worst Closed Trade', value: `$${ts.worstTrade.toLocaleString()}`, color: 'text-red-400' },
+                                        { label: 'Avg Closed Win', value: `+$${ts.avgWin.toLocaleString()}`, color: 'text-green-400' },
+                                        { label: 'Avg Closed Loss', value: `-$${ts.avgLoss.toLocaleString()}`, color: 'text-red-400' },
+                                    ].map(stat => (
+                                        <div key={stat.label} className="flex justify-between items-center py-2 px-3 bg-black/20 rounded-lg">
+                                            <span className="text-zinc-500 text-xs">{stat.label}</span>
+                                            <span className={`font-mono font-bold text-xs ${stat.color}`}>{stat.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
+
+                        {(ts.profitableTrades === 0 && ts.losingTrades === 0) || data.predictionWinRate === 0 ? (
+                            <div className="mt-4 rounded-xl border border-amber-500/10 bg-amber-500/5 px-4 py-3 text-xs text-amber-200">
+                                Closed-trade and prediction metrics remain near zero until positions close and analysis posts resolve.
+                            </div>
+                        ) : null}
 
                         <div className="mt-4 pt-4 border-t border-zinc-800">
                             <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Most Traded</p>
@@ -2357,7 +2390,12 @@ ${lines}
                     <div className="space-y-4 xl:col-span-5">
                         {/* Win/Loss Visual */}
                         <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-                            <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider mb-4">Win/Loss Distribution</h2>
+                            <div className="flex items-start justify-between gap-4 mb-4">
+                                <div>
+                                    <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Closed Win/Loss Distribution</h2>
+                                    <p className="mt-1 text-[10px] text-zinc-600">Winners and losers count only after a trade outcome is realized.</p>
+                                </div>
+                            </div>
                             <div className="flex items-center gap-6">
                                 <div className="relative w-24 h-24">
                                     <svg viewBox="0 0 36 36" className="w-24 h-24 transform -rotate-90">
@@ -2372,16 +2410,21 @@ ${lines}
                                 <div className="flex-1 space-y-2">
                                     <div className="flex items-center gap-2">
                                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                        <span className="text-xs text-zinc-400">Winners</span>
+                                        <span className="text-xs text-zinc-400">Closed Winners</span>
                                         <span className="text-xs font-bold text-green-400 ml-auto">{ts.profitableTrades}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                        <span className="text-xs text-zinc-400">Losers</span>
+                                        <span className="text-xs text-zinc-400">Closed Losers</span>
                                         <span className="text-xs font-bold text-red-400 ml-auto">{ts.losingTrades}</span>
                                     </div>
                                 </div>
                             </div>
+                            {ts.profitableTrades === 0 && ts.losingTrades === 0 ? (
+                                <p className="mt-4 text-xs text-zinc-500">
+                                    No closed outcomes yet. This section will become meaningful after the first position closes.
+                                </p>
+                            ) : null}
                         </div>
 
                         {/* Symbol breakdown */}
@@ -2421,6 +2464,11 @@ ${lines}
                                 {data.predictionWinRate}%
                             </p>
                             <p className="text-[10px] text-zinc-600 mt-1">From resolved analysis posts</p>
+                            {data.predictionWinRate === 0 ? (
+                                <p className="mt-3 text-xs text-zinc-500">
+                                    If no analysis post has resolved yet, this stays at zero even while positions are open.
+                                </p>
+                            ) : null}
                         </div>
                     </div>
                 </div>

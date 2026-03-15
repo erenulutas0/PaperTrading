@@ -3410,5 +3410,28 @@ A change is “done” when:
   - analytics now degrades more coherently while data is sparse or filters exclude rows
   - repeated empty-state logic is more maintainable and less visually inconsistent
 
+### 2026-03-14: Portfolio Analytics Trade Statistics Reframed Around Execution vs Realization
+- Problem observed:
+  - Users were reading zeros in trade/outcome areas as bugs when positions were still open.
+  - The page mixed:
+    - execution activity
+    - live exposure
+    - closed-trade outcomes
+    under labels that implied all metrics should move immediately.
+- Implementation:
+  - Reframed the trade section as `Trade Activity And Outcomes`.
+  - Split the internal layout into:
+    - `Execution Activity`
+    - `Closed Outcomes`
+  - Renamed summary labels to make lifecycle clearer:
+    - `Recorded Executions`
+    - `Closed Trade PnL`
+    - `Closed Trade Win Rate`
+    - `Closed Win/Loss Distribution`
+  - Added contextual helper copy explaining that realized metrics and prediction accuracy remain flat until positions close and analysis posts resolve.
+- Operational impact:
+  - users are less likely to interpret unresolved outcome metrics as broken analytics
+  - the page better separates what is live activity from what is actually realized performance
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
