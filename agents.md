@@ -3897,5 +3897,20 @@ A change is “done” when:
   - preset use is now readable and reversible instead of feeling like a hidden filter mutation
   - audit workflows stay fast without making the filter state ambiguous
 
+### 2026-03-15: Audit Detail Panel Added Actor And Resource Slice Actions
+- Problem observed:
+  - Request-focused deep-linking was available, but actor-scoped and resource-scoped follow-up still required manual filter entry.
+  - That made the row-detail panel stronger for request investigations than for other common ops drill-down paths.
+- Implementation:
+  - Added selected-row actions for:
+    - opening actor slices
+    - opening resource slices
+    - copying actor-slice links
+    - copying resource-slice links
+  - These actions reuse the same audit filter model and preserve the current date window.
+- Operational impact:
+  - actor/resource investigation is now as direct as request-focused inspection
+  - selected-row detail has become a full drill-down console instead of a read-only side panel
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

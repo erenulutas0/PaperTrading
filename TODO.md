@@ -1787,3 +1787,7 @@ Last updated: 2026-03-11
   - Show which preset currently owns the action/resource filter pair
   - Allow one-click reset back to baseline from the preset strip
   - Keep manual filters and preset selection compatible
+- [x] Add actor/resource slice actions to audit detail:
+  - Open actor and resource slices directly from the selected row
+  - Copy actor-slice and resource-slice links
+  - Keep request, actor, and resource investigations symmetrical

@@ -506,11 +506,42 @@ export default function AuditPage() {
         }
     };
 
+    const copySliceLink = async (label: string, overrides: { actorId?: string; resourceType?: string; actionType?: string }) => {
+        try {
+            const params = new URLSearchParams();
+            params.set('limit', filters.limit);
+            params.set('page', '0');
+            if (filters.days) params.set('days', filters.days);
+            if (overrides.actorId) params.set('actorId', overrides.actorId);
+            if (overrides.resourceType) params.set('resourceType', overrides.resourceType);
+            if (overrides.actionType) params.set('actionType', overrides.actionType);
+            const url = `${window.location.origin}/dashboard/audit?${params.toString()}`;
+            await navigator.clipboard.writeText(url);
+            setCopiedDetailField(label);
+            window.setTimeout(() => setCopiedDetailField(''), 1600);
+        } catch (copyError) {
+            setError(copyError instanceof Error ? copyError.message : `Failed to copy ${label}`);
+        }
+    };
+
     const openFocusedView = (entry: AuditEntry) => {
         if (!entry.requestId) {
             return;
         }
         focusRequestId(entry.requestId);
+    };
+
+    const openActorSlice = (entry: AuditEntry) => {
+        if (!entry.actorId) {
+            return;
+        }
+        setPage(0);
+        setFilters((current) => ({ ...current, actorId: entry.actorId ?? '' }));
+    };
+
+    const openResourceSlice = (entry: AuditEntry) => {
+        setPage(0);
+        setFilters((current) => ({ ...current, resourceType: entry.resourceType }));
     };
 
     useEffect(() => {
@@ -976,8 +1007,7 @@ export default function AuditPage() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setPage(0);
-                                        setFilters((current) => ({ ...current, resourceType: selectedEntry.resourceType }));
+                                        openResourceSlice(selectedEntry);
                                     }}
                                     className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
                                 >
@@ -987,12 +1017,27 @@ export default function AuditPage() {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setPage(0);
-                                            setFilters((current) => ({ ...current, actorId: selectedEntry.actorId ?? '' }));
+                                            openActorSlice(selectedEntry);
                                         }}
                                         className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
                                     >
                                         Filter Actor
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => void copySliceLink('resourceSlice', { resourceType: selectedEntry.resourceType })}
+                                    className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                >
+                                    {copiedDetailField === 'resourceSlice' ? 'Resource Link Copied' : 'Copy Resource Slice'}
+                                </button>
+                                {selectedEntry.actorId && (
+                                    <button
+                                        type="button"
+                                        onClick={() => void copySliceLink('actorSlice', { actorId: selectedEntry.actorId ?? '' })}
+                                        className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                    >
+                                        {copiedDetailField === 'actorSlice' ? 'Actor Link Copied' : 'Copy Actor Slice'}
                                     </button>
                                 )}
                                 {selectedEntry.requestId && (
