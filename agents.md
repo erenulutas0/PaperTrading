@@ -54,6 +54,8 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Added UI to:
       - save the current compare basket
       - reapply a basket to the current symbol
+      - rename a basket
+      - overwrite a basket with the current compare session
       - remove a basket
     - Basket application is market-aware and filters out:
       - the currently selected primary symbol

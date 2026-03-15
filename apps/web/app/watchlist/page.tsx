@@ -259,6 +259,8 @@ export default function WatchlistPage() {
     const [compareBaskets, setCompareBaskets] = useState<CompareBasketPreset[]>([]);
     const [compareBasketNameDraft, setCompareBasketNameDraft] = useState('');
     const [compareBasketMessage, setCompareBasketMessage] = useState('');
+    const [editingCompareBasketId, setEditingCompareBasketId] = useState<string | null>(null);
+    const [editingCompareBasketName, setEditingCompareBasketName] = useState('');
     const [selectedRange, setSelectedRange] = useState<ChartRange>('1D');
     const [selectedInterval, setSelectedInterval] = useState<ChartInterval>('1h');
     const [drawingMode, setDrawingMode] = useState<DrawingMode>('none');
@@ -1372,7 +1374,53 @@ export default function WatchlistPage() {
 
     const handleDeleteCompareBasket = (basketId: string) => {
         setCompareBaskets((current) => current.filter((entry) => entry.id !== basketId));
+        if (editingCompareBasketId === basketId) {
+            setEditingCompareBasketId(null);
+            setEditingCompareBasketName('');
+        }
         setCompareBasketMessage(activeCompareBasketId === basketId ? 'Removed active compare basket.' : 'Compare basket removed.');
+    };
+
+    const handleStartEditCompareBasket = (basket: CompareBasketPreset) => {
+        setEditingCompareBasketId(basket.id);
+        setEditingCompareBasketName(basket.name);
+    };
+
+    const handleCancelEditCompareBasket = () => {
+        setEditingCompareBasketId(null);
+        setEditingCompareBasketName('');
+    };
+
+    const handleSaveCompareBasketName = (basket: CompareBasketPreset) => {
+        const trimmed = editingCompareBasketName.trim();
+        if (!trimmed) {
+            return;
+        }
+        setCompareBaskets((current) => current.map((entry) => (
+            entry.id === basket.id
+                ? { ...entry, name: trimmed, updatedAt: new Date().toISOString() }
+                : entry
+        )));
+        setEditingCompareBasketId(null);
+        setEditingCompareBasketName('');
+        setCompareBasketMessage(`Renamed compare basket: ${trimmed}`);
+    };
+
+    const handleOverwriteCompareBasket = (basket: CompareBasketPreset) => {
+        if (compareSymbols.length === 0) {
+            return;
+        }
+        setCompareBaskets((current) => current.map((entry) => (
+            entry.id === basket.id
+                ? {
+                    ...entry,
+                    market: selectedMarket,
+                    symbols: compareSymbols.slice(0, 3),
+                    updatedAt: new Date().toISOString(),
+                }
+                : entry
+        )));
+        setCompareBasketMessage(`Overwrote compare basket: ${basket.name}`);
     };
 
     const handleSaveCurrentLayout = async () => {
@@ -2122,17 +2170,42 @@ export default function WatchlistPage() {
                                                     <div key={basket.id} className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
                                                         <div className="flex flex-wrap items-start justify-between gap-3">
                                                             <div className="min-w-0 flex-1">
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <p className="text-sm font-semibold text-white">{basket.name}</p>
-                                                                    {activeCompareBasketId === basket.id && (
-                                                                        <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300">
-                                                                            Active
+                                                                {editingCompareBasketId === basket.id ? (
+                                                                    <div className="space-y-3">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={editingCompareBasketName}
+                                                                            onChange={(event) => setEditingCompareBasketName(event.target.value)}
+                                                                            className="w-full rounded-2xl border border-zinc-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-amber-400"
+                                                                        />
+                                                                        <div className="flex flex-wrap gap-2">
+                                                                            <button
+                                                                                onClick={() => handleSaveCompareBasketName(basket)}
+                                                                                className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-300 transition hover:bg-emerald-400/20"
+                                                                            >
+                                                                                Save
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={handleCancelEditCompareBasket}
+                                                                                className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-400 transition hover:text-white"
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <p className="text-sm font-semibold text-white">{basket.name}</p>
+                                                                        {activeCompareBasketId === basket.id && (
+                                                                            <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300">
+                                                                                Active
+                                                                            </span>
+                                                                        )}
+                                                                        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                                                                            {basket.market}
                                                                         </span>
-                                                                    )}
-                                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
-                                                                        {basket.market}
-                                                                    </span>
-                                                                </div>
+                                                                    </div>
+                                                                )}
                                                                 <div className="mt-2 flex flex-wrap gap-2">
                                                                     {basket.symbols.map((symbol, index) => (
                                                                         <span
@@ -2152,20 +2225,35 @@ export default function WatchlistPage() {
                                                                     Updated {new Date(basket.updatedAt).toLocaleString()}
                                                                 </p>
                                                             </div>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                <button
-                                                                    onClick={() => handleApplyCompareBasket(basket)}
-                                                                    className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
-                                                                >
-                                                                    Apply
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleDeleteCompareBasket(basket.id)}
-                                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
-                                                                >
-                                                                    Remove
-                                                                </button>
-                                                            </div>
+                                                            {editingCompareBasketId !== basket.id && (
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    <button
+                                                                        onClick={() => handleApplyCompareBasket(basket)}
+                                                                        className="rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
+                                                                    >
+                                                                        Apply
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleOverwriteCompareBasket(basket)}
+                                                                        disabled={compareSymbols.length === 0}
+                                                                        className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                                    >
+                                                                        Overwrite
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleStartEditCompareBasket(basket)}
+                                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                                    >
+                                                                        Rename
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteCompareBasket(basket.id)}
+                                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                                    >
+                                                                        Remove
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))
