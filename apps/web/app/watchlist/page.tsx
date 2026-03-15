@@ -135,6 +135,7 @@ type AlertHistoryWindow = 'ALL' | '24H' | '7D' | '30D';
 type UniverseQuickFilter = 'ALL' | 'GAINERS' | 'LOSERS' | 'FAVORITES' | 'SECTOR';
 type UniverseSortMode = 'MOVE_DESC' | 'MOVE_ASC' | 'PRICE_DESC' | 'ALPHA';
 type ScannerWorkspaceTab = 'DISCOVERY' | 'UNIVERSE' | 'VIEWS';
+type TerminalPanelTab = 'COMPARE' | 'LAYOUTS' | 'SNAPSHOT';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
@@ -391,6 +392,7 @@ export default function WatchlistPage() {
     const [universeQuickFilter, setUniverseQuickFilter] = useState<UniverseQuickFilter>('ALL');
     const [universeSortMode, setUniverseSortMode] = useState<UniverseSortMode>('MOVE_DESC');
     const [scannerWorkspaceTab, setScannerWorkspaceTab] = useState<ScannerWorkspaceTab>('DISCOVERY');
+    const [terminalPanelTab, setTerminalPanelTab] = useState<TerminalPanelTab>('COMPARE');
     const [scannerViews, setScannerViews] = useState<ScannerViewPreset[]>([]);
     const [scannerViewNameDraft, setScannerViewNameDraft] = useState('');
     const [scannerViewMessage, setScannerViewMessage] = useState('');
@@ -3599,6 +3601,28 @@ export default function WatchlistPage() {
                                         </div>
                                     )}
 
+                                    <div className="flex flex-wrap gap-2">
+                                        {([
+                                            ['COMPARE', 'Compare'],
+                                            ['LAYOUTS', 'Layouts'],
+                                            ['SNAPSHOT', 'Snapshot'],
+                                        ] as const).map(([key, label]) => (
+                                            <button
+                                                key={key}
+                                                onClick={() => setTerminalPanelTab(key)}
+                                                className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition ${
+                                                    terminalPanelTab === key
+                                                        ? 'border-amber-400/25 bg-amber-400/10 text-amber-300'
+                                                        : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'
+                                                }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {terminalPanelTab === 'COMPARE' && (
+                                    <>
                                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                                         <div className="flex flex-wrap items-start justify-between gap-4">
                                             <div>
@@ -4046,7 +4070,10 @@ export default function WatchlistPage() {
                                             </div>
                                         </div>
                                     )}
+                                    </>
+                                    )}
 
+                                    {terminalPanelTab === 'LAYOUTS' && (
                                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
@@ -4263,6 +4290,8 @@ export default function WatchlistPage() {
                                             )}
                                         </div>
                                     </div>
+
+                                    )}
 
                                     <div className="grid gap-4">
                                         <div className="rounded-3xl border border-white/8 bg-zinc-950/60 p-4">
@@ -4825,6 +4854,7 @@ export default function WatchlistPage() {
                                         </div>
                                     </div>
 
+                                    {terminalPanelTab === 'SNAPSHOT' && (
                                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                                         <div className="flex flex-wrap items-start justify-between gap-4">
                                             <div>
@@ -4895,6 +4925,7 @@ export default function WatchlistPage() {
                                             <p className="mt-3 break-all text-xs text-zinc-500">{snapshotMessage}</p>
                                         )}
                                     </div>
+                                    )}
 
                                     <div className="grid gap-4 md:grid-cols-6">
                                         <article className="rounded-2xl border border-white/10 bg-black/35 p-4 backdrop-blur-xl">

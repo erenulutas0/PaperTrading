@@ -68,6 +68,7 @@ Last updated: 2026-03-11
   - uses a compact chart-toolbar treatment for search / market / range / interval / compare controls
   - keeps right-rail monitoring counters compressed instead of stacking more tall cards
   - lets scanner discovery / universe / saved views render as tabs instead of one long vertical wall
+  - lets compare baskets / saved layouts / snapshot tools render as tabs instead of stacking all terminal side surfaces at once
 - [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol

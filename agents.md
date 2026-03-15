@@ -57,6 +57,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Followed with a third hierarchy pass:
       - scanner workspace split into `Discovery / Universe / Views` tabs
       - discovery cards no longer compete vertically with the full universe list and saved-view management at the same time
+    - Followed with a fourth density pass:
+      - compare baskets, saved layouts, and snapshot tooling split into `Compare / Layouts / Snapshot` tabs
+      - terminal side surfaces no longer stack every preset/export panel simultaneously above the chart
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible
