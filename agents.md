@@ -38,6 +38,17 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Analytics Canvas Redraw Fallback Reduced From Container Observation to Window Resize**
+  - **Problem observed**:
+    - The analytics stabilization pass introduced container-aware redraw triggers using `ResizeObserver`.
+    - In production, that created loop risk on the analytics surface, which is exactly the wrong tradeoff for a metrics page that must open reliably.
+  - **Implementation**:
+    - Removed `ResizeObserver` from the analytics canvas redraw path.
+    - Kept redraw triggering on explicit `window.resize`, while retaining the shared canvas reset/init logic.
+    - This keeps charts responsive to real viewport changes without coupling redraw to container observation churn.
+  - **Operational impact**:
+    - analytics favors deterministic opening and navigation stability over more aggressive container-reactive redraw behavior
+    - the page still redraws on actual viewport resize, but avoids a higher-risk self-triggering loop path
 - **2026-03-15**: **Dashboard Portfolio Cards Added Quick Compare Deep-Link Into Analytics**
   - **Problem observed**:
     - Compare mode in analytics had become strong, but the entry point still started from a single-portfolio mindset.

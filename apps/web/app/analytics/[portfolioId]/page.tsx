@@ -604,13 +604,6 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             });
         };
 
-        const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(requestRedraw) : null;
-        [canvasRef.current, pnlCanvasRef.current, compareCanvasRef.current].forEach((canvas) => {
-            if (canvas?.parentElement) {
-                resizeObserver?.observe(canvas.parentElement);
-            }
-        });
-
         window.addEventListener('resize', requestRedraw);
 
         return () => {
@@ -618,7 +611,6 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             if (frameId !== null) {
                 cancelAnimationFrame(frameId);
             }
-            resizeObserver?.disconnect();
         };
     }, []);
 
