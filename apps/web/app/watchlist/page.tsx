@@ -572,6 +572,18 @@ export default function WatchlistPage() {
         return Array.isArray(selectedWatchlistMeta?.items) ? selectedWatchlistMeta.items.length : 0;
     }, [selectedWatchlistMeta]);
 
+    const describeCompareBasketSnapshot = useCallback((symbols: string[]) => {
+        const instruments = symbols
+            .map((symbol) => instrumentMap.get(symbol) ?? null)
+            .filter((instrument): instrument is InstrumentOption => instrument !== null);
+        if (instruments.length === 0) {
+            return 'No live market snapshot';
+        }
+        const averageMove = instruments.reduce((sum, instrument) => sum + Number(instrument.changePercent24h ?? 0), 0) / instruments.length;
+        const leader = [...instruments].sort((left, right) => Number(right.changePercent24h ?? 0) - Number(left.changePercent24h ?? 0))[0];
+        return `Avg ${formatPercent(averageMove)} · Leader ${leader.symbol} ${formatPercent(Number(leader.changePercent24h ?? 0))}`;
+    }, [instrumentMap]);
+
     const topPinnedNotes = useMemo(() => {
         return chartNotes.filter((note) => note.pinned).slice(0, 2);
     }, [chartNotes]);
@@ -2640,6 +2652,7 @@ export default function WatchlistPage() {
                                                                 </span>
                                                             </div>
                                                             <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
+                                                            <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
                                                             <div className="mt-3 flex flex-wrap gap-2">
                                                                 {basket.symbols.map((symbol, index) => (
                                                                     <span
@@ -2687,6 +2700,7 @@ export default function WatchlistPage() {
                                                                 </span>
                                                             </div>
                                                             <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
+                                                            <p className="mt-2 text-[11px] font-semibold text-zinc-300">{describeCompareBasketSnapshot(basket.symbols)}</p>
                                                             <div className="mt-3 flex flex-wrap gap-2">
                                                                 {basket.symbols.map((symbol, index) => (
                                                                     <span
@@ -2770,6 +2784,9 @@ export default function WatchlistPage() {
                                                                 </div>
                                                                 <p className="mt-2 text-[11px] text-zinc-500">
                                                                     Updated {new Date(basket.updatedAt).toLocaleString()}
+                                                                </p>
+                                                                <p className="mt-2 text-[11px] font-semibold text-zinc-300">
+                                                                    {describeCompareBasketSnapshot(basket.symbols)}
                                                                 </p>
                                                             </div>
                                                             {editingCompareBasketId !== basket.id && (

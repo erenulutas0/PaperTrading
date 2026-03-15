@@ -155,6 +155,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - adaptive suggested baskets
       - fixed market-defined baskets
     - this makes relative analysis faster even on a fresh account with little personal terminal history
+- **2026-03-15**: **Compare Basket Cards Added Pre-Apply Market Snapshot Context**
+  - **Problem observed**:
+    - Compare baskets were reusable, but before applying one the user still had little idea what the basket currently looked like.
+    - That forced an apply-first workflow even for quick screening.
+  - **Implementation**:
+    - Added a lightweight 24h snapshot line to compare basket cards:
+      - average basket move
+      - current leading symbol in the basket
+    - Applied to:
+      - suggested baskets
+      - built-in baskets
+      - saved compare baskets
+  - **Operational impact**:
+    - compare presets now communicate immediate market context before the user commits the overlay to the chart
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

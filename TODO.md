@@ -104,6 +104,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after universe movers-strip rollout and verify `/watchlist` now surfaces quick top/bottom movers cards that jump into the corresponding scanner slice
 - [ ] Redeploy frontend after saved scanner-view rollout and verify `/watchlist` now supports saving and restoring instrument-universe filter/sort/search presets per market
 - [ ] Redeploy frontend after built-in compare-basket rollout and verify `/watchlist` now surfaces reusable market-defined compare baskets (e.g. crypto majors, BIST banks, BIST holdings)
+- [ ] Redeploy frontend after compare-basket snapshot-badge rollout and verify `/watchlist` compare basket cards now show quick 24h basket context before apply
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol
