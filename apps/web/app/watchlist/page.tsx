@@ -720,6 +720,60 @@ export default function WatchlistPage() {
         return chips;
     }, [compareSymbols, favoriteSymbols, selectedWatchlistSymbolSet]);
 
+    const getCompareBasketApplyImpactChips = useCallback((symbols: string[]) => {
+        const normalized = symbols
+            .filter((symbol) => symbol !== selectedSymbol)
+            .filter((symbol) => instrumentMap.has(symbol))
+            .slice(0, 3);
+        const additions = normalized.filter((symbol) => !compareSymbols.includes(symbol)).length;
+        const removals = compareSymbols.filter((symbol) => !normalized.includes(symbol)).length;
+
+        const chips: Array<{ label: string; className: string }> = [];
+        chips.push({
+            label: `Usable ${normalized.length}/${symbols.length}`,
+            className: normalized.length > 0
+                ? 'border-sky-400/20 bg-sky-400/10 text-sky-300'
+                : 'border-white/10 bg-white/[0.03] text-zinc-300',
+        });
+
+        if (normalized.length === 0) {
+            chips.push({
+                label: 'No Apply Path',
+                className: 'border-red-400/20 bg-red-400/10 text-red-200',
+            });
+            return chips;
+        }
+
+        if (additions === 0 && removals === 0 && compareVisible) {
+            chips.push({
+                label: 'No Change',
+                className: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
+            });
+        } else {
+            chips.push({
+                label: additions > 0 ? `Add ${additions}` : 'Add 0',
+                className: additions > 0
+                    ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                    : 'border-white/10 bg-white/[0.03] text-zinc-300',
+            });
+            chips.push({
+                label: removals > 0 ? `Drop ${removals}` : 'Drop 0',
+                className: removals > 0
+                    ? 'border-red-400/20 bg-red-400/10 text-red-200'
+                    : 'border-white/10 bg-white/[0.03] text-zinc-300',
+            });
+        }
+
+        if (!compareVisible && normalized.length > 0) {
+            chips.push({
+                label: 'Will Reveal',
+                className: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
+            });
+        }
+
+        return chips.slice(0, 4);
+    }, [compareSymbols, compareVisible, instrumentMap, selectedSymbol]);
+
     const getCompareBasketSparklineModel = useCallback((symbols: string[]) => {
         const items = symbols
             .map((symbol) => {
@@ -3601,6 +3655,16 @@ export default function WatchlistPage() {
                                                                         </span>
                                                                     ))}
                                                                 </div>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketApplyImpactChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-impact-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
                                                                 {renderCompareBasketSparkline(basket.symbols)}
                                                                 <div className="mt-3 flex flex-wrap gap-2">
                                                                     {basket.symbols.map((symbol, index) => (
@@ -3693,6 +3757,16 @@ export default function WatchlistPage() {
                                                                     {getCompareBasketOverlapChips(basket.symbols).map((chip) => (
                                                                         <span
                                                                             key={`${basket.id}-overlap-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketApplyImpactChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-impact-${chip.label}`}
                                                                             className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
                                                                         >
                                                                             {chip.label}
@@ -3827,6 +3901,16 @@ export default function WatchlistPage() {
                                                                     {getCompareBasketOverlapChips(basket.symbols).map((chip) => (
                                                                         <span
                                                                             key={`${basket.id}-overlap-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketApplyImpactChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-impact-${chip.label}`}
                                                                             className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
                                                                         >
                                                                             {chip.label}

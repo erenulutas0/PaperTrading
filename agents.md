@@ -395,6 +395,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare basket cards now communicate workspace fit in addition to market shape
     - users can choose baskets that are either novel or strongly aligned with their active workflow
+- **2026-03-15**: **Compare Basket Cards Added Apply-Impact Preview Chips**
+  - **Problem observed**:
+    - Even with market and workspace context, users still had to mentally simulate what pressing `Apply` would do to the current compare session.
+    - That was especially weak when:
+      - some symbols were unusable in the current market context
+      - the basket would replace rather than extend the current compare set
+      - compare overlays were hidden
+  - **Implementation**:
+    - Added apply-impact chips to suggested, built-in, and saved compare basket cards for:
+      - usable symbol count
+      - additions
+      - removals
+      - hidden-overlay reveal state
+      - no-change case
+  - **Operational impact**:
+    - compare basket cards now explain session impact before the user commits to the apply action
+    - users can distinguish exploratory baskets from low-risk one-click swaps more quickly
 - **2026-03-15**: **Instrument Universe Cards Added Market, Sector, and Velocity Signals**
   - **Problem observed**:
     - Workspace-state pills helped answer "where is this symbol in my workflow?", but cards still lacked enough market-relative context.
