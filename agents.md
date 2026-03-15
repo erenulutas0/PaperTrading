@@ -3746,5 +3746,19 @@ A change is “done” when:
   - audit review can now be shared or reopened as a stable filtered view instead of being limited to one session
   - request-level forensics now takes one click from the row list instead of manual copy/paste
 
+### 2026-03-15: Audit Ops Workspace Added Quick Facets For Fast Narrowing
+- Problem observed:
+  - Pagination and portable links improved audit navigation, but operators still had to use the raw filter form for every refinement.
+  - In practice, many drill-down flows start from "which action/resource/actor dominates this slice?"
+- Implementation:
+  - `/dashboard/audit` now derives quick facets from the currently loaded page set for:
+    - actions
+    - resources
+    - actors
+  - Each facet chip can be clicked to apply the corresponding filter immediately.
+- Operational impact:
+  - audit narrowing is faster because the page now suggests the next obvious slice instead of forcing all refinement through manual inputs
+  - the facet layer stays lightweight and UI-only, so it does not expand backend contract surface unnecessarily
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

@@ -1747,3 +1747,7 @@ Last updated: 2026-03-11
   - Add audit JSON export from the current filtered workspace state
   - Add `Copy View Link` and row-level request focus
   - Rehydrate audit filter state from URL query params on load
+- [x] Add audit quick facets:
+  - Surface top actions, resources, and actors from the current slice
+  - Allow one-click narrowing from facet chips
+  - Keep pagination and portable-view behavior intact

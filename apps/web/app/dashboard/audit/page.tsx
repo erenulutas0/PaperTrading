@@ -82,6 +82,38 @@ function AuditSummaryCard({
     );
 }
 
+function FacetChips({
+    title,
+    items,
+    onSelect,
+}: {
+    title: string;
+    items: { label: string; count: number; value: string }[];
+    onSelect: (value: string) => void;
+}) {
+    if (items.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">{title}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+                {items.map((item) => (
+                    <button
+                        key={`${title}-${item.value}`}
+                        type="button"
+                        onClick={() => onSelect(item.value)}
+                        className="rounded-full border border-zinc-800 bg-black px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:border-primary/35 hover:text-white"
+                    >
+                        {item.label} <span className="text-zinc-500">({item.count})</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function AuditPage() {
     const [data, setData] = useState<AuditResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -172,6 +204,55 @@ export default function AuditPage() {
         }
         return `${filters.days}D`;
     }, [filters]);
+
+    const topActionFacets = useMemo(() => {
+        if (!data) {
+            return [];
+        }
+        const counts = new Map<string, number>();
+        data.entries.forEach((entry) => {
+            counts.set(entry.actionType, (counts.get(entry.actionType) ?? 0) + 1);
+        });
+        return [...counts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([value, count]) => ({ value, count, label: value }));
+    }, [data]);
+
+    const topResourceFacets = useMemo(() => {
+        if (!data) {
+            return [];
+        }
+        const counts = new Map<string, number>();
+        data.entries.forEach((entry) => {
+            counts.set(entry.resourceType, (counts.get(entry.resourceType) ?? 0) + 1);
+        });
+        return [...counts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([value, count]) => ({ value, count, label: value }));
+    }, [data]);
+
+    const topActorFacets = useMemo(() => {
+        if (!data) {
+            return [];
+        }
+        const counts = new Map<string, number>();
+        data.entries.forEach((entry) => {
+            if (!entry.actorId) {
+                return;
+            }
+            counts.set(entry.actorId, (counts.get(entry.actorId) ?? 0) + 1);
+        });
+        return [...counts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([value, count]) => ({
+                value,
+                count,
+                label: value.length > 12 ? `${value.slice(0, 8)}...` : value,
+            }));
+    }, [data]);
 
     const exportCsv = async () => {
         setExporting(true);
@@ -278,6 +359,35 @@ export default function AuditPage() {
                 <AuditSummaryCard label="Window" value={activeWindowLabel} />
                 <AuditSummaryCard label="Checked At" value={data?.checkedAt ? new Date(data.checkedAt).toLocaleTimeString() : '...'} />
             </section>
+
+            {!loading && data && data.entries.length > 0 && (
+                <section className="mt-6 grid gap-4 xl:grid-cols-3">
+                    <FacetChips
+                        title="Top Actions"
+                        items={topActionFacets}
+                        onSelect={(value) => {
+                            setPage(0);
+                            setFilters((current) => ({ ...current, actionType: value }));
+                        }}
+                    />
+                    <FacetChips
+                        title="Top Resources"
+                        items={topResourceFacets}
+                        onSelect={(value) => {
+                            setPage(0);
+                            setFilters((current) => ({ ...current, resourceType: value }));
+                        }}
+                    />
+                    <FacetChips
+                        title="Top Actors"
+                        items={topActorFacets}
+                        onSelect={(value) => {
+                            setPage(0);
+                            setFilters((current) => ({ ...current, actorId: value }));
+                        }}
+                    />
+                </section>
+            )}
 
             <section className="mt-6 grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
                 <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
