@@ -450,6 +450,29 @@ export default function AuditPage() {
         }
     };
 
+    const copyFocusedViewLink = async (entry: AuditEntry) => {
+        try {
+            const params = new URLSearchParams();
+            params.set('limit', filters.limit);
+            params.set('page', '0');
+            if (filters.days) params.set('days', filters.days);
+            if (entry.requestId) params.set('requestId', entry.requestId);
+            const url = `${window.location.origin}/dashboard/audit?${params.toString()}`;
+            await navigator.clipboard.writeText(url);
+            setCopiedDetailField('focusLink');
+            window.setTimeout(() => setCopiedDetailField(''), 1600);
+        } catch (copyError) {
+            setError(copyError instanceof Error ? copyError.message : 'Failed to copy focused audit link');
+        }
+    };
+
+    const openFocusedView = (entry: AuditEntry) => {
+        if (!entry.requestId) {
+            return;
+        }
+        focusRequestId(entry.requestId);
+    };
+
     useEffect(() => {
         if (!data?.entries.length) {
             setSelectedEntryId(null);
@@ -872,6 +895,24 @@ export default function AuditPage() {
                                     >
                                         Filter Actor
                                     </button>
+                                )}
+                                {selectedEntry.requestId && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => openFocusedView(selectedEntry)}
+                                            className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary/20"
+                                        >
+                                            Open Focused View
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void copyFocusedViewLink(selectedEntry)}
+                                            className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                        >
+                                            {copiedDetailField === 'focusLink' ? 'Focus Link Copied' : 'Copy Focus Link'}
+                                        </button>
+                                    </>
                                 )}
                                 <button
                                     type="button"

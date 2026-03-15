@@ -3857,5 +3857,18 @@ A change is “done” when:
   - selected-row inspection can now immediately pivot into a narrower audit slice
   - the detail panel now supports both read and follow-up actions without forcing a context switch
 
+### 2026-03-15: Audit Detail Panel Added Focused-View Actions
+- Problem observed:
+  - Request-focused investigation already existed, but the operator still had to leave the detail panel to enter that mode or reconstruct a focused link.
+  - That created a split between row inspection and request-level deep-linking.
+- Implementation:
+  - Added detail-panel actions for:
+    - `Open Focused View`
+    - `Copy Focus Link`
+  - Both actions derive from the selected row’s `requestId` and reuse the existing audit request-focus model.
+- Operational impact:
+  - request-level narrowing is now available directly from the row-inspection surface
+  - focused audit views are easier to share without manually rebuilding query parameters
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

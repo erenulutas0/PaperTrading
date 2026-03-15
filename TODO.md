@@ -1775,3 +1775,7 @@ Last updated: 2026-03-11
   - Apply action, resource, and actor filters directly from the selected row
   - Add copy actions for request path and details payload
   - Keep request-focus and row selection workflows aligned
+- [x] Add focused-view actions to audit detail:
+  - Open request-focused audit view directly from the selected row
+  - Copy a focused audit link from the detail panel
+  - Keep detail actions aligned with existing request focus behavior
