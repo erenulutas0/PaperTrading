@@ -1324,19 +1324,26 @@ ${lines}
                                 Best/Worst interval {formatCurrency(periodExtremes.bestMove.absoluteReturn)} / {formatCurrency(periodExtremes.worstMove.absoluteReturn)}
                             </p>
                         </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                            <button
-                                type="button"
-                                onClick={() => void copySnapshotSummary()}
-                                className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20"
-                            >
-                                {snapshotSummaryCopied ? 'Summary Copied' : 'Copy Summary'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => downloadSnapshotJson()}
-                                className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
-                            >
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <button
+                                    type="button"
+                                    onClick={() => void copySnapshotSummary()}
+                                    className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20"
+                                >
+                                    {snapshotSummaryCopied ? 'Summary Copied' : 'Copy Summary'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void copyAnalyticsShareLink()}
+                                    className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                                >
+                                    {compareLinkCopied ? 'Link Copied' : 'Copy Share Link'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => downloadSnapshotJson()}
+                                    className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
+                                >
                                 Download JSON
                             </button>
                             <button

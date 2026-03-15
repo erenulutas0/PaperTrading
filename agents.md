@@ -3380,6 +3380,7 @@ A change is “done” when:
     - active compare delta when compare mode is loaded
   - Added actions for:
     - `Copy Summary`
+    - `Copy Share Link`
     - `Download JSON`
     - `Download SVG Card`
   - Kept the feature frontend-only by deriving the snapshot from the existing analytics payload rather than expanding the backend contract again.
