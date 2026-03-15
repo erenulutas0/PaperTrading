@@ -343,6 +343,16 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - scanner cards now communicate both market state and workspace state in one place
     - watchlist and compare workflows require fewer context switches while scanning the universe
+- **2026-03-15**: **Saved Compare Baskets Can Now Be Promoted Into Full Terminal Layouts**
+  - **Problem observed**:
+    - Lightweight compare baskets are fast to save and reuse, but they stop short of a full terminal preset.
+    - Once a compare setup becomes valuable, users should not need to manually rebuild it into a named layout.
+  - **Implementation**:
+    - Reused the existing terminal-layout create path from `/watchlist`.
+    - Saved compare basket cards now expose `Save Layout`, which captures the current terminal context while substituting the basket's compare symbols.
+  - **Operational impact**:
+    - compare experimentation and full-layout persistence are now connected instead of living as separate workflows
+    - a good compare basket can be promoted into a durable terminal preset with one click
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

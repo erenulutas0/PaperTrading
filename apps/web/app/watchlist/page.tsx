@@ -2397,27 +2397,59 @@ export default function WatchlistPage() {
         setScannerViewMessage(`Saved sector scanner view: ${sector}`);
     };
 
-    const handleSaveCurrentLayout = async () => {
-        const trimmed = layoutNameDraft.trim();
+    const saveLayoutSnapshot = useCallback(async (name: string, overrideCompareSymbols?: string[]) => {
+        const trimmed = name.trim();
         if (!currentUserId || !trimmed) {
-            return;
+            return null;
         }
-        const layout = await createTerminalLayout(currentUserId, {
+        return createTerminalLayout(currentUserId, {
             name: trimmed,
             watchlistId: selectedWatchlist,
             market: selectedMarket,
             symbol: selectedSymbol,
-            compareSymbols,
+            compareSymbols: (overrideCompareSymbols ?? compareSymbols).slice(0, 3),
             compareVisible,
             range: selectedRange,
             interval: selectedInterval,
             favoriteSymbols,
         });
+    }, [
+        compareSymbols,
+        compareVisible,
+        currentUserId,
+        favoriteSymbols,
+        selectedInterval,
+        selectedMarket,
+        selectedRange,
+        selectedSymbol,
+        selectedWatchlist,
+    ]);
+
+    const handleSaveCurrentLayout = async () => {
+        const trimmed = layoutNameDraft.trim();
+        if (!trimmed) {
+            return;
+        }
+        const layout = await saveLayoutSnapshot(trimmed);
         if (!layout) {
             return;
         }
         setTerminalLayouts((current) => [layout, ...current].slice(0, 10));
         setLayoutNameDraft('');
+    };
+
+    const handleSaveCompareBasketAsLayout = async (basket: CompareBasketPreset) => {
+        if (terminalLayouts.length >= 10) {
+            setCompareBasketMessage('Layout limit reached. Remove one saved layout before capturing another.');
+            return;
+        }
+        const layout = await saveLayoutSnapshot(`Compare Layout · ${basket.name}`, basket.symbols);
+        if (!layout) {
+            setCompareBasketMessage('Failed to save compare basket as layout.');
+            return;
+        }
+        setTerminalLayouts((current) => [layout, ...current].slice(0, 10));
+        setCompareBasketMessage(`Saved compare basket as layout: ${layout.name}`);
     };
 
     const handleApplyLayout = (layout: TerminalLayoutResponsePayload) => {
@@ -3388,6 +3420,13 @@ export default function WatchlistPage() {
                                                                         className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300 transition hover:bg-emerald-400/20"
                                                                     >
                                                                         Share
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleSaveCompareBasketAsLayout(basket)}
+                                                                        disabled={!currentUserId || terminalLayouts.length >= 10}
+                                                                        className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-violet-300 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                                    >
+                                                                        Save Layout
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleStartEditCompareBasket(basket)}
