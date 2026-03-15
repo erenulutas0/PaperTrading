@@ -436,16 +436,23 @@ export default function Dashboard() {
                                                             </option>
                                                         ))}
                                                     </select>
-                                                    <Link
-                                                        href={compareHref}
+                                                    <button
+                                                        type="button"
+                                                        disabled={!compareTargetId}
+                                                        onClick={() => {
+                                                            if (!compareTargetId) {
+                                                                return;
+                                                            }
+                                                            router.push(compareHref);
+                                                        }}
                                                         className={`inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs font-bold transition-colors ${
                                                             compareTargetId
                                                                 ? 'border-cyan-500/20 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20'
-                                                                : 'pointer-events-none border-white/10 bg-white/5 text-zinc-500'
-                                                        }`}
+                                                                : 'border-white/10 bg-white/5 text-zinc-500'
+                                                        } disabled:cursor-not-allowed disabled:opacity-60`}
                                                     >
                                                         Compare In Analytics
-                                                    </Link>
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>

@@ -74,8 +74,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Added a `Quick Compare` control block to each dashboard portfolio card.
     - Each card now offers:
       - a selector of the user’s other portfolios
-      - a deep-link into `/analytics/{portfolioId}?compare=...`
+      - a direct client-side navigation into `/analytics/{portfolioId}?compare=...`
     - Kept the deep-link lightweight by reusing the compare-state URL hydration already added to analytics.
+    - After route instability was observed, the quick-compare trigger was moved from `Link` semantics to explicit `router.push(...)` navigation so compare launch no longer depends on link prefetch behavior.
   - **Operational impact**:
     - dashboard now acts as a real launch surface for portfolio-vs-portfolio inspection instead of only linking to single-portfolio analytics
     - compare workflows require fewer clicks and less context switching
