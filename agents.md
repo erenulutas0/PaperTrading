@@ -3489,5 +3489,24 @@ A change is “done” when:
   - dashboard now opens with both an account-level view and a portfolio-level view
   - users can judge overall posture before drilling into any specific portfolio card
 
+### 2026-03-14: Profile Trust Surface Reframed As A Summary Layer Instead Of Flat Stats
+- Problem observed:
+  - The profile page already had trust score, win rate, and trust breakdown data, but the top section still felt like disconnected counters.
+  - Trust evidence existed lower on the page, making the page harder to scan quickly.
+- Implementation:
+  - Replaced the flat top stat cards with a more intentional profile summary strip:
+    - trust score
+    - platform win rate
+    - public signal set size
+    - member since
+  - Added compact evidence chips to the trust-trend section for:
+    - resolved predictions
+    - resolved trades
+    - total portfolios
+  - Tightened profile zero-state copy for users with no portfolios yet.
+- Operational impact:
+  - the profile now reads more like a public proof-of-performance summary instead of a generic account page
+  - trust evidence becomes easier to interpret without scanning the whole page
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

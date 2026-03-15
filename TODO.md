@@ -1691,3 +1691,7 @@ Last updated: 2026-03-11
 - [x] Add dashboard account summary strip:
   - Show total portfolios, public portfolios, total cash, open exposure, estimated equity, and trust
   - Derive values from current portfolio and price state without expanding backend contracts
+- [x] Promote profile/trust into a clearer summary surface:
+  - Replace flat top stats with a profile summary card strip
+  - Surface trust evidence counts as compact chips near the trend block
+  - Tighten zero-state copy for users with no portfolios yet
