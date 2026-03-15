@@ -305,6 +305,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare presets now expose internal strength distribution before the user applies the overlay
     - pre-apply scanning is faster because the card is no longer text-only
+- **2026-03-15**: **Market Terminal Added Compact Session Context Rail**
+  - **Problem observed**:
+    - `/watchlist` had become feature-rich, but key context was spread across the page:
+      - market
+      - watchlist binding
+      - compare state
+      - scanner preset state
+      - favorites footprint
+    - Users had to scan multiple modules before understanding the current session.
+  - **Implementation**:
+    - Added a compact context rail above the main instrument header.
+    - The rail surfaces:
+      - market context
+      - active watchlist
+      - compare state / active basket
+      - scanner state / active view
+      - favorite count
+    - Each card also carries a small state badge (`Context`, `Linked`, `Active`, `Preset`, etc.).
+  - **Operational impact**:
+    - the terminal now communicates session state before the user reads the deeper panels
+    - navigation between scanner, compare, and chart contexts is less error-prone because the current working state is explicit
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

@@ -1296,6 +1296,67 @@ export default function WatchlistPage() {
         return match?.id ?? null;
     }, [availableScannerViews, instrumentQuery, selectedMarket, selectedSymbol, universeQuickFilter, universeSortMode]);
 
+    const activeScannerView = useMemo(() => {
+        return availableScannerViews.find((view) => view.id === activeScannerViewId) ?? null;
+    }, [activeScannerViewId, availableScannerViews]);
+
+    const activeCompareBasket = useMemo(() => {
+        return availableCompareBaskets.find((basket) => basket.id === activeCompareBasketId) ?? null;
+    }, [activeCompareBasketId, availableCompareBaskets]);
+
+    const sessionContextCards = useMemo(() => ([
+        {
+            label: 'Market',
+            value: selectedMarket,
+            detail: selectedInstrumentMetadata?.delayLabel || 'Active provider context',
+            badge: 'Context',
+            accent: 'border-sky-400/20 bg-sky-400/10 text-sky-300',
+        },
+        {
+            label: 'Watchlist',
+            value: selectedWatchlistMeta?.name || 'Detached',
+            detail: selectedWatchlistMeta ? `${selectedWatchlistItemCount} items` : 'No active watchlist',
+            badge: 'Linked',
+            accent: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
+        },
+        {
+            label: 'Compare',
+            value: activeCompareBasket?.name || (compareSymbols.length > 0 ? `${compareSymbols.length} overlays` : 'Off'),
+            detail: compareSymbols.length > 0
+                ? (compareVisible ? 'Overlay visible' : 'Overlay hidden')
+                : 'No compare basket active',
+            badge: compareSymbols.length > 0 ? 'Active' : 'Idle',
+            accent: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
+        },
+        {
+            label: 'Scanner',
+            value: activeScannerView?.name || universeQuickFilter,
+            detail: `${universeSortMode} · ${instrumentQuery.trim() || 'No search'}`,
+            badge: activeScannerView ? 'Preset' : 'Live',
+            accent: 'border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-300',
+        },
+        {
+            label: 'Favorites',
+            value: String(favoriteSymbols.length),
+            detail: favoriteSymbols.length > 0 ? 'Starred working set' : 'No starred symbols',
+            badge: favoriteSymbols.length > 0 ? 'On' : 'Off',
+            accent: 'border-white/10 bg-white/[0.03] text-zinc-300',
+        },
+    ]), [
+        activeCompareBasket?.name,
+        activeScannerView?.name,
+        compareSymbols.length,
+        compareVisible,
+        favoriteSymbols.length,
+        instrumentQuery,
+        selectedInstrumentMetadata?.delayLabel,
+        selectedMarket,
+        selectedWatchlistItemCount,
+        selectedWatchlistMeta,
+        universeQuickFilter,
+        universeSortMode,
+    ]);
+
     const topMoverInstruments = useMemo(() => {
         return [...instrumentUniverse]
             .sort((left, right) => right.changePercent24h - left.changePercent24h)
@@ -2749,6 +2810,21 @@ export default function WatchlistPage() {
                         <section className="space-y-5">
                             <div className="rounded-3xl border border-white/10 bg-black/40 p-5 shadow-[0_0_60px_rgba(0,0,0,0.4)] backdrop-blur-xl">
                                 <div className="flex flex-col gap-5">
+                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                        {sessionContextCards.map((card) => (
+                                            <article key={card.label} className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">{card.label}</p>
+                                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${card.accent}`}>
+                                                        {card.badge}
+                                                    </span>
+                                                </div>
+                                                <p className="mt-2 text-sm font-semibold text-white">{card.value}</p>
+                                                <p className="mt-1 text-[11px] text-zinc-500">{card.detail}</p>
+                                            </article>
+                                        ))}
+                                    </div>
+
                                     <div className="flex flex-wrap items-start justify-between gap-4">
                                         <div>
                                             <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument</p>
