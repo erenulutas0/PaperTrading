@@ -71,6 +71,7 @@ class UserPreferencesControllerIntegrationTest {
                                         .quickFilter("GAINERS")
                                         .sortMode("MOVE_DESC")
                                         .query("btc")
+                                        .anchorSymbol("BTCUSDT")
                                         .updatedAt("2026-03-15T00:00:00Z")
                                         .build()))
                         .build())
@@ -180,6 +181,7 @@ class UserPreferencesControllerIntegrationTest {
                                         .quickFilter("GAINERS")
                                         .sortMode("ALPHA")
                                         .query("bank")
+                                        .anchorSymbol("ISCTR")
                                         .updatedAt("2026-03-15T00:00:00Z")
                                         .build()))
                         .build())
@@ -211,6 +213,7 @@ class UserPreferencesControllerIntegrationTest {
                       "quickFilter": "GAINERS",
                       "sortMode": "ALPHA",
                       "query": "bank",
+                      "anchorSymbol": "ISCTR",
                       "updatedAt": "2026-03-15T00:00:00Z"
                     }
                   ]

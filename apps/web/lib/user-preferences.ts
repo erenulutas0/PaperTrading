@@ -55,6 +55,7 @@ export interface TerminalScannerViewPayload {
   quickFilter: "ALL" | "GAINERS" | "LOSERS" | "FAVORITES" | "SECTOR";
   sortMode: "MOVE_DESC" | "MOVE_ASC" | "PRICE_DESC" | "ALPHA";
   query: string;
+  anchorSymbol?: string | null;
   updatedAt?: string | null;
 }
 

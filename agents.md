@@ -275,6 +275,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the market terminal now supports grouped scanner pivots instead of only symbol-level navigation
     - sector pressure can be inspected in one click without hand-building a filter path
+- **2026-03-15**: **Scanner Views Became Context-Aware With Anchor Symbols**
+  - **Problem observed**:
+    - Scanner presets could persist filter/sort/query, but sector-based views were incomplete because they lacked the symbol context that defines the sector peer group.
+    - Without that anchor symbol, a saved `SECTOR` preset could not fully restore its intended scanner state.
+  - **Implementation**:
+    - Extended scanner views with `anchorSymbol`.
+    - Terminal preference persistence now stores and restores that anchor context.
+    - Applying a scanner view can now also restore the anchor symbol before replaying the filter.
+    - `Sector Pulse` cards gained a direct `Save View` action that writes a context-aware sector preset.
+  - **Operational impact**:
+    - scanner presets now restore the full scanner intent, not just partial controls
+    - sector pivots can be converted into reusable account-backed presets in one click
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

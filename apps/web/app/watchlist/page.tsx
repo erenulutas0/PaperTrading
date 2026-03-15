@@ -95,6 +95,7 @@ interface ScannerViewPreset {
     quickFilter: UniverseQuickFilter;
     sortMode: UniverseSortMode;
     query: string;
+    anchorSymbol?: string | null;
     updatedAt: string;
 }
 
@@ -280,6 +281,7 @@ function readPersistedScannerViews(): ScannerViewPreset[] {
                 quickFilter: ['ALL', 'GAINERS', 'LOSERS', 'FAVORITES', 'SECTOR'].includes(String(entry.quickFilter)) ? entry.quickFilter as UniverseQuickFilter : 'ALL',
                 sortMode: ['MOVE_DESC', 'MOVE_ASC', 'PRICE_DESC', 'ALPHA'].includes(String(entry.sortMode)) ? entry.sortMode as UniverseSortMode : 'MOVE_DESC',
                 query: typeof entry.query === 'string' ? entry.query : '',
+                anchorSymbol: typeof entry.anchorSymbol === 'string' && entry.anchorSymbol ? entry.anchorSymbol : null,
                 updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
             }))
             .slice(0, 12);
@@ -325,6 +327,7 @@ function normalizeScannerViewPayloads(
             quickFilter: ['ALL', 'GAINERS', 'LOSERS', 'FAVORITES', 'SECTOR'].includes(String(view.quickFilter)) ? view.quickFilter as UniverseQuickFilter : 'ALL',
             sortMode: ['MOVE_DESC', 'MOVE_ASC', 'PRICE_DESC', 'ALPHA'].includes(String(view.sortMode)) ? view.sortMode as UniverseSortMode : 'MOVE_DESC',
             query: typeof view.query === 'string' ? view.query : '',
+            anchorSymbol: typeof view.anchorSymbol === 'string' && view.anchorSymbol ? view.anchorSymbol : null,
             updatedAt: typeof view.updatedAt === 'string' ? view.updatedAt : new Date().toISOString(),
         }))
         .slice(0, 12);
@@ -904,6 +907,7 @@ export default function WatchlistPage() {
         const scannerSort = params.get('scannerSort');
         const scannerQuery = params.get('scannerQuery');
         const scannerMarket = params.get('scannerMarket');
+        const scannerSymbol = params.get('scannerSymbol');
         if (!scannerFilter && !scannerSort && !scannerQuery && !scannerMarket) {
             return;
         }
@@ -918,6 +922,9 @@ export default function WatchlistPage() {
         }
         if (typeof scannerQuery === 'string') {
             setInstrumentQuery(scannerQuery);
+        }
+        if (typeof scannerSymbol === 'string' && scannerSymbol) {
+            setSelectedSymbol(scannerSymbol);
         }
     }, []);
 
@@ -1078,6 +1085,7 @@ export default function WatchlistPage() {
                     quickFilter: view.quickFilter,
                     sortMode: view.sortMode,
                     query: view.query,
+                    anchorSymbol: view.anchorSymbol ?? null,
                     updatedAt: view.updatedAt,
                 })),
             }).catch((error) => console.error('Failed to save terminal preferences:', error));
@@ -1174,9 +1182,10 @@ export default function WatchlistPage() {
             && view.quickFilter === universeQuickFilter
             && view.sortMode === universeSortMode
             && view.query.trim() === normalizedQuery
+            && (view.anchorSymbol ?? '') === (selectedSymbol ?? '')
         ));
         return match?.id ?? null;
-    }, [availableScannerViews, instrumentQuery, selectedMarket, universeQuickFilter, universeSortMode]);
+    }, [availableScannerViews, instrumentQuery, selectedMarket, selectedSymbol, universeQuickFilter, universeSortMode]);
 
     const topMoverInstruments = useMemo(() => {
         return [...instrumentUniverse]
@@ -1998,6 +2007,7 @@ export default function WatchlistPage() {
             quickFilter: universeQuickFilter,
             sortMode: universeSortMode,
             query: instrumentQuery,
+            anchorSymbol: selectedSymbol,
             updatedAt: new Date().toISOString(),
         };
         setScannerViews((current) => [nextView, ...current].slice(0, 12));
@@ -2006,6 +2016,9 @@ export default function WatchlistPage() {
     };
 
     const handleApplyScannerView = (view: ScannerViewPreset) => {
+        if (view.anchorSymbol) {
+            setSelectedSymbol(view.anchorSymbol);
+        }
         setUniverseQuickFilter(view.quickFilter);
         setUniverseSortMode(view.sortMode);
         setInstrumentQuery(view.query);
@@ -2055,6 +2068,7 @@ export default function WatchlistPage() {
                     quickFilter: universeQuickFilter,
                     sortMode: universeSortMode,
                     query: instrumentQuery,
+                    anchorSymbol: selectedSymbol,
                     updatedAt: new Date().toISOString(),
                 }
                 : entry
@@ -2072,6 +2086,7 @@ export default function WatchlistPage() {
             quickFilter: view.quickFilter,
             sortMode: view.sortMode,
             query: view.query,
+            anchorSymbol: view.anchorSymbol ?? null,
             updatedAt: view.updatedAt,
         }));
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -2108,6 +2123,7 @@ export default function WatchlistPage() {
                     quickFilter: ['ALL', 'GAINERS', 'LOSERS', 'FAVORITES', 'SECTOR'].includes(String(entry.quickFilter)) ? entry.quickFilter as UniverseQuickFilter : 'ALL',
                     sortMode: ['MOVE_DESC', 'MOVE_ASC', 'PRICE_DESC', 'ALPHA'].includes(String(entry.sortMode)) ? entry.sortMode as UniverseSortMode : 'MOVE_DESC',
                     query: typeof entry.query === 'string' ? entry.query : '',
+                    anchorSymbol: typeof entry.anchorSymbol === 'string' && entry.anchorSymbol ? entry.anchorSymbol : null,
                     updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
                 }))
                 .slice(0, 12);
@@ -2156,6 +2172,9 @@ export default function WatchlistPage() {
         if (view.query.trim()) {
             params.set('scannerQuery', view.query.trim());
         }
+        if (view.anchorSymbol) {
+            params.set('scannerSymbol', view.anchorSymbol);
+        }
         const shareUrl = `${window.location.origin}/watchlist?${params.toString()}`;
         try {
             await navigator.clipboard.writeText(shareUrl);
@@ -2164,6 +2183,38 @@ export default function WatchlistPage() {
             console.error(error);
             setScannerViewMessage(shareUrl);
         }
+    };
+
+    const handleSaveSectorPulseView = (sector: string, anchorSymbol: string) => {
+        const nextView: ScannerViewPreset = {
+            id: crypto.randomUUID(),
+            name: `Sector Pulse · ${sector}`,
+            market: selectedMarket,
+            quickFilter: 'SECTOR',
+            sortMode: 'MOVE_DESC',
+            query: '',
+            anchorSymbol,
+            updatedAt: new Date().toISOString(),
+        };
+        setScannerViews((current) => {
+            const merged = [nextView, ...current].reduce<ScannerViewPreset[]>((acc, view) => {
+                const existingIndex = acc.findIndex((entry) => (
+                    entry.market === view.market
+                    && entry.quickFilter === view.quickFilter
+                    && entry.sortMode === view.sortMode
+                    && entry.query.trim() === view.query.trim()
+                    && (entry.anchorSymbol ?? '') === (view.anchorSymbol ?? '')
+                ));
+                if (existingIndex >= 0) {
+                    acc[existingIndex] = view;
+                    return acc;
+                }
+                acc.push(view);
+                return acc;
+            }, []);
+            return merged.slice(0, 12);
+        });
+        setScannerViewMessage(`Saved sector scanner view: ${sector}`);
     };
 
     const handleSaveCurrentLayout = async () => {
@@ -3571,9 +3622,20 @@ export default function WatchlistPage() {
                                                                                 {group.count} symbols · leader {group.leader.symbol}
                                                                             </p>
                                                                         </div>
-                                                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${positive ? 'bg-emerald-950/60 text-emerald-200' : 'bg-red-950/60 text-red-200'}`}>
-                                                                            {formatPercent(group.averageMove)}
-                                                                        </span>
+                                                                        <div className="flex flex-col items-end gap-2">
+                                                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${positive ? 'bg-emerald-950/60 text-emerald-200' : 'bg-red-950/60 text-red-200'}`}>
+                                                                                {formatPercent(group.averageMove)}
+                                                                            </span>
+                                                                            <button
+                                                                                onClick={(event) => {
+                                                                                    event.stopPropagation();
+                                                                                    handleSaveSectorPulseView(group.sector, group.leader.symbol);
+                                                                                }}
+                                                                                className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-300 transition hover:text-white"
+                                                                            >
+                                                                                Save View
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                     <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-100/80">
                                                                         <span>{group.leader.displayName}</span>
@@ -3683,6 +3745,11 @@ export default function WatchlistPage() {
                                                                             <p className="mt-1 text-[11px] text-zinc-500">
                                                                                 {view.quickFilter} · {view.sortMode} · {view.query || 'No search'}
                                                                             </p>
+                                                                            {view.anchorSymbol && (
+                                                                                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-zinc-600">
+                                                                                    Anchor {view.anchorSymbol}
+                                                                                </p>
+                                                                            )}
                                                                         </>
                                                                     )}
                                                                 </div>

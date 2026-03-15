@@ -317,6 +317,7 @@ public class UserPreferencesService {
                     .quickFilter(normalizeScannerQuickFilter(view.getQuickFilter()))
                     .sortMode(normalizeScannerSortMode(view.getSortMode()))
                     .query(view.getQuery() == null ? "" : view.getQuery().trim())
+                    .anchorSymbol((view.getAnchorSymbol() == null || view.getAnchorSymbol().isBlank()) ? null : normalizeTerminalSymbol(view.getAnchorSymbol()))
                     .updatedAt((view.getUpdatedAt() == null || view.getUpdatedAt().isBlank()) ? null : view.getUpdatedAt().trim())
                     .build());
             if (normalized.size() >= MAX_SCANNER_VIEWS) {
@@ -380,6 +381,7 @@ public class UserPreferencesService {
                             .quickFilter(normalizeScannerQuickFilter(view.getQuickFilter()))
                             .sortMode(normalizeScannerSortMode(view.getSortMode()))
                             .query(view.getQuery() == null ? "" : view.getQuery().trim())
+                            .anchorSymbol((view.getAnchorSymbol() == null || view.getAnchorSymbol().isBlank()) ? null : normalizeTerminalSymbol(view.getAnchorSymbol()))
                             .updatedAt(view.getUpdatedAt())
                             .build())
                     .limit(MAX_SCANNER_VIEWS)

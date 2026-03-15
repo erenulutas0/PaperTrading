@@ -116,6 +116,7 @@ class UserPreferencesServiceTest {
                                 .quickFilter("gainers")
                                 .sortMode("alpha")
                                 .query("bank")
+                                .anchorSymbol("isctr")
                                 .updatedAt("2026-03-15T00:00:00Z")
                                 .build()))
                 .build();
@@ -139,6 +140,7 @@ class UserPreferencesServiceTest {
         assertEquals("GAINERS", response.getTerminal().getScannerViews().get(0).getQuickFilter());
         assertEquals("ALPHA", response.getTerminal().getScannerViews().get(0).getSortMode());
         assertEquals("bank", response.getTerminal().getScannerViews().get(0).getQuery());
+        assertEquals("ISCTR", response.getTerminal().getScannerViews().get(0).getAnchorSymbol());
         verify(userPreferenceRepository).save(org.mockito.ArgumentMatchers.any(UserPreference.class));
     }
 }

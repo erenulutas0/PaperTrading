@@ -111,6 +111,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after compare-basket performance-pill rollout and verify `/watchlist` compare basket cards now show quick directional tone badges before apply
 - [ ] Redeploy frontend after scanner-view rename/overwrite rollout and verify `/watchlist` saved scanner presets now support inline rename plus overwriting with the current scanner state
 - [ ] Redeploy frontend after sector-pulse rollout and verify `/watchlist` heatmap area now includes clickable sector-group scanner pivots based on average 24h sector move
+- [ ] Redeploy backend/frontend after scanner-view anchor-symbol rollout and verify sector-based scanner presets now restore with the correct symbol context and support one-click save from `Sector Pulse`
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol

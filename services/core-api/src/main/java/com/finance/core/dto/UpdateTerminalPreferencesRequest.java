@@ -43,6 +43,7 @@ public class UpdateTerminalPreferencesRequest {
         private String quickFilter;
         private String sortMode;
         private String query;
+        private String anchorSymbol;
         private String updatedAt;
     }
 }

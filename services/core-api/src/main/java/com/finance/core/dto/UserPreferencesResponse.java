@@ -79,6 +79,7 @@ public class UserPreferencesResponse {
         private String quickFilter;
         private String sortMode;
         private String query;
+        private String anchorSymbol;
         private String updatedAt;
     }
 }
