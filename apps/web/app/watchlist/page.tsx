@@ -1508,6 +1508,43 @@ export default function WatchlistPage() {
         ];
     }, [favoriteSymbols, getScannerViewSnapshot, instrumentUniverse, selectedWatchlistSymbolSet]);
 
+    const getScannerViewFitTone = useCallback((view: ScannerViewPreset) => {
+        const snapshot = getScannerViewSnapshot(view);
+        const overlapChips = getScannerViewOverlapChips(view);
+        const watchlistLinked = overlapChips.some((chip) => chip.label !== 'Watchlist 0' && chip.label.startsWith('Watchlist'));
+        const favoritesLinked = overlapChips.some((chip) => chip.label !== 'Favorites 0' && chip.label.startsWith('Favorites'));
+        const anchorLinked = overlapChips.some((chip) => chip.label === 'Anchor Linked');
+
+        if (snapshot.count === 0) {
+            return {
+                label: 'Cold',
+                className: 'border-white/10 bg-white/[0.03] text-zinc-300',
+            };
+        }
+        if (snapshot.averageMove >= 1.5 && (watchlistLinked || favoritesLinked || anchorLinked)) {
+            return {
+                label: 'High Fit',
+                className: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
+            };
+        }
+        if (snapshot.averageMove > 0 || watchlistLinked || favoritesLinked || anchorLinked) {
+            return {
+                label: 'Usable',
+                className: 'border-sky-400/20 bg-sky-400/10 text-sky-300',
+            };
+        }
+        if (snapshot.averageMove <= -1) {
+            return {
+                label: 'Weak',
+                className: 'border-red-400/20 bg-red-400/10 text-red-200',
+            };
+        }
+        return {
+            label: 'Mixed',
+            className: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
+        };
+    }, [getScannerViewOverlapChips, getScannerViewSnapshot]);
+
     const availableScannerViews = useMemo(() => {
         return scannerViews.filter((view) => view.market === selectedMarket);
     }, [scannerViews, selectedMarket]);
@@ -4497,6 +4534,14 @@ export default function WatchlistPage() {
                                                                                         Active
                                                                                     </span>
                                                                                 )}
+                                                                                {(() => {
+                                                                                    const fitTone = getScannerViewFitTone(view);
+                                                                                    return (
+                                                                                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${fitTone.className}`}>
+                                                                                            {fitTone.label}
+                                                                                        </span>
+                                                                                    );
+                                                                                })()}
                                                                             </div>
                                                                             <p className="mt-1 text-[11px] text-zinc-500">
                                                                                 {view.quickFilter} · {view.sortMode} · {view.query || 'No search'}

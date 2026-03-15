@@ -514,6 +514,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - saved scanner presets now communicate workspace fit as well as market output
     - users can choose between familiar and exploratory scanner slices more deliberately
+- **2026-03-15**: **Saved Scanner View Cards Added Current Fit Tone**
+  - **Problem observed**:
+    - Even with summary and overlap chips, scanner view cards still required manual interpretation.
+    - Users benefit from a compressed read on whether a preset is currently:
+      - cold
+      - weak
+      - usable
+      - high fit
+  - **Implementation**:
+    - Added a derived fit-tone pill to saved scanner view cards.
+    - The tone blends:
+      - current match count
+      - average move
+      - watchlist/favorites/anchor linkage
+  - **Operational impact**:
+    - saved scanner presets now communicate a one-glance recommendation signal
+    - preset triage is faster before pressing `Apply`
 - **2026-03-15**: **Right Rail Quick Actions Can Now Capture Scanner State**
   - **Problem observed**:
     - Scanner presets became easier to evaluate, but saving the current scanner state still required moving back into the saved-scanner panel.
