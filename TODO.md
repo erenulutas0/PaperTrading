@@ -1671,3 +1671,4 @@ Last updated: 2026-03-11
   - Add frontend snapshot card on `/analytics/[portfolioId]`
   - Support `Copy Summary`, `Copy Share Link`, `Download JSON`, and `Download SVG Card`
   - Derive report context from current analytics state including compare/filter/detail selections
+  - Keep action buttons mobile-safe and surface compare delta directly inside the card when compare mode is active

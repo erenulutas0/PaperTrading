@@ -3383,6 +3383,7 @@ A change is “done” when:
     - `Copy Share Link`
     - `Download JSON`
     - `Download SVG Card`
+  - Snapshot card now also shows compare delta context inline when compare mode is active, and the action grid is sized to avoid mobile button-label overflow.
   - Kept the feature frontend-only by deriving the snapshot from the existing analytics payload rather than expanding the backend contract again.
 - Operational impact:
   - analytics now supports quick sharing and documentation without forcing users to parse the full page or rely only on raw export files

@@ -1323,33 +1323,47 @@ ${lines}
                             <p className="mt-4 text-xs text-zinc-500">
                                 Best/Worst interval {formatCurrency(periodExtremes.bestMove.absoluteReturn)} / {formatCurrency(periodExtremes.worstMove.absoluteReturn)}
                             </p>
+                            {compareSummary ? (
+                                <div className="mt-4 rounded-lg border border-emerald-500/10 bg-emerald-500/5 p-3">
+                                    <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-300">Compare Delta</p>
+                                    <div className="mt-2 grid gap-2 sm:grid-cols-2 text-xs text-zinc-300">
+                                        <p>
+                                            Return {(summary.returnPercentage - compareSummary.returnPercentage) >= 0 ? '+' : ''}
+                                            {(summary.returnPercentage - compareSummary.returnPercentage).toFixed(2)} pts
+                                        </p>
+                                        <p>
+                                            Equity {formatCurrency(summary.currentEquity - compareSummary.currentEquity)}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
-                            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                <button
-                                    type="button"
-                                    onClick={() => void copySnapshotSummary()}
-                                    className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition-colors hover:bg-cyan-500/20"
-                                >
-                                    {snapshotSummaryCopied ? 'Summary Copied' : 'Copy Summary'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => void copyAnalyticsShareLink()}
-                                    className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
-                                >
-                                    {compareLinkCopied ? 'Link Copied' : 'Copy Share Link'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => downloadSnapshotJson()}
-                                    className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
-                                >
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <button
+                                type="button"
+                                onClick={() => void copySnapshotSummary()}
+                                className="min-h-14 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-center text-sm font-medium leading-tight text-cyan-300 transition-colors hover:bg-cyan-500/20"
+                            >
+                                {snapshotSummaryCopied ? 'Summary Copied' : 'Copy Summary'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void copyAnalyticsShareLink()}
+                                className="min-h-14 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-center text-sm font-medium leading-tight text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                            >
+                                {compareLinkCopied ? 'Link Copied' : 'Copy Share Link'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => downloadSnapshotJson()}
+                                className="min-h-14 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-center text-sm font-medium leading-tight text-blue-300 transition-colors hover:bg-blue-500/20"
+                            >
                                 Download JSON
                             </button>
                             <button
                                 type="button"
                                 onClick={() => downloadSnapshotSvgCard()}
-                                className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 text-sm font-medium text-fuchsia-300 transition-colors hover:bg-fuchsia-500/20"
+                                className="min-h-14 rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 text-center text-sm font-medium leading-tight text-fuchsia-300 transition-colors hover:bg-fuchsia-500/20"
                             >
                                 Download SVG Card
                             </button>
