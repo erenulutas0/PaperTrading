@@ -17,6 +17,29 @@ interface NotificationItem {
     createdAt: string;
 }
 
+function NotificationSummaryCard({
+    label,
+    value,
+    tone = 'default'
+}: {
+    label: string;
+    value: string;
+    tone?: 'default' | 'success' | 'warning';
+}) {
+    const toneClass = tone === 'success'
+        ? 'border-success/25 bg-success/10 text-success'
+        : tone === 'warning'
+            ? 'border-warning/25 bg-warning/10 text-warning'
+            : 'border-border bg-background/60 text-foreground';
+
+    return (
+        <div className={`rounded-2xl border p-4 ${toneClass}`}>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">{label}</p>
+            <p className="mt-3 text-2xl font-black">{value}</p>
+        </div>
+    );
+}
+
 function formatRelativeTime(createdAt: string): string {
     const ts = new Date(createdAt).getTime();
     if (!Number.isFinite(ts)) return '';
@@ -48,6 +71,9 @@ export default function NotificationsPage() {
                 }),
         [filter, notifications]
     );
+
+    const alertCount = notifications.filter((notification) => notification.type === 'PRICE_ALERT').length;
+    const socialCount = notifications.filter((notification) => notification.type !== 'PRICE_ALERT').length;
 
     const getMessage = (n: NotificationItem) => {
         switch (n.type) {
@@ -212,6 +238,31 @@ export default function NotificationsPage() {
                     </div>
                 </header>
 
+                <section className="grid gap-4 md:grid-cols-4">
+                    <NotificationSummaryCard label="Total Loaded" value={notifications.length.toString()} />
+                    <NotificationSummaryCard label="Unread" value={unreadCount.toString()} tone={unreadCount > 0 ? 'warning' : 'default'} />
+                    <NotificationSummaryCard label="Price Alerts" value={alertCount.toString()} />
+                    <NotificationSummaryCard label="Social Events" value={socialCount.toString()} tone="success" />
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div className="glass-panel rounded-2xl border border-border/80 p-6">
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Inbox Role</p>
+                        <h2 className="mt-3 text-2xl font-black tracking-tight">This is the account event stream.</h2>
+                        <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                            Follows, portfolio interactions, analysis responses, and market alerts converge here so state changes do not disappear into separate surfaces.
+                        </p>
+                    </div>
+                    <div className="glass-panel rounded-2xl border border-border/80 p-6">
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">How To Use It</p>
+                        <ul className="mt-4 space-y-3 text-sm leading-6 text-foreground/85">
+                            <li>Use filters to isolate social proof vs market-triggered alerts.</li>
+                            <li>`Mark all read` only clears inbox state; it does not erase the event trail.</li>
+                            <li>Follow-back actions stay in the inbox so network-building remains close to the event.</li>
+                        </ul>
+                    </div>
+                </section>
+
                 <section className="glass-panel rounded-2xl p-4 border border-border/80">
                     <div className="flex flex-wrap gap-2">
                         {filters.map((item) => (
@@ -231,9 +282,12 @@ export default function NotificationsPage() {
 
                 {filtered.length === 0 ? (
                     <div className="glass-panel rounded-2xl border border-dashed border-border/90 p-10 text-center">
-                        <p className="text-lg font-semibold">No notifications</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            {filter === 'ALL' ? 'You will see updates here in real time.' : 'Try a different filter.'}
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Inbox Empty</p>
+                        <p className="mt-4 text-lg font-semibold">No notifications in this view.</p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            {filter === 'ALL'
+                                ? 'New follows, discussion responses, portfolio reactions, and price alerts will appear here.'
+                                : 'This filter has no matching events right now. Try another slice of the inbox.'}
                         </p>
                     </div>
                 ) : (

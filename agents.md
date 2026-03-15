@@ -3617,5 +3617,24 @@ A change is “done” when:
   - comment threads now feel like accountable public review rather than generic social noise
   - the same component lifts both analysis detail and portfolio discussion surfaces without changing backend contracts
 
+### 2026-03-14: Notifications Inbox Reframed As An Event Stream Instead Of A Raw Activity List
+- Problem observed:
+  - Notifications already worked across live updates and full-page inbox views, but the surface still lagged the rest of the product:
+    - little top-level context
+    - thin empty states
+    - bell dropdown felt like a plain list rather than a compact inbox
+- Implementation:
+  - Upgraded `app/notifications/page.tsx` with:
+    - summary strip for total/unread/alert/social counts
+    - clearer event-stream framing copy
+    - stronger empty-state messaging
+  - Upgraded `components/NotificationBell.tsx` with:
+    - quick metric strip inside the dropdown
+    - stronger empty-state copy
+    - no backend-contract changes; follow-back and mark-read behavior preserved
+- Operational impact:
+  - notifications now reads like a first-class inbox tied to market, portfolio, and social accountability events
+  - the compact bell and the full inbox now feel like the same product surface at different depths
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

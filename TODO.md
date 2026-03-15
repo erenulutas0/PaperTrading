@@ -1719,3 +1719,7 @@ Last updated: 2026-03-11
   - Upgrade `LikeCommentWidget` from a raw interaction bar into a discussion panel
   - Add stronger loading, empty, and reply states
   - Frame comments as public review/evidence instead of generic chatter
+- [x] Bring notifications surfaces up to the same product-quality bar:
+  - Add inbox summary strip and stronger context copy on `/notifications`
+  - Enrich bell dropdown with quick metrics and a better empty state
+  - Keep follow-back and read actions, but frame the inbox as an event stream instead of a raw list

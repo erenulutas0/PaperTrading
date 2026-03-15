@@ -36,6 +36,7 @@ export default function NotificationBell() {
     const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
     const visibleNotifications = useMemo(() => notifications.slice(0, 30), [notifications]);
+    const priceAlertCount = useMemo(() => notifications.filter((notification) => notification.type === 'PRICE_ALERT').length, [notifications]);
 
     const toggleOpen = () => {
         setIsOpen(!isOpen);
@@ -168,13 +169,31 @@ export default function NotificationBell() {
                                 </Link>
                             </div>
                         </div>
+                        <div className="grid grid-cols-3 gap-px border-b border-zinc-800/80 bg-zinc-800/80">
+                            <div className="bg-zinc-950/70 px-4 py-3">
+                                <p className="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Unread</p>
+                                <p className="mt-2 text-lg font-black text-white">{unreadCount}</p>
+                            </div>
+                            <div className="bg-zinc-950/70 px-4 py-3">
+                                <p className="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Loaded</p>
+                                <p className="mt-2 text-lg font-black text-white">{notifications.length}</p>
+                            </div>
+                            <div className="bg-zinc-950/70 px-4 py-3">
+                                <p className="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Alerts</p>
+                                <p className="mt-2 text-lg font-black text-white">{priceAlertCount}</p>
+                            </div>
+                        </div>
                         <div className="border-b border-zinc-800/80 bg-zinc-950/60 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">
                             Scroll recent activity
                         </div>
                         <div className="max-h-[32rem] overflow-y-auto pr-1 custom-scrollbar">
                             {visibleNotifications.length === 0 ? (
-                                <div className="p-8 text-center text-zinc-600 text-xs italic">
-                                    No notifications yet.
+                                <div className="p-8 text-center">
+                                    <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-600">Inbox Empty</p>
+                                    <p className="mt-3 text-sm font-semibold text-zinc-200">No notifications yet.</p>
+                                    <p className="mt-2 text-xs leading-6 text-zinc-500">
+                                        New follows, alerts, and discussion events will start appearing here.
+                                    </p>
                                 </div>
                             ) : (
                                 visibleNotifications.map(n => (
