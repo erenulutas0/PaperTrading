@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Market Terminal Layout Rebalanced Around A Full-Width Chart And Separate Scanner Workspace**
+  - **Problem observed**:
+    - `/watchlist` had accumulated enough controls and discovery blocks that the main chart was no longer the visual anchor.
+    - Instrument universe, heatmap, sector pulse, and saved scanner views were competing with the chart in the same horizontal slice, which caused:
+      - cramped right-side cards
+      - text overflow on heatmap / sector / universe entries
+      - large empty chart-card area caused by stretched grid height
+  - **Implementation**:
+    - Kept the feature set, but changed the layout hierarchy:
+      - chart now occupies its own full-width row
+      - scanner/discovery surfaces render below the chart instead of beside it
+      - draw and alert controls stay grouped in the chart control band
+    - Tightened scanner card layout with additional `min-w-0`, truncation, line-clamp, and more forgiving grid breakpoints.
+  - **Operational impact**:
+    - the terminal remains feature-rich without collapsing into a crowded side-rail layout
+    - the chart regains priority as the primary reading surface while scanner blocks remain accessible
 - **2026-03-15**: **Compare Basket Presets Moved From Browser Convenience To Account-Backed Terminal Preference**
   - **Problem observed**:
     - Compare baskets had become useful, but they still lived only in browser storage.

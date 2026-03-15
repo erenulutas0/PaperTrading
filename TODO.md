@@ -61,6 +61,10 @@ Last updated: 2026-03-11
   - account-backed named layout snapshots
   - apply/remove flows
   - restoring saved market/symbol/watchlist/compare/range/interval/favorites bundles
+- [ ] Redeploy frontend after market terminal layout cleanup pass and verify `/watchlist` now:
+  - keeps the chart in its own full-width row instead of compressing it against the scanner rail
+  - renders instrument universe / heatmap / sector pulse / saved scanner views without text overflow
+  - keeps draw + alert controls grouped above the chart workspace
 - [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol

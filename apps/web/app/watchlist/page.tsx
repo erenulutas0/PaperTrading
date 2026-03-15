@@ -3425,6 +3425,7 @@ export default function WatchlistPage() {
                                         </label>
                                     </div>
 
+                                    <div className="grid gap-3 xl:grid-cols-2">
                                     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
                                         <p className="mr-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Draw</p>
                                         <button
@@ -3452,7 +3453,7 @@ export default function WatchlistPage() {
                                         >
                                             Clear Drawings
                                         </button>
-                                        <span className="ml-auto text-xs text-zinc-500">
+                                        <span className="mt-2 block text-xs text-zinc-500 xl:ml-auto">
                                             {drawingMode === 'none'
                                                 ? 'Select a tool to place levels or trend lines.'
                                                 : (drawingMode === 'horizontal'
@@ -3503,11 +3504,12 @@ export default function WatchlistPage() {
                                         >
                                             Clear Below
                                         </button>
-                                        <span className="ml-auto text-xs text-zinc-500">
+                                        <span className="mt-2 block text-xs text-zinc-500 xl:ml-auto">
                                             {selectedWatchlistItem
                                                 ? (chartActivePoint ? `Anchor alerts to ${formatMoney(chartActivePoint.close)} from the active candle.` : 'Move the crosshair over a candle to anchor alerts.')
                                                 : 'Add this symbol to the selected watchlist to manage alerts from the chart.'}
                                         </span>
+                                    </div>
                                     </div>
 
                                     {compareSymbols.length > 0 && (
@@ -4243,7 +4245,7 @@ export default function WatchlistPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+                                    <div className="grid gap-4">
                                         <div className="rounded-3xl border border-white/8 bg-zinc-950/60 p-4">
                                             {(chartLoading && candles.length === 0) ? (
                                                 <div className="flex h-[520px] items-center justify-center">
@@ -4267,9 +4269,23 @@ export default function WatchlistPage() {
                                         </div>
 
                                         <div className="rounded-3xl border border-white/8 bg-zinc-950/55 p-4">
-                                            <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument Universe</p>
-                                            <p className="mt-2 text-sm text-zinc-400">Chart sembolunu watchlist'e eklemeden de dogrudan degistirebilirsin.</p>
-                                            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Scanner Workspace</p>
+                                                    <p className="mt-2 text-sm text-zinc-400">Instrument universe, heatmap, sector pulse, and saved scanner views now sit below the chart instead of compressing it sideways.</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        setUniverseQuickFilter('ALL');
+                                                        setUniverseSortMode('MOVE_DESC');
+                                                        setInstrumentQuery('');
+                                                    }}
+                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300 transition hover:text-white"
+                                                >
+                                                    Reset Slice
+                                                </button>
+                                            </div>
+                                            <div className="mt-4 grid gap-3 lg:grid-cols-2">
                                                 <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-3">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-300">Top Movers</p>
@@ -4288,13 +4304,13 @@ export default function WatchlistPage() {
                                                             <button
                                                                 key={`top-${instrument.symbol}`}
                                                                 onClick={() => setSelectedSymbol(instrument.symbol)}
-                                                                className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-left transition hover:border-emerald-400/25"
+                                                                className="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-left transition hover:border-emerald-400/25"
                                                             >
-                                                                <div>
+                                                                <div className="min-w-0">
                                                                     <p className="text-xs font-semibold text-white">{instrument.symbol}</p>
-                                                                    <p className="text-[10px] text-zinc-500">{instrument.displayName}</p>
+                                                                    <p className="truncate text-[10px] text-zinc-500">{instrument.displayName}</p>
                                                                 </div>
-                                                                <span className="text-xs font-semibold text-emerald-300">{formatPercent(instrument.changePercent24h)}</span>
+                                                                <span className="shrink-0 text-xs font-semibold text-emerald-300">{formatPercent(instrument.changePercent24h)}</span>
                                                             </button>
                                                         ))}
                                                     </div>
@@ -4317,13 +4333,13 @@ export default function WatchlistPage() {
                                                             <button
                                                                 key={`bottom-${instrument.symbol}`}
                                                                 onClick={() => setSelectedSymbol(instrument.symbol)}
-                                                                className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-left transition hover:border-red-400/25"
+                                                                className="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-left transition hover:border-red-400/25"
                                                             >
-                                                                <div>
+                                                                <div className="min-w-0">
                                                                     <p className="text-xs font-semibold text-white">{instrument.symbol}</p>
-                                                                    <p className="text-[10px] text-zinc-500">{instrument.displayName}</p>
+                                                                    <p className="truncate text-[10px] text-zinc-500">{instrument.displayName}</p>
                                                                 </div>
-                                                                <span className="text-xs font-semibold text-red-300">{formatPercent(instrument.changePercent24h)}</span>
+                                                                <span className="shrink-0 text-xs font-semibold text-red-300">{formatPercent(instrument.changePercent24h)}</span>
                                                             </button>
                                                         ))}
                                                     </div>
@@ -4346,7 +4362,7 @@ export default function WatchlistPage() {
                                                         Reset Slice
                                                     </button>
                                                 </div>
-                                                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                                                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                                                     {heatmapInstruments.map((instrument) => {
                                                         const positive = instrument.changePercent24h >= 0;
                                                         const intensity = Math.min(Math.abs(instrument.changePercent24h) / 10, 1);
@@ -4360,21 +4376,21 @@ export default function WatchlistPage() {
                                                             <button
                                                                 key={`heatmap-${instrument.symbol}`}
                                                                 onClick={() => setSelectedSymbol(instrument.symbol)}
-                                                                className="rounded-2xl border p-3 text-left transition hover:scale-[1.01]"
+                                                                className="min-w-0 rounded-2xl border p-3 text-left transition hover:scale-[1.01]"
                                                                 style={{ backgroundColor, borderColor }}
                                                             >
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div>
-                                                                        <p className="text-xs font-semibold text-white">{instrument.symbol}</p>
-                                                                        <p className="mt-1 line-clamp-2 text-[10px] text-zinc-200/80">{instrument.displayName}</p>
+                                                                <div className="flex min-w-0 items-start justify-between gap-3">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-xs font-semibold text-white">{instrument.symbol}</p>
+                                                                        <p className="mt-1 line-clamp-3 break-words text-[10px] leading-5 text-zinc-200/80">{instrument.displayName}</p>
                                                                     </div>
-                                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${positive ? 'bg-emerald-950/60 text-emerald-200' : 'bg-red-950/60 text-red-200'}`}>
+                                                                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${positive ? 'bg-emerald-950/60 text-emerald-200' : 'bg-red-950/60 text-red-200'}`}>
                                                                         {formatPercent(instrument.changePercent24h)}
                                                                     </span>
                                                                 </div>
-                                                                <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-100/80">
-                                                                    <span>{instrument.sector || instrument.exchange || instrument.market || 'Universe'}</span>
-                                                                    <span className="font-mono">{formatMoney(instrument.currentPrice)}</span>
+                                                                <div className="mt-3 flex min-w-0 items-center justify-between gap-3 text-[10px] text-zinc-100/80">
+                                                                    <span className="truncate">{instrument.sector || instrument.exchange || instrument.market || 'Universe'}</span>
+                                                                    <span className="shrink-0 font-mono">{formatMoney(instrument.currentPrice)}</span>
                                                                 </div>
                                                             </button>
                                                         );
@@ -4392,7 +4408,7 @@ export default function WatchlistPage() {
                                                             {sectorPulseGroups.length} groups
                                                         </span>
                                                     </div>
-                                                    <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                                                    <div className="mt-3 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
                                                         {sectorPulseGroups.map((group) => {
                                                             const positive = group.averageMove >= 0;
                                                             return (
@@ -4404,18 +4420,18 @@ export default function WatchlistPage() {
                                                                         setUniverseSortMode('MOVE_DESC');
                                                                         setInstrumentQuery('');
                                                                     }}
-                                                                    className={`rounded-2xl border px-4 py-3 text-left transition ${positive
+                                                                    className={`min-w-0 rounded-2xl border px-4 py-3 text-left transition ${positive
                                                                         ? 'border-emerald-400/20 bg-emerald-400/5 hover:bg-emerald-400/10'
                                                                         : 'border-red-400/20 bg-red-400/5 hover:bg-red-400/10'}`}
                                                                 >
-                                                                    <div className="flex items-center justify-between gap-3">
-                                                                        <div>
-                                                                            <p className="text-sm font-semibold text-white">{group.sector}</p>
+                                                                    <div className="flex min-w-0 items-center justify-between gap-3">
+                                                                        <div className="min-w-0">
+                                                                            <p className="truncate text-sm font-semibold text-white">{group.sector}</p>
                                                                             <p className="mt-1 text-[11px] text-zinc-400">
                                                                                 {group.count} symbols · leader {group.leader.symbol}
                                                                             </p>
                                                                         </div>
-                                                                        <div className="flex flex-col items-end gap-2">
+                                                                        <div className="flex shrink-0 flex-col items-end gap-2">
                                                                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${positive ? 'bg-emerald-950/60 text-emerald-200' : 'bg-red-950/60 text-red-200'}`}>
                                                                                 {formatPercent(group.averageMove)}
                                                                             </span>
@@ -4430,9 +4446,9 @@ export default function WatchlistPage() {
                                                                             </button>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-100/80">
-                                                                        <span>{group.leader.displayName}</span>
-                                                                        <span className={`font-semibold ${group.leader.changePercent24h >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                                                                    <div className="mt-3 flex min-w-0 items-center justify-between gap-3 text-[10px] text-zinc-100/80">
+                                                                        <span className="truncate">{group.leader.displayName}</span>
+                                                                        <span className={`shrink-0 font-semibold ${group.leader.changePercent24h >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                                                                             {group.leader.symbol} {formatPercent(group.leader.changePercent24h)}
                                                                         </span>
                                                                     </div>
@@ -4493,15 +4509,15 @@ export default function WatchlistPage() {
                                                 {scannerViewMessage && (
                                                     <p className="mt-3 text-xs text-zinc-500">{scannerViewMessage}</p>
                                                 )}
-                                                <div className="mt-3 space-y-2">
+                                                <div className="mt-3 grid gap-2 xl:grid-cols-2">
                                                     {availableScannerViews.length === 0 ? (
                                                         <div className="rounded-2xl border border-dashed border-white/10 px-4 py-4 text-sm text-zinc-500">
                                                             No saved scanner views for {selectedMarket} yet.
                                                         </div>
                                                     ) : (
                                                         availableScannerViews.map((view) => (
-                                                            <div key={view.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                                                                <div>
+                                                            <div key={view.id} className="flex min-w-0 flex-col justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                                                <div className="min-w-0">
                                                                     {editingScannerViewId === view.id ? (
                                                                         <div className="space-y-3">
                                                                             <input
@@ -4528,7 +4544,7 @@ export default function WatchlistPage() {
                                                                     ) : (
                                                                         <>
                                                                             <div className="flex flex-wrap items-center gap-2">
-                                                                                <p className="text-sm font-semibold text-white">{view.name}</p>
+                                                                                <p className="truncate text-sm font-semibold text-white">{view.name}</p>
                                                                                 {activeScannerViewId === view.id && (
                                                                                     <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300">
                                                                                         Active
@@ -4543,7 +4559,7 @@ export default function WatchlistPage() {
                                                                                     );
                                                                                 })()}
                                                                             </div>
-                                                                            <p className="mt-1 text-[11px] text-zinc-500">
+                                                                            <p className="mt-1 break-words text-[11px] text-zinc-500">
                                                                                 {view.quickFilter} · {view.sortMode} · {view.query || 'No search'}
                                                                             </p>
                                                                             {view.anchorSymbol && (
@@ -4668,30 +4684,30 @@ export default function WatchlistPage() {
                                                 </span>
                                                 <span>{filteredInstruments.length} symbols</span>
                                             </div>
-                                            <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+                                            <div className="mt-4 grid max-h-[760px] gap-2 overflow-y-auto pr-1 xl:grid-cols-2">
                                                 {filteredInstruments.map((instrument) => (
                                                     <div
                                                         key={instrument.symbol}
-                                                        className={`w-full rounded-2xl border p-3 text-left transition ${selectedSymbol === instrument.symbol
+                                                        className={`min-w-0 rounded-2xl border p-3 text-left transition ${selectedSymbol === instrument.symbol
                                                             ? 'border-amber-400/35 bg-amber-400/10'
                                                             : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}
                                                     >
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <button onClick={() => setSelectedSymbol(instrument.symbol)} className="text-left">
-                                                                        <p className="text-sm font-semibold text-white">{instrument.displayName}</p>
+                                                        <div className="flex min-w-0 items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <div className="flex min-w-0 items-center gap-2">
+                                                                    <button onClick={() => setSelectedSymbol(instrument.symbol)} className="min-w-0 text-left">
+                                                                        <p className="truncate text-sm font-semibold text-white">{instrument.displayName}</p>
                                                                     </button>
                                                                     <button
                                                                         onClick={() => toggleFavoriteSymbol(instrument.symbol)}
-                                                                        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] transition ${favoriteSymbols.includes(instrument.symbol)
+                                                                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] transition ${favoriteSymbols.includes(instrument.symbol)
                                                                             ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
                                                                             : 'border-white/10 bg-white/[0.03] text-zinc-500 hover:text-white'}`}
                                                                     >
                                                                         ★
                                                                     </button>
                                                                 </div>
-                                                                <p className="text-[11px] font-mono text-zinc-500">{instrument.symbol}</p>
+                                                                <p className="truncate text-[11px] font-mono text-zinc-500">{instrument.symbol}</p>
                                                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                                                     {[instrument.market, instrument.exchange, instrument.currency]
                                                                         .filter(Boolean)
@@ -4742,7 +4758,7 @@ export default function WatchlistPage() {
                                                                     ))}
                                                                 </div>
                                                             </div>
-                                                            <div className="text-right">
+                                                            <div className="shrink-0 text-right">
                                                                 <p className="font-mono text-sm text-white">{formatMoney(instrument.currentPrice)}</p>
                                                                 <p className={`text-[11px] font-semibold ${instrument.changePercent24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                                                     {formatPercent(instrument.changePercent24h)}
