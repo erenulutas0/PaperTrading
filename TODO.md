@@ -1771,3 +1771,7 @@ Last updated: 2026-03-11
   - Copy selected request id, actor id, and resource id
   - Copy full selected row JSON
   - Keep inspection workflow compact and clipboard-friendly
+- [x] Add audit detail filter shortcuts:
+  - Apply action, resource, and actor filters directly from the selected row
+  - Add copy actions for request path and details payload
+  - Keep request-focus and row selection workflows aligned

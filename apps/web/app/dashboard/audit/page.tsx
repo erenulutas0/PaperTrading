@@ -843,6 +843,38 @@ export default function AuditPage() {
                                 </div>
                                 <button
                                     type="button"
+                                    onClick={() => {
+                                        setPage(0);
+                                        setFilters((current) => ({ ...current, actionType: selectedEntry.actionType }));
+                                    }}
+                                    className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                >
+                                    Filter Action
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPage(0);
+                                        setFilters((current) => ({ ...current, resourceType: selectedEntry.resourceType }));
+                                    }}
+                                    className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                >
+                                    Filter Resource
+                                </button>
+                                {selectedEntry.actorId && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPage(0);
+                                            setFilters((current) => ({ ...current, actorId: selectedEntry.actorId ?? '' }));
+                                        }}
+                                        className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                    >
+                                        Filter Actor
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
                                     onClick={() => void copyDetailValue('json', JSON.stringify(selectedEntry, null, 2))}
                                     className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
                                 >
@@ -868,9 +900,20 @@ export default function AuditPage() {
                                         {selectedEntry.resourceType}
                                     </span>
                                 </div>
-                                <p className="mt-3 text-sm text-zinc-300">
-                                    {selectedEntry.requestMethod ?? 'METHOD'} {selectedEntry.requestPath ?? 'path unavailable'}
-                                </p>
+                                <div className="mt-3 flex items-start justify-between gap-3">
+                                    <p className="text-sm text-zinc-300">
+                                        {selectedEntry.requestMethod ?? 'METHOD'} {selectedEntry.requestPath ?? 'path unavailable'}
+                                    </p>
+                                    {selectedEntry.requestPath && (
+                                        <button
+                                            type="button"
+                                            onClick={() => void copyDetailValue('requestPath', selectedEntry.requestPath)}
+                                            className="text-[10px] font-semibold uppercase tracking-wide text-primary transition hover:text-white"
+                                        >
+                                            {copiedDetailField === 'requestPath' ? 'Copied' : 'Copy Path'}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="grid gap-3">
@@ -925,7 +968,16 @@ export default function AuditPage() {
                                 </div>
                                 {selectedEntry.details != null && (
                                     <div className="rounded-2xl border border-zinc-800 bg-black/40 p-4">
-                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Details</p>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Details</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => void copyDetailValue('details', JSON.stringify(selectedEntry.details, null, 2))}
+                                                className="text-[10px] font-semibold uppercase tracking-wide text-primary transition hover:text-white"
+                                            >
+                                                {copiedDetailField === 'details' ? 'Copied' : 'Copy Details'}
+                                            </button>
+                                        </div>
                                         <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6 text-zinc-300">
                                             {JSON.stringify(selectedEntry.details, null, 2)}
                                         </pre>

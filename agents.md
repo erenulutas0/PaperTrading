@@ -3841,5 +3841,21 @@ A change is “done” when:
   - audit detail now behaves more like an ops console than a passive viewer
   - request correlation and follow-up investigation across tools is faster
 
+### 2026-03-15: Audit Detail Panel Added Filter Shortcuts And Payload Copying
+- Problem observed:
+  - Copy actions reduced friction, but operators still had to jump back to the filter form to narrow by the selected row’s action/resource/actor context.
+  - Request path and details payload were also still view-only.
+- Implementation:
+  - Added selected-row quick actions for:
+    - `Filter Action`
+    - `Filter Resource`
+    - `Filter Actor`
+  - Added clipboard actions for:
+    - request path
+    - details payload only
+- Operational impact:
+  - selected-row inspection can now immediately pivot into a narrower audit slice
+  - the detail panel now supports both read and follow-up actions without forcing a context switch
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
