@@ -438,9 +438,9 @@ export default function ProfilePage() {
 
                         <div className="shrink-0">
                             {isOwnProfile ? (
-                                <button className="rounded-full border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground hover:border-primary/30">
+                                <Link href="/profile/edit" className="rounded-full border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground hover:border-primary/30">
                                     Edit Profile
-                                </button>
+                                </Link>
                             ) : currentUserId ? (
                                 <button
                                     onClick={handleFollow}

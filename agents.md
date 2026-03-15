@@ -3542,5 +3542,21 @@ A change is “done” when:
   - leaderboards now communicate state more clearly before the table is fully populated
   - public and dashboard leaderboard pages now feel like first-class product surfaces rather than raw ranking tables
 
+### 2026-03-14: Profile Editing Promoted From Placeholder Button To Real Settings Surface
+- Problem observed:
+  - The profile header exposed an `Edit Profile` control, but it was not wired into an actual edit workflow.
+  - That made the profile surface feel more complete than it really was.
+- Implementation:
+  - Added `app/profile/edit/page.tsx`.
+  - New edit surface:
+    - hydrates current profile
+    - exposes editable `displayName`, `bio`, and `avatarUrl`
+    - saves through the existing `PUT /api/v1/users/{userId}/profile` endpoint
+    - redirects back to the public profile after save
+  - Wired own-profile `Edit Profile` CTA to the new route.
+- Operational impact:
+  - profile management is now a real end-to-end flow instead of a dead control
+  - the product’s public identity surface and settings surface are now connected cleanly
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

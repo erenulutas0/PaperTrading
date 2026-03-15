@@ -1703,3 +1703,7 @@ Last updated: 2026-03-11
   - Add summary strips for dashboard and public leaderboard pages
   - Replace bare loading copy with ranking skeletons
   - Normalize empty states for portfolio-mode and account-mode leaderboards
+- [x] Turn profile editing into a real product surface:
+  - Add `/profile/edit` page with display name, bio, and avatar URL form
+  - Wire `Edit Profile` button on own profile to the new route
+  - Save via existing profile update endpoint and redirect back to profile
