@@ -3349,10 +3349,20 @@ export default function WatchlistPage() {
                                                 <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Chart Toolbar</p>
                                                 <p className="mt-1 text-xs text-zinc-400">Search, market, window, interval, and compare live together above the chart.</p>
                                             </div>
-                                            <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
-                                                <span>{selectedMarket}</span>
-                                                <span>{selectedRange}</span>
-                                                <span>{selectedInterval}</span>
+                                            <div className="flex flex-wrap gap-2">
+                                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                    {selectedMarket}
+                                                </span>
+                                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                                    {selectedRange} · {selectedInterval}
+                                                </span>
+                                                <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                                                    compareSymbols.length > 0
+                                                        ? 'border-sky-400/20 bg-sky-400/10 text-sky-300'
+                                                        : 'border-white/10 bg-white/[0.03] text-zinc-500'
+                                                }`}>
+                                                    {compareSymbols.length > 0 ? `Compare ${compareSymbols.length}/3` : 'Compare Off'}
+                                                </span>
                                             </div>
                                         </div>
                                         <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,0.8fr))]">
@@ -3603,10 +3613,10 @@ export default function WatchlistPage() {
 
                                     <div className="flex flex-wrap gap-2">
                                         {([
-                                            ['COMPARE', 'Compare'],
-                                            ['LAYOUTS', 'Layouts'],
-                                            ['SNAPSHOT', 'Snapshot'],
-                                        ] as const).map(([key, label]) => (
+                                            { key: 'COMPARE', label: 'Compare', badge: `${availableCompareBaskets.length}` },
+                                            { key: 'LAYOUTS', label: 'Layouts', badge: `${terminalLayouts.length}` },
+                                            { key: 'SNAPSHOT', label: 'Snapshot', badge: compareSymbols.length > 0 ? 'Live+' : 'Live' },
+                                        ] as const).map(({ key, label, badge }) => (
                                             <button
                                                 key={key}
                                                 onClick={() => setTerminalPanelTab(key)}
@@ -3616,7 +3626,14 @@ export default function WatchlistPage() {
                                                         : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'
                                                 }`}
                                             >
-                                                {label}
+                                                <span>{label}</span>
+                                                <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                                                    terminalPanelTab === key
+                                                        ? 'bg-amber-400/15 text-amber-200'
+                                                        : 'bg-black/30 text-zinc-500'
+                                                }`}>
+                                                    {badge}
+                                                </span>
                                             </button>
                                         ))}
                                     </div>
@@ -4335,10 +4352,10 @@ export default function WatchlistPage() {
                                             </div>
                                             <div className="mt-4 flex flex-wrap gap-2">
                                                 {([
-                                                    ['DISCOVERY', 'Discovery'],
-                                                    ['UNIVERSE', 'Universe'],
-                                                    ['VIEWS', 'Views'],
-                                                ] as const).map(([key, label]) => (
+                                                    { key: 'DISCOVERY', label: 'Discovery', badge: `${topMoverInstruments.length + bottomMoverInstruments.length}` },
+                                                    { key: 'UNIVERSE', label: 'Universe', badge: `${filteredUniverse.length}` },
+                                                    { key: 'VIEWS', label: 'Views', badge: `${availableScannerViews.length}` },
+                                                ] as const).map(({ key, label, badge }) => (
                                                     <button
                                                         key={key}
                                                         onClick={() => setScannerWorkspaceTab(key)}
@@ -4348,7 +4365,14 @@ export default function WatchlistPage() {
                                                                 : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'
                                                         }`}
                                                     >
-                                                        {label}
+                                                        <span>{label}</span>
+                                                        <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                                                            scannerWorkspaceTab === key
+                                                                ? 'bg-amber-400/15 text-amber-200'
+                                                                : 'bg-black/30 text-zinc-500'
+                                                        }`}>
+                                                            {badge}
+                                                        </span>
                                                     </button>
                                                 ))}
                                             </div>

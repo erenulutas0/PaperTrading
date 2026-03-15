@@ -69,6 +69,7 @@ Last updated: 2026-03-11
   - keeps right-rail monitoring counters compressed instead of stacking more tall cards
   - lets scanner discovery / universe / saved views render as tabs instead of one long vertical wall
   - lets compare baskets / saved layouts / snapshot tools render as tabs instead of stacking all terminal side surfaces at once
+  - surfaces tab-level count/status badges for scanner and terminal side panels so dense areas stay scannable
 - [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol

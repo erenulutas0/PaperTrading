@@ -60,6 +60,10 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Followed with a fourth density pass:
       - compare baskets, saved layouts, and snapshot tooling split into `Compare / Layouts / Snapshot` tabs
       - terminal side surfaces no longer stack every preset/export panel simultaneously above the chart
+    - Added small density cues instead of more panels:
+      - scanner tabs now show live counts for discovery, filtered universe, and saved views
+      - compare/layout/snapshot tabs now surface lightweight status badges
+      - chart toolbar header now summarizes market, window, and compare state as compact pills
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible
