@@ -148,7 +148,6 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
-    const [hasHydratedShareState, setHasHydratedShareState] = useState(false);
     const [compareLinkCopied, setCompareLinkCopied] = useState(false);
     const [compareSummaryCopied, setCompareSummaryCopied] = useState(false);
     const [chartRenderVersion, setChartRenderVersion] = useState(0);
@@ -639,31 +638,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
             setSelectedSymbolDetail(detail.toUpperCase());
         }
 
-        setHasHydratedShareState(true);
     }, []);
-
-    useEffect(() => {
-        if (!hasHydratedShareState) {
-            return;
-        }
-
-        const params = new URLSearchParams();
-        if (comparePortfolioId) {
-            params.set('compare', comparePortfolioId);
-        }
-        if (selectedCurveWindow !== 'ALL') {
-            params.set('curveWindow', selectedCurveWindow);
-        }
-        if (symbolFilter.trim()) {
-            params.set('symbolFilter', symbolFilter.trim().toUpperCase());
-        }
-        if (selectedSymbolDetail) {
-            params.set('detail', selectedSymbolDetail);
-        }
-
-        const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
-        window.history.replaceState(null, '', nextUrl);
-    }, [comparePortfolioId, hasHydratedShareState, selectedCurveWindow, selectedSymbolDetail, symbolFilter]);
 
     useEffect(() => {
         fetchAnalytics();
@@ -859,7 +834,22 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
 
     const copyAnalyticsShareLink = async () => {
         try {
-            await navigator.clipboard.writeText(window.location.href);
+            const params = new URLSearchParams();
+            if (comparePortfolioId) {
+                params.set('compare', comparePortfolioId);
+            }
+            if (selectedCurveWindow !== 'ALL') {
+                params.set('curveWindow', selectedCurveWindow);
+            }
+            if (symbolFilter.trim()) {
+                params.set('symbolFilter', symbolFilter.trim().toUpperCase());
+            }
+            if (selectedSymbolDetail) {
+                params.set('detail', selectedSymbolDetail);
+            }
+
+            const shareUrl = `${window.location.origin}${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+            await navigator.clipboard.writeText(shareUrl);
             setCompareLinkCopied(true);
             window.setTimeout(() => setCompareLinkCopied(false), 1800);
         } catch (error) {
