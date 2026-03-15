@@ -214,7 +214,7 @@ function normalizeCompareBasketPayloads(
     }
     return baskets
         .filter((basket): basket is TerminalCompareBasketPayload => !!basket && typeof basket === 'object')
-        .map((basket) => ({
+        .map((basket): CompareBasketPreset => ({
             id: crypto.randomUUID(),
             name: typeof basket.name === 'string' && basket.name.trim() ? basket.name.trim() : 'Compare Basket',
             market: basket.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
