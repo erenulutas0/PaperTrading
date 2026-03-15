@@ -1755,3 +1755,7 @@ Last updated: 2026-03-11
   - Return top actions, resources, and actors for the full filtered result set
   - Keep frontend fallback logic for older payloads during rollout
   - Preserve current filter, pagination, and export behavior
+- [x] Add audit active-filter and request-focus surfaces:
+  - Show removable active filter chips above the workspace
+  - Promote `requestId` focus into a dedicated summary banner
+  - Keep row-level focus actions and portable links intact

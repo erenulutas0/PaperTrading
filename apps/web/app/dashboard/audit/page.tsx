@@ -119,6 +119,26 @@ function FacetChips({
     );
 }
 
+function ActiveFilterPill({
+    label,
+    value,
+    onClear,
+}: {
+    label: string;
+    value: string;
+    onClear: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClear}
+            className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20"
+        >
+            {label}: {value} <span className="ml-1 text-primary/70">x</span>
+        </button>
+    );
+}
+
 export default function AuditPage() {
     const [data, setData] = useState<AuditResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -209,6 +229,58 @@ export default function AuditPage() {
         }
         return `${filters.days}D`;
     }, [filters]);
+
+    const activeFilterPills = useMemo(() => {
+        const pills: { key: string; label: string; value: string; onClear: () => void }[] = [];
+        if (filters.days) {
+            pills.push({
+                key: 'days',
+                label: 'Window',
+                value: `${filters.days}D`,
+                onClear: () => setFilters((current) => ({ ...current, days: '' })),
+            });
+        }
+        if (filters.requestId.trim()) {
+            pills.push({
+                key: 'requestId',
+                label: 'Request',
+                value: filters.requestId.trim(),
+                onClear: () => setFilters((current) => ({ ...current, requestId: '' })),
+            });
+        }
+        if (filters.actorId.trim()) {
+            pills.push({
+                key: 'actorId',
+                label: 'Actor',
+                value: filters.actorId.trim(),
+                onClear: () => setFilters((current) => ({ ...current, actorId: '' })),
+            });
+        }
+        if (filters.actionType) {
+            pills.push({
+                key: 'actionType',
+                label: 'Action',
+                value: filters.actionType,
+                onClear: () => setFilters((current) => ({ ...current, actionType: '' })),
+            });
+        }
+        if (filters.resourceType) {
+            pills.push({
+                key: 'resourceType',
+                label: 'Resource',
+                value: filters.resourceType,
+                onClear: () => setFilters((current) => ({ ...current, resourceType: '' })),
+            });
+        }
+        return pills;
+    }, [filters]);
+
+    const focusedRequestLead = useMemo(() => {
+        if (!filters.requestId.trim() || !data?.entries.length) {
+            return null;
+        }
+        return data.entries[0];
+    }, [data, filters.requestId]);
 
     const topActionFacets = useMemo(() => {
         if (!data) {
@@ -377,6 +449,71 @@ export default function AuditPage() {
                 <AuditSummaryCard label="Window" value={activeWindowLabel} />
                 <AuditSummaryCard label="Checked At" value={data?.checkedAt ? new Date(data.checkedAt).toLocaleTimeString() : '...'} />
             </section>
+
+            {activeFilterPills.length > 0 && (
+                <section className="mt-6 rounded-3xl border border-white/10 bg-black/30 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">Active Filters</p>
+                            <p className="mt-2 text-sm text-zinc-400">Click any chip to clear that slice without resetting the full audit view.</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setFilters({
+                                limit: filters.limit,
+                                days: '',
+                                requestId: '',
+                                actorId: '',
+                                actionType: '',
+                                resourceType: '',
+                            })}
+                            className="rounded-xl border border-zinc-800 bg-black px-4 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                        >
+                            Clear Active Filters
+                        </button>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        {activeFilterPills.map((pill) => (
+                            <ActiveFilterPill key={pill.key} label={pill.label} value={pill.value} onClear={pill.onClear} />
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {focusedRequestLead && (
+                <section className="mt-6 rounded-3xl border border-primary/20 bg-primary/5 p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <p className="text-[10px] uppercase tracking-[0.28em] text-primary/80">Request Focus</p>
+                            <h2 className="mt-2 text-lg font-bold text-white">{filters.requestId.trim()}</h2>
+                            <p className="mt-2 text-sm text-zinc-300">
+                                Loaded {data?.count ?? 0} row{data?.count === 1 ? '' : 's'} for this request slice. Latest visible event is {focusedRequestLead.actionType} on {focusedRequestLead.resourceType}.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setFilters((current) => ({ ...current, requestId: '' }))}
+                            className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/20"
+                        >
+                            Clear Request Focus
+                        </button>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Latest Method</p>
+                            <p className="mt-2 text-sm font-semibold text-white">{focusedRequestLead.requestMethod ?? 'N/A'}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Latest Path</p>
+                            <p className="mt-2 break-all text-sm font-semibold text-white">{focusedRequestLead.requestPath ?? 'N/A'}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Latest Event Time</p>
+                            <p className="mt-2 text-sm font-semibold text-white">{formatTimestamp(focusedRequestLead.createdAt)}</p>
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {!loading && data && data.entries.length > 0 && (
                 <section className="mt-6 grid gap-4 xl:grid-cols-3">

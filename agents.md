@@ -3775,5 +3775,20 @@ A change is “done” when:
   - facet counts now match the true filtered audit set instead of the visible page only
   - audit drill-down remains fast while becoming materially more trustworthy on paged views
 
+### 2026-03-15: Audit Workspace Added Active Filter Chips And Request-Focus Banner
+- Problem observed:
+  - Even with portable links and backend-backed facets, operators still had to mentally track which slice was active.
+  - `requestId` focus also existed only as a form field and row action, which made request-scoped inspection less explicit than it should be.
+- Implementation:
+  - `/dashboard/audit` now surfaces removable active-filter chips above the workspace.
+  - `requestId` focus now promotes into a dedicated banner that shows:
+    - focused request id
+    - loaded row count
+    - latest visible method/path/time context
+  - Row-level `Focus` actions still work and portable links remain unchanged.
+- Operational impact:
+  - active audit state is now visible and reversible without dropping back into the raw filter form
+  - request-scoped investigation reads like a deliberate mode, not just a hidden field value
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
