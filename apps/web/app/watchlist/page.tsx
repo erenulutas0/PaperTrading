@@ -4525,6 +4525,69 @@ export default function WatchlistPage() {
                                 </button>
                             </div>
 
+                            <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Rail Summary</p>
+                                        <p className="mt-1 text-sm text-zinc-400">
+                                            Current watch basket, compare, scanner, and favorites state in one place.
+                                        </p>
+                                    </div>
+                                    <span className="rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                        {selectedMarket}
+                                    </span>
+                                </div>
+                                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Watchlist</p>
+                                        <p className="mt-1 text-sm font-semibold text-white">{selectedWatchlistMeta?.name || 'Detached'}</p>
+                                        <p className="mt-1 text-xs text-zinc-400">
+                                            {selectedWatchlistMeta ? `${selectedWatchlistItemCount} tracked symbols` : 'No active watch basket'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Compare</p>
+                                        <p className="mt-1 text-sm font-semibold text-white">
+                                            {activeCompareBasket?.name || (compareSymbols.length > 0 ? `${compareSymbols.length} overlays` : 'Off')}
+                                        </p>
+                                        <p className="mt-1 text-xs text-zinc-400">
+                                            {compareSymbols.length > 0 ? (compareVisible ? 'Overlay visible' : 'Overlay hidden') : 'No active basket'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Scanner</p>
+                                        <p className="mt-1 text-sm font-semibold text-white">{activeScannerView?.name || universeQuickFilter}</p>
+                                        <p className="mt-1 text-xs text-zinc-400">
+                                            {universeSortMode} · {instrumentQuery.trim() || 'No search'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Favorites</p>
+                                        <p className="mt-1 text-sm font-semibold text-white">{favoriteSymbols.length}</p>
+                                        <p className="mt-1 text-xs text-zinc-400">
+                                            {favoriteSymbols.length > 0 ? 'Starred working set live' : 'No starred symbols'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {selectedSymbol && (
+                                        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                                            Active {selectedSymbol}
+                                        </span>
+                                    )}
+                                    {activeScannerView && (
+                                        <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fuchsia-300">
+                                            Scanner Preset
+                                        </span>
+                                    )}
+                                    {activeCompareBasket && (
+                                        <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-300">
+                                            Compare Preset
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
                             <div className="space-y-2">
                                 {watchlists.length === 0 ? (
                                     <p className="text-sm italic text-zinc-500">No watchlists yet. Create one.</p>

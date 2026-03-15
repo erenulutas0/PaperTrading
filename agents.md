@@ -353,6 +353,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare experimentation and full-layout persistence are now connected instead of living as separate workflows
     - a good compare basket can be promoted into a durable terminal preset with one click
+- **2026-03-15**: **Right Rail Added Compact Terminal Working Summary**
+  - **Problem observed**:
+    - The top session rail made terminal context visible, but the right rail still opened cold.
+    - Users looking at the watch basket still had to scan back upward to confirm compare, scanner, and favorites state.
+  - **Implementation**:
+    - Added a compact `Rail Summary` block above the right-rail watch basket.
+    - The block surfaces:
+      - active watchlist context
+      - compare state
+      - scanner state
+      - favorites count
+      - active symbol / preset chips
+  - **Operational impact**:
+    - right-rail work now starts with immediate session context instead of requiring a page-level cross-reference
+    - watch-basket edits and scanner/compare state are easier to reconcile at a glance
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.
