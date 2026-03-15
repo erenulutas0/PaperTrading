@@ -297,6 +297,7 @@ export default function WatchlistPage() {
     const [compareBasketsHydrated, setCompareBasketsHydrated] = useState(false);
     const candlesRef = useRef<CandlePoint[]>([]);
     const layoutImportInputRef = useRef<HTMLInputElement | null>(null);
+    const compareBasketImportInputRef = useRef<HTMLInputElement | null>(null);
 
     const [newName, setNewName] = useState('');
     const [addSymbol, setAddSymbol] = useState('BTCUSDT');
@@ -1423,6 +1424,114 @@ export default function WatchlistPage() {
         setCompareBasketMessage(`Overwrote compare basket: ${basket.name}`);
     };
 
+    const handleExportCompareBaskets = () => {
+        if (availableCompareBaskets.length === 0 || typeof window === 'undefined') {
+            return;
+        }
+        const payload = availableCompareBaskets.map((basket) => ({
+            name: basket.name,
+            market: basket.market,
+            symbols: basket.symbols,
+            updatedAt: basket.updatedAt,
+        }));
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `compare-baskets-${selectedMarket.toLowerCase()}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+        setCompareBasketMessage(`Exported ${availableCompareBaskets.length} compare basket${availableCompareBaskets.length === 1 ? '' : 's'}.`);
+    };
+
+    const handleImportCompareBaskets = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+        try {
+            const raw = await file.text();
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                setCompareBasketMessage('Compare basket import failed: file must contain an array.');
+                return;
+            }
+
+            const imported = parsed
+                .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+                .map((entry): CompareBasketPreset | null => {
+                    const symbols = Array.isArray(entry.symbols)
+                        ? entry.symbols.filter((value): value is string => typeof value === 'string' && value.length > 0).slice(0, 3)
+                        : [];
+                    if (symbols.length === 0) {
+                        return null;
+                    }
+                    return {
+                        id: crypto.randomUUID(),
+                        name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Imported Compare Basket',
+                        market: entry.market === 'BIST100' ? 'BIST100' : 'CRYPTO',
+                        symbols,
+                        updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
+                    };
+                })
+                .filter((entry): entry is CompareBasketPreset => entry !== null);
+
+            if (imported.length === 0) {
+                setCompareBasketMessage('Compare basket import failed: no valid baskets found.');
+                return;
+            }
+
+            setCompareBaskets((current) => {
+                const merged = [...imported, ...current].reduce<CompareBasketPreset[]>((acc, basket) => {
+                    const existingIndex = acc.findIndex((entry) => entry.market === basket.market && haveSameSymbols(entry.symbols, basket.symbols));
+                    if (existingIndex >= 0) {
+                        acc[existingIndex] = basket;
+                        return acc;
+                    }
+                    acc.push(basket);
+                    return acc;
+                }, []);
+                return merged.slice(0, 12);
+            });
+            setCompareBasketMessage(`Imported ${imported.length} compare basket${imported.length === 1 ? '' : 's'}.`);
+        } catch (error) {
+            console.error(error);
+            setCompareBasketMessage('Compare basket import failed: invalid JSON.');
+        } finally {
+            if (compareBasketImportInputRef.current) {
+                compareBasketImportInputRef.current.value = '';
+            }
+        }
+    };
+
+    const handleShareCompareBasket = async (basket: CompareBasketPreset) => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const encoded = encodeSharedLayout({
+            version: 1,
+            name: `Compare Basket · ${basket.name}`,
+            watchlistId: selectedWatchlist,
+            market: basket.market,
+            symbol: selectedSymbol,
+            compareSymbols: basket.symbols,
+            compareVisible: true,
+            range: selectedRange,
+            interval: selectedInterval,
+            favoriteSymbols,
+        });
+        const shareUrl = `${window.location.origin}/watchlist/shared?layout=${encoded}`;
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setCompareBasketMessage(`Share link copied for ${basket.name}.`);
+        } catch (error) {
+            console.error(error);
+            setCompareBasketMessage(shareUrl);
+        }
+    };
+
     const handleSaveCurrentLayout = async () => {
         const trimmed = layoutNameDraft.trim();
         if (!currentUserId || !trimmed) {
@@ -2137,10 +2246,32 @@ export default function WatchlistPage() {
                                                     Save small peer sets without storing the whole terminal. Faster than full layouts when you only want the compare overlay back.
                                                 </p>
                                             </div>
-                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
-                                                {availableCompareBaskets.length}/12
-                                            </span>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    onClick={handleExportCompareBaskets}
+                                                    disabled={availableCompareBaskets.length === 0}
+                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                                >
+                                                    Export
+                                                </button>
+                                                <button
+                                                    onClick={() => compareBasketImportInputRef.current?.click()}
+                                                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300 transition hover:text-white"
+                                                >
+                                                    Import
+                                                </button>
+                                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                                                    {availableCompareBaskets.length}/12
+                                                </span>
+                                            </div>
                                         </div>
+                                        <input
+                                            ref={compareBasketImportInputRef}
+                                            type="file"
+                                            accept="application/json"
+                                            onChange={handleImportCompareBaskets}
+                                            className="hidden"
+                                        />
                                         <div className="mt-4 flex flex-col gap-3 lg:flex-row">
                                             <input
                                                 type="text"
@@ -2239,6 +2370,12 @@ export default function WatchlistPage() {
                                                                         className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
                                                                     >
                                                                         Overwrite
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleShareCompareBasket(basket)}
+                                                                        className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300 transition hover:bg-emerald-400/20"
+                                                                    >
+                                                                        Share
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleStartEditCompareBasket(basket)}

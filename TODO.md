@@ -84,6 +84,8 @@ Last updated: 2026-03-11
   - saving current compare overlays as lightweight market-aware baskets
   - reapplying compare baskets without restoring the entire terminal layout
   - rename + overwrite flows for saved compare baskets
+  - JSON export/import for compare baskets
+  - share links for saved compare baskets
   - removing saved compare baskets
   - active-basket highlighting against the current compare session
 - [ ] Redeploy backend/frontend after market instrument metadata enrichment and verify `/watchlist` now surfaces market/exchange/currency/delay chips, richer BIST/crypto search, and descriptive names inside the right-rail watch basket
