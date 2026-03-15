@@ -79,6 +79,13 @@ interface CompareBasketPreset {
     updatedAt: string;
 }
 
+interface SuggestedCompareBasket {
+    id: string;
+    name: string;
+    description: string;
+    symbols: string[];
+}
+
 interface ChartNote {
     id: string;
     body: string;
@@ -112,6 +119,7 @@ const ALL_HISTORY_CHUNK = 1000;
 const MARKET_SESSION_STORAGE_KEY = 'market.terminal.session';
 const COMPARE_BASKET_STORAGE_KEY = 'market.terminal.compare-baskets';
 const COMPARE_COLORS = ['#f59e0b', '#38bdf8', '#f472b6'];
+const CRYPTO_CORE_COMPARE_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'AVAXUSDT'];
 
 interface PersistedMarketSession {
     selectedWatchlist: string | null;
@@ -361,6 +369,63 @@ export default function WatchlistPage() {
         const active = availableCompareBaskets.find((basket) => haveSameSymbols(basket.symbols, compareSymbols));
         return active?.id ?? null;
     }, [availableCompareBaskets, compareSymbols]);
+
+    const suggestedCompareBaskets = useMemo<SuggestedCompareBasket[]>(() => {
+        const suggestions: SuggestedCompareBasket[] = [];
+        const exclude = new Set([selectedSymbol]);
+        const sameSectorSymbols = instrumentUniverse
+            .filter((instrument) => instrument.symbol !== selectedSymbol)
+            .filter((instrument) => selectedInstrumentMetadata?.sector && instrument.sector === selectedInstrumentMetadata.sector)
+            .map((instrument) => instrument.symbol)
+            .slice(0, 3);
+
+        if (sameSectorSymbols.length > 0 && selectedInstrumentMetadata?.sector) {
+            suggestions.push({
+                id: 'sector-peers',
+                name: 'Sector Peers',
+                description: `${selectedInstrumentMetadata.sector} names around ${selectedSymbol}.`,
+                symbols: sameSectorSymbols,
+            });
+            sameSectorSymbols.forEach((symbol) => exclude.add(symbol));
+        }
+
+        const favoritePeerSymbols = favoriteSymbols
+            .filter((symbol) => symbol !== selectedSymbol)
+            .filter((symbol) => instrumentMap.has(symbol))
+            .filter((symbol) => !exclude.has(symbol))
+            .slice(0, 3);
+
+        if (favoritePeerSymbols.length > 0) {
+            suggestions.push({
+                id: 'favorites-blend',
+                name: 'Favorites Blend',
+                description: 'Use your starred symbols as a quick compare peer set.',
+                symbols: favoritePeerSymbols,
+            });
+            favoritePeerSymbols.forEach((symbol) => exclude.add(symbol));
+        }
+
+        const marketCoreSymbols = (selectedMarket === 'CRYPTO'
+            ? CRYPTO_CORE_COMPARE_SYMBOLS
+            : instrumentUniverse.map((instrument) => instrument.symbol))
+            .filter((symbol) => symbol !== selectedSymbol)
+            .filter((symbol) => instrumentMap.has(symbol))
+            .filter((symbol) => !exclude.has(symbol))
+            .slice(0, 3);
+
+        if (marketCoreSymbols.length > 0) {
+            suggestions.push({
+                id: 'market-core',
+                name: selectedMarket === 'CRYPTO' ? 'Crypto Core' : 'BIST Core',
+                description: selectedMarket === 'CRYPTO'
+                    ? 'Fast benchmark against liquid crypto leaders.'
+                    : 'Quick benchmark against the current BIST universe.',
+                symbols: marketCoreSymbols,
+            });
+        }
+
+        return suggestions.filter((suggestion) => suggestion.symbols.length > 0);
+    }, [favoriteSymbols, instrumentMap, instrumentUniverse, selectedInstrumentMetadata?.sector, selectedMarket, selectedSymbol]);
 
     const canSaveCompareBasket = useMemo(() => {
         if (!compareBasketNameDraft.trim() || compareSymbols.length === 0) {
@@ -1532,6 +1597,13 @@ export default function WatchlistPage() {
         }
     };
 
+    const handleApplySuggestedCompareBasket = (basket: SuggestedCompareBasket) => {
+        setCompareSymbols(basket.symbols.slice(0, 3));
+        setCompareVisible(true);
+        setCompareCandidate('');
+        setCompareBasketMessage(`Applied suggested basket: ${basket.name}`);
+    };
+
     const handleSaveCurrentLayout = async () => {
         const trimmed = layoutNameDraft.trim();
         if (!currentUserId || !trimmed) {
@@ -2290,6 +2362,53 @@ export default function WatchlistPage() {
                                         </div>
                                         {compareBasketMessage && (
                                             <p className="mt-3 text-xs text-zinc-500">{compareBasketMessage}</p>
+                                        )}
+                                        {suggestedCompareBaskets.length > 0 && (
+                                            <div className="mt-4 rounded-2xl border border-sky-400/15 bg-sky-400/5 px-4 py-3">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-[10px] uppercase tracking-[0.24em] text-sky-300">Suggested Baskets</p>
+                                                        <p className="mt-1 text-xs text-zinc-400">
+                                                            Quick peer sets built from the current symbol, market, and your favorites.
+                                                        </p>
+                                                    </div>
+                                                    <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                                                        {selectedSymbol}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-3 grid gap-2 xl:grid-cols-3">
+                                                    {suggestedCompareBaskets.map((basket) => (
+                                                        <button
+                                                            key={basket.id}
+                                                            onClick={() => handleApplySuggestedCompareBasket(basket)}
+                                                            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-left transition hover:border-sky-400/30 hover:bg-sky-400/10"
+                                                        >
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <p className="text-sm font-semibold text-white">{basket.name}</p>
+                                                                <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">
+                                                                    {basket.symbols.length} symbols
+                                                                </span>
+                                                            </div>
+                                                            <p className="mt-1 text-xs text-zinc-400">{basket.description}</p>
+                                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                                {basket.symbols.map((symbol, index) => (
+                                                                    <span
+                                                                        key={`${basket.id}-${symbol}`}
+                                                                        className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                                                        style={{
+                                                                            borderColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}55`,
+                                                                            backgroundColor: `${COMPARE_COLORS[index % COMPARE_COLORS.length]}20`,
+                                                                            color: COMPARE_COLORS[index % COMPARE_COLORS.length],
+                                                                        }}
+                                                                    >
+                                                                        {symbol}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         )}
                                         <div className="mt-4 space-y-2">
                                             {availableCompareBaskets.length === 0 ? (

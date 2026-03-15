@@ -58,6 +58,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - overwrite a basket with the current compare session
       - export/import baskets as JSON
       - generate share links for saved baskets
+      - surface built-in suggested baskets from sector/favorites/market-core context
       - remove a basket
     - Basket application is market-aware and filters out:
       - the currently selected primary symbol
