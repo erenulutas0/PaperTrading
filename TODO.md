@@ -126,6 +126,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after right-rail-layout-capture rollout and verify `/watchlist` right rail can promote the active terminal state directly into saved layouts
 - [ ] Redeploy frontend after scanner-view-summary rollout and verify saved scanner views now surface match count, average move, leader, and sector context
 - [ ] Redeploy frontend after right-rail-scanner-capture rollout and verify `/watchlist` right rail can capture the active scanner state directly into saved scanner views
+- [ ] Redeploy frontend after scanner-view-overlap-chip rollout and verify saved scanner views now surface watchlist/favorites/anchor-link overlap chips
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol

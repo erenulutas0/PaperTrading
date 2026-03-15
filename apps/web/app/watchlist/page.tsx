@@ -1410,6 +1410,50 @@ export default function WatchlistPage() {
         };
     }, [favoriteSymbols, instrumentUniverse]);
 
+    const getScannerViewOverlapChips = useCallback((view: ScannerViewPreset) => {
+        const snapshot = getScannerViewSnapshot(view);
+        const sectorKey = snapshot.anchorInstrument?.sector?.trim() ?? '';
+        const candidates = instrumentUniverse.filter((instrument) => {
+            switch (view.quickFilter) {
+                case 'GAINERS':
+                    return instrument.changePercent24h > 0;
+                case 'LOSERS':
+                    return instrument.changePercent24h < 0;
+                case 'FAVORITES':
+                    return favoriteSymbols.includes(instrument.symbol);
+                case 'SECTOR':
+                    return !!sectorKey && instrument.symbol !== view.anchorSymbol && instrument.sector === sectorKey;
+                default:
+                    return true;
+            }
+        });
+
+        const watchlistOverlap = candidates.filter((instrument) => selectedWatchlistSymbolSet.has(instrument.symbol)).length;
+        const favoriteOverlap = candidates.filter((instrument) => favoriteSymbols.includes(instrument.symbol)).length;
+        const anchorLinked = !!view.anchorSymbol && selectedWatchlistSymbolSet.has(view.anchorSymbol);
+
+        return [
+            {
+                label: watchlistOverlap > 0 ? `Watchlist ${watchlistOverlap}` : 'Watchlist 0',
+                className: watchlistOverlap > 0
+                    ? 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+                    : 'border-white/10 bg-white/[0.03] text-zinc-300',
+            },
+            {
+                label: favoriteOverlap > 0 ? `Favorites ${favoriteOverlap}` : 'Favorites 0',
+                className: favoriteOverlap > 0
+                    ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                    : 'border-white/10 bg-white/[0.03] text-zinc-300',
+            },
+            {
+                label: anchorLinked ? 'Anchor Linked' : 'Anchor Detached',
+                className: anchorLinked
+                    ? 'border-cyan-400/20 bg-cyan-400/10 text-cyan-300'
+                    : 'border-zinc-500/20 bg-zinc-500/10 text-zinc-300',
+            },
+        ];
+    }, [favoriteSymbols, getScannerViewSnapshot, instrumentUniverse, selectedWatchlistSymbolSet]);
+
     const availableScannerViews = useMemo(() => {
         return scannerViews.filter((view) => view.market === selectedMarket);
     }, [scannerViews, selectedMarket]);
@@ -4409,6 +4453,16 @@ export default function WatchlistPage() {
                                                                                     </div>
                                                                                 );
                                                                             })()}
+                                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                                {getScannerViewOverlapChips(view).map((chip) => (
+                                                                                    <span
+                                                                                        key={`${view.id}-overlap-${chip.label}`}
+                                                                                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                                    >
+                                                                                        {chip.label}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
                                                                         </>
                                                                     )}
                                                                 </div>

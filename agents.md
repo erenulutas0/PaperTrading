@@ -482,6 +482,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - saved scanner views now read like live presets rather than static labels
     - users can choose the right preset without first applying it
+- **2026-03-15**: **Saved Scanner View Cards Added Workspace Overlap Chips**
+  - **Problem observed**:
+    - Scanner view summaries showed live market output, but not how tightly a preset matched the current workspace.
+    - Users still had to infer whether a view was already:
+      - represented in the active watchlist
+      - aligned with favorites
+      - anchored to a symbol still linked into the active basket
+  - **Implementation**:
+    - Added overlap chips to saved scanner view cards for:
+      - watchlist overlap
+      - favorites overlap
+      - anchor linked/detached state
+  - **Operational impact**:
+    - saved scanner presets now communicate workspace fit as well as market output
+    - users can choose between familiar and exploratory scanner slices more deliberately
 - **2026-03-15**: **Right Rail Quick Actions Can Now Capture Scanner State**
   - **Problem observed**:
     - Scanner presets became easier to evaluate, but saving the current scanner state still required moving back into the saved-scanner panel.
