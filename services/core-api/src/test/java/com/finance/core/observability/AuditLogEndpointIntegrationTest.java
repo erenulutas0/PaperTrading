@@ -73,5 +73,12 @@ class AuditLogEndpointIntegrationTest {
                 .andExpect(jsonPath("$.count").value(1))
                 .andExpect(jsonPath("$.entries[0].requestId").value("req-audit-1"))
                 .andExpect(jsonPath("$.entries[0].actionType").value("USER_FOLLOWED"));
+
+        mockMvc.perform(get("/actuator/auditlog")
+                        .param("requestPath", "/api/v1/portfolios"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.requestPath").value("/api/v1/portfolios"))
+                .andExpect(jsonPath("$.entries[0].requestPath").value("/api/v1/portfolios"));
     }
 }

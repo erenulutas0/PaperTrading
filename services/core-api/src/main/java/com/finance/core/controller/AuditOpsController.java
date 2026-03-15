@@ -32,12 +32,13 @@ public class AuditOpsController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer days,
             @RequestParam(required = false) String requestId,
+            @RequestParam(required = false) String requestPath,
             @RequestParam(required = false) UUID actorId,
             @RequestParam(required = false) AuditActionType actionType,
             @RequestParam(required = false) AuditResourceType resourceType,
             HttpServletRequest request) {
         try {
-            return ResponseEntity.ok(inspectionService.snapshot(limit, page, days, requestId, actorId, actionType, resourceType));
+            return ResponseEntity.ok(inspectionService.snapshot(limit, page, days, requestId, requestPath, actorId, actionType, resourceType));
         } catch (Throwable ex) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("requestId", request.getAttribute(RequestCorrelation.REQUEST_ID_ATTRIBUTE));
@@ -52,10 +53,11 @@ public class AuditOpsController {
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Integer days,
             @RequestParam(required = false) String requestId,
+            @RequestParam(required = false) String requestPath,
             @RequestParam(required = false) UUID actorId,
             @RequestParam(required = false) AuditActionType actionType,
             @RequestParam(required = false) AuditResourceType resourceType) {
-        String csv = inspectionService.exportCsv(limit, days, requestId, actorId, actionType, resourceType);
+        String csv = inspectionService.exportCsv(limit, days, requestId, requestPath, actorId, actionType, resourceType);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                         .filename("audit-log-export.csv")
@@ -71,6 +73,7 @@ public class AuditOpsController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer days,
             @RequestParam(required = false) String requestId,
+            @RequestParam(required = false) String requestPath,
             @RequestParam(required = false) UUID actorId,
             @RequestParam(required = false) AuditActionType actionType,
             @RequestParam(required = false) AuditResourceType resourceType) {
@@ -80,6 +83,6 @@ public class AuditOpsController {
                         .build()
                         .toString())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(inspectionService.exportJson(limit, page, days, requestId, actorId, actionType, resourceType));
+                .body(inspectionService.exportJson(limit, page, days, requestId, requestPath, actorId, actionType, resourceType));
     }
 }

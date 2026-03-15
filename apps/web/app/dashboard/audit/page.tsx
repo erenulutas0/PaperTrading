@@ -23,6 +23,7 @@ interface AuditResponse {
     page: number;
     days: number | null;
     requestId: string | null;
+    requestPath: string | null;
     actorId: string | null;
     actionType: string | null;
     resourceType: string | null;
@@ -185,6 +186,7 @@ export default function AuditPage() {
         limit: '20',
         days: '',
         requestId: '',
+        requestPath: '',
         actorId: '',
         actionType: '',
         resourceType: '',
@@ -201,6 +203,7 @@ export default function AuditPage() {
             limit: params.get('limit') || current.limit,
             days: params.get('days') || '',
             requestId: params.get('requestId') || '',
+            requestPath: params.get('requestPath') || '',
             actorId: params.get('actorId') || '',
             actionType: params.get('actionType') || '',
             resourceType: params.get('resourceType') || '',
@@ -214,6 +217,7 @@ export default function AuditPage() {
         if (includePage) params.set('page', page.toString());
         if (filters.days) params.set('days', filters.days);
         if (filters.requestId.trim()) params.set('requestId', filters.requestId.trim());
+        if (filters.requestPath.trim()) params.set('requestPath', filters.requestPath.trim());
         if (filters.actorId.trim()) params.set('actorId', filters.actorId.trim());
         if (filters.actionType) params.set('actionType', filters.actionType);
         if (filters.resourceType) params.set('resourceType', filters.resourceType);
@@ -249,7 +253,7 @@ export default function AuditPage() {
 
     useEffect(() => {
         setPage(0);
-    }, [filters.limit, filters.days, filters.requestId, filters.actorId, filters.actionType, filters.resourceType]);
+    }, [filters.limit, filters.days, filters.requestId, filters.requestPath, filters.actorId, filters.actionType, filters.resourceType]);
 
     const filteredCountLabel = useMemo(() => {
         if (!data) {
@@ -259,7 +263,7 @@ export default function AuditPage() {
     }, [data]);
 
     const activeFilterCount = useMemo(() => {
-        return [filters.days, filters.requestId, filters.actorId, filters.actionType, filters.resourceType].filter(Boolean).length;
+        return [filters.days, filters.requestId, filters.requestPath, filters.actorId, filters.actionType, filters.resourceType].filter(Boolean).length;
     }, [filters]);
 
     const activeWindowLabel = useMemo(() => {
@@ -292,6 +296,14 @@ export default function AuditPage() {
                 label: 'Request',
                 value: filters.requestId.trim(),
                 onClear: () => setFilters((current) => ({ ...current, requestId: '' })),
+            });
+        }
+        if (filters.requestPath.trim()) {
+            pills.push({
+                key: 'requestPath',
+                label: 'Path',
+                value: filters.requestPath.trim(),
+                onClear: () => setFilters((current) => ({ ...current, requestPath: '' })),
             });
         }
         if (filters.actorId.trim()) {
@@ -587,6 +599,7 @@ export default function AuditPage() {
                                 limit: filters.limit,
                                 days: '',
                                 requestId: '',
+                                requestPath: '',
                                 actorId: '',
                                 actionType: '',
                                 resourceType: '',
@@ -781,6 +794,17 @@ export default function AuditPage() {
                         </div>
 
                         <div>
+                            <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-zinc-500">Request Path</label>
+                            <input
+                                type="text"
+                                value={filters.requestPath}
+                                onChange={(event) => setFilters((current) => ({ ...current, requestPath: event.target.value }))}
+                                className="w-full rounded-xl border border-zinc-800 bg-black px-3 py-3 text-sm text-white outline-none transition focus:border-primary"
+                                placeholder="/api/v1/portfolios"
+                            />
+                        </div>
+
+                        <div>
                             <label className="mb-2 block text-xs uppercase tracking-[0.24em] text-zinc-500">Actor Id</label>
                             <input
                                 type="text"
@@ -834,6 +858,7 @@ export default function AuditPage() {
                                 limit: '20',
                                 days: '',
                                 requestId: '',
+                                requestPath: '',
                                 actorId: '',
                                 actionType: '',
                                 resourceType: '',

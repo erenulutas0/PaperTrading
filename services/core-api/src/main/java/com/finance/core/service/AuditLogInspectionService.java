@@ -33,13 +33,13 @@ public class AuditLogInspectionService {
         this.objectMapper = objectMapper;
     }
 
-    public Map<String, Object> snapshot(Integer limit, Integer page, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    public Map<String, Object> snapshot(Integer limit, Integer page, Integer days, String requestId, String requestPath, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         int safeLimit = normalizeLimit(limit);
         int safePage = normalizePage(page);
         Integer safeDays = normalizeDays(days);
-        long totalCount = countEntries(safeDays, requestId, actorId, actionType, resourceType);
-        List<Map<String, Object>> entries = fetchEntries(safeLimit, safePage, safeDays, requestId, actorId, actionType, resourceType);
-        Map<String, Object> facets = buildFacetSummary(safeDays, requestId, actorId, actionType, resourceType);
+        long totalCount = countEntries(safeDays, requestId, requestPath, actorId, actionType, resourceType);
+        List<Map<String, Object>> entries = fetchEntries(safeLimit, safePage, safeDays, requestId, requestPath, actorId, actionType, resourceType);
+        Map<String, Object> facets = buildFacetSummary(safeDays, requestId, requestPath, actorId, actionType, resourceType);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("checkedAt", LocalDateTime.now());
@@ -47,6 +47,7 @@ public class AuditLogInspectionService {
         payload.put("page", safePage);
         payload.put("days", safeDays);
         payload.put("requestId", requestId);
+        payload.put("requestPath", requestPath);
         payload.put("actorId", actorId);
         payload.put("actionType", actionType);
         payload.put("resourceType", resourceType);
@@ -58,10 +59,10 @@ public class AuditLogInspectionService {
         return payload;
     }
 
-    public String exportCsv(Integer limit, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    public String exportCsv(Integer limit, Integer days, String requestId, String requestPath, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         int safeLimit = normalizeLimit(limit);
         Integer safeDays = normalizeDays(days);
-        List<Map<String, Object>> entries = fetchEntries(safeLimit, 0, safeDays, requestId, actorId, actionType, resourceType);
+        List<Map<String, Object>> entries = fetchEntries(safeLimit, 0, safeDays, requestId, requestPath, actorId, actionType, resourceType);
         List<String> rows = new ArrayList<>();
         rows.add("id,actorId,actionType,resourceType,resourceId,requestId,ipAddress,requestMethod,requestPath,createdAt");
         entries.forEach(entry -> rows.add(String.join(",",
@@ -79,29 +80,30 @@ public class AuditLogInspectionService {
         return rows.stream().collect(Collectors.joining(System.lineSeparator()));
     }
 
-    public Map<String, Object> exportJson(Integer limit, Integer page, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    public Map<String, Object> exportJson(Integer limit, Integer page, Integer days, String requestId, String requestPath, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         Map<String, Object> filters = new LinkedHashMap<>();
         filters.put("limit", normalizeLimit(limit));
         filters.put("page", normalizePage(page));
         filters.put("days", normalizeDays(days));
         filters.put("requestId", requestId == null ? "" : requestId.trim());
+        filters.put("requestPath", requestPath == null ? "" : requestPath.trim());
         filters.put("actorId", actorId);
         filters.put("actionType", actionType);
         filters.put("resourceType", resourceType);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("filters", filters);
-        payload.put("snapshot", snapshot(limit, page, days, requestId, actorId, actionType, resourceType));
+        payload.put("snapshot", snapshot(limit, page, days, requestId, requestPath, actorId, actionType, resourceType));
         return payload;
     }
 
-    private List<Map<String, Object>> fetchEntries(int limit, int page, Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    private List<Map<String, Object>> fetchEntries(int limit, int page, Integer days, String requestId, String requestPath, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         String baseSql = """
                 select id, actor_id, action_type, resource_type, resource_id, request_id,
                        ip_address, user_agent, request_method, request_path, details, created_at
                 from audit_logs
                 """;
-        QueryParts queryParts = buildWhereClause(days, requestId, actorId, actionType, resourceType);
+        QueryParts queryParts = buildWhereClause(days, requestId, requestPath, actorId, actionType, resourceType);
         List<Object> params = new ArrayList<>(queryParts.params());
 
         StringBuilder sql = new StringBuilder(baseSql);
@@ -118,9 +120,9 @@ public class AuditLogInspectionService {
                 params.toArray());
     }
 
-    private long countEntries(Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    private long countEntries(Integer days, String requestId, String requestPath, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         StringBuilder sql = new StringBuilder("select count(*) from audit_logs");
-        QueryParts queryParts = buildWhereClause(days, requestId, actorId, actionType, resourceType);
+        QueryParts queryParts = buildWhereClause(days, requestId, requestPath, actorId, actionType, resourceType);
         if (!queryParts.clauses().isEmpty()) {
             sql.append(" where ").append(String.join(" and ", queryParts.clauses()));
         }
@@ -128,11 +130,11 @@ public class AuditLogInspectionService {
         return count == null ? 0L : count;
     }
 
-    private Map<String, Object> buildFacetSummary(Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    private Map<String, Object> buildFacetSummary(Integer days, String requestId, String requestPath, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         Map<String, Object> facets = new LinkedHashMap<>();
-        facets.put("actions", fetchFacetCounts("action_type", days, requestId, actorId, actionType, resourceType, false));
-        facets.put("resources", fetchFacetCounts("resource_type", days, requestId, actorId, actionType, resourceType, false));
-        facets.put("actors", fetchFacetCounts("actor_id", days, requestId, actorId, actionType, resourceType, true));
+        facets.put("actions", fetchFacetCounts("action_type", days, requestId, requestPath, actorId, actionType, resourceType, false));
+        facets.put("resources", fetchFacetCounts("resource_type", days, requestId, requestPath, actorId, actionType, resourceType, false));
+        facets.put("actors", fetchFacetCounts("actor_id", days, requestId, requestPath, actorId, actionType, resourceType, true));
         return facets;
     }
 
@@ -140,6 +142,7 @@ public class AuditLogInspectionService {
             String column,
             Integer days,
             String requestId,
+            String requestPath,
             UUID actorId,
             AuditActionType actionType,
             AuditResourceType resourceType,
@@ -147,7 +150,7 @@ public class AuditLogInspectionService {
         StringBuilder sql = new StringBuilder("select ")
                 .append(column)
                 .append(" as value, count(*) as count from audit_logs");
-        QueryParts queryParts = buildWhereClause(days, requestId, actorId, actionType, resourceType);
+        QueryParts queryParts = buildWhereClause(days, requestId, requestPath, actorId, actionType, resourceType);
         List<String> clauses = new ArrayList<>(queryParts.clauses());
         List<Object> params = new ArrayList<>(queryParts.params());
         if (excludeNulls) {
@@ -166,13 +169,17 @@ public class AuditLogInspectionService {
         }, params.toArray());
     }
 
-    private QueryParts buildWhereClause(Integer days, String requestId, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
+    private QueryParts buildWhereClause(Integer days, String requestId, String requestPath, UUID actorId, AuditActionType actionType, AuditResourceType resourceType) {
         List<String> clauses = new ArrayList<>();
         List<Object> params = new ArrayList<>();
 
         if (requestId != null && !requestId.isBlank()) {
             clauses.add("request_id = ?");
             params.add(requestId.trim());
+        }
+        if (requestPath != null && !requestPath.isBlank()) {
+            clauses.add("request_path = ?");
+            params.add(requestPath.trim());
         }
         if (actorId != null) {
             clauses.add("actor_id = ?");

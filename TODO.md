@@ -1791,3 +1791,7 @@ Last updated: 2026-03-11
   - Open actor and resource slices directly from the selected row
   - Copy actor-slice and resource-slice links
   - Keep request, actor, and resource investigations symmetrical
+- [x] Add request-path filtering to audit ops:
+  - Support `requestPath` across read/export endpoints and actuator parity
+  - Surface request-path filtering in the audit workspace
+  - Keep portable links and JSON export aligned with the new filter

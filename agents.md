@@ -3912,5 +3912,20 @@ A change is “done” when:
   - actor/resource investigation is now as direct as request-focused inspection
   - selected-row detail has become a full drill-down console instead of a read-only side panel
 
+### 2026-03-15: Audit Ops Added Request-Path Filtering
+- Problem observed:
+  - Audit tooling could already narrow by request id, actor, action, and resource, but not by the actual request path.
+  - In practice, many ops questions start with "which endpoint path wrote this?" rather than "which request id?".
+- Implementation:
+  - Added `requestPath` support to:
+    - `/api/v1/ops/auditlog`
+    - `/api/v1/ops/auditlog/export`
+    - `/api/v1/ops/auditlog/export/json`
+    - `/actuator/auditlog`
+  - `/dashboard/audit` now includes a request-path filter field and carries it through fetch, export, and portable-link generation.
+- Operational impact:
+  - audit inspection can now pivot on endpoint path directly, which is often the fastest way to isolate write-side behavior
+  - audit read/export surfaces remain contract-aligned instead of treating path filtering as a frontend-only concern
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

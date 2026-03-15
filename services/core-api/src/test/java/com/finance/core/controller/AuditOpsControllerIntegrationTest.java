@@ -82,6 +82,35 @@ class AuditOpsControllerIntegrationTest {
     }
 
     @Test
+    void auditOpsEndpoint_shouldFilterByRequestPath() throws Exception {
+        auditLogRepository.save(AuditLogEntry.builder()
+                .actorId(UUID.randomUUID())
+                .actionType(AuditActionType.TRADE_BUY_EXECUTED)
+                .resourceType(AuditResourceType.TRADE)
+                .resourceId(UUID.randomUUID())
+                .requestId("req-path-1")
+                .requestMethod("POST")
+                .requestPath("/api/v1/trades/buy")
+                .build());
+        auditLogRepository.save(AuditLogEntry.builder()
+                .actorId(UUID.randomUUID())
+                .actionType(AuditActionType.TRADE_SELL_EXECUTED)
+                .resourceType(AuditResourceType.TRADE)
+                .resourceId(UUID.randomUUID())
+                .requestId("req-path-2")
+                .requestMethod("POST")
+                .requestPath("/api/v1/trades/sell")
+                .build());
+
+        mockMvc.perform(get("/api/v1/ops/auditlog")
+                        .param("requestPath", "/api/v1/trades/buy"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.requestPath").value("/api/v1/trades/buy"))
+                .andExpect(jsonPath("$.entries[0].requestPath").value("/api/v1/trades/buy"));
+    }
+
+    @Test
     void auditOpsEndpoint_shouldApplyDateWindowFilter() throws Exception {
         AuditLogEntry recent = auditLogRepository.save(AuditLogEntry.builder()
                 .actorId(UUID.randomUUID())
@@ -163,6 +192,7 @@ class AuditOpsControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.filters.limit").value(10))
                 .andExpect(jsonPath("$.filters.page").value(0))
+                .andExpect(jsonPath("$.filters.requestPath").value(""))
                 .andExpect(jsonPath("$.snapshot.actorId").value(actorId.toString()))
                 .andExpect(jsonPath("$.snapshot.entries[0].requestId").value("req-export-json"));
     }
