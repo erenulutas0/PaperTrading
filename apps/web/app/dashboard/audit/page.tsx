@@ -518,13 +518,14 @@ export default function AuditPage() {
         }
     };
 
-    const copySliceLink = async (label: string, overrides: { actorId?: string; resourceType?: string; actionType?: string }) => {
+    const copySliceLink = async (label: string, overrides: { actorId?: string; requestPath?: string; resourceType?: string; actionType?: string }) => {
         try {
             const params = new URLSearchParams();
             params.set('limit', filters.limit);
             params.set('page', '0');
             if (filters.days) params.set('days', filters.days);
             if (overrides.actorId) params.set('actorId', overrides.actorId);
+            if (overrides.requestPath) params.set('requestPath', overrides.requestPath);
             if (overrides.resourceType) params.set('resourceType', overrides.resourceType);
             if (overrides.actionType) params.set('actionType', overrides.actionType);
             const url = `${window.location.origin}/dashboard/audit?${params.toString()}`;
@@ -554,6 +555,14 @@ export default function AuditPage() {
     const openResourceSlice = (entry: AuditEntry) => {
         setPage(0);
         setFilters((current) => ({ ...current, resourceType: entry.resourceType }));
+    };
+
+    const openPathSlice = (entry: AuditEntry) => {
+        if (!entry.requestPath) {
+            return;
+        }
+        setPage(0);
+        setFilters((current) => ({ ...current, requestPath: entry.requestPath ?? '' }));
     };
 
     useEffect(() => {
@@ -1056,6 +1065,24 @@ export default function AuditPage() {
                                 >
                                     {copiedDetailField === 'resourceSlice' ? 'Resource Link Copied' : 'Copy Resource Slice'}
                                 </button>
+                                {selectedEntry.requestPath && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => openPathSlice(selectedEntry)}
+                                            className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                        >
+                                            Open Path Slice
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void copySliceLink('pathSlice', { requestPath: selectedEntry.requestPath ?? '' })}
+                                            className="rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-semibold text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+                                        >
+                                            {copiedDetailField === 'pathSlice' ? 'Path Link Copied' : 'Copy Path Slice'}
+                                        </button>
+                                    </>
+                                )}
                                 {selectedEntry.actorId && (
                                     <button
                                         type="button"

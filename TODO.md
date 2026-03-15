@@ -1795,3 +1795,7 @@ Last updated: 2026-03-11
   - Support `requestPath` across read/export endpoints and actuator parity
   - Surface request-path filtering in the audit workspace
   - Keep portable links and JSON export aligned with the new filter
+- [x] Add path-slice actions to audit detail:
+  - Open selected row request-path slices directly from the detail panel
+  - Copy path-slice links for sharing
+  - Keep request, actor, resource, and path drill-down flows symmetrical

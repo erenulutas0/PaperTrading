@@ -3927,5 +3927,17 @@ A change is “done” when:
   - audit inspection can now pivot on endpoint path directly, which is often the fastest way to isolate write-side behavior
   - audit read/export surfaces remain contract-aligned instead of treating path filtering as a frontend-only concern
 
+### 2026-03-15: Audit Detail Panel Added Path-Slice Actions
+- Problem observed:
+  - After request-path filtering landed, the detail panel still lagged behind the rest of the drill-down model because path-scoped investigation had to be started from the form.
+- Implementation:
+  - Added selected-row actions for:
+    - `Open Path Slice`
+    - `Copy Path Slice`
+  - These actions reuse the same request-path filter used by the main audit workspace and preserve the current date window.
+- Operational impact:
+  - request, actor, resource, and path investigations now share the same one-click drill-down ergonomics
+  - the detail panel is now the natural starting point for all major audit slice pivots
+
 ---
 Maintainers: keep this file updated when architecture decisions change.
