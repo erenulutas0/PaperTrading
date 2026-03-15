@@ -62,6 +62,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare baskets now follow the authenticated account instead of staying trapped in one browser
     - terminal session and terminal compare presets now share the same persistence authority
+- **2026-03-15**: **Instrument Universe Added Scanner-Style Quick Filters**
+  - **Problem observed**:
+    - The terminal already had search, but search is not enough for the quick market-reading loop.
+    - Users also need one-click slices like:
+      - current gainers
+      - current losers
+      - starred symbols
+      - same-sector peers
+    - Without that, the instrument rail remained searchable but not truly scannable.
+  - **Implementation**:
+    - Added client-side quick filters above the instrument universe for:
+      - `All`
+      - `Gainers`
+      - `Losers`
+      - `Favorites`
+      - `Sector`
+    - Sector filter appears only when the selected instrument exposes sector metadata.
+    - Search still applies on top of the selected quick filter instead of replacing it.
+  - **Operational impact**:
+    - `/watchlist` now supports both directed lookup and fast market scanning
+    - metadata enrichment is now materially useful because sector information drives peer filtering directly
 - **2026-03-15**: **Market Terminal Added Lightweight Compare Basket Presets Beside Full Layouts**
   - **Problem observed**:
     - Saved layouts already captured the full terminal state, but they were heavier than needed for the common compare workflow.

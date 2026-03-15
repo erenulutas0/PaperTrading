@@ -112,6 +112,7 @@ type MarketSelection = 'CRYPTO' | 'BIST100';
 type ChartNoteFilter = 'ALL' | 'PINNED' | 'UNPINNED';
 type AlertHistoryFilter = 'ALL' | 'ABOVE' | 'BELOW';
 type AlertHistoryWindow = 'ALL' | '24H' | '7D' | '30D';
+type UniverseQuickFilter = 'ALL' | 'GAINERS' | 'LOSERS' | 'FAVORITES' | 'SECTOR';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
@@ -281,6 +282,7 @@ export default function WatchlistPage() {
     const [enrichedItems, setEnrichedItems] = useState<WatchlistItem[]>([]);
     const [instrumentUniverse, setInstrumentUniverse] = useState<InstrumentOption[]>([]);
     const [instrumentQuery, setInstrumentQuery] = useState('');
+    const [universeQuickFilter, setUniverseQuickFilter] = useState<UniverseQuickFilter>('ALL');
     const [selectedMarket, setSelectedMarket] = useState<MarketSelection>('CRYPTO');
     const [selectedSymbol, setSelectedSymbol] = useState<string>('BTCUSDT');
     const [compareSymbols, setCompareSymbols] = useState<string[]>([]);
@@ -882,17 +884,48 @@ export default function WatchlistPage() {
 
     const filteredInstruments = useMemo(() => {
         const query = instrumentQuery.trim().toLowerCase();
+        const quickFiltered = instrumentUniverse.filter((instrument) => {
+            switch (universeQuickFilter) {
+                case 'GAINERS':
+                    return instrument.changePercent24h > 0;
+                case 'LOSERS':
+                    return instrument.changePercent24h < 0;
+                case 'FAVORITES':
+                    return favoriteSymbols.includes(instrument.symbol);
+                case 'SECTOR':
+                    return !!selectedInstrumentMetadata?.sector && instrument.symbol !== selectedSymbol && instrument.sector === selectedInstrumentMetadata.sector;
+                default:
+                    return true;
+            }
+        });
         if (!query) {
-            return instrumentUniverse;
+            return quickFiltered;
         }
-        return instrumentUniverse.filter((instrument) =>
+        return quickFiltered.filter((instrument) =>
             instrument.symbol.toLowerCase().includes(query)
             || instrument.displayName.toLowerCase().includes(query)
             || (instrument.market ?? '').toLowerCase().includes(query)
             || (instrument.exchange ?? '').toLowerCase().includes(query)
             || (instrument.currency ?? '').toLowerCase().includes(query)
             || (instrument.sector ?? '').toLowerCase().includes(query));
-    }, [instrumentQuery, instrumentUniverse]);
+    }, [favoriteSymbols, instrumentQuery, instrumentUniverse, selectedInstrumentMetadata?.sector, selectedSymbol, universeQuickFilter]);
+
+    const universeFilterOptions = useMemo<Array<{ key: UniverseQuickFilter; label: string; hint: string }>>(() => {
+        const options: Array<{ key: UniverseQuickFilter; label: string; hint: string }> = [
+            { key: 'ALL', label: 'All', hint: 'Full universe' },
+            { key: 'GAINERS', label: 'Gainers', hint: 'Positive 24h move' },
+            { key: 'LOSERS', label: 'Losers', hint: 'Negative 24h move' },
+            { key: 'FAVORITES', label: 'Favorites', hint: 'Starred symbols' },
+        ];
+        if (selectedInstrumentMetadata?.sector) {
+            options.push({
+                key: 'SECTOR',
+                label: 'Sector',
+                hint: `${selectedInstrumentMetadata.sector} peers`,
+            });
+        }
+        return options;
+    }, [selectedInstrumentMetadata?.sector]);
 
     const favoriteInstruments = useMemo(() => {
         const favoriteSet = new Set(favoriteSymbols);
@@ -2813,6 +2846,25 @@ export default function WatchlistPage() {
                                         <div className="rounded-3xl border border-white/8 bg-zinc-950/55 p-4">
                                             <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-500">Instrument Universe</p>
                                             <p className="mt-2 text-sm text-zinc-400">Chart sembolunu watchlist'e eklemeden de dogrudan degistirebilirsin.</p>
+                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                {universeFilterOptions.map((option) => (
+                                                    <button
+                                                        key={option.key}
+                                                        onClick={() => setUniverseQuickFilter(option.key)}
+                                                        className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${universeQuickFilter === option.key
+                                                            ? 'border-sky-400/25 bg-sky-400/10 text-sky-300'
+                                                            : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'}`}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-zinc-500">
+                                                <span>
+                                                    {universeFilterOptions.find((option) => option.key === universeQuickFilter)?.hint ?? 'Full universe'}
+                                                </span>
+                                                <span>{filteredInstruments.length} symbols</span>
+                                            </div>
                                             <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto pr-1">
                                                 {filteredInstruments.map((instrument) => (
                                                     <div
