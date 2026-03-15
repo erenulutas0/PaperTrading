@@ -73,6 +73,24 @@ export default function NewAnalysis() {
                     </p>
                 </header>
 
+                <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+                    <div className="glass-panel rounded-2xl border border-border/80 p-6">
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Before You Publish</p>
+                        <h2 className="mt-3 text-2xl font-black tracking-tight">Write the thesis as if you cannot touch it again.</h2>
+                        <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                            The system fixes the creation timestamp, stores the initial market price, and resolves target or stop outcomes automatically.
+                        </p>
+                    </div>
+                    <div className="glass-panel rounded-2xl border border-primary/20 bg-primary/5 p-6">
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-primary/80">Locked In At Publish</p>
+                        <ul className="mt-4 space-y-3 text-sm leading-6 text-foreground/85">
+                            <li>Instrument and directional stance</li>
+                            <li>Target and stop thresholds</li>
+                            <li>Server-side timestamp and reference price</li>
+                        </ul>
+                    </div>
+                </section>
+
                 <div className="glass-panel border border-border/80 rounded-2xl p-6 md:p-8">
                     <form onSubmit={handleSubmit} className="space-y-6">
                     {error && (
@@ -142,6 +160,9 @@ export default function NewAnalysis() {
                             onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                             required
                         />
+                        <p className="text-xs text-muted-foreground">
+                            Keep it specific. Explain why the setup exists, what invalidates it, and what timeline the market should respect.
+                        </p>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-3">
@@ -176,6 +197,21 @@ export default function NewAnalysis() {
                                 onChange={(e) => setFormData({ ...formData, targetDays: e.target.value })}
                                 required
                             />
+                        </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-xl border border-border bg-background/60 p-4">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Resolution Hint</p>
+                            <p className="mt-2 text-sm leading-6 text-foreground/80">
+                                If you set a target or stop, the post can resolve to <span className="font-semibold text-success">HIT</span>, <span className="font-semibold text-destructive">MISSED</span>, or <span className="font-semibold text-warning">EXPIRED</span> without manual intervention.
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-border bg-background/60 p-4">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Quality Bar</p>
+                            <p className="mt-2 text-sm leading-6 text-foreground/80">
+                                Avoid generic calls. Strong posts tie price thesis, invalidation, and time horizon together so later accuracy is interpretable.
+                            </p>
                         </div>
                     </div>
 

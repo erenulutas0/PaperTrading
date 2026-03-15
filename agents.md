@@ -3558,5 +3558,29 @@ A change is “done” when:
   - profile management is now a real end-to-end flow instead of a dead control
   - the product’s public identity surface and settings surface are now connected cleanly
 
+### 2026-03-14: Analysis Surfaces Reframed From Raw CRUD Pages Into Accountable Research Workflow
+- Problem observed:
+  - The analysis system already had immutable publishing and automated resolution, but the user-facing surfaces still felt uneven:
+    - feed page had thin context and weak empty-state copy
+    - detail page degraded to bare loading/not-found text
+    - new-analysis page behaved like a raw form rather than a locked-thesis workflow
+- Implementation:
+  - Upgraded `app/dashboard/analysis/page.tsx` with:
+    - summary strip for visible/pending/resolved/hit counts
+    - explicit immutable-analysis context cards
+    - stronger loading skeletons and empty state
+  - Upgraded `app/dashboard/analysis/[id]/page.tsx` with:
+    - loading shell
+    - durable not-found/tombstone-aware empty state
+    - explicit resolution-semantics side panel
+    - richer author/accountability stat cards
+  - Upgraded `app/dashboard/analysis/new/page.tsx` with:
+    - publish-time semantics panel
+    - locked-in-at-publish guidance
+    - clearer explanation of auto-resolution expectations
+- Operational impact:
+  - analysis publishing now reads like a proof-of-performance workflow instead of a generic content form
+  - immutable/timestamped semantics are visible before and after publication, not only implied by backend rules
+
 ---
 Maintainers: keep this file updated when architecture decisions change.

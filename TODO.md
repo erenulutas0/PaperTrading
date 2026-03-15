@@ -1707,3 +1707,7 @@ Last updated: 2026-03-11
   - Add `/profile/edit` page with display name, bio, and avatar URL form
   - Wire `Edit Profile` button on own profile to the new route
   - Save via existing profile update endpoint and redirect back to profile
+- [x] Bring analysis surfaces up to the same product-quality bar:
+  - Add analysis hub summary strip and stronger immutable-flow context
+  - Replace bare loading and empty states on analysis feed/detail with intentional shells
+  - Reframe new analysis form around locked-in thesis semantics and auto-resolution expectations

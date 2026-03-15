@@ -21,6 +21,29 @@ interface AnalysisPost {
     createdAt: string;
 }
 
+function AnalysisSummaryCard({
+    label,
+    value,
+    tone = 'default'
+}: {
+    label: string;
+    value: string;
+    tone?: 'default' | 'success' | 'warning';
+}) {
+    const toneClass = tone === 'success'
+        ? 'text-emerald-300 border-emerald-500/20 bg-emerald-500/10'
+        : tone === 'warning'
+            ? 'text-amber-300 border-amber-500/20 bg-amber-500/10'
+            : 'text-zinc-100 border-white/10 bg-white/5';
+
+    return (
+        <div className={`rounded-2xl border p-4 ${toneClass}`}>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-500">{label}</p>
+            <p className="mt-3 text-2xl font-black">{value}</p>
+        </div>
+    );
+}
+
 export default function AnalysisHub() {
     const [posts, setPosts] = useState<AnalysisPost[]>([]);
     const [loading, setLoading] = useState(true);
@@ -43,6 +66,10 @@ export default function AnalysisHub() {
         }
     };
 
+    const pendingCount = posts.filter((post) => post.outcome === 'PENDING').length;
+    const resolvedCount = posts.filter((post) => post.outcome !== 'PENDING').length;
+    const hitCount = posts.filter((post) => post.outcome === 'HIT').length;
+
     return (
         <div className="p-8 pb-20 relative z-10 w-full max-w-[1400px] mx-auto">
             <header className="flex justify-between items-center bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-2xl relative overflow-hidden mb-12">
@@ -59,16 +86,55 @@ export default function AnalysisHub() {
                 </div>
             </header>
 
+            <section className="mb-8 grid gap-4 md:grid-cols-4">
+                <AnalysisSummaryCard label="Visible Theses" value={loading ? '...' : posts.length.toString()} />
+                <AnalysisSummaryCard label="Pending" value={loading ? '...' : pendingCount.toString()} tone="warning" />
+                <AnalysisSummaryCard label="Resolved" value={loading ? '...' : resolvedCount.toString()} />
+                <AnalysisSummaryCard label="Hits" value={loading ? '...' : hitCount.toString()} tone="success" />
+            </section>
+
+            <section className="mb-8 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+                <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                    <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">Immutable Analysis Flow</p>
+                    <h2 className="mt-3 text-2xl font-black text-white">Every thesis is locked to the server clock.</h2>
+                    <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">
+                        Posts are timestamped, outcome resolution is automated, and the feed keeps both conviction and accountability visible.
+                    </p>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                    <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">What To Expect</p>
+                    <ul className="mt-4 space-y-3 text-sm text-zinc-300">
+                        <li>Server timestamp decides when the thesis was actually published.</li>
+                        <li>Target and stop resolution stay visible after the post is live.</li>
+                        <li>Delete does not erase history; it only tombstones the post.</li>
+                    </ul>
+                </div>
+            </section>
+
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {[1, 2, 3].map(i => (
-                        <div key={i} className="h-64 bg-zinc-900/50 rounded-2xl animate-pulse"></div>
+                        <div key={i} className="rounded-2xl border border-white/10 bg-zinc-900/50 p-6 animate-pulse">
+                            <div className="h-4 w-24 rounded bg-white/10" />
+                            <div className="mt-6 h-7 w-3/4 rounded bg-white/10" />
+                            <div className="mt-4 h-16 rounded bg-white/10" />
+                            <div className="mt-6 space-y-3">
+                                <div className="h-10 rounded bg-white/10" />
+                                <div className="h-10 rounded bg-white/10" />
+                            </div>
+                        </div>
                     ))}
                 </div>
             ) : posts.length === 0 ? (
-                <div className="text-center py-20 bg-zinc-900/20 rounded-3xl border border-zinc-800 border-dashed">
-                    <p className="text-zinc-500 mb-4">No analysis posts yet.</p>
-                    <Link href="/dashboard/analysis/new" className="text-green-500 font-bold hover:underline">Be the first to share an insight!</Link>
+                <div className="rounded-3xl border border-dashed border-zinc-700 bg-zinc-900/20 px-6 py-16 text-center">
+                    <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">Analysis Feed Empty</p>
+                    <h2 className="mt-4 text-2xl font-black text-white">No published thesis yet.</h2>
+                    <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-zinc-400">
+                        The first post will establish a timestamped reference point for accuracy, target resolution, and author track record.
+                    </p>
+                    <Link href="/dashboard/analysis/new" className="mt-6 inline-flex rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-5 py-3 text-sm font-bold text-emerald-300 transition hover:bg-emerald-500/20">
+                        Publish First Analysis
+                    </Link>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

@@ -24,6 +24,28 @@ interface AnalysisPost {
     authorHitCount: number;
 }
 
+function AnalysisDetailSkeleton() {
+    return (
+        <div className="min-h-screen bg-background text-foreground">
+            <div className="noise" />
+            <div className="relative z-10 max-w-5xl mx-auto px-4 py-8 space-y-6 animate-pulse">
+                <div className="h-5 w-40 rounded bg-white/10" />
+                <div className="rounded-2xl border border-border/80 bg-background/50 p-6 md:p-8">
+                    <div className="h-8 w-2/3 rounded bg-white/10" />
+                    <div className="mt-6 h-12 w-56 rounded bg-white/10" />
+                    <div className="mt-8 h-40 rounded-xl bg-white/10" />
+                    <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        {[1, 2, 3, 4].map((item) => (
+                            <div key={item} className="h-24 rounded-xl bg-white/10" />
+                        ))}
+                    </div>
+                </div>
+                <div className="h-40 rounded-2xl border border-border/80 bg-background/50" />
+            </div>
+        </div>
+    );
+}
+
 export default function AnalysisDetail() {
     const params = useParams();
     const id = params.id as string;
@@ -66,8 +88,27 @@ export default function AnalysisDetail() {
         }
     };
 
-    if (loading) return <div className="min-h-screen bg-background text-foreground flex items-center justify-center">Loading analysis...</div>;
-    if (!post) return <div className="min-h-screen bg-background text-foreground p-8 text-center text-muted-foreground">Post not found.</div>;
+    if (loading) return <AnalysisDetailSkeleton />;
+    if (!post) {
+        return (
+            <div className="min-h-screen bg-background text-foreground">
+                <div className="noise" />
+                <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center px-4 py-24 text-center">
+                    <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Analysis Missing</p>
+                    <h1 className="mt-4 text-3xl font-black tracking-tight">This thesis is not available.</h1>
+                    <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
+                        The post may have been tombstoned or the reference may be invalid, but immutable analysis history is not silently erased.
+                    </p>
+                    <Link
+                        href="/dashboard/analysis"
+                        className="mt-6 rounded-xl border border-border bg-accent px-5 py-3 text-sm font-semibold transition hover:border-primary/35 hover:text-primary"
+                    >
+                        Return To Analysis Hub
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     const accuracy = post.authorTotalPosts > 0 ? Math.round((post.authorHitCount / post.authorTotalPosts) * 100) : 0;
 
@@ -136,11 +177,27 @@ export default function AnalysisDetail() {
                             <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                                 Immutable
                             </span>
+                            <span className="rounded-full border border-border bg-accent px-3 py-1 text-xs font-medium text-muted-foreground">
+                                Server Timestamped
+                            </span>
                         </div>
 
-                        <p className="rounded-xl border border-border bg-background/60 p-5 text-base leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                            {post.content}
-                        </p>
+                        <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+                            <div className="rounded-2xl border border-border bg-background/60 p-5">
+                                <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Thesis Body</p>
+                                <p className="mt-4 text-base leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                                    {post.content}
+                                </p>
+                            </div>
+                            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                                <p className="text-[11px] uppercase tracking-[0.32em] text-primary/80">Resolution Semantics</p>
+                                <ul className="mt-4 space-y-3 text-sm leading-6 text-foreground/80">
+                                    <li>Entry price is fixed at post creation and cannot be backfilled.</li>
+                                    <li>Target and stop are checked by system outcome resolution, not by author edits.</li>
+                                    <li>Delete only hides the surface; the accountability trail remains.</li>
+                                </ul>
+                            </div>
+                        </div>
 
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                             <div className="rounded-xl border border-border bg-background/60 p-4">
@@ -162,6 +219,21 @@ export default function AnalysisDetail() {
                             <div className="rounded-xl border border-border bg-background/60 p-4">
                                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Author Accuracy</p>
                                 <p className="mt-2 text-lg font-semibold">{accuracy}%</p>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-3">
+                            <div className="rounded-xl border border-border bg-background/60 p-4">
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Author Hit Count</p>
+                                <p className="mt-2 text-lg font-semibold">{post.authorHitCount}</p>
+                            </div>
+                            <div className="rounded-xl border border-border bg-background/60 p-4">
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Published Analyses</p>
+                                <p className="mt-2 text-lg font-semibold">{post.authorTotalPosts}</p>
+                            </div>
+                            <div className="rounded-xl border border-border bg-background/60 p-4">
+                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Audit Status</p>
+                                <p className="mt-2 text-lg font-semibold text-primary">Append Only</p>
                             </div>
                         </div>
                     </div>
