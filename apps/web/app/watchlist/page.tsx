@@ -692,6 +692,34 @@ export default function WatchlistPage() {
         ];
     }, [instrumentMap]);
 
+    const getCompareBasketOverlapChips = useCallback((symbols: string[]) => {
+        const watchlistOverlap = symbols.filter((symbol) => selectedWatchlistSymbolSet.has(symbol)).length;
+        const favoriteOverlap = symbols.filter((symbol) => favoriteSymbols.includes(symbol)).length;
+        const compareOverlap = symbols.filter((symbol) => compareSymbols.includes(symbol)).length;
+        const chips: Array<{ label: string; className: string }> = [];
+
+        chips.push({
+            label: watchlistOverlap > 0 ? `Watchlist ${watchlistOverlap}/${symbols.length}` : 'Watchlist 0',
+            className: watchlistOverlap > 0
+                ? 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+                : 'border-white/10 bg-white/[0.03] text-zinc-300',
+        });
+        chips.push({
+            label: favoriteOverlap > 0 ? `Favorites ${favoriteOverlap}` : 'Favorites 0',
+            className: favoriteOverlap > 0
+                ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                : 'border-white/10 bg-white/[0.03] text-zinc-300',
+        });
+        if (compareOverlap > 0) {
+            chips.push({
+                label: `Session ${compareOverlap}/${symbols.length}`,
+                className: 'border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-300',
+            });
+        }
+
+        return chips;
+    }, [compareSymbols, favoriteSymbols, selectedWatchlistSymbolSet]);
+
     const getCompareBasketSparklineModel = useCallback((symbols: string[]) => {
         const items = symbols
             .map((symbol) => {
@@ -3437,6 +3465,16 @@ export default function WatchlistPage() {
                                                                         </span>
                                                                     ))}
                                                                 </div>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketOverlapChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-overlap-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
                                                                 {renderCompareBasketSparkline(basket.symbols)}
                                                                 <div className="mt-3 flex flex-wrap gap-2">
                                                                     {basket.symbols.map((symbol, index) => (
@@ -3519,6 +3557,16 @@ export default function WatchlistPage() {
                                                                     {getCompareBasketDeltaChips(basket.symbols).map((chip) => (
                                                                         <span
                                                                             key={`${basket.id}-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketOverlapChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-overlap-${chip.label}`}
                                                                             className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
                                                                         >
                                                                             {chip.label}
@@ -3643,6 +3691,16 @@ export default function WatchlistPage() {
                                                                     {getCompareBasketDeltaChips(basket.symbols).map((chip) => (
                                                                         <span
                                                                             key={`${basket.id}-${chip.label}`}
+                                                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
+                                                                        >
+                                                                            {chip.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {getCompareBasketOverlapChips(basket.symbols).map((chip) => (
+                                                                        <span
+                                                                            key={`${basket.id}-overlap-${chip.label}`}
                                                                             className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${chip.className}`}
                                                                         >
                                                                             {chip.label}

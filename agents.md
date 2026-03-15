@@ -380,6 +380,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare baskets now communicate internal breadth, not just average direction
     - users can reject noisy or overly dispersed baskets before applying them to the chart
+- **2026-03-15**: **Compare Basket Cards Added Workspace Overlap Chips**
+  - **Problem observed**:
+    - Compare basket cards became richer on market breadth, but they still did not show how much they overlap with the user's live workspace.
+    - Users still had to infer whether a basket was already:
+      - represented in the active watchlist
+      - aligned with favorites
+      - close to the current compare session
+  - **Implementation**:
+    - Added overlap chips to suggested, built-in, and saved compare basket cards for:
+      - active watchlist overlap
+      - favorites overlap
+      - current compare-session overlap
+  - **Operational impact**:
+    - compare basket cards now communicate workspace fit in addition to market shape
+    - users can choose baskets that are either novel or strongly aligned with their active workflow
 - **2026-03-15**: **Instrument Universe Cards Added Market, Sector, and Velocity Signals**
   - **Problem observed**:
     - Workspace-state pills helped answer "where is this symbol in my workflow?", but cards still lacked enough market-relative context.

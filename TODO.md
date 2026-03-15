@@ -119,6 +119,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after compare-basket-to-layout rollout and verify saved compare baskets can now be promoted into full named terminal layouts without manually rebuilding the entire state
 - [ ] Redeploy frontend after compare-source-to-layout rollout and verify suggested, built-in, and saved compare baskets can all be promoted into full named terminal layouts
 - [ ] Redeploy frontend after compare-basket-delta-chip rollout and verify compare basket cards now surface leader, weakest, and spread chips before apply
+- [ ] Redeploy frontend after compare-basket-overlap-chip rollout and verify compare basket cards now surface watchlist/favorites/session overlap chips before apply
 - [ ] Redeploy frontend after right-rail-summary rollout and verify `/watchlist` now surfaces compact watchlist/compare/scanner/favorites context inside the right rail
 - [ ] Redeploy frontend after right-rail-counter rollout and verify `/watchlist` right rail now surfaces alert-binding, triggered-alert, and note counters beside the compact session summary
 - [ ] Redeploy frontend after right-rail-quick-actions rollout and verify `/watchlist` right rail now exposes fast favorite/basket/alert actions for the active symbol
