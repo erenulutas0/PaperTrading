@@ -7,6 +7,9 @@ import com.finance.core.dto.WatchlistAlertEventResponse;
 import com.finance.core.repository.WatchlistAlertEventRepository;
 import com.finance.core.repository.WatchlistItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +61,27 @@ public class WatchlistAlertHistoryService {
     }
 
     @Transactional(readOnly = true)
+    public Page<WatchlistAlertEventResponse> getRecentHistoryPage(
+            UUID itemId,
+            UUID userId,
+            Pageable pageable,
+            Integer days,
+            WatchlistAlertDirection direction) {
+        WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
+                .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
+
+        PageRequest effectivePageable = PageRequest.of(
+                pageable.getPageNumber(),
+                Math.max(1, Math.min(pageable.getPageSize(), 50)),
+                pageable.getSort());
+        Integer safeDays = normalizeDays(days);
+        LocalDateTime threshold = safeDays == null ? null : LocalDateTime.now().minusDays(safeDays);
+        List<WatchlistAlertEvent> events = findEvents(item.getId(), effectivePageable.getPageSize(), safeDays, direction, effectivePageable);
+        long total = countEvents(item.getId(), threshold, direction);
+        return new PageImpl<>(toResponses(item.getId(), events), effectivePageable, total);
+    }
+
+    @Transactional(readOnly = true)
     public byte[] exportHistoryCsv(
             UUID itemId,
             UUID userId,
@@ -84,28 +108,54 @@ public class WatchlistAlertHistoryService {
             int limit,
             Integer days,
             WatchlistAlertDirection direction) {
+        return findEvents(itemId, limit, days, direction, PageRequest.of(0, Math.max(1, Math.min(limit, 1000))));
+    }
+
+    private List<WatchlistAlertEvent> findEvents(
+            UUID itemId,
+            int limit,
+            Integer days,
+            WatchlistAlertDirection direction,
+            Pageable pageable) {
         Integer safeDays = normalizeDays(days);
         int safeLimit = Math.max(1, Math.min(limit, 1000));
+        Pageable effectivePageable = PageRequest.of(pageable.getPageNumber(), safeLimit, pageable.getSort());
         if (direction != null && safeDays != null) {
             return watchlistAlertEventRepository.findByWatchlistItemIdAndDirectionAndTriggeredAtGreaterThanEqualOrderByTriggeredAtDesc(
                     itemId,
                     direction,
                     LocalDateTime.now().minusDays(safeDays),
-                    PageRequest.of(0, safeLimit));
+                    effectivePageable);
         }
         if (direction != null) {
             return watchlistAlertEventRepository.findByWatchlistItemIdAndDirectionOrderByTriggeredAtDesc(
                     itemId,
                     direction,
-                    PageRequest.of(0, safeLimit));
+                    effectivePageable);
         }
         if (safeDays != null) {
             return watchlistAlertEventRepository.findByWatchlistItemIdAndTriggeredAtGreaterThanEqualOrderByTriggeredAtDesc(
                     itemId,
                     LocalDateTime.now().minusDays(safeDays),
-                    PageRequest.of(0, safeLimit));
+                    effectivePageable);
         }
-        return watchlistAlertEventRepository.findByWatchlistItemIdOrderByTriggeredAtDesc(itemId, PageRequest.of(0, safeLimit));
+        return watchlistAlertEventRepository.findByWatchlistItemIdOrderByTriggeredAtDesc(itemId, effectivePageable);
+    }
+
+    private long countEvents(UUID itemId, LocalDateTime threshold, WatchlistAlertDirection direction) {
+        if (direction != null && threshold != null) {
+            return watchlistAlertEventRepository.countByWatchlistItemIdAndDirectionAndTriggeredAtGreaterThanEqual(
+                    itemId,
+                    direction,
+                    threshold);
+        }
+        if (direction != null) {
+            return watchlistAlertEventRepository.countByWatchlistItemIdAndDirection(itemId, direction);
+        }
+        if (threshold != null) {
+            return watchlistAlertEventRepository.countByWatchlistItemIdAndTriggeredAtGreaterThanEqual(itemId, threshold);
+        }
+        return watchlistAlertEventRepository.countByWatchlistItemId(itemId);
     }
 
     private List<WatchlistAlertEventResponse> toResponses(UUID itemId, List<WatchlistAlertEvent> events) {

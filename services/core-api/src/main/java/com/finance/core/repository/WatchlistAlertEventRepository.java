@@ -30,4 +30,15 @@ public interface WatchlistAlertEventRepository extends JpaRepository<WatchlistAl
             WatchlistAlertDirection direction,
             LocalDateTime triggeredAt,
             Pageable pageable);
+
+    long countByWatchlistItemId(UUID watchlistItemId);
+
+    long countByWatchlistItemIdAndTriggeredAtGreaterThanEqual(UUID watchlistItemId, LocalDateTime triggeredAt);
+
+    long countByWatchlistItemIdAndDirection(UUID watchlistItemId, WatchlistAlertDirection direction);
+
+    long countByWatchlistItemIdAndDirectionAndTriggeredAtGreaterThanEqual(
+            UUID watchlistItemId,
+            WatchlistAlertDirection direction,
+            LocalDateTime triggeredAt);
 }

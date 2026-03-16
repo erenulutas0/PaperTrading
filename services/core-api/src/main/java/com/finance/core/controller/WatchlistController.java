@@ -11,6 +11,10 @@ import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -116,13 +120,18 @@ public class WatchlistController {
     }
 
     @GetMapping("/items/{itemId}/alert-history")
-    public ResponseEntity<List<WatchlistAlertEventResponse>> getAlertHistory(
+    public ResponseEntity<Page<WatchlistAlertEventResponse>> getAlertHistory(
             @PathVariable UUID itemId,
             @CurrentUserId UUID userId,
-            @RequestParam(defaultValue = "10") int limit,
+            @PageableDefault(size = 10) Pageable pageable,
+            @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Integer days,
             @RequestParam(required = false) WatchlistAlertDirection direction) {
-        return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistory(itemId, userId, limit, days, direction));
+        Pageable effectivePageable = pageable;
+        if (limit != null && limit > 0) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
+        }
+        return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistoryPage(itemId, userId, effectivePageable, days, direction));
     }
 
     @GetMapping("/items/{itemId}/alert-history/export")

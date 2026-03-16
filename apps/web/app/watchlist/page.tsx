@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/api-client';
+import { extractContent } from '../../lib/page';
 import MarketWorkspaceChart from '../../components/MarketWorkspaceChart';
 import { decodeSharedLayout, encodeSharedLayout, SharedTerminalLayoutPayload } from '../../lib/market-terminal-share';
 import {
@@ -1906,7 +1907,7 @@ export default function WatchlistPage() {
                 return;
             }
             const data = await res.json();
-            setAlertHistory(Array.isArray(data) ? data : []);
+            setAlertHistory(extractContent<AlertHistoryItem>(data));
         } catch (error) {
             console.error(error);
             setAlertHistory([]);

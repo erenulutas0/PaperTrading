@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Watchlist Alert History Moved From Limit-Based Lists To Paged Read Contract**
+  - **Problem observed**:
+    - Watchlist alert history had useful filtering (`days`, `direction`) and CSV export, but the primary read path still returned a raw limited list.
+    - That kept the terminal inconsistent with the platform’s broader pagination/read migration and made future alert-history navigation harder.
+  - **Implementation**:
+    - `GET /api/v1/watchlists/items/{itemId}/alert-history` now returns a paged response instead of a bare array.
+    - Kept `limit` compatibility at the controller edge while aligning the main contract around pageable semantics.
+    - Added count queries for filtered alert-history slices so page metadata stays accurate across:
+      - unfiltered reads
+      - day-window filtering
+      - direction filtering
+      - combined day + direction filtering
+    - `/watchlist` alert-history reader now normalizes the response through shared `extractContent(...)` instead of assuming an array payload.
+  - **Operational impact**:
+    - alert-history now follows the same paged-read contract as the rest of the product
+    - terminal alert inspection remains behaviorally unchanged while becoming easier to extend with future pagination controls
 - **2026-03-15**: **Tournament Leaderboard And Trade Feed Shifted To Paged Read Contracts**
   - **Problem observed**:
     - Tournament list surfaces were already paged, but two high-churn tournament read paths still returned raw lists:

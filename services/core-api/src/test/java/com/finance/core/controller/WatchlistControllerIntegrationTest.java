@@ -152,10 +152,11 @@ class WatchlistControllerIntegrationTest {
                                 .header("X-User-Id", userId.toString())
                                 .param("limit", "5"))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$", hasSize(1)))
-                                .andExpect(jsonPath("$[0].symbol").value("BTCUSDT"))
-                                .andExpect(jsonPath("$[0].direction").value("ABOVE"))
-                                .andExpect(jsonPath("$[0].triggeredPrice").value(61500));
+                                .andExpect(jsonPath("$.content", hasSize(1)))
+                                .andExpect(jsonPath("$.page.totalElements").value(1))
+                                .andExpect(jsonPath("$.content[0].symbol").value("BTCUSDT"))
+                                .andExpect(jsonPath("$.content[0].direction").value("ABOVE"))
+                                .andExpect(jsonPath("$.content[0].triggeredPrice").value(61500));
     }
 
     @Test
@@ -192,8 +193,8 @@ class WatchlistControllerIntegrationTest {
                         .param("limit", "10")
                         .param("days", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].message").value("Recent trigger"));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].message").value("Recent trigger"));
     }
 
     @Test
@@ -226,9 +227,9 @@ class WatchlistControllerIntegrationTest {
                         .param("limit", "10")
                         .param("direction", "BELOW"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].direction").value("BELOW"))
-                .andExpect(jsonPath("$[0].message").value("Below trigger"));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].direction").value("BELOW"))
+                .andExpect(jsonPath("$.content[0].message").value("Below trigger"));
     }
 
     @Test
