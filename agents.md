@@ -29,7 +29,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Analysis Posts | ✅ Done | Immutable posts, soft-delete tombstone, price snapshot, auto outcome resolution (30s) |
 | Outcome Resolution Engine | ✅ Done | Scheduled 30s: target hit, stop hit, expiry checks |
 | Redis Integration | ✅ Done | Cache layer for leaderboard (ZSET), prices |
-| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`) + tournament leaderboard/trade read surfaces now emit paged payloads; remaining legacy list endpoints are being migrated |
+| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`) + tournament leaderboard/trade + watchlist list/alert-history read surfaces now emit paged payloads; remaining legacy list endpoints are being migrated |
 | Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
@@ -38,6 +38,17 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Watchlist List Read Contract Moved To Paged Payloads**
+  - **Problem observed**:
+    - The terminal’s alert-history panel had already moved to a paged read contract, but the primary watchlist list itself still returned a raw array.
+    - That kept the watchlist workspace inconsistent with the broader list-endpoint migration and left create/delete refresh flows bound to an older array-only assumption.
+  - **Implementation**:
+    - `GET /api/v1/watchlists` now returns a paged response.
+    - `/watchlist` list hydration now normalizes the response through shared `extractContent(...)` instead of assuming an array payload.
+    - Added controller integration coverage to lock the page shape for the watchlist list read path.
+  - **Operational impact**:
+    - the terminal’s primary list surface now aligns with the platform’s pagination migration
+    - frontend watchlist refresh flows remain behaviorally unchanged while gaining a consistent contract for future paging controls
 - **2026-03-15**: **Watchlist Alert History Moved From Limit-Based Lists To Paged Read Contract**
   - **Problem observed**:
     - Watchlist alert history had useful filtering (`days`, `direction`) and CSV export, but the primary read path still returned a raw limited list.

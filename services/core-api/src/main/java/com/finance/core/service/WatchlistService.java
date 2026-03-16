@@ -6,6 +6,8 @@ import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,12 @@ public class WatchlistService {
     @Transactional(readOnly = true)
     public List<Watchlist> getUserWatchlists(UUID userId) {
         return watchlistRepository.findByUserId(userId);
+    }
+
+    /** Get all watchlists for a user (paged) */
+    @Transactional(readOnly = true)
+    public Page<Watchlist> getUserWatchlists(UUID userId, Pageable pageable) {
+        return watchlistRepository.findByUserId(userId, pageable);
     }
 
     /** Create a new watchlist */

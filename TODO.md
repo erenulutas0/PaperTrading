@@ -75,6 +75,10 @@ Last updated: 2026-03-11
   - `/api/v1/watchlists/items/{id}/alert-history` now returns page metadata + content
   - `/watchlist` alert history panel still reads the first filtered slice correctly
   - `days` and `direction` filters still narrow paged alert-history responses correctly
+- [ ] Redeploy backend/frontend after watchlist-list pagination rollout and verify:
+  - `/api/v1/watchlists` now returns page metadata + content
+  - `/watchlist` still restores the first available watchlist correctly from the paged payload
+  - create/delete watchlist flows still converge on the refreshed paged list
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion

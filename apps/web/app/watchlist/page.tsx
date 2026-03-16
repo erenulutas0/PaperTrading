@@ -1828,7 +1828,8 @@ export default function WatchlistPage() {
             if (!res.ok) {
                 return;
             }
-            const data = await res.json();
+            const payload = await res.json();
+            const data = extractContent<Watchlist>(payload);
             setWatchlists(data);
             if (data.length === 0) {
                 setSelectedWatchlist(null);

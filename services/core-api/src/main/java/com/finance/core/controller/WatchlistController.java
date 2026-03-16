@@ -36,8 +36,10 @@ public class WatchlistController {
 
     /** Get all watchlists for the current user */
     @GetMapping
-    public ResponseEntity<List<Watchlist>> getUserWatchlists(@CurrentUserId UUID userId) {
-        return ResponseEntity.ok(watchlistService.getUserWatchlists(userId));
+    public ResponseEntity<Page<Watchlist>> getUserWatchlists(
+            @CurrentUserId UUID userId,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(watchlistService.getUserWatchlists(userId, pageable));
     }
 
     /** Create a new watchlist */

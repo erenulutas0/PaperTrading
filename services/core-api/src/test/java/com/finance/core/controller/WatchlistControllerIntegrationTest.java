@@ -100,6 +100,18 @@ class WatchlistControllerIntegrationTest {
         }
 
         @Test
+        void testGetWatchlistsPaged() throws Exception {
+                mockMvc.perform(get("/api/v1/watchlists")
+                                .header("X-User-Id", userId.toString())
+                                .param("page", "0")
+                                .param("size", "10"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(1)))
+                                .andExpect(jsonPath("$.content[0].name").value("Integration Watchlist"))
+                                .andExpect(jsonPath("$.page.totalElements").value(1));
+        }
+
+        @Test
         void testAddItemToWatchlist() throws Exception {
                 Map<String, Object> itemRequest = Map.of(
                                 "symbol", "ETHUSDT",
