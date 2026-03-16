@@ -38,6 +38,34 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Profile Surface Split Into Summary, Trust, and Network Workspaces**
+  - **Problem observed**:
+    - `/profile/{userId}` already had stronger trust visualization and better empty states, but the page still stacked:
+      - profile summary cards
+      - trust evidence/trend
+      - portfolios
+      - followers/following
+    - That made the profile informative but visually dense, especially after the analytics and terminal surfaces had already moved toward workspace-style segmentation.
+  - **Implementation**:
+    - Added a top-level `Profile Workspace` switcher with:
+      - `Summary`
+      - `Trust`
+      - `Network`
+    - `Summary` now keeps:
+      - top stat cards
+      - portfolio record list
+    - `Trust` now isolates:
+      - trust trend chart
+      - trust evidence metrics
+      - explicit empty state if the account does not yet have enough trust evidence
+    - `Network` now isolates:
+      - followers
+      - following
+      - network load-more / follow-toggle flows
+    - Header count pills for portfolios/followers/following now also route into the corresponding workspace instead of only toggling one lower tab.
+  - **Operational impact**:
+    - profile reads more like a controlled workspace and less like a social feed wall
+    - portfolio record, trust evidence, and network management no longer compete for attention on the same first paint
 - **2026-03-15**: **Portfolio Analytics Lower Surface Split Into Core, Live, and Outcomes Workspaces**
   - **Problem observed**:
     - Even after compare tabs and the compact analytics header deck, `/analytics/{portfolioId}` still stacked too many lower sections in one uninterrupted wall:

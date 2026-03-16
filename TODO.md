@@ -41,6 +41,10 @@ Last updated: 2026-03-11
   - analytics top controls now collapse into a tabbed deck so filter/export and curve-window controls do not occupy separate cards
   - lower analytics content now splits into `Core / Live / Outcomes` so curve/risk structure, open-risk inspection, and closed-result analysis no longer compete in one long wall
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
+- [ ] Redeploy frontend after profile workspace cleanup and verify `/profile/{userId}` now separates:
+  - summary cards + portfolio record
+  - trust breakdown / trend
+  - follower/following network management
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state
   - pinned-note preview embedded inside the exported card

@@ -66,6 +66,7 @@ interface PublicPortfolio {
 }
 
 type ProfileTab = 'portfolios' | 'followers' | 'following';
+type ProfileWorkspaceTab = 'SUMMARY' | 'TRUST' | 'NETWORK';
 
 interface PageMeta {
     number: number;
@@ -160,6 +161,7 @@ export default function ProfilePage() {
     const [portfolios, setPortfolios] = useState<PublicPortfolio[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<ProfileTab>('portfolios');
+    const [profileWorkspaceTab, setProfileWorkspaceTab] = useState<ProfileWorkspaceTab>('SUMMARY');
     const [followLoading, setFollowLoading] = useState(false);
     const [followers, setFollowers] = useState<UserProfile[]>([]);
     const [followingUsers, setFollowingUsers] = useState<UserProfile[]>([]);
@@ -415,19 +417,28 @@ export default function ProfilePage() {
                                 {profile.bio && <p className="max-w-2xl text-sm text-foreground/85">{profile.bio}</p>}
                                 <div className="flex flex-wrap gap-4 text-sm">
                                     <button
-                                        onClick={() => setActiveTab('portfolios')}
+                                        onClick={() => {
+                                            setProfileWorkspaceTab('SUMMARY');
+                                            setActiveTab('portfolios');
+                                        }}
                                         className={`transition-colors ${activeTab === 'portfolios' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                                     >
                                         <span className="font-semibold">{profile.portfolioCount}</span> Portfolios
                                     </button>
                                     <button
-                                        onClick={() => setActiveTab('followers')}
+                                        onClick={() => {
+                                            setProfileWorkspaceTab('NETWORK');
+                                            setActiveTab('followers');
+                                        }}
                                         className={`transition-colors ${activeTab === 'followers' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                                     >
                                         <span className="font-semibold">{profile.followerCount}</span> Followers
                                     </button>
                                     <button
-                                        onClick={() => setActiveTab('following')}
+                                        onClick={() => {
+                                            setProfileWorkspaceTab('NETWORK');
+                                            setActiveTab('following');
+                                        }}
                                         className={`transition-colors ${activeTab === 'following' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                                     >
                                         <span className="font-semibold">{profile.followingCount}</span> Following
@@ -457,6 +468,52 @@ export default function ProfilePage() {
                     </div>
                 </section>
 
+                <section className="glass-panel rounded-2xl border border-border/80 p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Profile Workspace</p>
+                            <h2 className="mt-2 text-xl font-semibold">Separate summary, trust, and network surfaces</h2>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Keep portfolio record, trust evidence, and follower graph in distinct workspaces instead of one long profile wall.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { key: 'SUMMARY', label: 'Summary', badge: `${profile.portfolioCount} portfolios` },
+                                { key: 'TRUST', label: 'Trust', badge: profile.trustBreakdown ? `${trustHistory.length} points` : 'Pending' },
+                                { key: 'NETWORK', label: 'Network', badge: `${profile.followerCount + profile.followingCount} links` },
+                            ] as const).map(({ key, label, badge }) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => {
+                                        setProfileWorkspaceTab(key);
+                                        if (key === 'SUMMARY') {
+                                            setActiveTab('portfolios');
+                                        }
+                                        if (key === 'NETWORK' && activeTab === 'portfolios') {
+                                            setActiveTab('followers');
+                                        }
+                                    }}
+                                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                        profileWorkspaceTab === key
+                                            ? 'border-primary/35 bg-primary/15 text-primary'
+                                            : 'border-border bg-accent text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    <span>{label}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                        profileWorkspaceTab === key ? 'bg-primary/15 text-primary' : 'bg-background/70 text-muted-foreground'
+                                    }`}>
+                                        {badge}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                {profileWorkspaceTab === 'SUMMARY' && (
                 <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
                     {profileSummaryCards.map((card) => (
                         <article key={card.label} className="glass-panel rounded-xl border border-border/80 p-4">
@@ -471,8 +528,9 @@ export default function ProfilePage() {
                         </article>
                     ))}
                 </section>
+                )}
 
-                {profile.trustBreakdown && (
+                {profileWorkspaceTab === 'TRUST' && profile.trustBreakdown && (
                     <section className="space-y-3">
                         <article className="glass-panel rounded-xl border border-border/80 p-4">
                             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -605,38 +663,52 @@ export default function ProfilePage() {
                     </section>
                 )}
 
+                {profileWorkspaceTab === 'TRUST' && !profile.trustBreakdown && (
+                    <section className="glass-panel rounded-2xl border border-border/80 p-5">
+                        <ProfileEmptyPanel
+                            title="Trust evidence still building"
+                            body="Resolved predictions, closed trades, and portfolio history will populate this workspace once enough account-level evidence exists."
+                        />
+                    </section>
+                )}
+
+                {(profileWorkspaceTab === 'SUMMARY' || profileWorkspaceTab === 'NETWORK') && (
                 <section className="glass-panel rounded-2xl border border-border/80 p-5">
                     <div className="mb-5 flex flex-wrap gap-2">
-                        <button
-                            onClick={() => setActiveTab('portfolios')}
-                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${activeTab === 'portfolios'
-                                ? 'bg-primary/15 text-primary border border-primary/35'
-                                : 'bg-accent text-muted-foreground border border-border hover:text-foreground'
-                                }`}
-                        >
-                            Portfolios
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('followers')}
-                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${activeTab === 'followers'
-                                ? 'bg-primary/15 text-primary border border-primary/35'
-                                : 'bg-accent text-muted-foreground border border-border hover:text-foreground'
-                                }`}
-                        >
-                            Followers
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('following')}
-                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${activeTab === 'following'
-                                ? 'bg-primary/15 text-primary border border-primary/35'
-                                : 'bg-accent text-muted-foreground border border-border hover:text-foreground'
-                                }`}
-                        >
-                            Following
-                        </button>
+                        {profileWorkspaceTab === 'SUMMARY' ? (
+                            <div className="flex flex-wrap items-center gap-3">
+                                <span className="rounded-full border border-primary/35 bg-primary/15 px-3 py-1.5 text-xs font-medium text-primary">
+                                    Portfolios
+                                </span>
+                                <p className="text-xs text-muted-foreground">
+                                    Public performance record and current portfolio visibility context.
+                                </p>
+                            </div>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={() => setActiveTab('followers')}
+                                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${activeTab === 'followers'
+                                        ? 'bg-primary/15 text-primary border border-primary/35'
+                                        : 'bg-accent text-muted-foreground border border-border hover:text-foreground'
+                                        }`}
+                                >
+                                    Followers
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('following')}
+                                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${activeTab === 'following'
+                                        ? 'bg-primary/15 text-primary border border-primary/35'
+                                        : 'bg-accent text-muted-foreground border border-border hover:text-foreground'
+                                        }`}
+                                >
+                                    Following
+                                </button>
+                            </>
+                        )}
                     </div>
 
-                    {activeTab === 'portfolios' && (
+                    {profileWorkspaceTab === 'SUMMARY' && (
                         <div className="space-y-3">
                             {portfolios.length === 0 ? (
                                 <ProfileEmptyPanel
@@ -684,7 +756,7 @@ export default function ProfilePage() {
                         </div>
                     )}
 
-                    {(isFollowersTab || isFollowingTab) && (
+                    {profileWorkspaceTab === 'NETWORK' && (isFollowersTab || isFollowingTab) && (
                         <div className="space-y-3">
                             {connectionLoading && connectionUsers.length === 0 ? (
                                 <div className="space-y-3">
@@ -776,6 +848,7 @@ export default function ProfilePage() {
                         </div>
                     )}
                 </section>
+                )}
             </div>
         </div>
     );
