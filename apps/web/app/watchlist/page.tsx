@@ -136,6 +136,7 @@ type UniverseQuickFilter = 'ALL' | 'GAINERS' | 'LOSERS' | 'FAVORITES' | 'SECTOR'
 type UniverseSortMode = 'MOVE_DESC' | 'MOVE_ASC' | 'PRICE_DESC' | 'ALPHA';
 type ScannerWorkspaceTab = 'DISCOVERY' | 'UNIVERSE' | 'VIEWS';
 type TerminalPanelTab = 'COMPARE' | 'LAYOUTS' | 'SNAPSHOT';
+type ChartControlTab = 'DRAW' | 'ALERTS';
 
 const RANGE_OPTIONS: ChartRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'];
 const INTERVAL_OPTIONS: ChartInterval[] = ['1m', '15m', '30m', '1h', '4h', '1d'];
@@ -393,6 +394,7 @@ export default function WatchlistPage() {
     const [universeSortMode, setUniverseSortMode] = useState<UniverseSortMode>('MOVE_DESC');
     const [scannerWorkspaceTab, setScannerWorkspaceTab] = useState<ScannerWorkspaceTab>('DISCOVERY');
     const [terminalPanelTab, setTerminalPanelTab] = useState<TerminalPanelTab>('COMPARE');
+    const [chartControlTab, setChartControlTab] = useState<ChartControlTab>('DRAW');
     const [scannerViews, setScannerViews] = useState<ScannerViewPreset[]>([]);
     const [scannerViewNameDraft, setScannerViewNameDraft] = useState('');
     const [scannerViewMessage, setScannerViewMessage] = useState('');
@@ -3452,95 +3454,129 @@ export default function WatchlistPage() {
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-3 xl:grid-cols-2">
                                     <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                        <p className="mr-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Draw</p>
-                                        <button
-                                            onClick={() => setDrawingMode((current) => current === 'horizontal' ? 'none' : 'horizontal')}
-                                            className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition ${drawingMode === 'horizontal'
-                                                ? 'border-sky-400/30 bg-sky-400/10 text-sky-300'
-                                                : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'}`}
-                                        >
-                                            Horizontal
-                                        </button>
-                                        <button
-                                            onClick={() => setDrawingMode((current) => current === 'trend' ? 'none' : 'trend')}
-                                            className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition ${drawingMode === 'trend'
-                                                ? 'border-pink-400/30 bg-pink-400/10 text-pink-300'
-                                                : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'}`}
-                                        >
-                                            Trend Line
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setDrawingMode('none');
-                                                setClearDrawingsToken((current) => current + 1);
-                                            }}
-                                            className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white"
-                                        >
-                                            Clear Drawings
-                                        </button>
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Chart Controls</p>
+                                                <p className="mt-1 text-xs text-zinc-400">Switch between drawing tools and alert anchors without stacking two full blocks above the chart.</p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {([
+                                                    { key: 'DRAW', label: 'Draw', badge: drawingMode === 'none' ? 'Off' : drawingMode === 'horizontal' ? 'Level' : 'Trend' },
+                                                    { key: 'ALERTS', label: 'Alerts', badge: selectedWatchlistItem ? (chartActivePoint ? 'Anchor' : 'Ready') : 'Detached' },
+                                                ] as const).map(({ key, label, badge }) => (
+                                                    <button
+                                                        key={key}
+                                                        onClick={() => setChartControlTab(key)}
+                                                        className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition ${
+                                                            chartControlTab === key
+                                                                ? 'border-amber-400/25 bg-amber-400/10 text-amber-300'
+                                                                : 'border-white/10 bg-white/[0.03] text-zinc-400 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <span>{label}</span>
+                                                        <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                                                            chartControlTab === key
+                                                                ? 'bg-amber-400/15 text-amber-200'
+                                                                : 'bg-black/30 text-zinc-500'
+                                                        }`}>
+                                                            {badge}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <span className="mt-3 block text-xs text-zinc-500">
-                                            {drawingMode === 'none'
-                                                ? 'Select a tool to place levels or trend lines.'
-                                                : (drawingMode === 'horizontal'
-                                                    ? 'Click once on the chart to place a level.'
-                                                    : 'Click two points on the chart to place a trend line.')}
-                                        </span>
-                                    </div>
 
-                                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                        <p className="mr-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">Alerts</p>
-                                        <button
-                                            onClick={() => updateSelectedSymbolAlerts(
-                                                chartActivePoint?.close ?? null,
-                                                Number(selectedWatchlistItem?.alertPriceBelow) > 0 ? Number(selectedWatchlistItem?.alertPriceBelow) : null,
-                                            )}
-                                            disabled={!selectedWatchlistItem || !chartActivePoint}
-                                            className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
-                                        >
-                                            Set Above Here
-                                        </button>
-                                        <button
-                                            onClick={() => updateSelectedSymbolAlerts(
-                                                Number(selectedWatchlistItem?.alertPriceAbove) > 0 ? Number(selectedWatchlistItem?.alertPriceAbove) : null,
-                                                chartActivePoint?.close ?? null,
-                                            )}
-                                            disabled={!selectedWatchlistItem || !chartActivePoint}
-                                            className="rounded-full border border-red-400/30 bg-red-400/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-red-300 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40"
-                                        >
-                                            Set Below Here
-                                        </button>
-                                        <button
-                                            onClick={() => updateSelectedSymbolAlerts(
-                                                null,
-                                                Number(selectedWatchlistItem?.alertPriceBelow) > 0 ? Number(selectedWatchlistItem?.alertPriceBelow) : null,
-                                            )}
-                                            disabled={!selectedWatchlistItem || !selectedWatchlistItem.alertPriceAbove}
-                                            className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                                        >
-                                            Clear Above
-                                        </button>
-                                        <button
-                                            onClick={() => updateSelectedSymbolAlerts(
-                                                Number(selectedWatchlistItem?.alertPriceAbove) > 0 ? Number(selectedWatchlistItem?.alertPriceAbove) : null,
-                                                null,
-                                            )}
-                                            disabled={!selectedWatchlistItem || !selectedWatchlistItem.alertPriceBelow}
-                                            className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                                        >
-                                            Clear Below
-                                        </button>
-                                        </div>
-                                        <span className="mt-3 block text-xs text-zinc-500">
-                                            {selectedWatchlistItem
-                                                ? (chartActivePoint ? `Anchor alerts to ${formatMoney(chartActivePoint.close)} from the active candle.` : 'Move the crosshair over a candle to anchor alerts.')
-                                                : 'Add this symbol to the selected watchlist to manage alerts from the chart.'}
-                                        </span>
-                                    </div>
+                                        {chartControlTab === 'DRAW' && (
+                                            <>
+                                                <div className="mt-4 flex flex-wrap items-center gap-2">
+                                                    <button
+                                                        onClick={() => setDrawingMode((current) => current === 'horizontal' ? 'none' : 'horizontal')}
+                                                        className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition ${drawingMode === 'horizontal'
+                                                            ? 'border-sky-400/30 bg-sky-400/10 text-sky-300'
+                                                            : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'}`}
+                                                    >
+                                                        Horizontal
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setDrawingMode((current) => current === 'trend' ? 'none' : 'trend')}
+                                                        className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition ${drawingMode === 'trend'
+                                                            ? 'border-pink-400/30 bg-pink-400/10 text-pink-300'
+                                                            : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white'}`}
+                                                    >
+                                                        Trend Line
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setDrawingMode('none');
+                                                            setClearDrawingsToken((current) => current + 1);
+                                                        }}
+                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white"
+                                                    >
+                                                        Clear Drawings
+                                                    </button>
+                                                </div>
+                                                <span className="mt-3 block text-xs text-zinc-500">
+                                                    {drawingMode === 'none'
+                                                        ? 'Select a tool to place levels or trend lines.'
+                                                        : (drawingMode === 'horizontal'
+                                                            ? 'Click once on the chart to place a level.'
+                                                            : 'Click two points on the chart to place a trend line.')}
+                                                </span>
+                                            </>
+                                        )}
+
+                                        {chartControlTab === 'ALERTS' && (
+                                            <>
+                                                <div className="mt-4 flex flex-wrap items-center gap-2">
+                                                    <button
+                                                        onClick={() => updateSelectedSymbolAlerts(
+                                                            chartActivePoint?.close ?? null,
+                                                            Number(selectedWatchlistItem?.alertPriceBelow) > 0 ? Number(selectedWatchlistItem?.alertPriceBelow) : null,
+                                                        )}
+                                                        disabled={!selectedWatchlistItem || !chartActivePoint}
+                                                        className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                    >
+                                                        Set Above Here
+                                                    </button>
+                                                    <button
+                                                        onClick={() => updateSelectedSymbolAlerts(
+                                                            Number(selectedWatchlistItem?.alertPriceAbove) > 0 ? Number(selectedWatchlistItem?.alertPriceAbove) : null,
+                                                            chartActivePoint?.close ?? null,
+                                                        )}
+                                                        disabled={!selectedWatchlistItem || !chartActivePoint}
+                                                        className="rounded-full border border-red-400/30 bg-red-400/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-red-300 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                    >
+                                                        Set Below Here
+                                                    </button>
+                                                    <button
+                                                        onClick={() => updateSelectedSymbolAlerts(
+                                                            null,
+                                                            Number(selectedWatchlistItem?.alertPriceBelow) > 0 ? Number(selectedWatchlistItem?.alertPriceBelow) : null,
+                                                        )}
+                                                        disabled={!selectedWatchlistItem || !selectedWatchlistItem.alertPriceAbove}
+                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                                    >
+                                                        Clear Above
+                                                    </button>
+                                                    <button
+                                                        onClick={() => updateSelectedSymbolAlerts(
+                                                            Number(selectedWatchlistItem?.alertPriceAbove) > 0 ? Number(selectedWatchlistItem?.alertPriceAbove) : null,
+                                                            null,
+                                                        )}
+                                                        disabled={!selectedWatchlistItem || !selectedWatchlistItem.alertPriceBelow}
+                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                                    >
+                                                        Clear Below
+                                                    </button>
+                                                </div>
+                                                <span className="mt-3 block text-xs text-zinc-500">
+                                                    {selectedWatchlistItem
+                                                        ? (chartActivePoint ? `Anchor alerts to ${formatMoney(chartActivePoint.close)} from the active candle.` : 'Move the crosshair over a candle to anchor alerts.')
+                                                        : 'Add this symbol to the selected watchlist to manage alerts from the chart.'}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
 
                                     {compareSymbols.length > 0 && (

@@ -64,6 +64,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - scanner tabs now show live counts for discovery, filtered universe, and saved views
       - compare/layout/snapshot tabs now surface lightweight status badges
       - chart toolbar header now summarizes market, window, and compare state as compact pills
+    - Replaced stacked draw/alert cards with one chart-control band:
+      - `Draw / Alerts` now switch inside a single compact control surface
+      - chart-top control height is reduced without removing any chart-side actions
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible
