@@ -38,6 +38,32 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Notifications Surface Split Between Overview Context And Live Inbox Slices**
+  - **Problem observed**:
+    - `/notifications` had stronger summary strips and better copy, but it still stacked:
+      - usage context
+      - filters
+      - live inbox feed
+    - The bell dropdown had the same issue in compressed form: one long mixed stream for alerts and social interactions.
+  - **Implementation**:
+    - Added a top-level workspace split on `/notifications`:
+      - `Overview`
+      - `Inbox`
+    - `Overview` now keeps:
+      - event-stream context
+      - usage guidance
+    - `Inbox` now keeps:
+      - filters
+      - live notification feed
+      - follow-back / mark-read actions
+    - Added segmented bell-dropdown slices:
+      - `Recent`
+      - `Alerts`
+      - `Social`
+    - The dropdown still reuses the same live-notification source, but now narrows the visible slice before rendering rows.
+  - **Operational impact**:
+    - full inbox and bell dropdown now both behave like controlled workspaces rather than one undifferentiated event wall
+    - price-triggered alerts and social proof signals are easier to isolate without adding new backend contracts
 - **2026-03-15**: **Leaderboard Surfaces Split Into Overview And Board Workspaces**
   - **Problem observed**:
     - Both `/dashboard/leaderboard` and `/leaderboards` had stronger summary strips and better empty states, but they still behaved like one continuous page:

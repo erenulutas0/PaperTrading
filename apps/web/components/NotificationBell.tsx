@@ -15,6 +15,8 @@ interface NotificationItem {
     createdAt: string;
 }
 
+type BellTab = 'RECENT' | 'ALERTS' | 'SOCIAL';
+
 function formatRelativeTime(createdAt: string): string {
     const ts = new Date(createdAt).getTime();
     if (!Number.isFinite(ts)) return '';
@@ -31,12 +33,24 @@ function formatRelativeTime(createdAt: string): string {
 export default function NotificationBell() {
     const { notifications, unreadCount, markAllRead, markRead, connected } = useLiveNotifications();
     const [isOpen, setIsOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<BellTab>('RECENT');
     const [followBackLoadingId, setFollowBackLoadingId] = useState<string | null>(null);
     const [followedActorIds, setFollowedActorIds] = useState<Set<string>>(new Set());
     const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
     const visibleNotifications = useMemo(() => notifications.slice(0, 30), [notifications]);
     const priceAlertCount = useMemo(() => notifications.filter((notification) => notification.type === 'PRICE_ALERT').length, [notifications]);
+    const socialCount = useMemo(() => notifications.filter((notification) => notification.type !== 'PRICE_ALERT').length, [notifications]);
+    const tabNotifications = useMemo(() => {
+        switch (activeTab) {
+            case 'ALERTS':
+                return visibleNotifications.filter((notification) => notification.type === 'PRICE_ALERT');
+            case 'SOCIAL':
+                return visibleNotifications.filter((notification) => notification.type !== 'PRICE_ALERT');
+            default:
+                return visibleNotifications;
+        }
+    }, [activeTab, visibleNotifications]);
 
     const toggleOpen = () => {
         setIsOpen(!isOpen);
@@ -183,20 +197,51 @@ export default function NotificationBell() {
                                 <p className="mt-2 text-lg font-black text-white">{priceAlertCount}</p>
                             </div>
                         </div>
+                        <div className="border-b border-zinc-800/80 bg-zinc-950/70 px-3 py-2">
+                            <div className="flex flex-wrap gap-2">
+                                {([
+                                    { key: 'RECENT', label: 'Recent', badge: `${visibleNotifications.length}` },
+                                    { key: 'ALERTS', label: 'Alerts', badge: `${priceAlertCount}` },
+                                    { key: 'SOCIAL', label: 'Social', badge: `${socialCount}` },
+                                ] as const).map(({ key, label, badge }) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => setActiveTab(key)}
+                                        className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] transition-colors ${
+                                            activeTab === key
+                                                ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                                                : 'border-zinc-800 bg-black/40 text-zinc-500 hover:text-white'
+                                        }`}
+                                    >
+                                        <span>{label}</span>
+                                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] ${
+                                            activeTab === key ? 'bg-green-500/15 text-green-200' : 'bg-zinc-900 text-zinc-500'
+                                        }`}>
+                                            {badge}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         <div className="border-b border-zinc-800/80 bg-zinc-950/60 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-zinc-500">
-                            Scroll recent activity
+                            {activeTab === 'RECENT' && 'Scroll recent activity'}
+                            {activeTab === 'ALERTS' && 'Price alert slice'}
+                            {activeTab === 'SOCIAL' && 'Social interaction slice'}
                         </div>
                         <div className="max-h-[32rem] overflow-y-auto pr-1 custom-scrollbar">
-                            {visibleNotifications.length === 0 ? (
+                            {tabNotifications.length === 0 ? (
                                 <div className="p-8 text-center">
                                     <p className="text-[10px] uppercase tracking-[0.28em] text-zinc-600">Inbox Empty</p>
-                                    <p className="mt-3 text-sm font-semibold text-zinc-200">No notifications yet.</p>
+                                    <p className="mt-3 text-sm font-semibold text-zinc-200">No notifications in this slice.</p>
                                     <p className="mt-2 text-xs leading-6 text-zinc-500">
-                                        New follows, alerts, and discussion events will start appearing here.
+                                        {activeTab === 'RECENT' && 'New follows, alerts, and discussion events will start appearing here.'}
+                                        {activeTab === 'ALERTS' && 'Price-triggered events will appear here once watchlist alerts fire.'}
+                                        {activeTab === 'SOCIAL' && 'Follows, likes, comments, and replies will collect here.'}
                                     </p>
                                 </div>
                             ) : (
-                                visibleNotifications.map(n => (
+                                tabNotifications.map(n => (
                                     <div
                                         key={n.id}
                                         className={`p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors flex gap-3 ${!n.read ? 'bg-green-500/5' : ''}`}

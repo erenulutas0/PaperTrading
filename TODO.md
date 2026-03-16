@@ -49,6 +49,9 @@ Last updated: 2026-03-11
   - operating/filter context
   - live ranked board table
   - pagination only when the board surface is active
+- [ ] Redeploy frontend after notifications workspace cleanup and verify:
+  - `/notifications` now separates overview context from the live inbox stream
+  - bell dropdown now supports `Recent / Alerts / Social` slices instead of one undifferentiated list
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state
   - pinned-note preview embedded inside the exported card

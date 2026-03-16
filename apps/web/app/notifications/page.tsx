@@ -6,6 +6,7 @@ import { useLiveNotifications } from '../../components/LiveNotificationProvider'
 import { apiFetch } from '../../lib/api-client';
 
 type FilterType = 'ALL' | 'FOLLOW' | 'PORTFOLIO' | 'POST' | 'PRICE_ALERT';
+type NotificationWorkspaceTab = 'OVERVIEW' | 'INBOX';
 
 interface NotificationItem {
     id: string;
@@ -56,6 +57,7 @@ function formatRelativeTime(createdAt: string): string {
 export default function NotificationsPage() {
     const { notifications, unreadCount, markAllRead, markRead, connected } = useLiveNotifications();
     const [filter, setFilter] = useState<FilterType>('ALL');
+    const [workspaceTab, setWorkspaceTab] = useState<NotificationWorkspaceTab>('OVERVIEW');
     const [followBackLoadingId, setFollowBackLoadingId] = useState<string | null>(null);
     const [followedActorIds, setFollowedActorIds] = useState<Set<string>>(new Set());
     const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
@@ -245,42 +247,82 @@ export default function NotificationsPage() {
                     <NotificationSummaryCard label="Social Events" value={socialCount.toString()} tone="success" />
                 </section>
 
-                <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-                    <div className="glass-panel rounded-2xl border border-border/80 p-6">
-                        <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Inbox Role</p>
-                        <h2 className="mt-3 text-2xl font-black tracking-tight">This is the account event stream.</h2>
-                        <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                            Follows, portfolio interactions, analysis responses, and market alerts converge here so state changes do not disappear into separate surfaces.
-                        </p>
-                    </div>
-                    <div className="glass-panel rounded-2xl border border-border/80 p-6">
-                        <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">How To Use It</p>
-                        <ul className="mt-4 space-y-3 text-sm leading-6 text-foreground/85">
-                            <li>Use filters to isolate social proof vs market-triggered alerts.</li>
-                            <li>`Mark all read` only clears inbox state; it does not erase the event trail.</li>
-                            <li>Follow-back actions stay in the inbox so network-building remains close to the event.</li>
-                        </ul>
-                    </div>
-                </section>
-
-                <section className="glass-panel rounded-2xl p-4 border border-border/80">
-                    <div className="flex flex-wrap gap-2">
-                        {filters.map((item) => (
-                            <button
-                                key={item.value}
-                                onClick={() => setFilter(item.value)}
-                                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${filter === item.value
-                                    ? 'border-primary/40 bg-primary/15 text-primary'
-                                    : 'border-border bg-background/50 text-muted-foreground hover:border-primary/25 hover:text-foreground'
+                <section className="glass-panel rounded-2xl border border-border/80 p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Notifications Workspace</p>
+                            <h2 className="mt-3 text-2xl font-black tracking-tight">Separate inbox context from the live event stream.</h2>
+                            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                                Keep usage guidance and event density apart so the inbox stays easier to scan.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { key: 'OVERVIEW', label: 'Overview', badge: `${notifications.length} loaded` },
+                                { key: 'INBOX', label: 'Inbox', badge: `${filtered.length} visible` },
+                            ] as const).map(({ key, label, badge }) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => setWorkspaceTab(key)}
+                                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                        workspaceTab === key
+                                            ? 'border-primary/40 bg-primary/15 text-primary'
+                                            : 'border-border bg-background/50 text-muted-foreground hover:border-primary/25 hover:text-foreground'
                                     }`}
-                            >
-                                {item.icon} {item.label}
-                            </button>
-                        ))}
+                                >
+                                    <span>{label}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                        workspaceTab === key ? 'bg-primary/15 text-primary' : 'bg-background/70 text-muted-foreground'
+                                    }`}>
+                                        {badge}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </section>
 
-                {filtered.length === 0 ? (
+                {workspaceTab === 'OVERVIEW' && (
+                    <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                        <div className="glass-panel rounded-2xl border border-border/80 p-6">
+                            <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Inbox Role</p>
+                            <h2 className="mt-3 text-2xl font-black tracking-tight">This is the account event stream.</h2>
+                            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                                Follows, portfolio interactions, analysis responses, and market alerts converge here so state changes do not disappear into separate surfaces.
+                            </p>
+                        </div>
+                        <div className="glass-panel rounded-2xl border border-border/80 p-6">
+                            <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">How To Use It</p>
+                            <ul className="mt-4 space-y-3 text-sm leading-6 text-foreground/85">
+                                <li>Use filters to isolate social proof vs market-triggered alerts.</li>
+                                <li>`Mark all read` only clears inbox state; it does not erase the event trail.</li>
+                                <li>Follow-back actions stay in the inbox so network-building remains close to the event.</li>
+                            </ul>
+                        </div>
+                    </section>
+                )}
+
+                {workspaceTab === 'INBOX' && (
+                    <section className="glass-panel rounded-2xl p-4 border border-border/80">
+                        <div className="flex flex-wrap gap-2">
+                            {filters.map((item) => (
+                                <button
+                                    key={item.value}
+                                    onClick={() => setFilter(item.value)}
+                                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${filter === item.value
+                                        ? 'border-primary/40 bg-primary/15 text-primary'
+                                        : 'border-border bg-background/50 text-muted-foreground hover:border-primary/25 hover:text-foreground'
+                                        }`}
+                                >
+                                    {item.icon} {item.label}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {workspaceTab === 'INBOX' && (filtered.length === 0 ? (
                     <div className="glass-panel rounded-2xl border border-dashed border-border/90 p-10 text-center">
                         <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Inbox Empty</p>
                         <p className="mt-4 text-lg font-semibold">No notifications in this view.</p>
@@ -364,7 +406,7 @@ export default function NotificationsPage() {
                             </article>
                         ))}
                     </section>
-                )}
+                ))}
             </div>
         </div>
     );
