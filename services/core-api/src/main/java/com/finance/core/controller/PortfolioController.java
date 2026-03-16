@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -298,9 +299,16 @@ public class PortfolioController {
     // --- History & Snapshots ---
 
     @GetMapping("/{id}/history")
-    public ResponseEntity<?> getPortfolioHistory(@PathVariable UUID id) {
-        List<TradeHistoryEntryResponse> history = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(id)
-                .stream()
+    public ResponseEntity<?> getPortfolioHistory(
+            @PathVariable UUID id,
+            @PageableDefault(size = 20) Pageable pageable,
+            @RequestParam(required = false) Integer limit) {
+        Pageable effectivePageable = pageable;
+        if (limit != null && limit > 0) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
+        }
+
+        Page<TradeHistoryEntryResponse> history = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(id, effectivePageable)
                 .map(trade -> TradeHistoryEntryResponse.builder()
                         .id(trade.getId())
                         .symbol(trade.getSymbol())
@@ -310,8 +318,7 @@ public class PortfolioController {
                         .price(trade.getPrice())
                         .realizedPnl(resolveRealizedPnl(trade))
                         .timestamp(trade.getTimestamp())
-                        .build())
-                .collect(Collectors.toList());
+                        .build());
         return ResponseEntity.ok(history);
     }
 

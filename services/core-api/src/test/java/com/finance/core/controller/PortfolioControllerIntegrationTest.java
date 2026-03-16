@@ -108,9 +108,9 @@ class PortfolioControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/portfolios/{id}/history", portfolio.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].type").value("BUY"))
-                .andExpect(jsonPath("$[0].realizedPnl").value(0));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].type").value("BUY"))
+                .andExpect(jsonPath("$.content[0].realizedPnl").value(0));
     }
 
     @Test

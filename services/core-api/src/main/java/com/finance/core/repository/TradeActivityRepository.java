@@ -1,6 +1,7 @@
 package com.finance.core.repository;
 
 import com.finance.core.domain.TradeActivity;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,8 @@ import java.math.BigDecimal;
 @Repository
 public interface TradeActivityRepository extends JpaRepository<TradeActivity, UUID> {
     List<TradeActivity> findByPortfolioIdOrderByTimestampDesc(UUID portfolioId);
+
+    Page<TradeActivity> findByPortfolioIdOrderByTimestampDesc(UUID portfolioId, Pageable pageable);
 
     @Query("SELECT t FROM TradeActivity t WHERE t.portfolioId IN :portfolioIds ORDER BY t.timestamp DESC")
     List<TradeActivity> findRecentTradesForPortfolios(@Param("portfolioIds") List<UUID> portfolioIds,

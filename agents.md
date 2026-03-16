@@ -38,6 +38,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Trade History Moved To Paged Read Contract**
+  - **Problem observed**:
+    - Portfolio detail already exposed recent trade history, but `/api/v1/portfolios/{id}/history` still returned a raw array.
+    - That left another growing list surface outside the paged-read migration discipline while the rest of the app was standardizing on `content + metadata`.
+  - **Implementation**:
+    - `GET /api/v1/portfolios/{id}/history` now returns a paged response.
+    - Preserved optional `limit` compatibility for callers that still think in “top N trades”.
+    - `/dashboard/portfolio/{id}` now normalizes the payload through shared `extractContent(...)`, so the detail page behavior stays the same while the contract becomes scalable.
+    - Added integration coverage for the paged shape and the legacy buy-trade `realizedPnl = 0` normalization.
+  - **Operational impact**:
+    - portfolio detail trade history now aligns with the same response discipline used across other read-heavy surfaces
+    - rollout risk stays low because the web client accepts both array and paged shapes
 - **2026-03-15**: **Chart Note List Moved To Paged Read Contract**
   - **Problem observed**:
     - The terminal’s chart-note workflow had already moved to durable backend persistence, but the note list endpoint still returned a raw array.

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import PortfolioChart from '../../../../components/PortfolioChart';
 import LikeCommentWidget from '../../../../components/LikeCommentWidget';
 import { apiFetch } from '../../../../lib/api-client';
+import { extractContent } from '../../../../lib/page';
 
 interface PortfolioItem {
     id: string;
@@ -108,7 +109,7 @@ export default function PortfolioDetailPage({ params }: { params: Promise<{ id: 
         try {
             const res = await apiFetch(`/api/v1/portfolios/${id}/history`);
             if (res.ok) {
-                setHistory(await res.json());
+                setHistory(extractContent<TradeActivity>(await res.json()));
             }
         } catch (error) {
             console.error(error);

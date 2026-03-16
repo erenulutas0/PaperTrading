@@ -97,6 +97,10 @@ Last updated: 2026-03-11
   - `/api/v1/market/chart-notes` now returns page metadata + content
   - `/watchlist` symbol note panel still hydrates from the paged payload
   - create/update/delete/pin note flows still converge on the refreshed note list
+- [ ] Redeploy backend/frontend after portfolio-history pagination rollout and verify:
+  - `/api/v1/portfolios/{id}/history` now returns page metadata + content
+  - `/dashboard/portfolio/{id}` still renders recent trade history from the normalized paged payload
+  - legacy `limit` compatibility still narrows the first history slice correctly
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion
