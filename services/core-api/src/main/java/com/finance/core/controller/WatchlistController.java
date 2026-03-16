@@ -112,9 +112,10 @@ public class WatchlistController {
     public ResponseEntity<?> getEnrichedItems(
             @PathVariable UUID watchlistId,
             @CurrentUserId UUID userId,
+            @PageableDefault(size = 100) Pageable pageable,
             HttpServletRequest httpRequest) {
         try {
-            List<Map<String, Object>> items = watchlistService.getEnrichedItems(watchlistId, userId);
+            Page<Map<String, Object>> items = watchlistService.getEnrichedItemsPage(watchlistId, userId, pageable);
             return ResponseEntity.ok(items);
         } catch (Exception e) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_items_failed", e.getMessage(), null, httpRequest);

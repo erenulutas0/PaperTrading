@@ -38,6 +38,18 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Watchlist Item Enrichment Moved To Paged Read Contract**
+  - **Problem observed**:
+    - The watchlist shell already used paged contracts for watchlists, alert history, layouts, and notes, but the active watchlist item feed still returned a raw array.
+    - That left the main basket-enrichment surface outside the same read-shape discipline.
+  - **Implementation**:
+    - `GET /api/v1/watchlists/{id}/items` now returns a paged response.
+    - `WatchlistService` now builds enrichment from a paged item slice before resolving market snapshots, instead of enriching the whole basket unconditionally.
+    - `/watchlist` now normalizes the response through shared `extractContent(...)`, keeping the current basket UI behavior stable.
+    - Added integration coverage for the new page shape.
+  - **Operational impact**:
+    - the active watchlist basket now aligns with the platform’s standardized paged-read contract
+    - snapshot enrichment work can stay bounded to the requested slice instead of assuming an always-raw full list
 - **2026-03-15**: **Portfolio Trade History Moved To Paged Read Contract**
   - **Problem observed**:
     - Portfolio detail already exposed recent trade history, but `/api/v1/portfolios/{id}/history` still returned a raw array.

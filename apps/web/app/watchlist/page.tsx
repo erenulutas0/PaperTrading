@@ -1879,7 +1879,7 @@ export default function WatchlistPage() {
                 return;
             }
             const data = await res.json();
-            setEnrichedItems(data);
+            setEnrichedItems(extractContent<EnrichedWatchlistItem>(data));
         } catch (error) {
             console.error(error);
         }

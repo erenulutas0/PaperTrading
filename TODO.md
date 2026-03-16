@@ -101,6 +101,10 @@ Last updated: 2026-03-11
   - `/api/v1/portfolios/{id}/history` now returns page metadata + content
   - `/dashboard/portfolio/{id}` still renders recent trade history from the normalized paged payload
   - legacy `limit` compatibility still narrows the first history slice correctly
+- [ ] Redeploy backend/frontend after watchlist-item pagination rollout and verify:
+  - `/api/v1/watchlists/{id}/items` now returns page metadata + content
+  - `/watchlist` still hydrates the active basket from the normalized paged payload
+  - add/remove item and alert-edit flows still converge on the refreshed item slice
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion

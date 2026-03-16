@@ -138,10 +138,11 @@ class WatchlistControllerIntegrationTest {
                 mockMvc.perform(get("/api/v1/watchlists/" + testWatchlist.getId() + "/items")
                                 .header("X-User-Id", userId.toString()))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$", hasSize(1)))
-                                .andExpect(jsonPath("$[0].symbol").value("BTCUSDT"))
-                                .andExpect(jsonPath("$[0].currentPrice").value(60000.0))
-                                .andExpect(jsonPath("$[0].changePercent24h").value(3.4));
+                                .andExpect(jsonPath("$.content", hasSize(1)))
+                                .andExpect(jsonPath("$.page.totalElements").value(1))
+                                .andExpect(jsonPath("$.content[0].symbol").value("BTCUSDT"))
+                                .andExpect(jsonPath("$.content[0].currentPrice").value(60000.0))
+                                .andExpect(jsonPath("$.content[0].changePercent24h").value(3.4));
         }
 
         @Test

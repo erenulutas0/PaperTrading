@@ -7,6 +7,7 @@ import com.finance.core.repository.WatchlistRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -99,13 +100,23 @@ public class WatchlistService {
     /** Get enriched watchlist items with current prices */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getEnrichedItems(UUID watchlistId, UUID userId) {
+        return getEnrichedItemsPage(watchlistId, userId, Pageable.unpaged()).getContent();
+    }
+
+    /** Get enriched watchlist items with current prices (paged) */
+    @Transactional(readOnly = true)
+    public Page<Map<String, Object>> getEnrichedItemsPage(UUID watchlistId, UUID userId, Pageable pageable) {
         Watchlist watchlist = watchlistRepository.findByIdAndUserId(watchlistId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist not found"));
 
-        Map<String, com.finance.core.dto.MarketInstrumentResponse> snapshots = marketDataFacadeService.getInstrumentSnapshots(
-                watchlist.getItems().stream().map(WatchlistItem::getSymbol).toList());
+        Page<WatchlistItem> itemsPage = pageable.isPaged()
+                ? watchlistItemRepository.findByWatchlistIdOrderByAddedAtAsc(watchlist.getId(), pageable)
+                : new PageImpl<>(watchlist.getItems());
 
-        return watchlist.getItems().stream().map(item -> {
+        Map<String, com.finance.core.dto.MarketInstrumentResponse> snapshots = marketDataFacadeService.getInstrumentSnapshots(
+                itemsPage.getContent().stream().map(WatchlistItem::getSymbol).toList());
+
+        return itemsPage.map(item -> {
             com.finance.core.dto.MarketInstrumentResponse snapshot = snapshots.get(item.getSymbol());
             Double currentPrice = snapshot != null ? snapshot.getCurrentPrice() : 0.0;
             return Map.<String, Object>of(
@@ -118,6 +129,6 @@ public class WatchlistService {
                     "alertAboveTriggered", item.getAlertAboveTriggered(),
                     "alertBelowTriggered", item.getAlertBelowTriggered(),
                     "notes", item.getNotes() != null ? item.getNotes() : "");
-        }).toList();
+        });
     }
 }
