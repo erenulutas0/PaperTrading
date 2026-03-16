@@ -135,6 +135,8 @@ interface AnalyticsData {
     equityCurve: { timestamp: string; equity: number; drawdown: number; peak: number }[];
 }
 
+type CompareWorkspaceTab = 'OVERVIEW' | 'MOMENTUM' | 'RISK';
+
 export default function AnalyticsPage({ params }: { params: Promise<{ portfolioId: string }> }) {
     const resolvedParams = use(params);
     const portfolioId = resolvedParams.portfolioId;
@@ -145,6 +147,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [comparePortfolioId, setComparePortfolioId] = useState('');
     const [compareData, setCompareData] = useState<AnalyticsData | null>(null);
     const [compareLoading, setCompareLoading] = useState(false);
+    const [compareWorkspaceTab, setCompareWorkspaceTab] = useState<CompareWorkspaceTab>('OVERVIEW');
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
@@ -646,6 +649,10 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    useEffect(() => {
+        setCompareWorkspaceTab('OVERVIEW');
+    }, [comparePortfolioId]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -1516,6 +1523,35 @@ ${lines}
                             </div>
                         ) : compareSummary && compareRiskMetrics && compareTradeStats ? (
                             <div className="mt-5 space-y-4">
+                                <div className="flex flex-wrap gap-2">
+                                    {([
+                                        { key: 'OVERVIEW', label: 'Overview', badge: 'Core' },
+                                        { key: 'MOMENTUM', label: 'Momentum', badge: selectedCurveWindow },
+                                        { key: 'RISK', label: 'Risk', badge: '6' },
+                                    ] as const).map(({ key, label, badge }) => (
+                                        <button
+                                            key={key}
+                                            type="button"
+                                            onClick={() => setCompareWorkspaceTab(key)}
+                                            className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
+                                                compareWorkspaceTab === key
+                                                    ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300'
+                                                    : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                            }`}
+                                        >
+                                            <span>{label}</span>
+                                            <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                                                compareWorkspaceTab === key
+                                                    ? 'bg-cyan-500/15 text-cyan-200'
+                                                    : 'bg-black/30 text-zinc-500'
+                                            }`}>
+                                                {badge}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {compareWorkspaceTab === 'OVERVIEW' && (
+                                    <>
                                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                                     {[
                                         {
@@ -1574,6 +1610,9 @@ ${lines}
                                     </div>
                                     <canvas ref={compareCanvasRef} className="mt-4 h-64 w-full rounded-xl" />
                                 </div>
+                                    </>
+                                )}
+                                {compareWorkspaceTab === 'MOMENTUM' && (
                                 <div className="rounded-xl border border-white/5 bg-black/20 p-4">
                                     <div className="flex items-center justify-between">
                                         <div>
@@ -1628,6 +1667,8 @@ ${lines}
                                         })}
                                     </div>
                                 </div>
+                                )}
+                                {compareWorkspaceTab === 'RISK' && (
                                 <div className="rounded-xl border border-white/5 bg-black/20 p-4">
                                     <div className="flex items-center justify-between">
                                         <div>
@@ -1713,6 +1754,7 @@ ${lines}
                                         </table>
                                     </div>
                                 </div>
+                                )}
                             </div>
                         ) : (
                             <div className="mt-5">

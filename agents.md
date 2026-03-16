@@ -711,6 +711,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare mode now behaves more like an intentional analytics tool and less like a raw conditional render branch
     - first-time users understand why compare is unavailable instead of reading it as a broken control
+- **2026-03-15**: **Portfolio Compare Surface Split Into Overview, Momentum, And Risk Workspaces**
+  - **Problem observed**:
+    - Compare mode had accumulated useful blocks, but they rendered as one long vertical wall:
+      - delta cards
+      - indexed overlay
+      - rolling momentum strip
+      - risk-quality table
+    - The information was good, but the compare surface no longer had a clear reading order.
+  - **Implementation**:
+    - Added lightweight compare workspace tabs inside `/analytics/{portfolioId}`:
+      - `Overview`
+      - `Momentum`
+      - `Risk`
+    - `Overview` now carries:
+      - core delta cards
+      - indexed equity overlay
+    - `Momentum` isolates the rolling `7D / 30D` delta strip.
+    - `Risk` isolates the risk-and-quality comparison table.
+    - Reset compare workspace tab to `Overview` whenever the selected comparison portfolio changes.
+  - **Operational impact**:
+    - compare mode now reads like a navigable analytics workspace instead of a dense scroll wall
+    - users can move directly to the decision layer they care about without losing the rest of the compare feature set
 - **2026-03-15**: **Portfolio Compare Surface Added Rolling Momentum Delta Strip**
   - **Problem observed**:
     - Compare mode had total return deltas and a rebased overlay, but still lacked a concise answer to:
