@@ -74,6 +74,7 @@ Last updated: 2026-03-11
   - compacts the compare-session banner into a lower-height strip with pills instead of a verbose stacked summary block
   - splits the right rail into `Overview / Watchlists / Basket` tabs so summary, list management, and tracked rows do not render all at once
   - uses right-rail tab-aware CTA flow so add/watchlist/basket empty states route users into the correct section
+  - smooths medium-breakpoint layout so the create-watchlist form and scanner grids stop feeling desktop-only
 - [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol

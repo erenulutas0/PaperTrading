@@ -3265,13 +3265,13 @@ export default function WatchlistPage() {
                             Enstruman degistir, interval sec, `ALL` history modunda sola kaydirarak daha eski mumlari yukle.
                         </p>
                     </div>
-                    <form onSubmit={handleCreateWatchlist} className="flex gap-2">
+                    <form onSubmit={handleCreateWatchlist} className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                         <input
                             type="text"
                             value={newName}
                             onChange={(event) => setNewName(event.target.value)}
                             placeholder="New watchlist name..."
-                            className="w-52 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-amber-500"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-amber-500 sm:w-52"
                         />
                         <button type="submit" className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm font-bold text-amber-400 transition-all hover:bg-amber-500/20">
                             + Create
@@ -3369,7 +3369,7 @@ export default function WatchlistPage() {
                                                 </span>
                                             </div>
                                         </div>
-                                        <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,0.8fr))]">
+                                        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,0.8fr))]">
                                             <input
                                                 type="text"
                                                 value={instrumentQuery}
@@ -4558,7 +4558,7 @@ export default function WatchlistPage() {
                                                             {sectorPulseGroups.length} groups
                                                         </span>
                                                     </div>
-                                                    <div className="mt-3 grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
+                                                    <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
                                                         {sectorPulseGroups.map((group) => {
                                                             const positive = group.averageMove >= 0;
                                                             return (
@@ -4663,7 +4663,7 @@ export default function WatchlistPage() {
                                                 {scannerViewMessage && (
                                                     <p className="mt-3 text-xs text-zinc-500">{scannerViewMessage}</p>
                                                 )}
-                                                <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                                                <div className="mt-3 grid gap-2 lg:grid-cols-2">
                                                     {availableScannerViews.length === 0 ? (
                                                         <div className="rounded-2xl border border-dashed border-white/10 px-4 py-4 text-sm text-zinc-500">
                                                             No saved scanner views for {selectedMarket} yet.
@@ -4841,7 +4841,7 @@ export default function WatchlistPage() {
                                                 </span>
                                                 <span>{filteredInstruments.length} symbols</span>
                                             </div>
-                                            <div className="mt-4 grid max-h-[760px] gap-2 overflow-y-auto pr-1 xl:grid-cols-2">
+                                            <div className="mt-4 grid max-h-[760px] gap-2 overflow-y-auto pr-1 lg:grid-cols-2">
                                                 {filteredInstruments.map((instrument) => (
                                                     <div
                                                         key={instrument.symbol}

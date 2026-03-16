@@ -78,6 +78,10 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - `+ Add` now pivots into `Watchlists`
       - selecting a watchlist pivots into `Basket`
       - empty basket states now provide explicit CTA routing back to the relevant rail section
+    - Added a medium-breakpoint polish pass:
+      - create-watchlist form now stacks cleanly before expanding horizontally
+      - chart toolbar fields begin a two-column wrap before the full desktop layout
+      - sector/view/universe grids open up earlier on non-desktop widths
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible
