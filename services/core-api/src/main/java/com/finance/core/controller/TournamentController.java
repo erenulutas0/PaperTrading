@@ -135,8 +135,10 @@ public class TournamentController {
 
     /** Get user's earned badges */
     @GetMapping("/badges/{userId}")
-    public ResponseEntity<List<Badge>> getUserBadges(@PathVariable UUID userId) {
-        return ResponseEntity.ok(tournamentService.getUserBadges(userId));
+    public ResponseEntity<Page<Badge>> getUserBadges(
+            @PathVariable UUID userId,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(tournamentService.getUserBadges(userId, pageable));
     }
 
     @Data

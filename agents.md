@@ -38,6 +38,16 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Tournament Badge List Moved To Paged Read Contract**
+  - **Problem observed**:
+    - The tournament surface had already migrated leaderboard and trade feeds to paged responses, but user-earned badges still came back as a raw list.
+    - Even without an active frontend consumer, leaving the endpoint raw would keep a legacy shape in a tournament-adjacent read surface.
+  - **Implementation**:
+    - `GET /api/v1/tournaments/badges/{userId}` now returns a paged response.
+    - Added repository and service pageable overloads plus controller integration coverage for the paged shape.
+  - **Operational impact**:
+    - tournament read contracts are now more internally consistent
+    - future badge UIs can consume the endpoint without another contract migration
 - **2026-03-15**: **Watchlist Item Enrichment Moved To Paged Read Contract**
   - **Problem observed**:
     - The watchlist shell already used paged contracts for watchlists, alert history, layouts, and notes, but the active watchlist item feed still returned a raw array.

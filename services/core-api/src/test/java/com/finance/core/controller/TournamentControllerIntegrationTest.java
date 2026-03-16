@@ -2,6 +2,7 @@ package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.AppUser;
+import com.finance.core.domain.Badge;
 import com.finance.core.domain.Tournament;
 import com.finance.core.repository.*;
 import com.finance.core.service.BinanceService;
@@ -146,5 +147,23 @@ class TournamentControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(0)))
                                 .andExpect(jsonPath("$.page.totalElements").value(0));
+        }
+
+        @Test
+        void testGetUserBadgesPaged() throws Exception {
+                badgeRepository.save(Badge.builder()
+                                .userId(testUser.getId())
+                                .name("First Tournament")
+                                .icon("🏁")
+                                .description("Joined your first paper trading tournament!")
+                                .build());
+
+                mockMvc.perform(get("/api/v1/tournaments/badges/" + testUser.getId())
+                                .param("page", "0")
+                                .param("size", "10"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(1)))
+                                .andExpect(jsonPath("$.content[0].name").value("First Tournament"))
+                                .andExpect(jsonPath("$.page.totalElements").value(1));
         }
 }

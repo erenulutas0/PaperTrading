@@ -375,4 +375,9 @@ public class TournamentService {
     public List<Badge> getUserBadges(UUID userId) {
         return badgeRepository.findByUserIdOrderByEarnedAtDesc(userId);
     }
+
+    /** Get badges for a user (paged) */
+    public Page<Badge> getUserBadges(UUID userId, Pageable pageable) {
+        return badgeRepository.findByUserIdOrderByEarnedAtDesc(userId, pageable);
+    }
 }
