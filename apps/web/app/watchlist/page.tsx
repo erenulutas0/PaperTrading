@@ -3580,8 +3580,9 @@ export default function WatchlistPage() {
                                     </div>
 
                                     {compareSymbols.length > 0 && (
-                                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
-                                            <div>
+                                        <div className="rounded-2xl border border-amber-400/15 bg-amber-400/5 px-4 py-3">
+                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div className="min-w-0">
                                                 <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compare Session</p>
                                                 <div className="mt-2 flex flex-wrap items-center gap-2">
                                                     <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-amber-300">
@@ -3600,16 +3601,31 @@ export default function WatchlistPage() {
                                                             {instrument.symbol}
                                                         </span>
                                                     ))}
+                                                    <span className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
+                                                        compareVisible
+                                                            ? 'border-sky-400/20 bg-sky-400/10 text-sky-300'
+                                                            : 'border-white/10 bg-white/[0.03] text-zinc-300'
+                                                    }`}>
+                                                        {compareVisible ? 'Overlay Visible' : 'Overlay Hidden'}
+                                                    </span>
                                                 </div>
-                                                <div className="mt-2 flex flex-col gap-1 text-sm text-zinc-400">
+                                                <div className="mt-2 flex flex-wrap gap-2">
                                                     {compareSessionSummary.map((summary) => (
-                                                        <p key={summary.symbol}>
-                                                            {selectedSymbol} {formatPercent(summary.primaryMovePercent)} · {summary.symbol} {formatPercent(summary.compareMovePercent)}
-                                                        </p>
+                                                        <span
+                                                            key={summary.symbol}
+                                                            className="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                                            style={{
+                                                                borderColor: `${summary.color}55`,
+                                                                backgroundColor: `${summary.color}18`,
+                                                                color: summary.color,
+                                                            }}
+                                                        >
+                                                            {summary.symbol} {summary.relativeGapPercent >= 0 ? '+' : ''}{summary.relativeGapPercent.toFixed(2)}%
+                                                        </span>
                                                     ))}
                                                 </div>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2">
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-2">
                                                 <button
                                                     onClick={() => setCompareVisible((current) => !current)}
                                                     className={`rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition ${compareVisible
@@ -3627,8 +3643,9 @@ export default function WatchlistPage() {
                                                 >
                                                     Clear Compare
                                                 </button>
+                                                </div>
                                             </div>
-                                            <div className="flex w-full flex-wrap gap-2 border-t border-white/10 pt-3">
+                                            <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
                                                 {compareSessionSummary.map((summary) => (
                                                     <button
                                                         key={summary.symbol}

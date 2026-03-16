@@ -67,6 +67,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Replaced stacked draw/alert cards with one chart-control band:
       - `Draw / Alerts` now switch inside a single compact control surface
       - chart-top control height is reduced without removing any chart-side actions
+    - Compressed compare-session feedback:
+      - large multi-line compare summary reduced into a pill-first strip
+      - overlay state and relative gaps remain visible without another tall panel above the chart
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible
