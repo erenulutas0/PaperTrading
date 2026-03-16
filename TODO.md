@@ -45,6 +45,10 @@ Last updated: 2026-03-11
   - summary cards + portfolio record
   - trust breakdown / trend
   - follower/following network management
+- [ ] Redeploy frontend after leaderboard workspace cleanup and verify both `/dashboard/leaderboard` and `/leaderboards` now separate:
+  - operating/filter context
+  - live ranked board table
+  - pagination only when the board surface is active
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state
   - pinned-note preview embedded inside the exported card

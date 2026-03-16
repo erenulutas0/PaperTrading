@@ -38,6 +38,30 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Leaderboard Surfaces Split Into Overview And Board Workspaces**
+  - **Problem observed**:
+    - Both `/dashboard/leaderboard` and `/leaderboards` had stronger summary strips and better empty states, but they still behaved like one continuous page:
+      - mode context
+      - sorting controls
+      - live ranking table
+      - pagination
+    - That made leaderboard pages noisier than necessary, especially once account-mode and portfolio-mode semantics diverged.
+  - **Implementation**:
+    - Added a lightweight workspace switcher to both leaderboard surfaces:
+      - `Overview`
+      - `Board`
+    - `Overview` now owns:
+      - mode explanation
+      - sort / period controls
+      - operating summary
+    - `Board` now owns:
+      - live ranking table
+      - pagination
+      - compact mode/sort context strip with a one-click path back to filters
+    - Public leaderboard header controls were also simplified so sort/direction live in the overview workspace instead of duplicating controls in multiple places.
+  - **Operational impact**:
+    - leaderboard pages now read more like operating workspaces than stacked admin tables
+    - users can change ranking mode and filters without competing against the full board at the same time
 - **2026-03-15**: **Profile Surface Split Into Summary, Trust, and Network Workspaces**
   - **Problem observed**:
     - `/profile/{userId}` already had stronger trust visualization and better empty states, but the page still stacked:

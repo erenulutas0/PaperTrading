@@ -41,6 +41,7 @@ const PERIOD_OPTIONS = ['1D', '1W', '1M', 'ALL'] as const;
 const SORT_BY_OPTIONS: LeaderboardSortBy[] = ['RETURN_PERCENTAGE', 'PROFIT_LOSS', 'WIN_RATE', 'TRUST_SCORE'];
 const SORT_DIRECTION_OPTIONS: LeaderboardDirection[] = ['DESC', 'ASC'];
 const ACCOUNT_SORT_OPTIONS: LeaderboardSortBy[] = ['WIN_RATE', 'TRUST_SCORE'];
+type LeaderboardWorkspaceTab = 'OVERVIEW' | 'BOARD';
 
 function LeaderboardEmptyPanel({
     title,
@@ -68,6 +69,7 @@ export default function LeaderboardPage() {
     const [preferencesReady, setPreferencesReady] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [workspaceTab, setWorkspaceTab] = useState<LeaderboardWorkspaceTab>('OVERVIEW');
     const skipFirstPersistRef = useRef(true);
     const isAccountMode = ACCOUNT_SORT_OPTIONS.includes(sortBy);
     const averageEquity = totalElements > 0 && entries.length > 0
@@ -283,47 +285,117 @@ export default function LeaderboardPage() {
                 </div>
             </section>
 
-            <div className="flex justify-center gap-2 mb-8">
-                {PERIOD_OPTIONS.map((p) => (
-                    <button
-                        key={p}
-                        onClick={() => setPeriod(p)}
-                        disabled={isAccountMode}
-                        className={`px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all ${period === p
-                            ? 'bg-green-600 text-white shadow-[0_0_20px_rgba(34,197,94,0.4)]'
-                            : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800'
-                            }`}
-                    >
-                        {p}
-                    </button>
-                ))}
-            </div>
+            <section className="rounded-2xl border border-white/10 bg-black/40 p-5 mb-8">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Leaderboard Workspace</p>
+                        <h2 className="mt-2 text-xl font-semibold text-white">Separate mode context from the live board</h2>
+                        <p className="mt-1 text-xs text-zinc-500">
+                            Use overview for mode and sorting context, then switch to board when you want the full ranked table.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {([
+                            { key: 'OVERVIEW', label: 'Overview', badge: `${totalElements} rows` },
+                            { key: 'BOARD', label: 'Board', badge: `${Math.min(page + 1, Math.max(totalPages, 1))}/${Math.max(totalPages, 1)}` },
+                        ] as const).map(({ key, label, badge }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => setWorkspaceTab(key)}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${
+                                    workspaceTab === key
+                                        ? 'border-green-500/40 bg-green-500/15 text-green-300'
+                                        : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                }`}
+                            >
+                                <span>{label}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                    workspaceTab === key ? 'bg-green-500/20 text-green-200' : 'bg-black/30 text-zinc-500'
+                                }`}>
+                                    {badge}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </section>
 
-            {isAccountMode && (
-                <p className="text-center text-xs text-zinc-500 -mt-5 mb-6">
-                    Win rate and trust score are account-level signals, so period tabs do not affect this mode.
-                </p>
+            {workspaceTab === 'OVERVIEW' && (
+                <>
+                    <div className="flex justify-center gap-2 mb-8">
+                        {PERIOD_OPTIONS.map((p) => (
+                            <button
+                                key={p}
+                                onClick={() => setPeriod(p)}
+                                disabled={isAccountMode}
+                                className={`px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all ${period === p
+                                    ? 'bg-green-600 text-white shadow-[0_0_20px_rgba(34,197,94,0.4)]'
+                                    : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800'
+                                    }`}
+                            >
+                                {p}
+                            </button>
+                        ))}
+                    </div>
+
+                    {isAccountMode && (
+                        <p className="text-center text-xs text-zinc-500 -mt-5 mb-6">
+                            Win rate and trust score are account-level signals, so period tabs do not affect this mode.
+                        </p>
+                    )}
+
+                    <div className="flex justify-center gap-3 mb-8">
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as LeaderboardSortBy)}
+                            className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-sm font-bold uppercase tracking-wide text-zinc-200 focus:outline-none focus:border-green-500"
+                        >
+                            <option value="RETURN_PERCENTAGE">Sort: Return %</option>
+                            <option value="PROFIT_LOSS">Sort: P/L ($)</option>
+                            <option value="WIN_RATE">Sort: Win Rate</option>
+                            <option value="TRUST_SCORE">Sort: Trust</option>
+                        </select>
+                        <button
+                            onClick={() => setDirection((prev) => (prev === 'DESC' ? 'ASC' : 'DESC'))}
+                            className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-sm font-bold uppercase tracking-wide text-zinc-200 hover:bg-zinc-800 transition-colors"
+                        >
+                            Direction: {direction === 'DESC' ? 'Descending' : 'Ascending'}
+                        </button>
+                    </div>
+                    <div className="mb-6 rounded-2xl border border-white/10 bg-black/30 px-4 py-4">
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Operating Summary</p>
+                        <p className="mt-2 text-sm text-zinc-300">
+                            {isAccountMode
+                                ? 'This workspace is ranking account-level trust and win-rate signals. Switch to Board when you want the full live table and pagination.'
+                                : `This workspace is ranking public portfolios for ${period} with ${sortBy.replace('_', ' ')} in ${direction.toLowerCase()} order. Switch to Board when you want the full live table.`}
+                        </p>
+                    </div>
+                </>
             )}
 
-            <div className="flex justify-center gap-3 mb-8">
-                <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as LeaderboardSortBy)}
-                    className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-sm font-bold uppercase tracking-wide text-zinc-200 focus:outline-none focus:border-green-500"
-                >
-                    <option value="RETURN_PERCENTAGE">Sort: Return %</option>
-                    <option value="PROFIT_LOSS">Sort: P/L ($)</option>
-                    <option value="WIN_RATE">Sort: Win Rate</option>
-                    <option value="TRUST_SCORE">Sort: Trust</option>
-                </select>
-                <button
-                    onClick={() => setDirection((prev) => (prev === 'DESC' ? 'ASC' : 'DESC'))}
-                    className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-sm font-bold uppercase tracking-wide text-zinc-200 hover:bg-zinc-800 transition-colors"
-                >
-                    Direction: {direction === 'DESC' ? 'Descending' : 'Ascending'}
-                </button>
-            </div>
+            {workspaceTab === 'BOARD' && (
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-xs uppercase tracking-[0.18em]">
+                    <div className="flex flex-wrap items-center gap-3 text-zinc-500">
+                        <span className={`rounded-full border px-3 py-1 ${isAccountMode ? 'border-blue-500/30 bg-blue-500/10 text-blue-300' : 'border-green-500/30 bg-green-500/10 text-green-300'}`}>
+                            {isAccountMode ? 'Account Mode' : 'Portfolio Mode'}
+                        </span>
+                        <span>Sort {sortBy.replace('_', ' ')}</span>
+                        <span>{direction}</span>
+                        {!isAccountMode ? <span>Period {period}</span> : null}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setWorkspaceTab('OVERVIEW')}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-zinc-300 transition-colors hover:text-white"
+                    >
+                        Open Filters
+                    </button>
+                </div>
+            )}
 
+            {workspaceTab === 'BOARD' && (
+            <>
             <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative">
                 <table className="w-full text-left relative z-10">
                     <thead className="bg-zinc-950/50 text-zinc-500 text-[10px] uppercase tracking-tighter">
@@ -446,6 +518,8 @@ export default function LeaderboardPage() {
                     </button>
                 </div>
             </div>
+            </>
+            )}
         </div>
     );
 }
