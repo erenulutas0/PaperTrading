@@ -24,6 +24,8 @@ interface AnalysisPost {
     authorHitCount: number;
 }
 
+type AnalysisDetailWorkspaceTab = 'THESIS' | 'ACCOUNTABILITY' | 'DISCUSSION';
+
 function AnalysisDetailSkeleton() {
     return (
         <div className="min-h-screen bg-background text-foreground">
@@ -52,6 +54,7 @@ export default function AnalysisDetail() {
     const [post, setPost] = useState<AnalysisPost | null>(null);
     const [loading, setLoading] = useState(true);
     const [myUserId, setMyUserId] = useState('');
+    const [workspaceTab, setWorkspaceTab] = useState<AnalysisDetailWorkspaceTab>('THESIS');
     const router = useRouter();
 
     const fetchPost = useCallback(async () => {
@@ -131,6 +134,37 @@ export default function AnalysisDetail() {
                 </header>
 
                 <article className="glass-panel rounded-2xl border border-border/80 p-6 md:p-8">
+                    <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Analysis Workspace</p>
+                            <h2 className="mt-2 text-xl font-semibold">Separate thesis reading, accountability context, and discussion</h2>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { key: 'THESIS', label: 'Thesis', badge: post.outcome },
+                                { key: 'ACCOUNTABILITY', label: 'Accountability', badge: `${accuracy}%` },
+                                { key: 'DISCUSSION', label: 'Discussion', badge: 'Live' },
+                            ] as const).map(({ key, label, badge }) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => setWorkspaceTab(key)}
+                                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                        workspaceTab === key
+                                            ? 'border-primary/35 bg-primary/15 text-primary'
+                                            : 'border-border bg-accent text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    <span>{label}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                        workspaceTab === key ? 'bg-primary/15 text-primary' : 'bg-background/70 text-muted-foreground'
+                                    }`}>
+                                        {badge}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <div className="space-y-6">
                         <div className="flex flex-wrap items-start justify-between gap-4">
                             <div className="space-y-3">
@@ -182,67 +216,85 @@ export default function AnalysisDetail() {
                             </span>
                         </div>
 
-                        <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-                            <div className="rounded-2xl border border-border bg-background/60 p-5">
-                                <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Thesis Body</p>
-                                <p className="mt-4 text-base leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                                    {post.content}
-                                </p>
+                        {workspaceTab === 'THESIS' && (
+                            <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+                                <div className="rounded-2xl border border-border bg-background/60 p-5">
+                                    <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Thesis Body</p>
+                                    <p className="mt-4 text-base leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                                        {post.content}
+                                    </p>
+                                </div>
+                                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                                    <p className="text-[11px] uppercase tracking-[0.32em] text-primary/80">Resolution Semantics</p>
+                                    <ul className="mt-4 space-y-3 text-sm leading-6 text-foreground/80">
+                                        <li>Entry price is fixed at post creation and cannot be backfilled.</li>
+                                        <li>Target and stop are checked by system outcome resolution, not by author edits.</li>
+                                        <li>Delete only hides the surface; the accountability trail remains.</li>
+                                    </ul>
+                                </div>
                             </div>
-                            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                                <p className="text-[11px] uppercase tracking-[0.32em] text-primary/80">Resolution Semantics</p>
-                                <ul className="mt-4 space-y-3 text-sm leading-6 text-foreground/80">
-                                    <li>Entry price is fixed at post creation and cannot be backfilled.</li>
-                                    <li>Target and stop are checked by system outcome resolution, not by author edits.</li>
-                                    <li>Delete only hides the surface; the accountability trail remains.</li>
-                                </ul>
-                            </div>
-                        </div>
+                        )}
 
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                            <div className="rounded-xl border border-border bg-background/60 p-4">
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Entry Price</p>
-                                <p className="mt-2 text-lg font-semibold">${post.priceAtCreation?.toLocaleString()}</p>
+                        {workspaceTab === 'THESIS' && (
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Entry Price</p>
+                                    <p className="mt-2 text-lg font-semibold">${post.priceAtCreation?.toLocaleString()}</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Target Price</p>
+                                    <p className="mt-2 text-lg font-semibold text-success">
+                                        {post.targetPrice != null ? `$${post.targetPrice.toLocaleString()}` : 'N/A'}
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Stop Price</p>
+                                    <p className="mt-2 text-lg font-semibold text-destructive">
+                                        {post.stopPrice != null ? `$${post.stopPrice.toLocaleString()}` : 'N/A'}
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Author Accuracy</p>
+                                    <p className="mt-2 text-lg font-semibold">{accuracy}%</p>
+                                </div>
                             </div>
-                            <div className="rounded-xl border border-border bg-background/60 p-4">
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Target Price</p>
-                                <p className="mt-2 text-lg font-semibold text-success">
-                                    {post.targetPrice != null ? `$${post.targetPrice.toLocaleString()}` : 'N/A'}
-                                </p>
-                            </div>
-                            <div className="rounded-xl border border-border bg-background/60 p-4">
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Stop Price</p>
-                                <p className="mt-2 text-lg font-semibold text-destructive">
-                                    {post.stopPrice != null ? `$${post.stopPrice.toLocaleString()}` : 'N/A'}
-                                </p>
-                            </div>
-                            <div className="rounded-xl border border-border bg-background/60 p-4">
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Author Accuracy</p>
-                                <p className="mt-2 text-lg font-semibold">{accuracy}%</p>
-                            </div>
-                        </div>
+                        )}
 
-                        <div className="grid gap-3 md:grid-cols-3">
-                            <div className="rounded-xl border border-border bg-background/60 p-4">
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Author Hit Count</p>
-                                <p className="mt-2 text-lg font-semibold">{post.authorHitCount}</p>
-                            </div>
-                            <div className="rounded-xl border border-border bg-background/60 p-4">
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Published Analyses</p>
-                                <p className="mt-2 text-lg font-semibold">{post.authorTotalPosts}</p>
-                            </div>
-                            <div className="rounded-xl border border-border bg-background/60 p-4">
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">Audit Status</p>
-                                <p className="mt-2 text-lg font-semibold text-primary">Append Only</p>
-                            </div>
-                        </div>
+                        {workspaceTab === 'ACCOUNTABILITY' && (
+                            <>
+                                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                                    <p className="text-[11px] uppercase tracking-[0.32em] text-primary/80">Resolution Semantics</p>
+                                    <ul className="mt-4 space-y-3 text-sm leading-6 text-foreground/80">
+                                        <li>Entry price is fixed at post creation and cannot be backfilled.</li>
+                                        <li>Target and stop are checked by system outcome resolution, not by author edits.</li>
+                                        <li>Delete only hides the surface; the accountability trail remains.</li>
+                                    </ul>
+                                </div>
+                                <div className="grid gap-3 md:grid-cols-3">
+                                    <div className="rounded-xl border border-border bg-background/60 p-4">
+                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Author Hit Count</p>
+                                        <p className="mt-2 text-lg font-semibold">{post.authorHitCount}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-border bg-background/60 p-4">
+                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Published Analyses</p>
+                                        <p className="mt-2 text-lg font-semibold">{post.authorTotalPosts}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-border bg-background/60 p-4">
+                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Audit Status</p>
+                                        <p className="mt-2 text-lg font-semibold text-primary">Append Only</p>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </article>
 
-                <section className="glass-panel rounded-2xl border border-border/80 p-6">
-                    <h2 className="mb-4 text-lg font-semibold">Community Discussion</h2>
-                    <LikeCommentWidget targetId={post.id} targetType="ANALYSIS_POST" />
-                </section>
+                {workspaceTab === 'DISCUSSION' && (
+                    <section className="glass-panel rounded-2xl border border-border/80 p-6">
+                        <h2 className="mb-4 text-lg font-semibold">Community Discussion</h2>
+                        <LikeCommentWidget targetId={post.id} targetType="ANALYSIS_POST" />
+                    </section>
+                )}
             </div>
         </div>
     );

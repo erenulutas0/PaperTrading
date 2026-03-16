@@ -21,6 +21,8 @@ interface AnalysisPost {
     createdAt: string;
 }
 
+type AnalysisHubWorkspaceTab = 'OVERVIEW' | 'FEED';
+
 function AnalysisSummaryCard({
     label,
     value,
@@ -47,6 +49,7 @@ function AnalysisSummaryCard({
 export default function AnalysisHub() {
     const [posts, setPosts] = useState<AnalysisPost[]>([]);
     const [loading, setLoading] = useState(true);
+    const [workspaceTab, setWorkspaceTab] = useState<AnalysisHubWorkspaceTab>('OVERVIEW');
 
     useEffect(() => {
         fetchPosts();
@@ -93,25 +96,63 @@ export default function AnalysisHub() {
                 <AnalysisSummaryCard label="Hits" value={loading ? '...' : hitCount.toString()} tone="success" />
             </section>
 
-            <section className="mb-8 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-                <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
-                    <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">Immutable Analysis Flow</p>
-                    <h2 className="mt-3 text-2xl font-black text-white">Every thesis is locked to the server clock.</h2>
-                    <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">
-                        Posts are timestamped, outcome resolution is automated, and the feed keeps both conviction and accountability visible.
-                    </p>
-                </div>
-                <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
-                    <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">What To Expect</p>
-                    <ul className="mt-4 space-y-3 text-sm text-zinc-300">
-                        <li>Server timestamp decides when the thesis was actually published.</li>
-                        <li>Target and stop resolution stay visible after the post is live.</li>
-                        <li>Delete does not erase history; it only tombstones the post.</li>
-                    </ul>
+            <section className="mb-8 rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">Analysis Workspace</p>
+                        <h2 className="mt-3 text-2xl font-black text-white">Separate workflow context from the live thesis feed.</h2>
+                        <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">
+                            Use overview to understand immutable-post semantics, then switch to feed when you want the full thesis stream.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {([
+                            { key: 'OVERVIEW', label: 'Overview', badge: `${resolvedCount} resolved` },
+                            { key: 'FEED', label: 'Feed', badge: `${posts.length} posts` },
+                        ] as const).map(({ key, label, badge }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => setWorkspaceTab(key)}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.2em] transition-colors ${
+                                    workspaceTab === key
+                                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                                        : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                }`}
+                            >
+                                <span>{label}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                    workspaceTab === key ? 'bg-emerald-500/20 text-emerald-200' : 'bg-black/30 text-zinc-500'
+                                }`}>
+                                    {badge}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </section>
 
-            {loading ? (
+            {workspaceTab === 'OVERVIEW' && (
+                <section className="mb-8 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+                    <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">Immutable Analysis Flow</p>
+                        <h2 className="mt-3 text-2xl font-black text-white">Every thesis is locked to the server clock.</h2>
+                        <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">
+                            Posts are timestamped, outcome resolution is automated, and the feed keeps both conviction and accountability visible.
+                        </p>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">What To Expect</p>
+                        <ul className="mt-4 space-y-3 text-sm text-zinc-300">
+                            <li>Server timestamp decides when the thesis was actually published.</li>
+                            <li>Target and stop resolution stay visible after the post is live.</li>
+                            <li>Delete does not erase history; it only tombstones the post.</li>
+                        </ul>
+                    </div>
+                </section>
+            )}
+
+            {workspaceTab === 'FEED' && (loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="rounded-2xl border border-white/10 bg-zinc-900/50 p-6 animate-pulse">
@@ -201,7 +242,7 @@ export default function AnalysisHub() {
                         </div>
                     ))}
                 </div>
-            )}
+            ))}
         </div>
     );
 }

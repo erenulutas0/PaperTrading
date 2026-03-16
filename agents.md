@@ -38,6 +38,39 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Analysis Surfaces Split Between Workflow Context, Accountability, And Discussion**
+  - **Problem observed**:
+    - The analysis system already had stronger summary strips, immutable-flow framing, and better empty states, but the two main surfaces still stacked unlike concerns:
+      - `/dashboard/analysis` mixed immutable workflow context directly with the live thesis feed
+      - `/dashboard/analysis/{id}` mixed thesis reading, author accountability, and discussion in one uninterrupted page
+    - That made the product clearer than before, but still denser than the newer analytics, leaderboard, and profile workspaces.
+  - **Implementation**:
+    - Added a lightweight `Analysis Workspace` switcher on `/dashboard/analysis`:
+      - `Overview`
+      - `Feed`
+    - `Overview` now keeps:
+      - immutable-post workflow context
+      - "what to expect" guidance
+    - `Feed` now keeps:
+      - loading shell
+      - empty state
+      - live analysis card grid
+    - Added a second workspace split on `/dashboard/analysis/{id}`:
+      - `Thesis`
+      - `Accountability`
+      - `Discussion`
+    - `Thesis` now owns:
+      - thesis body
+      - entry/target/stop
+      - author accuracy context
+    - `Accountability` now owns:
+      - resolution semantics
+      - author hit-count / published-analysis / audit-status metrics
+    - `Discussion` now isolates:
+      - the live `LikeCommentWidget` thread
+  - **Operational impact**:
+    - analysis surfaces now behave like intentional workspaces instead of long mixed walls
+    - users can read the thesis, inspect accountability, or participate in discussion without all three surfaces competing at once
 - **2026-03-15**: **Notifications Surface Split Between Overview Context And Live Inbox Slices**
   - **Problem observed**:
     - `/notifications` had stronger summary strips and better copy, but it still stacked:
