@@ -1907,7 +1907,7 @@ export default function WatchlistPage() {
                 return;
             }
             const data = await res.json();
-            setAlertHistory(extractContent<AlertHistoryItem>(data));
+            setAlertHistory(extractContent<AlertHistoryEntry>(data));
         } catch (error) {
             console.error(error);
             setAlertHistory([]);
