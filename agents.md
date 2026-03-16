@@ -38,6 +38,35 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Tournament Surface Split Between Arena Context, Arena List, And Spotlight Board**
+  - **Problem observed**:
+    - `/tournaments` had strong visual identity, but it still stacked:
+      - competition framing
+      - create-arena entry
+      - arena list
+      - live spotlight leaderboard
+    - on one long surface.
+    - That made the page visually impressive, but still denser than the newer workspace-style product areas.
+  - **Implementation**:
+    - Added an `Arena Workspace` switcher with:
+      - `Overview`
+      - `Arenas`
+      - `Spotlight`
+    - `Overview` now isolates:
+      - what tournaments represent in product terms
+      - what the user can do from the surface
+      - compact arena counts and quick-open action
+    - `Arenas` now isolates:
+      - tournament cards
+      - status inspection
+      - join / hub entry flow
+    - `Spotlight` now isolates:
+      - the selected tournament leaderboard
+      - live hub jump
+      - empty-state guidance when no arena is selected
+  - **Operational impact**:
+    - tournaments now behave more like a structured competition workspace than a stacked marketing wall
+    - arena browsing and leaderboard reading no longer compete for the same first-paint attention
 - **2026-03-15**: **Discover Surface Split Between Public-Market Context And Live Portfolio Feed**
   - **Problem observed**:
     - `/discover` still behaved like an older single-purpose list page.

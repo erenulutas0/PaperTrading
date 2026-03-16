@@ -62,6 +62,10 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after discover workspace cleanup and verify `/discover` now separates:
   - public discovery context
   - live public portfolio feed
+- [ ] Redeploy frontend after tournaments workspace cleanup and verify `/tournaments` now separates:
+  - competition context
+  - arena list / join operations
+  - spotlight leaderboard
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion
