@@ -59,6 +59,9 @@ Last updated: 2026-03-11
   - high-level overview and route guidance
   - portfolio administration / card grid
   - live market + activity pulse
+- [ ] Redeploy frontend after discover workspace cleanup and verify `/discover` now separates:
+  - public discovery context
+  - live public portfolio feed
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion

@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Discover Surface Split Between Public-Market Context And Live Portfolio Feed**
+  - **Problem observed**:
+    - `/discover` still behaved like an older single-purpose list page.
+    - Navigation, product context, and the actual public portfolio feed all rendered at once, which made the surface informative but structurally flat compared to the newer workspace-style pages.
+  - **Implementation**:
+    - Added a `Discover Workspace` switcher with:
+      - `Overview`
+      - `Feed`
+    - `Overview` now isolates:
+      - what the public discovery layer represents
+      - what users can actually do from the surface
+      - compact summary stats for visible portfolios and open positions
+    - `Feed` now isolates:
+      - loading shell
+      - empty state
+      - live public portfolio cards
+      - copy / profile jump actions
+  - **Operational impact**:
+    - discover now reads more like a controlled public-market workspace than a raw portfolio list
+    - users can understand the accountability model before dropping into the actual candidate feed
 - **2026-03-15**: **Dashboard Surface Split Between Overview, Portfolio Operating, And Live Pulse**
   - **Problem observed**:
     - `/dashboard` still behaved like an older dense landing page even after the rest of the product moved toward workspace segmentation.
