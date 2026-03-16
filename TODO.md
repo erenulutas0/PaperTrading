@@ -55,6 +55,10 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after auth workspace cleanup and verify:
   - `/auth/login` now separates account context from the actual sign-in form
   - `/auth/register` now separates identity/rules context from the actual signup form
+- [ ] Redeploy frontend after dashboard workspace cleanup and verify `/dashboard` now separates:
+  - high-level overview and route guidance
+  - portfolio administration / card grid
+  - live market + activity pulse
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import TradeModal from '../../components/TradeModal';
 import ActivityFeed from '../../components/ActivityFeed';
-import LogoutButton from '../../components/LogoutButton';
 import { extractContent } from '../../lib/page';
 import { apiFetch } from '../../lib/api-client';
 
@@ -33,16 +32,18 @@ interface CurrentUserProfile {
     trustScore?: number;
 }
 
+type DashboardWorkspaceTab = 'OVERVIEW' | 'PORTFOLIOS' | 'PULSE';
+
 export default function Dashboard() {
     const router = useRouter();
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [compareTargets, setCompareTargets] = useState<Record<string, string>>({});
     const [prices, setPrices] = useState<Record<string, number>>({});
     const [name, setName] = useState('');
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [visibilityUpdatingId, setVisibilityUpdatingId] = useState<string | null>(null);
+    const [workspaceTab, setWorkspaceTab] = useState<DashboardWorkspaceTab>('OVERVIEW');
 
     // Trade Modal state
     const [tradeConfig, setTradeConfig] = useState<{ symbol: string; portfolioId?: string } | null>(null);
@@ -70,7 +71,6 @@ export default function Dashboard() {
             return;
         }
 
-        setCurrentUserId(userId);
         fetchPortfolios(userId);
         fetchCurrentProfile(userId);
         const interval = setInterval(fetchPrices, 3000);
@@ -239,6 +239,64 @@ export default function Dashboard() {
         activePositions: 0,
     });
 
+    const marketPanel = (
+        <section className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl"></div>
+            <h2 className="text-[10px] font-bold uppercase tracking-widest mb-4 text-green-500 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Market Data
+            </h2>
+            <div className="divide-y divide-white/5 relative z-10">
+                {Object.entries(prices).length === 0 ? (
+                    <div className="space-y-3 py-2">
+                        <div className="h-3 w-28 animate-pulse rounded bg-white/10"></div>
+                        <div className="h-10 rounded-xl animate-pulse bg-white/5"></div>
+                        <div className="h-10 rounded-xl animate-pulse bg-white/5"></div>
+                        <p className="text-zinc-600 text-xs italic">Connecting to Binance WS...</p>
+                    </div>
+                ) : (
+                    Object.entries(prices).map(([symbol, price]) => (
+                        <div
+                            key={symbol}
+                            className="py-3 flex justify-between items-center hover:px-2 transition-all duration-300 group cursor-pointer"
+                            onClick={() => setTradeConfig({ symbol })}
+                        >
+                            <div className="flex items-center gap-3">
+                                <p className="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors">{symbol.replace('USDT', '')}</p>
+                                <span className="text-[9px] text-zinc-600 font-mono tracking-widest">USDT</span>
+                            </div>
+                            <div className="text-right">
+                                <p className="font-mono text-sm text-green-400 font-bold">${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+        </section>
+    );
+
+    const portfolioCreateCard = (
+        <div className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl h-fit shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl"></div>
+            <h2 className="text-xl font-semibold mb-4 text-zinc-200 relative z-10">New Portfolio</h2>
+            <form onSubmit={createPortfolio} className="space-y-4">
+                <input
+                    type="text"
+                    placeholder="Portfolio Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-black/40 border border-zinc-700 rounded p-3 text-white focus:outline-none focus:border-green-500 transition-all placeholder:text-zinc-600"
+                    required
+                />
+                <button
+                    type="submit"
+                    className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded transition-all shadow-lg hover:shadow-green-900/20"
+                >
+                    Create Portfolio
+                </button>
+            </form>
+        </div>
+    );
+
     return (
         <div className="p-8 pb-20 relative z-10">
             <header className="mb-10 flex justify-between items-center bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-2xl">
@@ -263,17 +321,16 @@ export default function Dashboard() {
                         </Link>
                     )}
                 </div>
-                <div className="flex gap-6 items-center">
-                    {currentUserId && (
-                        <Link href={`/profile/${currentUserId}`} className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-cyan-400 transition-colors">Profile</Link>
-                    )}
-                    <Link href="/dashboard/analysis" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-green-400 transition-colors">Analyses</Link>
-                    <Link href="/dashboard/leaderboard" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-green-400 transition-colors">Leaderboard</Link>
-                    <Link href="/discover" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-blue-400 transition-colors">Discover</Link>
-                    <Link href="/watchlist" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-amber-400 transition-colors">Watchlist</Link>
-                    <Link href="/tournaments" className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-yellow-400 transition-colors">Tournaments</Link>
-                    <div className="w-px h-4 bg-white/10"></div>
-                    <LogoutButton className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-400 hover:text-white transition-colors disabled:opacity-60" />
+                <div className="flex gap-3 items-center flex-wrap justify-end">
+                    <Link href="/watchlist" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-300 transition hover:border-emerald-500/30 hover:text-white">
+                        Markets
+                    </Link>
+                    <Link href="/dashboard/analysis" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-300 transition hover:border-emerald-500/30 hover:text-white">
+                        Analysis
+                    </Link>
+                    <Link href="/dashboard/leaderboard" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-300 transition hover:border-emerald-500/30 hover:text-white">
+                        Board
+                    </Link>
                 </div>
             </header>
 
@@ -313,71 +370,140 @@ export default function Dashboard() {
                 </div>
             </section>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Sidebar: Market + Social */}
-                <div className="lg:col-span-1 space-y-8">
-                    {/* Live Market */}
-                    <section className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl"></div>
-                        <h2 className="text-[10px] font-bold uppercase tracking-widest mb-4 text-green-500 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Market Data
-                        </h2>
-                        <div className="divide-y divide-white/5 relative z-10">
-                            {Object.entries(prices).length === 0 ? (
-                                <div className="space-y-3 py-2">
-                                    <div className="h-3 w-28 animate-pulse rounded bg-white/10"></div>
-                                    <div className="h-10 rounded-xl animate-pulse bg-white/5"></div>
-                                    <div className="h-10 rounded-xl animate-pulse bg-white/5"></div>
-                                    <p className="text-zinc-600 text-xs italic">Connecting to Binance WS...</p>
-                                </div>
-                            ) : (
-                                Object.entries(prices).map(([symbol, price]) => (
-                                    <div
-                                        key={symbol}
-                                        className="py-3 flex justify-between items-center hover:px-2 transition-all duration-300 group cursor-pointer"
-                                        onClick={() => setTradeConfig({ symbol })}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <p className="text-xs font-bold text-zinc-300 group-hover:text-white transition-colors">{symbol.replace('USDT', '')}</p>
-                                            <span className="text-[9px] text-zinc-600 font-mono tracking-widest">USDT</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-mono text-sm text-green-400 font-bold">${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </section>
-
-                    {/* Activity Feed */}
-                    <ActivityFeed />
-                </div>
-
-                {/* Main Content: Portfolios */}
-                <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl h-fit shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl"></div>
-                        <h2 className="text-xl font-semibold mb-4 text-zinc-200 relative z-10">New Portfolio</h2>
-                        <form onSubmit={createPortfolio} className="space-y-4">
-                            <input
-                                type="text"
-                                placeholder="Portfolio Name"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="w-full bg-black/40 border border-zinc-700 rounded p-3 text-white focus:outline-none focus:border-green-500 transition-all placeholder:text-zinc-600"
-                                required
-                            />
-                            <button
-                                type="submit"
-                                className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded transition-all shadow-lg hover:shadow-green-900/20"
-                            >
-                                Create Portfolio
-                            </button>
-                        </form>
+            <section className="mb-8 rounded-2xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-zinc-500">Dashboard Workspace</p>
+                        <h2 className="mt-2 text-2xl font-black text-white">Separate overview, portfolio operating, and live pulse monitoring.</h2>
+                        <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">
+                            Keep the dashboard readable by isolating first-pass operating context, portfolio administration, and live market/social pulse instead of rendering all surfaces at once.
+                        </p>
                     </div>
+                    <div className="flex flex-wrap gap-2">
+                        {([
+                            { key: 'OVERVIEW', label: 'Overview', badge: `${dashboardMetrics.totalPortfolios} portfolios` },
+                            { key: 'PORTFOLIOS', label: 'Portfolios', badge: `${dashboardMetrics.activePositions} live` },
+                            { key: 'PULSE', label: 'Pulse', badge: `${Object.keys(prices).length} quotes` },
+                        ] as const).map(({ key, label, badge }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => setWorkspaceTab(key)}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                    workspaceTab === key
+                                        ? 'border-emerald-500/35 bg-emerald-500/15 text-emerald-300'
+                                        : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                }`}
+                            >
+                                <span>{label}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                    workspaceTab === key ? 'bg-emerald-500/15 text-emerald-200' : 'bg-black/30 text-zinc-500'
+                                }`}>
+                                    {badge}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </section>
 
-                    {/* List Portfolios */}
+            {workspaceTab === 'OVERVIEW' && (
+                <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
+                    {portfolioCreateCard}
+                    <div className="grid gap-4">
+                        <section className="grid gap-4 md:grid-cols-3">
+                            <Link href="/watchlist" className="rounded-2xl border border-white/10 bg-black/35 p-5 transition hover:border-emerald-500/30">
+                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Markets</p>
+                                <h3 className="mt-3 text-lg font-bold text-white">Open Terminal</h3>
+                                <p className="mt-2 text-sm leading-6 text-zinc-400">Scan instruments, manage compare baskets, and work chart-first.</p>
+                            </Link>
+                            <Link href="/dashboard/analysis" className="rounded-2xl border border-white/10 bg-black/35 p-5 transition hover:border-emerald-500/30">
+                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Research</p>
+                                <h3 className="mt-3 text-lg font-bold text-white">Open Analysis</h3>
+                                <p className="mt-2 text-sm leading-6 text-zinc-400">Review immutable theses, accountability context, and discussion.</p>
+                            </Link>
+                            <Link href="/dashboard/leaderboard" className="rounded-2xl border border-white/10 bg-black/35 p-5 transition hover:border-emerald-500/30">
+                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Ranking</p>
+                                <h3 className="mt-3 text-lg font-bold text-white">Open Board</h3>
+                                <p className="mt-2 text-sm leading-6 text-zinc-400">Check portfolio and account positioning under the active ranking mode.</p>
+                            </Link>
+                        </section>
+
+                        <section className="rounded-2xl border border-white/10 bg-black/35 p-6">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Workspace Snapshot</p>
+                                    <h3 className="mt-2 text-xl font-bold text-white">Current operating picture</h3>
+                                </div>
+                                <Link href="/dashboard/analysis/new" className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300">
+                                    New Thesis
+                                </Link>
+                            </div>
+                            <div className="mt-5 grid gap-4 md:grid-cols-3">
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-zinc-500">Public Footprint</p>
+                                    <p className="mt-2 text-lg font-bold text-white">{dashboardMetrics.publicPortfolios}/{dashboardMetrics.totalPortfolios}</p>
+                                    <p className="mt-1 text-xs text-zinc-500">Portfolios visible to the public ranking layer.</p>
+                                </div>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-zinc-500">Cash Ready</p>
+                                    <p className="mt-2 text-lg font-bold text-emerald-300">{formatCompactCurrency(dashboardMetrics.totalCash)}</p>
+                                    <p className="mt-1 text-xs text-zinc-500">Capital available before opening more paper risk.</p>
+                                </div>
+                                <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-zinc-500">Trust Layer</p>
+                                    <p className="mt-2 text-lg font-bold text-white">{currentProfile?.trustScore !== undefined ? currentProfile.trustScore.toFixed(1) : 'N/A'}</p>
+                                    <p className="mt-1 text-xs text-zinc-500">Profile-level credibility tied to verified behavior.</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="rounded-2xl border border-white/10 bg-black/35 p-6">
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Portfolio Snapshot</p>
+                                    <h3 className="mt-2 text-xl font-bold text-white">Recent operating set</h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setWorkspaceTab('PORTFOLIOS')}
+                                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-300"
+                                >
+                                    Open Portfolios
+                                </button>
+                            </div>
+                            <div className="mt-5 space-y-3">
+                                {loading ? (
+                                    Array.from({ length: 3 }).map((_, index) => (
+                                        <div key={index} className="h-16 rounded-xl animate-pulse bg-white/5" />
+                                    ))
+                                ) : portfolios.length === 0 ? (
+                                    <DashboardEmptyPanel
+                                        title="Portfolio surface is empty"
+                                        body="Create a portfolio first, then return here for a lighter overview instead of the full portfolio workspace."
+                                    />
+                                ) : (
+                                    portfolios.slice(0, 3).map((portfolio) => (
+                                        <div key={portfolio.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                                            <div>
+                                                <p className="text-sm font-semibold text-white">{portfolio.name}</p>
+                                                <p className="mt-1 text-xs text-zinc-500">{portfolio.items?.length ?? 0} holdings · {portfolio.visibility ?? 'PRIVATE'}</p>
+                                            </div>
+                                            <Link href={`/analytics/${portfolio.id}`} className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-300">
+                                                Analytics
+                                            </Link>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            )}
+
+            {workspaceTab === 'PORTFOLIOS' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {portfolioCreateCard}
                     {loading ? (
                         Array.from({ length: 2 }).map((_, index) => (
                             <div key={index} className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl shadow-2xl">
@@ -608,7 +734,14 @@ export default function Dashboard() {
                         </div>
                     ))}
                 </div>
-            </div>
+            )}
+
+            {workspaceTab === 'PULSE' && (
+                <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
+                    {marketPanel}
+                    <ActivityFeed />
+                </div>
+            )}
 
             {/* Trade Modal */}
             {tradeConfig && (

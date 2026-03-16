@@ -38,6 +38,39 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Dashboard Surface Split Between Overview, Portfolio Operating, And Live Pulse**
+  - **Problem observed**:
+    - `/dashboard` still behaved like an older dense landing page even after the rest of the product moved toward workspace segmentation.
+    - It rendered:
+      - portfolio creation
+      - full portfolio grid
+      - live market strip
+      - activity feed
+      - route shortcuts
+    - in one mixed first paint.
+    - The page header also duplicated route navigation that already existed in the shared dashboard shell.
+  - **Implementation**:
+    - Added a `Dashboard Workspace` switcher with:
+      - `Overview`
+      - `Portfolios`
+      - `Pulse`
+    - `Overview` now isolates:
+      - new portfolio creation
+      - route guidance into markets / analysis / board
+      - a compact workspace snapshot
+      - a short recent-portfolio strip
+    - `Portfolios` now isolates:
+      - the full portfolio operating surface
+      - visibility toggles
+      - analytics quick compare
+      - trade-ticket launch
+    - `Pulse` now isolates:
+      - live market quotes
+      - activity feed
+    - Simplified the page-level header actions so they complement the shared dashboard shell instead of duplicating every route.
+  - **Operational impact**:
+    - the dashboard now behaves like a controlled landing workspace instead of a stacked wall of unrelated operating surfaces
+    - portfolio administration and live pulse monitoring no longer compete for the same first-paint attention
 - **2026-03-15**: **Auth Entry Surfaces Split Between Product Context And Access Flow**
   - **Problem observed**:
     - `app/auth/login` and `app/auth/register` already had stronger product-language panels, but both pages still rendered:
