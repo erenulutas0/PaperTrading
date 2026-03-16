@@ -70,6 +70,10 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Compressed compare-session feedback:
       - large multi-line compare summary reduced into a pill-first strip
       - overlay state and relative gaps remain visible without another tall panel above the chart
+    - Split the right rail into separate work surfaces:
+      - `Overview` for summary + selected-symbol actions
+      - `Watchlists` for list management and add-form flows
+      - `Basket` for tracked symbol rows
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible

@@ -72,6 +72,7 @@ Last updated: 2026-03-11
   - surfaces tab-level count/status badges for scanner and terminal side panels so dense areas stay scannable
   - collapses draw + alert controls into one tabbed chart-control band instead of stacking two full cards above the chart
   - compacts the compare-session banner into a lower-height strip with pills instead of a verbose stacked summary block
+  - splits the right rail into `Overview / Watchlists / Basket` tabs so summary, list management, and tracked rows do not render all at once
 - [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol
