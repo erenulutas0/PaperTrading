@@ -67,6 +67,10 @@ Last updated: 2026-03-11
   - sort presets (`Latest`, `Oldest`, `Top Balance`, `Low Balance`)
   - local slice search by name/description/symbol
   - `Prev / Next` navigation across public portfolio pages
+- [ ] Redeploy backend/frontend after discover backend-search rollout and verify `/discover` now:
+  - sends `q` to `/api/v1/portfolios/discover`
+  - filters across portfolio name, description, and item symbols
+  - keeps page/sort navigation working under filtered public discovery
 - [ ] Redeploy frontend after tournaments workspace cleanup and verify `/tournaments` now separates:
   - competition context
   - arena list / join operations

@@ -135,8 +135,14 @@ public class PortfolioController {
     // --- Social Discovery ---
 
     @GetMapping("/discover")
-    public ResponseEntity<Page<Portfolio>> discoverPortfolios(@PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(portfolioRepository.findByVisibility(Portfolio.Visibility.PUBLIC, pageable));
+    public ResponseEntity<Page<Portfolio>> discoverPortfolios(
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 20) Pageable pageable) {
+        String normalizedQuery = q == null || q.isBlank() ? "" : q.trim();
+        return ResponseEntity.ok(portfolioRepository.searchDiscoverableByVisibility(
+                Portfolio.Visibility.PUBLIC,
+                normalizedQuery,
+                pageable));
     }
 
     @PutMapping("/{id}/visibility")

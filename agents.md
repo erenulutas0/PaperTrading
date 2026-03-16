@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Discover Search Moved From Slice-Local Filtering To Backend Public-Set Querying**
+  - **Problem observed**:
+    - The first discover-control pass added sort and pagination, but the search box still filtered only the currently loaded slice.
+    - That is acceptable for client-only cosmetics, but wrong for public discovery semantics because users expect search to cover the discoverable portfolio set, not just one page.
+  - **Implementation**:
+    - Extended `/api/v1/portfolios/discover` with optional `q` filtering.
+    - Search now matches across:
+      - portfolio name
+      - portfolio description
+      - portfolio item symbols
+    - `/discover` now sends `q` to the backend while preserving:
+      - page navigation
+      - sort presets
+      - existing paged discover contract
+    - Added integration coverage for name-based and symbol-based discover filtering.
+  - **Operational impact**:
+    - discover search now behaves like a real public-catalog query rather than a cosmetic slice filter
+    - users can page and sort within a filtered public subset without misleading local-only results
 - **2026-03-15**: **Discover Feed Graduated From Static First Slice To Page-Aware Public Browsing**
   - **Problem observed**:
     - `/discover` had already been split into `Overview / Feed`, but the feed still behaved like a static first slice:

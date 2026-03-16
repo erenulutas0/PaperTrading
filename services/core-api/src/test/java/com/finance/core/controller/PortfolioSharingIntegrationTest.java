@@ -15,6 +15,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -202,6 +203,72 @@ class PortfolioSharingIntegrationTest {
         mockMvc.perform(get("/api/v1/portfolios/discover"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
+    @Test
+    void discover_filtersByPortfolioName() throws Exception {
+        portfolioRepository.save(Portfolio.builder()
+                .name("Momentum Alpha")
+                .ownerId("user-1")
+                .balance(BigDecimal.valueOf(50000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .items(List.of())
+                .build());
+
+        portfolioRepository.save(Portfolio.builder()
+                .name("Dividend Shield")
+                .ownerId("user-2")
+                .balance(BigDecimal.valueOf(25000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .items(List.of())
+                .build());
+
+        mockMvc.perform(get("/api/v1/portfolios/discover")
+                        .param("q", "alpha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].name").value("Momentum Alpha"));
+    }
+
+    @Test
+    void discover_filtersByPortfolioItemSymbol() throws Exception {
+        Portfolio matching = Portfolio.builder()
+                .name("Crypto Rotation")
+                .ownerId("user-1")
+                .balance(BigDecimal.valueOf(50000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build();
+        matching.getItems().add(com.finance.core.domain.PortfolioItem.builder()
+                .portfolio(matching)
+                .symbol("BTCUSDT")
+                .quantity(BigDecimal.ONE)
+                .averagePrice(BigDecimal.valueOf(50000))
+                .leverage(1)
+                .side("LONG")
+                .build());
+        portfolioRepository.save(matching);
+
+        Portfolio nonMatching = Portfolio.builder()
+                .name("Equity Basket")
+                .ownerId("user-2")
+                .balance(BigDecimal.valueOf(25000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build();
+        nonMatching.getItems().add(com.finance.core.domain.PortfolioItem.builder()
+                .portfolio(nonMatching)
+                .symbol("ETHUSDT")
+                .quantity(BigDecimal.ONE)
+                .averagePrice(BigDecimal.valueOf(3000))
+                .leverage(1)
+                .side("LONG")
+                .build());
+        portfolioRepository.save(nonMatching);
+
+        mockMvc.perform(get("/api/v1/portfolios/discover")
+                        .param("q", "btc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].name").value("Crypto Rotation"));
     }
 
     // ===== FULL LIFECYCLE =====

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { extractContent } from '../../lib/page';
 import { apiFetch } from '../../lib/api-client';
@@ -58,13 +58,22 @@ export default function DiscoverPage() {
     const [workspaceTab, setWorkspaceTab] = useState<DiscoverWorkspaceTab>('OVERVIEW');
     const [discoverSort, setDiscoverSort] = useState<DiscoverSortPreset>('LATEST');
     const [discoverQuery, setDiscoverQuery] = useState('');
+    const [discoverSearchInput, setDiscoverSearchInput] = useState('');
     const [pageIndex, setPageIndex] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [totalElements, setTotalElements] = useState(0);
 
     useEffect(() => {
+        const timeoutId = window.setTimeout(() => {
+            setPageIndex(0);
+            setDiscoverQuery(discoverSearchInput.trim());
+        }, 250);
+        return () => window.clearTimeout(timeoutId);
+    }, [discoverSearchInput]);
+
+    useEffect(() => {
         fetchDiscoverPortfolios();
-    }, [pageIndex, discoverSort]);
+    }, [pageIndex, discoverSort, discoverQuery]);
 
     const fetchDiscoverPortfolios = async () => {
         setLoading(true);
@@ -73,6 +82,9 @@ export default function DiscoverPage() {
             url.searchParams.set('page', String(pageIndex));
             url.searchParams.set('size', '12');
             url.searchParams.set('sort', resolveSortQuery(discoverSort));
+            if (discoverQuery) {
+                url.searchParams.set('q', discoverQuery);
+            }
             const res = await apiFetch(`${url.pathname}${url.search}`);
             if (res.ok) {
                 const payload = await res.json();
@@ -88,26 +100,9 @@ export default function DiscoverPage() {
         }
     };
 
-    const visiblePortfolios = useMemo(() => {
-        const query = discoverQuery.trim().toLowerCase();
-        if (!query) {
-            return portfolios;
-        }
-
-        return portfolios.filter((portfolio) => {
-            const haystacks = [
-                portfolio.name,
-                portfolio.description ?? '',
-                ...(portfolio.items?.map((item) => item.symbol) ?? []),
-            ];
-            return haystacks.some((value) => value.toLowerCase().includes(query));
-        });
-    }, [discoverQuery, portfolios]);
-
     const publicPositionCount = portfolios.reduce((total, portfolio) => total + (portfolio.items?.length ?? 0), 0);
-    const filteredPositionCount = visiblePortfolios.reduce((total, portfolio) => total + (portfolio.items?.length ?? 0), 0);
-    const averageVisibleBalance = visiblePortfolios.length > 0
-        ? visiblePortfolios.reduce((sum, portfolio) => sum + (portfolio.balance ?? 0), 0) / visiblePortfolios.length
+    const averageVisibleBalance = portfolios.length > 0
+        ? portfolios.reduce((sum, portfolio) => sum + (portfolio.balance ?? 0), 0) / portfolios.length
         : 0;
 
     return (
@@ -227,7 +222,7 @@ export default function DiscoverPage() {
                                 <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                                     <div>
                                         <p className="text-[11px] uppercase tracking-[0.32em] text-zinc-500">Feed Controls</p>
-                                        <h3 className="mt-2 text-xl font-black text-white">Page through public portfolios with quick sort presets and a local search pass.</h3>
+                                        <h3 className="mt-2 text-xl font-black text-white">Page through public portfolios with quick sort presets and backend-backed search.</h3>
                                     </div>
                                     <div className="flex flex-col gap-3 xl:items-end">
                                         <div className="flex flex-wrap gap-2">
@@ -255,9 +250,9 @@ export default function DiscoverPage() {
                                             ))}
                                         </div>
                                         <input
-                                            value={discoverQuery}
-                                            onChange={(event) => setDiscoverQuery(event.target.value)}
-                                            placeholder="Search current page by name, description, or symbol"
+                                            value={discoverSearchInput}
+                                            onChange={(event) => setDiscoverSearchInput(event.target.value)}
+                                            placeholder="Search public portfolios by name, description, or symbol"
                                             className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-green-500/35 xl:w-96"
                                         />
                                     </div>
@@ -269,11 +264,11 @@ export default function DiscoverPage() {
                                     </div>
                                     <div className="rounded-xl border border-white/5 bg-black/30 p-4">
                                         <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Visible Slice</p>
-                                        <p className="mt-2 text-lg font-bold text-green-300">{visiblePortfolios.length}</p>
+                                        <p className="mt-2 text-lg font-bold text-green-300">{portfolios.length}</p>
                                     </div>
                                     <div className="rounded-xl border border-white/5 bg-black/30 p-4">
                                         <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Slice Positions</p>
-                                        <p className="mt-2 text-lg font-bold text-white">{filteredPositionCount}</p>
+                                        <p className="mt-2 text-lg font-bold text-white">{publicPositionCount}</p>
                                     </div>
                                     <div className="rounded-xl border border-white/5 bg-black/30 p-4">
                                         <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Avg Balance</p>
@@ -289,14 +284,14 @@ export default function DiscoverPage() {
                                     <p className="text-zinc-500 text-lg mb-2">No public portfolios yet</p>
                                     <p className="text-zinc-600 text-sm">Be the first to share your portfolio!</p>
                                 </div>
-                            ) : visiblePortfolios.length === 0 ? (
+                            ) : portfolios.length === 0 ? (
                                 <div className="text-center py-16 border border-dashed border-white/10 rounded-xl">
-                                    <p className="text-zinc-400 text-lg">No slice matches this search.</p>
-                                    <p className="mt-2 text-sm text-zinc-600">Clear the local query or move to another page slice.</p>
+                                    <p className="text-zinc-400 text-lg">No public portfolio matches this search.</p>
+                                    <p className="mt-2 text-sm text-zinc-600">Clear the query or try a different sort/page combination.</p>
                                 </div>
                             ) : (
                                 <div className="grid gap-4 md:grid-cols-2">
-                                    {visiblePortfolios.map(p => (
+                                    {portfolios.map(p => (
                                         <Link
                                             key={p.id}
                                             href={`/dashboard/portfolio/${p.id}`}
@@ -373,6 +368,11 @@ export default function DiscoverPage() {
                                     Showing page <span className="font-semibold text-white">{totalPages === 0 ? 0 : pageIndex + 1}</span>
                                     {' '}of <span className="font-semibold text-white">{Math.max(totalPages, 1)}</span>
                                     {' '}from <span className="font-semibold text-white">{totalElements}</span> public portfolios.
+                                    {discoverQuery && (
+                                        <>
+                                            {' '}Filtered by <span className="font-semibold text-green-300">"{discoverQuery}"</span>.
+                                        </>
+                                    )}
                                 </div>
                                 <div className="flex gap-2">
                                     <button

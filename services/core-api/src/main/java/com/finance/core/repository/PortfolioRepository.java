@@ -39,6 +39,40 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
     @EntityGraph(attributePaths = "items")
     Page<Portfolio> findByVisibility(Portfolio.Visibility visibility, Pageable pageable);
 
+    @EntityGraph(attributePaths = "items")
+    @Query(value = """
+            SELECT p FROM Portfolio p
+            WHERE p.visibility = :visibility
+              AND (
+                :query = ''
+                OR LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                OR LOWER(COALESCE(p.description, '')) LIKE LOWER(CONCAT('%', :query, '%'))
+                OR EXISTS (
+                    SELECT 1 FROM PortfolioItem pi
+                    WHERE pi.portfolio = p
+                      AND LOWER(pi.symbol) LIKE LOWER(CONCAT('%', :query, '%'))
+                )
+              )
+            """,
+            countQuery = """
+                    SELECT COUNT(p) FROM Portfolio p
+                    WHERE p.visibility = :visibility
+                      AND (
+                        :query = ''
+                        OR LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                        OR LOWER(COALESCE(p.description, '')) LIKE LOWER(CONCAT('%', :query, '%'))
+                        OR EXISTS (
+                            SELECT 1 FROM PortfolioItem pi
+                            WHERE pi.portfolio = p
+                              AND LOWER(pi.symbol) LIKE LOWER(CONCAT('%', :query, '%'))
+                        )
+                      )
+                    """)
+    Page<Portfolio> searchDiscoverableByVisibility(
+            @Param("visibility") Portfolio.Visibility visibility,
+            @Param("query") String query,
+            Pageable pageable);
+
     @Query(value = "SELECT p.id FROM Portfolio p WHERE p.visibility = :visibility",
             countQuery = "SELECT COUNT(p) FROM Portfolio p WHERE p.visibility = :visibility")
     Page<UUID> findIdsByVisibility(@Param("visibility") Portfolio.Visibility visibility, Pageable pageable);
