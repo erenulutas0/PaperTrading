@@ -38,6 +38,7 @@ Last updated: 2026-03-11
   - analytics compare share links are now generated on demand instead of syncing query params on every state change
   - analytics chart helpers now avoid spread-based min/max on large arrays to prevent stack overflow on long-history portfolios
   - compare workspace now splits `Overview / Momentum / Risk` instead of stacking every compare surface at once
+  - analytics top controls now collapse into a tabbed deck so filter/export and curve-window controls do not occupy separate cards
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state

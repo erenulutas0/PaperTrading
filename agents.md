@@ -733,6 +733,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - compare mode now reads like a navigable analytics workspace instead of a dense scroll wall
     - users can move directly to the decision layer they care about without losing the rest of the compare feature set
+- **2026-03-15**: **Analytics Header Controls Collapsed Into A Compact Deck**
+  - **Problem observed**:
+    - The analytics header area still spent too much vertical space on two adjacent utility cards:
+      - symbol filter + export
+      - curve window
+    - Both were useful, but as separate cards they diluted the focus of the summary/snapshot row.
+  - **Implementation**:
+    - Merged those controls into a single tabbed `Analytics Deck` with:
+      - `Filters`
+      - `Window`
+    - Kept snapshot export/share as its own card so the deck handles operational controls while the snapshot card remains the reporting surface.
+  - **Operational impact**:
+    - analytics starts with fewer top-level cards
+    - utility controls stay available without competing with the summary and snapshot surfaces
 - **2026-03-15**: **Portfolio Compare Surface Added Rolling Momentum Delta Strip**
   - **Problem observed**:
     - Compare mode had total return deltas and a rebased overlay, but still lacked a concise answer to:

@@ -136,6 +136,7 @@ interface AnalyticsData {
 }
 
 type CompareWorkspaceTab = 'OVERVIEW' | 'MOMENTUM' | 'RISK';
+type AnalyticsDeckTab = 'FILTERS' | 'WINDOW';
 
 export default function AnalyticsPage({ params }: { params: Promise<{ portfolioId: string }> }) {
     const resolvedParams = use(params);
@@ -148,6 +149,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [compareData, setCompareData] = useState<AnalyticsData | null>(null);
     const [compareLoading, setCompareLoading] = useState(false);
     const [compareWorkspaceTab, setCompareWorkspaceTab] = useState<CompareWorkspaceTab>('OVERVIEW');
+    const [analyticsDeckTab, setAnalyticsDeckTab] = useState<AnalyticsDeckTab>('FILTERS');
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
@@ -1289,69 +1291,111 @@ ${lines}
                 </div>
 
                 <div className="mb-6 grid gap-6 xl:grid-cols-12">
-                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
-                        <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Analytics Controls</h2>
-                        <p className="mt-1 text-[10px] text-zinc-600">Filter symbol-facing blocks and export the current analytics snapshot.</p>
-                        <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-                            <input
-                                value={symbolFilter}
-                                onChange={(event) => setSymbolFilter(event.target.value)}
-                                placeholder="Filter symbols: BTC, ETH, THYAO..."
-                                className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-cyan-500/40"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => void exportAnalytics('csv')}
-                                className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
-                            >
-                                Export CSV
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => void exportAnalytics('json')}
-                                className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
-                            >
-                                Export JSON
-                            </button>
-                        </div>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-3">
-                        <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Curve Window</h2>
-                        <p className="mt-1 text-[10px] text-zinc-600">Limit the equity chart to the window you want to inspect.</p>
-                        <div className="mt-5 flex flex-wrap gap-2">
-                            {(['ALL', '30D', '7D'] as const).map((windowOption) => (
-                                <button
-                                    key={windowOption}
-                                    type="button"
-                                    onClick={() => setSelectedCurveWindow(windowOption)}
-                                    className={`rounded-full border px-4 py-2 text-xs font-bold tracking-[0.24em] transition-colors ${
-                                        selectedCurveWindow === windowOption
-                                            ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300'
-                                            : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
-                                    }`}
-                                >
-                                    {windowOption}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="mt-4 space-y-1 text-[11px] text-zinc-500">
-                            <p>
-                                Available history: {curveWindowStats.availableDays >= 2
-                                    ? `${curveWindowStats.availableDays.toFixed(1)} days`
-                                    : `${Math.round(curveWindowStats.availableHours)} hours`}
-                                {' '}across {curveWindowStats.totalPointCount} snapshots.
-                            </p>
-                            <p>
-                                Current view: {curveWindowStats.selectedPointCount}/{curveWindowStats.totalPointCount} plotted points.
-                            </p>
-                            {selectedCurveWindow !== 'ALL' && !curveWindowStats.isFilteredWindowDistinct && curveWindowStats.totalPointCount > 0 ? (
-                                <p className="text-amber-300">
-                                    Current account history is shorter than {selectedCurveWindow}, so this view matches full history.
-                                </p>
-                            ) : null}
-                        </div>
-                    </div>
                     <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Analytics Deck</h2>
+                                <p className="mt-1 text-[10px] text-zinc-600">Filter, export, and window selection in one compact control surface.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {([
+                                    { key: 'FILTERS', label: 'Filters', badge: normalizedSymbolFilter ? 'Live' : 'All' },
+                                    { key: 'WINDOW', label: 'Window', badge: selectedCurveWindow },
+                                ] as const).map(({ key, label, badge }) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => setAnalyticsDeckTab(key)}
+                                        className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
+                                            analyticsDeckTab === key
+                                                ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300'
+                                                : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                        }`}
+                                    >
+                                        <span>{label}</span>
+                                        <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                                            analyticsDeckTab === key
+                                                ? 'bg-cyan-500/15 text-cyan-200'
+                                                : 'bg-black/30 text-zinc-500'
+                                        }`}>
+                                            {badge}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        {analyticsDeckTab === 'FILTERS' && (
+                            <>
+                                <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                                    <input
+                                        value={symbolFilter}
+                                        onChange={(event) => setSymbolFilter(event.target.value)}
+                                        placeholder="Filter symbols: BTC, ETH, THYAO..."
+                                        className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-cyan-500/40"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => void exportAnalytics('csv')}
+                                        className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                                    >
+                                        Export CSV
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void exportAnalytics('json')}
+                                        className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/20"
+                                    >
+                                        Export JSON
+                                    </button>
+                                </div>
+                                <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
+                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-zinc-300">
+                                        {normalizedSymbolFilter ? `Filter ${normalizedSymbolFilter}` : 'All symbols'}
+                                    </span>
+                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-zinc-300">
+                                        Exports follow current filter + window
+                                    </span>
+                                </div>
+                            </>
+                        )}
+                        {analyticsDeckTab === 'WINDOW' && (
+                            <>
+                                <div className="mt-5 flex flex-wrap gap-2">
+                                    {(['ALL', '30D', '7D'] as const).map((windowOption) => (
+                                        <button
+                                            key={windowOption}
+                                            type="button"
+                                            onClick={() => setSelectedCurveWindow(windowOption)}
+                                            className={`rounded-full border px-4 py-2 text-xs font-bold tracking-[0.24em] transition-colors ${
+                                                selectedCurveWindow === windowOption
+                                                    ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300'
+                                                    : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                            }`}
+                                        >
+                                            {windowOption}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="mt-4 space-y-1 text-[11px] text-zinc-500">
+                                    <p>
+                                        Available history: {curveWindowStats.availableDays >= 2
+                                            ? `${curveWindowStats.availableDays.toFixed(1)} days`
+                                            : `${Math.round(curveWindowStats.availableHours)} hours`}
+                                        {' '}across {curveWindowStats.totalPointCount} snapshots.
+                                    </p>
+                                    <p>
+                                        Current view: {curveWindowStats.selectedPointCount}/{curveWindowStats.totalPointCount} plotted points.
+                                    </p>
+                                    {selectedCurveWindow !== 'ALL' && !curveWindowStats.isFilteredWindowDistinct && curveWindowStats.totalPointCount > 0 ? (
+                                        <p className="text-amber-300">
+                                            Current account history is shorter than {selectedCurveWindow}, so this view matches full history.
+                                        </p>
+                                    ) : null}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-8">
                         <div className="flex items-start justify-between gap-3">
                             <div>
                                 <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Snapshot Card</h2>
