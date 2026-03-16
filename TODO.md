@@ -89,6 +89,10 @@ Last updated: 2026-03-11
   - `/api/v1/watchlists` now returns page metadata + content
   - `/watchlist` still restores the first available watchlist correctly from the paged payload
   - create/delete watchlist flows still converge on the refreshed paged list
+- [ ] Redeploy backend/frontend after terminal-layout pagination rollout and verify:
+  - `/api/v1/users/me/preferences/terminal-layouts` now returns page metadata + content
+  - `/watchlist` saved-layout panel still hydrates from the paged payload
+  - save/update/delete layout flows still converge on the refreshed layout list
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion

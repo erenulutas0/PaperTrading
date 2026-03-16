@@ -83,9 +83,10 @@ class MarketTerminalLayoutControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/users/me/preferences/terminal-layouts")
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].name").value("BIST Swing"))
-                .andExpect(jsonPath("$[0].compareSymbols[0]").value("GARAN"));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].name").value("BIST Swing"))
+                .andExpect(jsonPath("$.content[0].compareSymbols[0]").value("GARAN"))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
 
         Map<String, Object> updateRequest = Map.of(
                 "name", "Crypto Momentum",
@@ -113,7 +114,7 @@ class MarketTerminalLayoutControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/users/me/preferences/terminal-layouts")
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$.content", hasSize(0)));
     }
 
     @Test
@@ -139,7 +140,7 @@ class MarketTerminalLayoutControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/users/me/preferences/terminal-layouts")
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].name").value("Newer Layout"));
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].name").value("Newer Layout"));
     }
 }

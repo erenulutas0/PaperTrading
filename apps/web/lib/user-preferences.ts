@@ -1,4 +1,5 @@
 import { apiFetch, userIdHeaders } from "./api-client";
+import { extractContent } from "./page";
 
 export type LeaderboardSortBy = "RETURN_PERCENTAGE" | "PROFIT_LOSS" | "WIN_RATE" | "TRUST_SCORE";
 export type LeaderboardDirection = "DESC" | "ASC";
@@ -161,7 +162,7 @@ export async function fetchTerminalLayouts(
     if (!res.ok) {
       return [];
     }
-    return (await res.json()) as TerminalLayoutResponsePayload[];
+    return extractContent<TerminalLayoutResponsePayload>(await res.json());
   } catch {
     return [];
   }

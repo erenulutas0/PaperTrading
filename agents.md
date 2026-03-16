@@ -29,7 +29,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Analysis Posts | ✅ Done | Immutable posts, soft-delete tombstone, price snapshot, auto outcome resolution (30s) |
 | Outcome Resolution Engine | ✅ Done | Scheduled 30s: target hit, stop hit, expiry checks |
 | Redis Integration | ✅ Done | Cache layer for leaderboard (ZSET), prices |
-| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`) + tournament leaderboard/trade + watchlist list/alert-history read surfaces now emit paged payloads; remaining legacy list endpoints are being migrated |
+| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`) + tournament leaderboard/trade + watchlist list/alert-history + terminal layout list read surfaces now emit paged payloads; remaining legacy list endpoints are being migrated |
 | Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
@@ -38,6 +38,17 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Terminal Layout List Moved To Paged Read Contract**
+  - **Problem observed**:
+    - The terminal had already accumulated durable layout workflows, but the saved-layout list endpoint still returned a raw array.
+    - That left a core watchlist operating surface outside the platform’s ongoing pagination/read-contract migration.
+  - **Implementation**:
+    - `GET /api/v1/users/me/preferences/terminal-layouts` now returns a paged response.
+    - `fetchTerminalLayouts(...)` in the web client now normalizes the endpoint via shared `extractContent(...)`, so `/watchlist` keeps the same runtime behavior.
+    - Controller integration coverage was updated to lock the page shape for create/list/delete and ordering flows.
+  - **Operational impact**:
+    - terminal layout management now aligns with the broader paged-read contract strategy
+    - the frontend layout workspace remains behaviorally unchanged while gaining a more scalable list shape
 - **2026-03-15**: **Discover Search Moved From Slice-Local Filtering To Backend Public-Set Querying**
   - **Problem observed**:
     - The first discover-control pass added sort and pagination, but the search box still filtered only the currently loaded slice.

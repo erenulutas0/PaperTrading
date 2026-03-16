@@ -6,6 +6,8 @@ import com.finance.core.dto.MarketTerminalLayoutResponse;
 import com.finance.core.repository.MarketTerminalLayoutRepository;
 import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,12 @@ public class MarketTerminalLayoutService {
         return marketTerminalLayoutRepository.findByUserIdOrderByUpdatedAtDescCreatedAtDesc(userId).stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    public Page<MarketTerminalLayoutResponse> getLayouts(UUID userId, Pageable pageable) {
+        ensureUserExists(userId);
+        return marketTerminalLayoutRepository.findByUserIdOrderByUpdatedAtDescCreatedAtDesc(userId, pageable)
+                .map(this::toResponse);
     }
 
     @Transactional
