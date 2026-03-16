@@ -38,6 +38,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **New Analysis Publishing Surface Split Between Rules And Composer**
+  - **Problem observed**:
+    - `app/dashboard/analysis/new` already had stronger guidance copy, but it still rendered the immutable-post rules and the full composer as one long page.
+    - That kept the content quality higher than a raw form, but it still made publishing feel denser than the newly segmented analysis hub and detail surfaces.
+  - **Implementation**:
+    - Added an `Analysis Workspace` switcher to the new-analysis page:
+      - `Overview`
+      - `Compose`
+    - `Overview` now isolates:
+      - before-publish context
+      - locked-at-publish rules
+      - resolution hint
+      - quality bar
+      - one-click path into the composer
+    - `Compose` now isolates:
+      - the actual thesis form
+      - a tighter compose-mode reminder
+      - the immutable publish warning directly above submit
+  - **Operational impact**:
+    - publishing now behaves more like an intentional workflow than a long mixed guidance/form wall
+    - users can review the accountability contract first and only then move into the locked-in composer
 - **2026-03-15**: **Analysis Surfaces Split Between Workflow Context, Accountability, And Discussion**
   - **Problem observed**:
     - The analysis system already had stronger summary strips, immutable-flow framing, and better empty states, but the two main surfaces still stacked unlike concerns:

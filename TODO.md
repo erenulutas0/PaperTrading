@@ -55,6 +55,7 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion
+  - `/dashboard/analysis/new` now separates immutable publishing rules from the actual thesis composer
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state
   - pinned-note preview embedded inside the exported card
