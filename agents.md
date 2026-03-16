@@ -29,7 +29,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Analysis Posts | ✅ Done | Immutable posts, soft-delete tombstone, price snapshot, auto outcome resolution (30s) |
 | Outcome Resolution Engine | ✅ Done | Scheduled 30s: target hit, stop hit, expiry checks |
 | Redis Integration | ✅ Done | Cache layer for leaderboard (ZSET), prices |
-| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`) + tournament leaderboard/trade + watchlist list/alert-history + terminal layout list read surfaces now emit paged payloads; remaining legacy list endpoints are being migrated |
+| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`) + tournament leaderboard/trade + watchlist list/alert-history + terminal layout/chart-note read surfaces now emit paged payloads; remaining legacy list endpoints are being migrated |
 | Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
@@ -38,6 +38,17 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Chart Note List Moved To Paged Read Contract**
+  - **Problem observed**:
+    - The terminal’s chart-note workflow had already moved to durable backend persistence, but the note list endpoint still returned a raw array.
+    - That kept another watchlist-adjacent operating surface outside the paged-read migration discipline.
+  - **Implementation**:
+    - `GET /api/v1/market/chart-notes` now returns a paged response.
+    - `/watchlist` note hydration now normalizes the endpoint through shared `extractContent(...)`, so the existing note panel keeps the same runtime behavior.
+    - Controller integration coverage was updated so create/list/update/delete and pinned-first ordering are asserted against the paged shape.
+  - **Operational impact**:
+    - chart-note inspection now aligns with the same read-contract strategy used across other growing list surfaces
+    - the frontend note workflow remains behaviorally stable while gaining a scalable response shape
 - **2026-03-15**: **Terminal Layout List Moved To Paged Read Contract**
   - **Problem observed**:
     - The terminal had already accumulated durable layout workflows, but the saved-layout list endpoint still returned a raw array.

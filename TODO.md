@@ -93,6 +93,10 @@ Last updated: 2026-03-11
   - `/api/v1/users/me/preferences/terminal-layouts` now returns page metadata + content
   - `/watchlist` saved-layout panel still hydrates from the paged payload
   - save/update/delete layout flows still converge on the refreshed layout list
+- [ ] Redeploy backend/frontend after chart-note pagination rollout and verify:
+  - `/api/v1/market/chart-notes` now returns page metadata + content
+  - `/watchlist` symbol note panel still hydrates from the paged payload
+  - create/update/delete/pin note flows still converge on the refreshed note list
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion

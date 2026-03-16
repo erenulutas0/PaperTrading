@@ -6,6 +6,8 @@ import com.finance.core.dto.MarketChartNoteResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.repository.MarketChartNoteRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,16 @@ public class MarketChartNoteService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<MarketChartNoteResponse> getNotes(UUID userId, MarketType market, String symbol, Pageable pageable) {
+        return marketChartNoteRepository.findByUserIdAndMarketAndSymbolOrderByPinnedDescCreatedAtDesc(
+                        userId,
+                        normalizeMarket(market),
+                        normalizeSymbol(symbol),
+                        pageable)
+                .map(this::toResponse);
     }
 
     @Transactional

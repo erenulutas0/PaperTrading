@@ -66,9 +66,9 @@ class MarketChartNoteControllerIntegrationTest {
                         .param("market", "BIST100")
                         .param("symbol", "AEFES"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].body").value("Delayed breakout watch"))
-                .andExpect(jsonPath("$[0].pinned").value(false));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].body").value("Delayed breakout watch"))
+                .andExpect(jsonPath("$.content[0].pinned").value(false));
     }
 
     @Test
@@ -89,7 +89,7 @@ class MarketChartNoteControllerIntegrationTest {
                         .param("market", "CRYPTO")
                         .param("symbol", "BTCUSDT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$.content", hasSize(0)));
     }
 
     @Test
@@ -120,8 +120,8 @@ class MarketChartNoteControllerIntegrationTest {
                         .param("market", "CRYPTO")
                         .param("symbol", "ETHUSDT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].body").value("Updated note"))
-                .andExpect(jsonPath("$[0].pinned").value(true));
+                .andExpect(jsonPath("$.content[0].body").value("Updated note"))
+                .andExpect(jsonPath("$.content[0].pinned").value(true));
     }
 
     @Test
@@ -147,10 +147,10 @@ class MarketChartNoteControllerIntegrationTest {
                         .param("market", "CRYPTO")
                         .param("symbol", "BTCUSDT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].body").value("Older pinned note"))
-                .andExpect(jsonPath("$[0].pinned").value(true))
-                .andExpect(jsonPath("$[1].body").value("Latest unpinned note"))
-                .andExpect(jsonPath("$[1].pinned").value(false));
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].body").value("Older pinned note"))
+                .andExpect(jsonPath("$.content[0].pinned").value(true))
+                .andExpect(jsonPath("$.content[1].body").value("Latest unpinned note"))
+                .andExpect(jsonPath("$.content[1].pinned").value(false));
     }
 }

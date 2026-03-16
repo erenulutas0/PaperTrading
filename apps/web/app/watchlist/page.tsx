@@ -1929,7 +1929,7 @@ export default function WatchlistPage() {
                 return;
             }
             const data = await res.json();
-            setChartNotes(sortChartNotes(Array.isArray(data) ? data : []));
+            setChartNotes(sortChartNotes(extractContent<ChartNote>(data)));
         } catch (error) {
             console.error(error);
             setChartNotes([]);
