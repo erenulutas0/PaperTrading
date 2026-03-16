@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { extractContent } from '../../lib/page';
 import { apiFetch } from '../../lib/api-client';
@@ -23,22 +23,63 @@ interface PublicPortfolio {
 }
 
 type DiscoverWorkspaceTab = 'OVERVIEW' | 'FEED';
+type DiscoverSortPreset = 'LATEST' | 'OLDEST' | 'BALANCE_DESC' | 'BALANCE_ASC';
+
+function resolveSortQuery(sortPreset: DiscoverSortPreset): string {
+    switch (sortPreset) {
+        case 'OLDEST':
+            return 'createdAt,asc';
+        case 'BALANCE_DESC':
+            return 'balance,desc';
+        case 'BALANCE_ASC':
+            return 'balance,asc';
+        case 'LATEST':
+        default:
+            return 'createdAt,desc';
+    }
+}
+
+function readPageMeta(payload: unknown): { totalElements: number; totalPages: number; pageNumber: number } {
+    if (!payload || typeof payload !== 'object') {
+        return { totalElements: 0, totalPages: 0, pageNumber: 0 };
+    }
+
+    const page = (payload as { page?: { totalElements?: number; totalPages?: number; number?: number } }).page;
+    return {
+        totalElements: typeof page?.totalElements === 'number' ? page.totalElements : 0,
+        totalPages: typeof page?.totalPages === 'number' ? page.totalPages : 0,
+        pageNumber: typeof page?.number === 'number' ? page.number : 0,
+    };
+}
 
 export default function DiscoverPage() {
     const [portfolios, setPortfolios] = useState<PublicPortfolio[]>([]);
     const [loading, setLoading] = useState(true);
     const [workspaceTab, setWorkspaceTab] = useState<DiscoverWorkspaceTab>('OVERVIEW');
+    const [discoverSort, setDiscoverSort] = useState<DiscoverSortPreset>('LATEST');
+    const [discoverQuery, setDiscoverQuery] = useState('');
+    const [pageIndex, setPageIndex] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalElements, setTotalElements] = useState(0);
 
     useEffect(() => {
         fetchDiscoverPortfolios();
-    }, []);
+    }, [pageIndex, discoverSort]);
 
     const fetchDiscoverPortfolios = async () => {
+        setLoading(true);
         try {
-            const res = await apiFetch('/api/v1/portfolios/discover');
+            const url = new URL('/api/v1/portfolios/discover', window.location.origin);
+            url.searchParams.set('page', String(pageIndex));
+            url.searchParams.set('size', '12');
+            url.searchParams.set('sort', resolveSortQuery(discoverSort));
+            const res = await apiFetch(`${url.pathname}${url.search}`);
             if (res.ok) {
-                const data = await res.json();
-                setPortfolios(extractContent<PublicPortfolio>(data));
+                const payload = await res.json();
+                setPortfolios(extractContent<PublicPortfolio>(payload));
+                const meta = readPageMeta(payload);
+                setTotalElements(meta.totalElements);
+                setTotalPages(meta.totalPages);
             }
         } catch (err) {
             console.error(err);
@@ -47,7 +88,27 @@ export default function DiscoverPage() {
         }
     };
 
+    const visiblePortfolios = useMemo(() => {
+        const query = discoverQuery.trim().toLowerCase();
+        if (!query) {
+            return portfolios;
+        }
+
+        return portfolios.filter((portfolio) => {
+            const haystacks = [
+                portfolio.name,
+                portfolio.description ?? '',
+                ...(portfolio.items?.map((item) => item.symbol) ?? []),
+            ];
+            return haystacks.some((value) => value.toLowerCase().includes(query));
+        });
+    }, [discoverQuery, portfolios]);
+
     const publicPositionCount = portfolios.reduce((total, portfolio) => total + (portfolio.items?.length ?? 0), 0);
+    const filteredPositionCount = visiblePortfolios.reduce((total, portfolio) => total + (portfolio.items?.length ?? 0), 0);
+    const averageVisibleBalance = visiblePortfolios.length > 0
+        ? visiblePortfolios.reduce((sum, portfolio) => sum + (portfolio.balance ?? 0), 0) / visiblePortfolios.length
+        : 0;
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -85,7 +146,7 @@ export default function DiscoverPage() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {([
-                                { key: 'OVERVIEW', label: 'Overview', badge: `${portfolios.length} public` },
+                                { key: 'OVERVIEW', label: 'Overview', badge: `${totalElements || portfolios.length} public` },
                                 { key: 'FEED', label: 'Feed', badge: `${publicPositionCount} positions` },
                             ] as const).map(({ key, label, badge }) => (
                                 <button
@@ -131,7 +192,7 @@ export default function DiscoverPage() {
                             <div className="grid gap-4 md:grid-cols-3">
                                 <div className="rounded-xl border border-white/5 bg-black/30 p-4">
                                     <p className="text-xs uppercase tracking-wide text-zinc-500">Public Portfolios</p>
-                                    <p className="mt-2 text-2xl font-bold text-white">{loading ? '...' : portfolios.length}</p>
+                                    <p className="mt-2 text-2xl font-bold text-white">{loading ? '...' : totalElements || portfolios.length}</p>
                                     <p className="mt-1 text-xs text-zinc-500">Visible records available for inspection.</p>
                                 </div>
                                 <div className="rounded-xl border border-white/5 bg-black/30 p-4">
@@ -160,82 +221,178 @@ export default function DiscoverPage() {
                         <div className="flex justify-center py-20">
                             <div className="animate-spin w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full"></div>
                         </div>
-                    ) : portfolios.length === 0 ? (
-                        <div className="text-center py-20 border border-dashed border-white/10 rounded-xl">
-                            <p className="text-zinc-500 text-lg mb-2">No public portfolios yet</p>
-                            <p className="text-zinc-600 text-sm">Be the first to share your portfolio!</p>
-                        </div>
                     ) : (
-                        <div className="grid gap-4 md:grid-cols-2">
-                            {portfolios.map(p => (
-                                <Link
-                                    key={p.id}
-                                    href={`/dashboard/portfolio/${p.id}`}
-                                    className="border border-white/10 rounded-xl p-6 hover:border-green-500/30 hover:bg-white/[0.02] transition-all group"
-                                >
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h3 className="font-semibold text-lg group-hover:text-green-400 transition-colors">
-                                            {p.name}
-                                        </h3>
-                                        <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full border border-green-500/20">
-                                            Public
-                                        </span>
+                        <div className="space-y-6">
+                            <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+                                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                                    <div>
+                                        <p className="text-[11px] uppercase tracking-[0.32em] text-zinc-500">Feed Controls</p>
+                                        <h3 className="mt-2 text-xl font-black text-white">Page through public portfolios with quick sort presets and a local search pass.</h3>
                                     </div>
-                                    {p.description && (
-                                        <p className="text-sm text-zinc-400 mb-3 line-clamp-2">{p.description}</p>
-                                    )}
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex gap-4 text-xs text-zinc-500">
-                                            <span className="font-mono">${p.balance?.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                                            <span>•</span>
-                                            <span>{p.items?.length || 0} positions</span>
+                                    <div className="flex flex-col gap-3 xl:items-end">
+                                        <div className="flex flex-wrap gap-2">
+                                            {([
+                                                { key: 'LATEST', label: 'Latest' },
+                                                { key: 'OLDEST', label: 'Oldest' },
+                                                { key: 'BALANCE_DESC', label: 'Top Balance' },
+                                                { key: 'BALANCE_ASC', label: 'Low Balance' },
+                                            ] as const).map(({ key, label }) => (
+                                                <button
+                                                    key={key}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDiscoverSort(key);
+                                                        setPageIndex(0);
+                                                    }}
+                                                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                                                        discoverSort === key
+                                                            ? 'border-green-500/35 bg-green-500/15 text-green-300'
+                                                            : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {label}
+                                                </button>
+                                            ))}
                                         </div>
-                                        <div className="flex gap-4">
-                                            <button
-                                                onClick={async (e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    try {
-                                                        const userId = localStorage.getItem('userId');
-                                                        if (!userId) {
-                                                            alert('Please sign in first.');
-                                                            return;
-                                                        }
-                                                        const res = await apiFetch(`/api/v1/portfolios/${p.id}/join`, {
-                                                            method: 'POST',
-                                                            headers: {
-                                                                'Content-Type': 'application/json'
+                                        <input
+                                            value={discoverQuery}
+                                            onChange={(event) => setDiscoverQuery(event.target.value)}
+                                            placeholder="Search current page by name, description, or symbol"
+                                            className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-green-500/35 xl:w-96"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                                    <div className="rounded-xl border border-white/5 bg-black/30 p-4">
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Page</p>
+                                        <p className="mt-2 text-lg font-bold text-white">{totalPages === 0 ? 0 : pageIndex + 1} / {Math.max(totalPages, 1)}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-white/5 bg-black/30 p-4">
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Visible Slice</p>
+                                        <p className="mt-2 text-lg font-bold text-green-300">{visiblePortfolios.length}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-white/5 bg-black/30 p-4">
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Slice Positions</p>
+                                        <p className="mt-2 text-lg font-bold text-white">{filteredPositionCount}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-white/5 bg-black/30 p-4">
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Avg Balance</p>
+                                        <p className="mt-2 text-lg font-bold text-white">
+                                            ${averageVisibleBalance.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                                        </p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {portfolios.length === 0 ? (
+                                <div className="text-center py-20 border border-dashed border-white/10 rounded-xl">
+                                    <p className="text-zinc-500 text-lg mb-2">No public portfolios yet</p>
+                                    <p className="text-zinc-600 text-sm">Be the first to share your portfolio!</p>
+                                </div>
+                            ) : visiblePortfolios.length === 0 ? (
+                                <div className="text-center py-16 border border-dashed border-white/10 rounded-xl">
+                                    <p className="text-zinc-400 text-lg">No slice matches this search.</p>
+                                    <p className="mt-2 text-sm text-zinc-600">Clear the local query or move to another page slice.</p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    {visiblePortfolios.map(p => (
+                                        <Link
+                                            key={p.id}
+                                            href={`/dashboard/portfolio/${p.id}`}
+                                            className="border border-white/10 rounded-xl p-6 hover:border-green-500/30 hover:bg-white/[0.02] transition-all group"
+                                        >
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h3 className="font-semibold text-lg group-hover:text-green-400 transition-colors">
+                                                    {p.name}
+                                                </h3>
+                                                <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full border border-green-500/20">
+                                                    Public
+                                                </span>
+                                            </div>
+                                            {p.description && (
+                                                <p className="text-sm text-zinc-400 mb-3 line-clamp-2">{p.description}</p>
+                                            )}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex gap-4 text-xs text-zinc-500">
+                                                    <span className="font-mono">${p.balance?.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                                    <span>•</span>
+                                                    <span>{p.items?.length || 0} positions</span>
+                                                </div>
+                                                <div className="flex gap-4">
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            try {
+                                                                const userId = localStorage.getItem('userId');
+                                                                if (!userId) {
+                                                                    alert('Please sign in first.');
+                                                                    return;
+                                                                }
+                                                                const res = await apiFetch(`/api/v1/portfolios/${p.id}/join`, {
+                                                                    method: 'POST',
+                                                                    headers: {
+                                                                        'Content-Type': 'application/json'
+                                                                    }
+                                                                });
+                                                                if (res.ok) {
+                                                                    const data = await res.json();
+                                                                    alert(`Subscribed! Created copy portfolio ${data.clonedPortfolioId}`);
+                                                                } else {
+                                                                    const txt = await res.text();
+                                                                    alert(`Failed to subscribe: ${txt}`);
+                                                                }
+                                                            } catch (e) {
+                                                                console.error(e);
                                                             }
-                                                        });
-                                                        if (res.ok) {
-                                                            const data = await res.json();
-                                                            alert(`Subscribed! Created copy portfolio ${data.clonedPortfolioId}`);
-                                                        } else {
-                                                            const txt = await res.text();
-                                                            alert(`Failed to subscribe: ${txt}`);
-                                                        }
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                    }
-                                                }}
-                                                className="text-xs bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 px-3 py-1 rounded-full font-bold transition-all border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.2)]"
-                                            >
-                                                COPY
-                                            </button>
-                                            <Link
-                                                href={`/profile/${p.ownerId}`}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="text-xs text-zinc-500 hover:text-green-400 transition-colors flex items-center"
-                                            >
-                                                View Trader →
-                                            </Link>
-                                        </div>
-                                    </div>
-                                    <div className="mt-3 pt-3 border-t border-white/5 text-xs text-zinc-600">
-                                        Created {new Date(p.createdAt).toLocaleDateString()}
-                                    </div>
-                                </Link>
-                            ))}
+                                                        }}
+                                                        className="text-xs bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 px-3 py-1 rounded-full font-bold transition-all border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                                                    >
+                                                        COPY
+                                                    </button>
+                                                    <Link
+                                                        href={`/profile/${p.ownerId}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="text-xs text-zinc-500 hover:text-green-400 transition-colors flex items-center"
+                                                    >
+                                                        View Trader →
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 pt-3 border-t border-white/5 text-xs text-zinc-600">
+                                                Created {new Date(p.createdAt).toLocaleDateString()}
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-5 md:flex-row md:items-center md:justify-between">
+                                <div className="text-sm text-zinc-400">
+                                    Showing page <span className="font-semibold text-white">{totalPages === 0 ? 0 : pageIndex + 1}</span>
+                                    {' '}of <span className="font-semibold text-white">{Math.max(totalPages, 1)}</span>
+                                    {' '}from <span className="font-semibold text-white">{totalElements}</span> public portfolios.
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
+                                        disabled={pageIndex === 0}
+                                        className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Prev
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPageIndex((current) => (current + 1 < totalPages ? current + 1 : current))}
+                                        disabled={totalPages === 0 || pageIndex + 1 >= totalPages}
+                                        className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )
                 )}

@@ -62,6 +62,11 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after discover workspace cleanup and verify `/discover` now separates:
   - public discovery context
   - live public portfolio feed
+- [ ] Redeploy frontend after discover feed controls rollout and verify `/discover` now supports:
+  - page-aware public portfolio browsing
+  - sort presets (`Latest`, `Oldest`, `Top Balance`, `Low Balance`)
+  - local slice search by name/description/symbol
+  - `Prev / Next` navigation across public portfolio pages
 - [ ] Redeploy frontend after tournaments workspace cleanup and verify `/tournaments` now separates:
   - competition context
   - arena list / join operations

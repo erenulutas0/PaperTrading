@@ -38,6 +38,32 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Discover Feed Graduated From Static First Slice To Page-Aware Public Browsing**
+  - **Problem observed**:
+    - `/discover` had already been split into `Overview / Feed`, but the feed still behaved like a static first slice:
+      - no page navigation
+      - no sort control
+      - no way to narrow the visible current slice without scanning every card manually
+    - That left the page structurally cleaner, but still operationally thin.
+  - **Implementation**:
+    - Added page-aware discover feed fetching against the existing paged public portfolio endpoint.
+    - Added feed controls for:
+      - `Latest`
+      - `Oldest`
+      - `Top Balance`
+      - `Low Balance`
+    - Added local slice search over:
+      - portfolio name
+      - description
+      - symbol list
+    - Added `Prev / Next` feed navigation plus compact slice metrics:
+      - current page
+      - visible slice size
+      - slice position count
+      - average visible balance
+  - **Operational impact**:
+    - discover now behaves more like a browsable public market surface than a frozen first page
+    - the page gains operational triage controls without requiring a new backend search contract first
 - **2026-03-15**: **Watchlist List Read Contract Moved To Paged Payloads**
   - **Problem observed**:
     - The terminal’s alert-history panel had already moved to a paged read contract, but the primary watchlist list itself still returned a raw array.
