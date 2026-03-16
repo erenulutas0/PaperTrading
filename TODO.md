@@ -71,6 +71,7 @@ Last updated: 2026-03-11
   - sends `q` to `/api/v1/portfolios/discover`
   - filters across portfolio name, description, and item symbols
   - keeps page/sort navigation working under filtered public discovery
+- [ ] Redeploy backend after discover two-step page fetch rollout and verify `/api/v1/portfolios/discover` no longer relies on collection-fetch pagination for the public portfolio slice
 - [ ] Redeploy frontend after tournaments workspace cleanup and verify `/tournaments` now separates:
   - competition context
   - arena list / join operations

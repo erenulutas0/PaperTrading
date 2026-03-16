@@ -12,6 +12,7 @@ import com.finance.core.web.ApiErrorResponses;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -19,8 +20,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -139,10 +143,24 @@ public class PortfolioController {
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20) Pageable pageable) {
         String normalizedQuery = q == null || q.isBlank() ? "" : q.trim();
-        return ResponseEntity.ok(portfolioRepository.searchDiscoverableByVisibility(
+        Page<UUID> idPage = portfolioRepository.searchDiscoverableIdsByVisibility(
                 Portfolio.Visibility.PUBLIC,
                 normalizedQuery,
-                pageable));
+                pageable);
+        if (idPage.isEmpty()) {
+            return ResponseEntity.ok(Page.empty(pageable));
+        }
+
+        List<Portfolio> fetched = portfolioRepository.findByIdInAndVisibility(idPage.getContent(), Portfolio.Visibility.PUBLIC);
+        Map<UUID, Integer> orderIndex = new HashMap<>();
+        for (int i = 0; i < idPage.getContent().size(); i++) {
+            orderIndex.put(idPage.getContent().get(i), i);
+        }
+        List<Portfolio> ordered = fetched.stream()
+                .sorted(Comparator.comparingInt(portfolio -> orderIndex.getOrDefault(portfolio.getId(), Integer.MAX_VALUE)))
+                .toList();
+
+        return ResponseEntity.ok(new PageImpl<>(ordered, pageable, idPage.getTotalElements()));
     }
 
     @PutMapping("/{id}/visibility")

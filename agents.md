@@ -56,6 +56,19 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - discover search now behaves like a real public-catalog query rather than a cosmetic slice filter
     - users can page and sort within a filtered public subset without misleading local-only results
+- **2026-03-15**: **Discover Public Feed Shifted To Two-Step ID Paging To Avoid Collection-Fetch Pagination Drift**
+  - **Problem observed**:
+    - The backend discover search contract worked, but Hibernate still warned that collection fetch pagination was being applied in memory.
+    - That is an avoidable read-path smell for a public feed that is expected to grow.
+  - **Implementation**:
+    - Switched discover pagination to a two-step pattern:
+      - page portfolio ids first
+      - fetch portfolios with items by id set second
+      - restore the id-page ordering before returning the final `Page<Portfolio>`
+    - Kept the public discover behavior and search semantics unchanged while removing the need to page directly over a collection fetch.
+  - **Operational impact**:
+    - discover read behavior stays the same for callers
+    - backend paging is now structurally safer and easier to scale than the earlier collection-fetch approach
 - **2026-03-15**: **Discover Feed Graduated From Static First Slice To Page-Aware Public Browsing**
   - **Problem observed**:
     - `/discover` had already been split into `Overview / Feed`, but the feed still behaved like a static first slice:

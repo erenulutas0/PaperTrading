@@ -39,9 +39,8 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
     @EntityGraph(attributePaths = "items")
     Page<Portfolio> findByVisibility(Portfolio.Visibility visibility, Pageable pageable);
 
-    @EntityGraph(attributePaths = "items")
     @Query(value = """
-            SELECT p FROM Portfolio p
+            SELECT p.id FROM Portfolio p
             WHERE p.visibility = :visibility
               AND (
                 :query = ''
@@ -68,7 +67,7 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
                         )
                       )
                     """)
-    Page<Portfolio> searchDiscoverableByVisibility(
+    Page<UUID> searchDiscoverableIdsByVisibility(
             @Param("visibility") Portfolio.Visibility visibility,
             @Param("query") String query,
             Pageable pageable);
