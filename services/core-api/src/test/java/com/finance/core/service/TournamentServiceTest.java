@@ -9,6 +9,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -216,6 +218,42 @@ class TournamentServiceTest {
             // TraderB should be #2 (equity = 100000 -> 0% return)
             assertEquals(2, leaderboard.get(1).get("rank"));
             assertEquals("traderB", leaderboard.get(1).get("username"));
+        }
+
+        @Test
+        void pagedLeaderboard_returnsRequestedSlice() {
+            UUID portfolioAId = UUID.randomUUID();
+            UUID portfolioBId = UUID.randomUUID();
+            UUID userAId = UUID.randomUUID();
+            UUID userBId = UUID.randomUUID();
+
+            TournamentParticipant pA = TournamentParticipant.builder()
+                    .userId(userAId).portfolioId(portfolioAId).tournamentId(activeTournament.getId()).build();
+            TournamentParticipant pB = TournamentParticipant.builder()
+                    .userId(userBId).portfolioId(portfolioBId).tournamentId(activeTournament.getId()).build();
+
+            Portfolio portfolioA = Portfolio.builder()
+                    .id(portfolioAId).balance(new BigDecimal("110000")).items(List.of()).build();
+            Portfolio portfolioB = Portfolio.builder()
+                    .id(portfolioBId).balance(new BigDecimal("100000")).items(List.of()).build();
+
+            when(tournamentRepository.findById(activeTournament.getId())).thenReturn(Optional.of(activeTournament));
+            when(participantRepository.findByTournamentId(activeTournament.getId())).thenReturn(List.of(pA, pB));
+            when(portfolioRepository.findById(portfolioAId)).thenReturn(Optional.of(portfolioA));
+            when(portfolioRepository.findById(portfolioBId)).thenReturn(Optional.of(portfolioB));
+            when(binanceService.getPrices()).thenReturn(Map.of());
+            when(userRepository.findById(userAId)).thenReturn(Optional.of(
+                    AppUser.builder().id(userAId).username("traderA").build()));
+            when(userRepository.findById(userBId)).thenReturn(Optional.of(
+                    AppUser.builder().id(userBId).username("traderB").build()));
+
+            Page<Map<String, Object>> leaderboardPage = tournamentService.getTournamentLeaderboard(
+                    activeTournament.getId(),
+                    PageRequest.of(0, 1));
+
+            assertEquals(1, leaderboardPage.getContent().size());
+            assertEquals(2, leaderboardPage.getTotalElements());
+            assertEquals("traderA", leaderboardPage.getContent().get(0).get("username"));
         }
     }
 

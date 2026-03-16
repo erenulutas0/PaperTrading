@@ -7,6 +7,7 @@ import SockJS from 'sockjs-client';
 import { Client, IFrame, IMessage } from '@stomp/stompjs';
 import { wsBrokerUrl, wsHttpUrl } from '../../../../lib/network';
 import { apiFetch, userIdHeaders } from '../../../../lib/api-client';
+import { extractContent } from '../../../../lib/page';
 
 interface Tournament {
     id: string;
@@ -75,9 +76,10 @@ export default function TournamentHubPage() {
     const refreshLeaderboard = useCallback(async () => {
         if (!tournamentId) return;
         try {
-            const res = await apiFetch(`/api/v1/tournaments/${tournamentId}/leaderboard`);
+            const res = await apiFetch(`/api/v1/tournaments/${tournamentId}/leaderboard?page=0&size=20`);
             if (res.ok) {
-                setLeaderboard(await res.json());
+                const data = await res.json();
+                setLeaderboard(extractContent<LeaderboardEntry>(data));
             }
         } catch (err) {
             console.error('Failed to refresh leaderboard:', err);
@@ -91,16 +93,22 @@ export default function TournamentHubPage() {
             const participantHeaders = userIdHeaders(currentUserId);
             const [tRes, lRes, trRes, pRes] = await Promise.all([
                 apiFetch(`/api/v1/tournaments/${tournamentId}`),
-                apiFetch(`/api/v1/tournaments/${tournamentId}/leaderboard`),
-                apiFetch(`/api/v1/tournaments/${tournamentId}/trades?limit=20`),
+                apiFetch(`/api/v1/tournaments/${tournamentId}/leaderboard?page=0&size=20`),
+                apiFetch(`/api/v1/tournaments/${tournamentId}/trades?page=0&size=20`),
                 apiFetch(`/api/v1/tournaments/${tournamentId}/participant`, {
                     headers: participantHeaders,
                 }),
             ]);
 
             if (tRes.ok) setTournament(await tRes.json());
-            if (lRes.ok) setLeaderboard(await lRes.json());
-            if (trRes.ok) setTrades(await trRes.json());
+            if (lRes.ok) {
+                const data = await lRes.json();
+                setLeaderboard(extractContent<LeaderboardEntry>(data));
+            }
+            if (trRes.ok) {
+                const data = await trRes.json();
+                setTrades(extractContent<Trade>(data));
+            }
             if (pRes.ok) {
                 const participant = await pRes.json();
                 setUserPortfolioId(participant.portfolioId);

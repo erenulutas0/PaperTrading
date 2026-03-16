@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import java.math.BigDecimal;
@@ -60,6 +61,30 @@ public class TournamentService {
             // For the Combat Feed, let's keep it simple for now.
             return map;
         }).toList();
+    }
+
+    public Page<Map<String, Object>> getTournamentTrades(UUID tournamentId, Pageable pageable) {
+        List<UUID> portfolioIds = participantRepository.findAllPortfolioIdsByTournamentId(tournamentId);
+        if (portfolioIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        List<TradeActivity> trades = tradeActivityRepository.findRecentTradesForPortfolios(portfolioIds, pageable);
+        long total = tradeActivityRepository.countByPortfolioIdIn(portfolioIds);
+
+        List<Map<String, Object>> content = trades.stream().map(t -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("symbol", t.getSymbol());
+            map.put("type", t.getType());
+            map.put("side", t.getSide());
+            map.put("price", t.getPrice());
+            map.put("quantity", t.getQuantity());
+            map.put("timestamp", t.getTimestamp());
+            map.put("portfolioId", t.getPortfolioId());
+            return map;
+        }).toList();
+
+        return new PageImpl<>(content, pageable, total);
     }
 
     /** Broadcast a trade to the tournament hub if the portfolio belongs to one */
@@ -240,6 +265,23 @@ public class TournamentService {
         }
 
         return entries;
+    }
+
+    public Page<Map<String, Object>> getTournamentLeaderboard(UUID tournamentId, Pageable pageable) {
+        List<Map<String, Object>> leaderboard = getTournamentLeaderboard(tournamentId);
+        if (leaderboard.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        int total = leaderboard.size();
+        int fromIndex = (int) Math.min(pageable.getOffset(), total);
+        int toIndex = (int) Math.min(fromIndex + pageable.getPageSize(), total);
+
+        if (fromIndex >= toIndex) {
+            return new PageImpl<>(List.of(), pageable, total);
+        }
+
+        return new PageImpl<>(leaderboard.subList(fromIndex, toIndex), pageable, total);
     }
 
     // ==================== LIFECYCLE (Scheduled) ====================

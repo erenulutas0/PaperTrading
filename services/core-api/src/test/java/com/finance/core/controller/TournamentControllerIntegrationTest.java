@@ -144,6 +144,7 @@ class TournamentControllerIntegrationTest {
 
                 mockMvc.perform(get("/api/v1/tournaments/" + t.getId() + "/leaderboard"))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.*", hasSize(0))); // Verify empty map/object has 0 keys
+                                .andExpect(jsonPath("$.content", hasSize(0)))
+                                .andExpect(jsonPath("$.page.totalElements").value(0));
         }
 }

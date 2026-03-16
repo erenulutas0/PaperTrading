@@ -20,6 +20,8 @@ public interface TradeActivityRepository extends JpaRepository<TradeActivity, UU
     List<TradeActivity> findRecentTradesForPortfolios(@Param("portfolioIds") List<UUID> portfolioIds,
             Pageable pageable);
 
+    long countByPortfolioIdIn(Collection<UUID> portfolioIds);
+
     @Query("SELECT COUNT(t) FROM TradeActivity t WHERE t.portfolioId IN :portfolioIds AND t.realizedPnl > 0")
     long countProfitableRealizedTrades(@Param("portfolioIds") Collection<UUID> portfolioIds);
 

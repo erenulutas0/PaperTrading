@@ -74,8 +74,11 @@ export default function TournamentsPage() {
     const fetchLeaderboard = async () => {
         if (!selectedTournament) return;
         try {
-            const res = await apiFetch(`/api/v1/tournaments/${selectedTournament}/leaderboard`);
-            if (res.ok) setLeaderboard(await res.json());
+            const res = await apiFetch(`/api/v1/tournaments/${selectedTournament}/leaderboard?page=0&size=10`);
+            if (res.ok) {
+                const data = await res.json();
+                setLeaderboard(extractContent<LeaderboardEntry>(data));
+            }
         } catch (err) { console.error(err); }
     };
 

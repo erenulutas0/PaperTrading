@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -90,9 +91,12 @@ public class TournamentController {
 
     /** Get live tournament leaderboard */
     @GetMapping("/{tournamentId}/leaderboard")
-    public ResponseEntity<?> getLeaderboard(@PathVariable UUID tournamentId, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> getLeaderboard(
+            @PathVariable UUID tournamentId,
+            @PageableDefault(size = 20) Pageable pageable,
+            HttpServletRequest httpRequest) {
         try {
-            return ResponseEntity.ok(tournamentService.getTournamentLeaderboard(tournamentId));
+            return ResponseEntity.ok(tournamentService.getTournamentLeaderboard(tournamentId, pageable));
         } catch (Exception e) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_leaderboard_failed", e.getMessage(), null, httpRequest);
         }
@@ -115,10 +119,15 @@ public class TournamentController {
     @GetMapping("/{tournamentId}/trades")
     public ResponseEntity<?> getTournamentTrades(
             @PathVariable UUID tournamentId,
-            @RequestParam(defaultValue = "15") int limit,
+            @PageableDefault(size = 15) Pageable pageable,
+            @RequestParam(required = false) Integer limit,
             HttpServletRequest httpRequest) {
         try {
-            return ResponseEntity.ok(tournamentService.getTournamentTrades(tournamentId, limit));
+            Pageable effectivePageable = pageable;
+            if (limit != null && limit > 0) {
+                effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
+            }
+            return ResponseEntity.ok(tournamentService.getTournamentTrades(tournamentId, effectivePageable));
         } catch (Exception e) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_trades_failed", e.getMessage(), null, httpRequest);
         }

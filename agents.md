@@ -29,7 +29,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Analysis Posts | ✅ Done | Immutable posts, soft-delete tombstone, price snapshot, auto outcome resolution (30s) |
 | Outcome Resolution Engine | ✅ Done | Scheduled 30s: target hit, stop hit, expiry checks |
 | Redis Integration | ✅ Done | Cache layer for leaderboard (ZSET), prices |
-| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`); remaining legacy list endpoints are being migrated |
+| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`) + tournament leaderboard/trade read surfaces now emit paged payloads; remaining legacy list endpoints are being migrated |
 | Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Tournament Leaderboard And Trade Feed Shifted To Paged Read Contracts**
+  - **Problem observed**:
+    - Tournament list surfaces were already paged, but two high-churn tournament read paths still returned raw lists:
+      - `/api/v1/tournaments/{id}/leaderboard`
+      - `/api/v1/tournaments/{id}/trades`
+    - That left the tournament area inconsistent with the rest of the platform’s read-path migration and made later hub/spotlight pagination harder.
+  - **Implementation**:
+    - Added paged controller contracts for tournament leaderboard and tournament trades.
+    - Kept the existing list-based service helpers intact for internal lifecycle usage, then wrapped them with page-aware service methods for the controller layer.
+    - Tournament hub and tournament spotlight frontend reads now normalize paged payloads through the shared `extractContent(...)` helper instead of assuming raw arrays.
+    - Preserved `limit` compatibility on the tournament trade feed while aligning the primary contract around `page/size`.
+  - **Operational impact**:
+    - tournament read surfaces now align with the platform’s broader pagination migration
+    - frontend tournament pages remain backward-tolerant while the backend contract becomes consistent for future page navigation work
 - **2026-03-15**: **Tournament Surface Split Between Arena Context, Arena List, And Spotlight Board**
   - **Problem observed**:
     - `/tournaments` had strong visual identity, but it still stacked:

@@ -66,6 +66,11 @@ Last updated: 2026-03-11
   - competition context
   - arena list / join operations
   - spotlight leaderboard
+- [ ] Redeploy backend/frontend after tournament leaderboard/trade pagination rollout and verify:
+  - `/api/v1/tournaments/{id}/leaderboard` now returns page metadata + content
+  - `/api/v1/tournaments/{id}/trades` now returns page metadata + content
+  - `/tournaments` spotlight still reads the first leaderboard slice correctly
+  - `/tournaments/{id}/hub` still reads leaderboard + trade feed from paged responses correctly
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion
