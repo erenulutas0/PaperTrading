@@ -4353,7 +4353,7 @@ export default function WatchlistPage() {
                                             <div className="mt-4 flex flex-wrap gap-2">
                                                 {([
                                                     { key: 'DISCOVERY', label: 'Discovery', badge: `${topMoverInstruments.length + bottomMoverInstruments.length}` },
-                                                    { key: 'UNIVERSE', label: 'Universe', badge: `${filteredUniverse.length}` },
+                                                    { key: 'UNIVERSE', label: 'Universe', badge: `${filteredInstruments.length}` },
                                                     { key: 'VIEWS', label: 'Views', badge: `${availableScannerViews.length}` },
                                                 ] as const).map(({ key, label, badge }) => (
                                                     <button
