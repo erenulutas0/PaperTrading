@@ -38,6 +38,37 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Portfolio Analytics Lower Surface Split Into Core, Live, and Outcomes Workspaces**
+  - **Problem observed**:
+    - Even after compare tabs and the compact analytics header deck, `/analytics/{portfolioId}` still stacked too many lower sections in one uninterrupted wall:
+      - equity/risk structure
+      - open-position concentration
+      - symbol-level open-risk detail
+      - realized attribution and trade outcomes
+    - That made the page informative but visually noisy, especially when compare mode and snapshot tooling were also visible higher up.
+  - **Implementation**:
+    - Added a new `Analytics Workspace` tab strip with three surfaces:
+      - `Core`
+      - `Live`
+      - `Outcomes`
+    - `Core` now groups the shared structural reads:
+      - best/worst interval move
+      - PnL timeline split
+      - equity curve
+      - risk metric cards
+    - `Live` now groups open-risk inspection:
+      - position summary
+      - top open positions
+      - exposure by symbol
+      - selected-symbol PnL detail
+    - `Outcomes` now groups closed-result inspection:
+      - rolling performance windows
+      - realized symbol attribution
+      - symbol mini timelines
+      - trade activity and closed-outcome blocks
+  - **Operational impact**:
+    - analytics is easier to scan because users can enter the specific reading mode they need instead of parsing every lower section at once
+    - the page keeps the same data contract while reducing density and visual competition between live-risk and closed-result surfaces
 - **2026-03-15**: **Market Terminal Layout Rebalanced Around A Full-Width Chart And Separate Scanner Workspace**
   - **Problem observed**:
     - `/watchlist` had accumulated enough controls and discovery blocks that the main chart was no longer the visual anchor.

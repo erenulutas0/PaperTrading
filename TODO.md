@@ -39,6 +39,7 @@ Last updated: 2026-03-11
   - analytics chart helpers now avoid spread-based min/max on large arrays to prevent stack overflow on long-history portfolios
   - compare workspace now splits `Overview / Momentum / Risk` instead of stacking every compare surface at once
   - analytics top controls now collapse into a tabbed deck so filter/export and curve-window controls do not occupy separate cards
+  - lower analytics content now splits into `Core / Live / Outcomes` so curve/risk structure, open-risk inspection, and closed-result analysis no longer compete in one long wall
 - [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
 - [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state

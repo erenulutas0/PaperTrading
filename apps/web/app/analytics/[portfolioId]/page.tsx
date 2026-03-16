@@ -137,6 +137,7 @@ interface AnalyticsData {
 
 type CompareWorkspaceTab = 'OVERVIEW' | 'MOMENTUM' | 'RISK';
 type AnalyticsDeckTab = 'FILTERS' | 'WINDOW';
+type AnalyticsSurfaceTab = 'CORE' | 'LIVE' | 'OUTCOMES';
 
 export default function AnalyticsPage({ params }: { params: Promise<{ portfolioId: string }> }) {
     const resolvedParams = use(params);
@@ -150,6 +151,7 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const [compareLoading, setCompareLoading] = useState(false);
     const [compareWorkspaceTab, setCompareWorkspaceTab] = useState<CompareWorkspaceTab>('OVERVIEW');
     const [analyticsDeckTab, setAnalyticsDeckTab] = useState<AnalyticsDeckTab>('FILTERS');
+    const [analyticsSurfaceTab, setAnalyticsSurfaceTab] = useState<AnalyticsSurfaceTab>('CORE');
     const [selectedCurveWindow, setSelectedCurveWindow] = useState<'ALL' | '30D' | '7D'>('ALL');
     const [symbolFilter, setSymbolFilter] = useState('');
     const [selectedSymbolDetail, setSelectedSymbolDetail] = useState('');
@@ -1827,6 +1829,48 @@ ${lines}
                     )}
                 </div>
 
+                <div className="mb-6 rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Analytics Workspace</h2>
+                            <p className="mt-1 text-[10px] text-zinc-600">
+                                Split the portfolio surface into core curve structure, live open-risk, and closed outcomes.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { key: 'CORE', label: 'Core', badge: `${filteredEquityCurve.length} pts` },
+                                { key: 'LIVE', label: 'Live', badge: `${positionSummary.openPositions} open` },
+                                { key: 'OUTCOMES', label: 'Outcomes', badge: `${ts.totalTrades} exec` },
+                            ] as const).map(({ key, label, badge }) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => setAnalyticsSurfaceTab(key)}
+                                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold tracking-[0.2em] transition-colors ${
+                                        analyticsSurfaceTab === key
+                                            ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300'
+                                            : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white'
+                                    }`}
+                                >
+                                    <span>{label}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                        analyticsSurfaceTab === key ? 'bg-cyan-500/20 text-cyan-200' : 'bg-black/30 text-zinc-500'
+                                    }`}>
+                                        {badge}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <p className="mt-4 text-xs text-zinc-500">
+                        {analyticsSurfaceTab === 'CORE' && 'Core keeps the shared equity, drawdown, and PnL curve structure in one place.'}
+                        {analyticsSurfaceTab === 'LIVE' && 'Live focuses on open positions, current exposure concentration, and symbol-level open-risk.'}
+                        {analyticsSurfaceTab === 'OUTCOMES' && 'Outcomes focuses on realized attribution, momentum windows, and closed-trade quality.'}
+                    </p>
+                </div>
+
+                {analyticsSurfaceTab === 'LIVE' && (
                 <div className="mb-6 grid gap-6 xl:grid-cols-12">
                     <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
                         <div className="flex items-center justify-between">
@@ -1898,7 +1942,9 @@ ${lines}
                         </div>
                     </div>
                 </div>
+                )}
 
+                {analyticsSurfaceTab === 'OUTCOMES' && (
                 <div className="mb-6 grid gap-6 xl:grid-cols-12">
                     <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
                         <div>
@@ -1967,7 +2013,9 @@ ${lines}
                         </div>
                     </div>
                 </div>
+                )}
 
+                {analyticsSurfaceTab === 'LIVE' && (
                 <div className="mb-6 rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
                     <div className="flex items-center justify-between">
                         <div>
@@ -2072,7 +2120,9 @@ ${lines}
                         )}
                     </div>
                 </div>
+                )}
 
+                {analyticsSurfaceTab === 'OUTCOMES' && (
                 <div className="mb-6 rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
                     <div className="flex items-center justify-between">
                         <div>
@@ -2136,7 +2186,9 @@ ${lines}
                         )}
                     </div>
                 </div>
+                )}
 
+                {analyticsSurfaceTab === 'LIVE' && (
                 <div className="mb-6 rounded-2xl border border-white/10 bg-zinc-900/60 p-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
@@ -2283,7 +2335,10 @@ ${lines}
                         </div>
                     )}
                 </div>
+                )}
 
+                {analyticsSurfaceTab === 'CORE' && (
+                <>
                 <div className="mb-6 grid gap-6 xl:grid-cols-2">
                     {[
                         {
@@ -2389,8 +2444,10 @@ ${lines}
                         </div>
                     ))}
                 </div>
+                </>
+                )}
 
-                {/* Trade Stats + Win Rate */}
+                {analyticsSurfaceTab === 'OUTCOMES' && (
                 <div className="grid gap-6 mb-6 xl:grid-cols-12">
                     {/* Trade Stats */}
                     <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 xl:col-span-7">
@@ -2558,6 +2615,7 @@ ${lines}
                         </div>
                     </div>
                 </div>
+                )}
             </div>
         </div>
     );
