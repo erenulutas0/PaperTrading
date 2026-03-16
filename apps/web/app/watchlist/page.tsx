@@ -5310,7 +5310,10 @@ export default function WatchlistPage() {
                                     <h2 className="mt-2 text-xl font-bold text-white">Right Rail</h2>
                                 </div>
                                 <button
-                                    onClick={() => setShowAddForm(!showAddForm)}
+                                    onClick={() => {
+                                        setRightRailTab('WATCHLISTS');
+                                        setShowAddForm((current) => !current);
+                                    }}
                                     className="rounded-full border border-green-500/20 bg-green-500/10 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-green-400 transition hover:bg-green-500/20"
                                 >
                                     + Add
@@ -5518,7 +5521,10 @@ export default function WatchlistPage() {
                                             className={`group flex cursor-pointer items-center justify-between rounded-2xl border p-3 transition ${selectedWatchlist === watchlist.id
                                                 ? 'border-amber-400/30 bg-amber-400/10'
                                                 : 'border-white/10 hover:border-white/20 hover:bg-white/[0.03]'}`}
-                                            onClick={() => setSelectedWatchlist(watchlist.id)}
+                                            onClick={() => {
+                                                setSelectedWatchlist(watchlist.id);
+                                                setRightRailTab('BASKET');
+                                            }}
                                         >
                                             <div>
                                                 <p className={`text-sm font-semibold ${selectedWatchlist === watchlist.id ? 'text-amber-300' : 'text-zinc-200'}`}>{watchlist.name}</p>
@@ -5633,11 +5639,26 @@ export default function WatchlistPage() {
                                         <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center">
                                             <p className="text-zinc-500">This basket is empty.</p>
                                             <p className="mt-1 text-xs text-zinc-600">Add one of the supported instruments and it will appear here.</p>
+                                            <button
+                                                onClick={() => {
+                                                    setRightRailTab('WATCHLISTS');
+                                                    setShowAddForm(true);
+                                                }}
+                                                className="mt-4 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300 transition hover:bg-emerald-400/20"
+                                            >
+                                                Add Symbol
+                                            </button>
                                         </div>
                                     )
                                 ) : (
                                     <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center">
                                         <p className="text-zinc-500">Select or create a watchlist.</p>
+                                        <button
+                                            onClick={() => setRightRailTab('WATCHLISTS')}
+                                            className="mt-4 rounded-full border border-sky-400/20 bg-sky-400/10 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-300 transition hover:bg-sky-400/20"
+                                        >
+                                            Open Watchlists
+                                        </button>
                                     </div>
                                 )}
                             </div>

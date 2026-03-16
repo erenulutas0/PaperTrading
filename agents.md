@@ -74,6 +74,10 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - `Overview` for summary + selected-symbol actions
       - `Watchlists` for list management and add-form flows
       - `Basket` for tracked symbol rows
+    - Added right-rail flow cues:
+      - `+ Add` now pivots into `Watchlists`
+      - selecting a watchlist pivots into `Basket`
+      - empty basket states now provide explicit CTA routing back to the relevant rail section
   - **Operational impact**:
     - the terminal remains feature-rich without collapsing into a crowded side-rail layout
     - the chart regains priority as the primary reading surface while scanner blocks remain accessible
