@@ -38,6 +38,36 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-15**: **Auth Entry Surfaces Split Between Product Context And Access Flow**
+  - **Problem observed**:
+    - `app/auth/login` and `app/auth/register` already had stronger product-language panels, but both pages still rendered:
+      - why the account matters
+      - what persists / what happens next
+      - the actual form
+    - all at once on first paint.
+    - That kept the pages informative, but it still made entry surfaces feel more like stacked onboarding cards than controlled workspaces.
+  - **Implementation**:
+    - Added a top-level `Auth Workspace` switcher on `/auth/login`:
+      - `Context`
+      - `Access`
+    - `Context` now isolates:
+      - why sign-in matters
+      - what persists across sessions
+      - session restoration notes
+    - `Access` now isolates:
+      - the actual sign-in form
+    - Added a parallel `Auth Workspace` switcher on `/auth/register`:
+      - `Baseline`
+      - `Create`
+    - `Baseline` now isolates:
+      - identity ownership
+      - immutable research rules
+      - what happens immediately after signup
+    - `Create` now isolates:
+      - the actual account-creation form
+  - **Operational impact**:
+    - auth entry pages now match the workspace-style segmentation used across analytics, profile, notifications, and analysis
+    - users can review product/account context without the input form competing for attention at the same time
 - **2026-03-15**: **New Analysis Publishing Surface Split Between Rules And Composer**
   - **Problem observed**:
     - `app/dashboard/analysis/new` already had stronger guidance copy, but it still rendered the immutable-post rules and the full composer as one long page.

@@ -52,6 +52,9 @@ Last updated: 2026-03-11
 - [ ] Redeploy frontend after notifications workspace cleanup and verify:
   - `/notifications` now separates overview context from the live inbox stream
   - bell dropdown now supports `Recent / Alerts / Social` slices instead of one undifferentiated list
+- [ ] Redeploy frontend after auth workspace cleanup and verify:
+  - `/auth/login` now separates account context from the actual sign-in form
+  - `/auth/register` now separates identity/rules context from the actual signup form
 - [ ] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion
