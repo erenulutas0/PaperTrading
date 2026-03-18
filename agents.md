@@ -47,6 +47,8 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - local infra bootstrap (`postgres`, `redis`)
       - local backend startup
       - local frontend startup
+      - guided local stack bootstrap
+      - local stack health check
     - Added `infra/local-dev.md` documenting the intended run order and default local env contract.
     - Local backend bootstrap disables alerting and websocket canary noise by default while keeping the rest of the app path intact.
   - **Operational impact**:

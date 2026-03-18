@@ -14,6 +14,12 @@ Recommended local topology:
 
 ## Start order
 
+### 0. Guided bootstrap
+
+```powershell
+.\infra\start-local-stack.ps1
+```
+
 ### 1. Infra
 
 ```powershell
@@ -52,6 +58,12 @@ Open:
 
 - Frontend: `http://localhost:3005`
 - Backend: `http://localhost:8080`
+
+## Quick health check
+
+```powershell
+.\infra\check-local-stack.ps1
+```
 
 ## Stop infra
 

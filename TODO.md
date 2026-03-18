@@ -7,6 +7,8 @@ Last updated: 2026-03-11
   - `.\infra\start-local-infra.ps1`
   - `.\infra\start-local-backend.ps1`
   - `.\infra\start-local-frontend.ps1`
+  - `.\infra\start-local-stack.ps1`
+  - `.\infra\check-local-stack.ps1`
   - confirm frontend can talk to backend on `localhost`
 - [ ] Redeploy backend/frontend after portfolio analytics summary rollout and verify `/analytics/{portfolioId}` now surfaces:
   - portfolio identity and visibility in the header
