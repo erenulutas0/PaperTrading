@@ -2,13 +2,13 @@ $ErrorActionPreference = "Stop"
 
 function Test-TcpPort {
     param(
-        [string]$Host,
+        [string]$TargetHost,
         [int]$Port
     )
 
     try {
         $client = New-Object System.Net.Sockets.TcpClient
-        $async = $client.BeginConnect($Host, $Port, $null, $null)
+        $async = $client.BeginConnect($TargetHost, $Port, $null, $null)
         $ok = $async.AsyncWaitHandle.WaitOne(1000, $false)
         if (-not $ok) {
             $client.Close()
@@ -38,8 +38,8 @@ function Get-HttpStatus {
     }
 }
 
-$postgresUp = Test-TcpPort -Host "localhost" -Port 5433
-$redisUp = Test-TcpPort -Host "localhost" -Port 6379
+$postgresUp = Test-TcpPort -TargetHost "localhost" -Port 5433
+$redisUp = Test-TcpPort -TargetHost "localhost" -Port 6379
 $backendHealth = Get-HttpStatus -Url "http://localhost:8080/actuator/health"
 $frontendHealth = Get-HttpStatus -Url "http://localhost:3005"
 
