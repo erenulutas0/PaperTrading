@@ -20,6 +20,12 @@ Recommended local topology:
 .\infra\start-local-stack.ps1
 ```
 
+This now:
+
+- starts Docker infra
+- opens a backend PowerShell window
+- opens a frontend PowerShell window
+
 ### 1. Infra
 
 ```powershell
