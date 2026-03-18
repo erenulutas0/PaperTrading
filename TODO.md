@@ -10,6 +10,7 @@ Last updated: 2026-03-11
   - `.\infra\start-local-stack.ps1`
   - `.\infra\check-local-stack.ps1`
   - confirm frontend can talk to backend on `localhost`
+  - confirm local notification transport degrades to SSE without dev-overlay noise when STOMP is rejected
 - [ ] Redeploy backend/frontend after portfolio analytics summary rollout and verify `/analytics/{portfolioId}` now surfaces:
   - portfolio identity and visibility in the header
   - current equity / net return / peak / trough summary cards

@@ -54,6 +54,14 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the platform can now move off Railway for day-to-day development without re-deriving env wiring each time
     - local stack startup is now repeatable instead of tribal knowledge
+- **2026-03-19**: **Notification WebSocket Handshake Rejection No Longer Pollutes Local Dev Overlay**
+  - **Problem observed**:
+    - In local dev, STOMP handshake rejection could surface as a red client-side issue even though the notification layer already had SSE fallback logic.
+    - The console severity was too strong for a recoverable transport downgrade.
+  - **Implementation**:
+    - `LiveNotificationProvider` now treats early STOMP errors as a warning and triggers the existing SSE fallback path when the socket never reached a connected state.
+  - **Operational impact**:
+    - local notification transport can degrade gracefully without looking like a hard application failure
 - **2026-03-15**: **Tournament Badge List Moved To Paged Read Contract**
   - **Problem observed**:
     - The tournament surface had already migrated leaderboard and trade feeds to paged responses, but user-earned badges still came back as a raw list.

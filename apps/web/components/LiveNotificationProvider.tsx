@@ -351,8 +351,12 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
                         console.log('[WS] Disconnected');
                     },
                     onStompError: (frame) => {
-                        console.error('[WS] STOMP error:', frame.headers['message']);
+                        const stompMessage = frame.headers['message'] || 'stomp-error';
+                        console.warn('[WS] STOMP error:', stompMessage);
                         setConnected(false);
+                        if (!wsConnected && !fallbackStarted && !disposed) {
+                            void startSseFallback(`stomp-error:${stompMessage}`);
+                        }
                     },
                     onWebSocketClose: () => {
                         if (!wsConnected && !fallbackStarted && !disposed) {
