@@ -3,6 +3,11 @@
 Last updated: 2026-03-11
 
 ## In Progress
+- [ ] Verify the new local-dev bootstrap path:
+  - `.\infra\start-local-infra.ps1`
+  - `.\infra\start-local-backend.ps1`
+  - `.\infra\start-local-frontend.ps1`
+  - confirm frontend can talk to backend on `localhost`
 - [ ] Redeploy backend/frontend after portfolio analytics summary rollout and verify `/analytics/{portfolioId}` now surfaces:
   - portfolio identity and visibility in the header
   - current equity / net return / peak / trough summary cards

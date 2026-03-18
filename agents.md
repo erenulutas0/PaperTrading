@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Local Development Bootstrap Standardized Around Docker Infra + Local App Runtimes**
+  - **Problem observed**:
+    - Railway quota pressure makes always-on hosted dev environments brittle.
+    - The repo already had Docker infra for Postgres/Redis, but no single obvious local startup path for the full stack.
+  - **Implementation**:
+    - Added explicit PowerShell entrypoints for:
+      - local infra bootstrap (`postgres`, `redis`)
+      - local backend startup
+      - local frontend startup
+    - Added `infra/local-dev.md` documenting the intended run order and default local env contract.
+    - Local backend bootstrap disables alerting and websocket canary noise by default while keeping the rest of the app path intact.
+  - **Operational impact**:
+    - the platform can now move off Railway for day-to-day development without re-deriving env wiring each time
+    - local stack startup is now repeatable instead of tribal knowledge
 - **2026-03-15**: **Tournament Badge List Moved To Paged Read Contract**
   - **Problem observed**:
     - The tournament surface had already migrated leaderboard and trade feeds to paged responses, but user-earned badges still came back as a raw list.
