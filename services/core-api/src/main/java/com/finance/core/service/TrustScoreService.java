@@ -47,7 +47,9 @@ public class TrustScoreService {
     private static final double RETURN_MULTIPLIER = 12.0;
     private static final double EXPERIENCE_PER_RESOLVED_POST = 0.35;
     private static final double EXPERIENCE_PER_RESOLVED_TRADE = 0.15;
+    private static final double EXPERIENCE_PER_PORTFOLIO = 0.50;
     private static final double MAX_EXPERIENCE_BONUS = 10.0;
+    private static final double CONFIDENCE_HALF_SATURATION = 20.0;
     private static final Duration HISTORY_STALENESS_THRESHOLD = Duration.ofMinutes(15);
     private final UserRepository userRepository;
     private final PerformanceAnalyticsService analyticsService;
@@ -117,48 +119,59 @@ public class TrustScoreService {
 
         PortfolioSignals portfolioSignals = buildPortfolioSignals(portfolios);
 
-        double predictionComponent = calculatePosteriorComponent(
+        double predictionPosteriorRate = calculatePosteriorRate(
                 predictionWinRate,
                 resolvedPredictionCount,
-                PREDICTION_PRIOR_WEIGHT,
-                PREDICTION_MULTIPLIER);
-        double tradeComponent = calculatePosteriorComponent(
+                PREDICTION_PRIOR_WEIGHT);
+        double tradePosteriorRate = calculatePosteriorRate(
                 tradeWinRate,
                 resolvedTradeCount,
-                TRADE_PRIOR_WEIGHT,
-                TRADE_MULTIPLIER);
-        double portfolioComponent = calculatePosteriorComponent(
+                TRADE_PRIOR_WEIGHT);
+        double portfolioPosteriorRate = calculatePosteriorRate(
                 portfolioSignals.portfolioWinRate,
                 portfolioSignals.totalPortfolioCount,
-                PORTFOLIO_PRIOR_WEIGHT,
-                PORTFOLIO_MULTIPLIER);
+                PORTFOLIO_PRIOR_WEIGHT);
+
+        double predictionComponent = calculatePosteriorComponent(predictionPosteriorRate, PREDICTION_MULTIPLIER);
+        double tradeComponent = calculatePosteriorComponent(tradePosteriorRate, TRADE_MULTIPLIER);
+        double portfolioComponent = calculatePosteriorComponent(portfolioPosteriorRate, PORTFOLIO_MULTIPLIER);
 
         double clampedAverageReturn = Math.max(-MAX_RETURN_ABS_PERCENT,
                 Math.min(MAX_RETURN_ABS_PERCENT, portfolioSignals.averagePortfolioReturn.doubleValue()));
         double returnComponent = (clampedAverageReturn / MAX_RETURN_ABS_PERCENT) * RETURN_MULTIPLIER;
-        double experienceComponent = Math.min(
+        long totalEvidenceCount = resolvedPredictionCount + resolvedTradeCount + portfolioSignals.totalPortfolioCount;
+        double confidenceScore = calculateConfidenceScore(totalEvidenceCount);
+        double blendedWinRate = calculateBlendedWinRate(
+                predictionPosteriorRate,
+                resolvedPredictionCount,
+                tradePosteriorRate,
+                resolvedTradeCount,
+                portfolioPosteriorRate,
+                portfolioSignals.totalPortfolioCount);
+        double experienceMagnitude = Math.min(
                 MAX_EXPERIENCE_BONUS,
                 (resolvedPredictionCount * EXPERIENCE_PER_RESOLVED_POST)
-                        + (resolvedTradeCount * EXPERIENCE_PER_RESOLVED_TRADE));
-        double blendedWinRate = calculateBlendedWinRate(
-                predictionWinRate,
-                resolvedPredictionCount,
-                tradeWinRate,
-                resolvedTradeCount,
-                portfolioSignals.portfolioWinRate,
-                portfolioSignals.totalPortfolioCount);
+                        + (resolvedTradeCount * EXPERIENCE_PER_RESOLVED_TRADE)
+                        + (portfolioSignals.totalPortfolioCount * EXPERIENCE_PER_PORTFOLIO));
+        double experienceAlignment = Math.max(-1.0, Math.min(1.0, (blendedWinRate - 50.0) / 50.0));
+        double experienceComponent = experienceMagnitude * experienceAlignment;
 
         return TrustScoreBreakdownResponse.builder()
                 .blendedWinRate(roundDouble(blendedWinRate))
                 .predictionWinRate(roundDouble(predictionWinRate))
+                .predictionPosteriorRate(roundDouble(predictionPosteriorRate))
                 .resolvedPredictionCount(resolvedPredictionCount)
                 .tradeWinRate(roundDouble(tradeWinRate))
+                .tradePosteriorRate(roundDouble(tradePosteriorRate))
                 .resolvedTradeCount(resolvedTradeCount)
                 .profitablePortfolioCount(portfolioSignals.profitablePortfolioCount)
                 .totalPortfolioCount(portfolioSignals.totalPortfolioCount)
                 .portfolioWinRate(roundDouble(portfolioSignals.portfolioWinRate))
+                .portfolioPosteriorRate(roundDouble(portfolioPosteriorRate))
                 .averagePortfolioReturn(portfolioSignals.averagePortfolioReturn)
                 .aggregateRealizedPnl(aggregateRealizedPnl.setScale(2, RoundingMode.HALF_UP))
+                .totalEvidenceCount(totalEvidenceCount)
+                .confidenceScore(roundDouble(confidenceScore))
                 .predictionComponent(roundDouble(predictionComponent))
                 .tradeComponent(roundDouble(tradeComponent))
                 .portfolioComponent(roundDouble(portfolioComponent))
@@ -242,30 +255,42 @@ public class TrustScoreService {
         return roundDouble(breakdown.getBlendedWinRate() - baseline.getWinRate());
     }
 
-    private double calculatePosteriorComponent(double ratePercent, long sampleSize, double priorWeight, double multiplier) {
+    private double calculatePosteriorRate(double ratePercent, long sampleSize, double priorWeight) {
         double normalizedRate = Math.max(0.0, Math.min(100.0, ratePercent)) / 100.0;
         double posteriorRate = ((normalizedRate * sampleSize) + (PRIOR_WIN_RATE * priorWeight))
                 / (sampleSize + priorWeight);
-        return (posteriorRate - PRIOR_WIN_RATE) * multiplier;
+        return posteriorRate * 100.0;
+    }
+
+    private double calculatePosteriorComponent(double posteriorRatePercent, double multiplier) {
+        double normalizedPosteriorRate = Math.max(0.0, Math.min(100.0, posteriorRatePercent)) / 100.0;
+        return (normalizedPosteriorRate - PRIOR_WIN_RATE) * multiplier;
+    }
+
+    private double calculateConfidenceScore(long totalEvidenceCount) {
+        if (totalEvidenceCount <= 0) {
+            return 0.0;
+        }
+        return (totalEvidenceCount / (totalEvidenceCount + CONFIDENCE_HALF_SATURATION)) * 100.0;
     }
 
     private double calculateBlendedWinRate(
-            double predictionWinRate,
+            double predictionPosteriorRate,
             long resolvedPredictionCount,
-            double tradeWinRate,
+            double tradePosteriorRate,
             long resolvedTradeCount,
-            double portfolioWinRate,
+            double portfolioPosteriorRate,
             int totalPortfolioCount) {
-        double predictionWeight = resolvedPredictionCount + PREDICTION_PRIOR_WEIGHT;
-        double tradeWeight = resolvedTradeCount + TRADE_PRIOR_WEIGHT;
-        double portfolioWeight = totalPortfolioCount + PORTFOLIO_PRIOR_WEIGHT;
+        double predictionWeight = resolvedPredictionCount;
+        double tradeWeight = resolvedTradeCount;
+        double portfolioWeight = totalPortfolioCount;
         double totalWeight = predictionWeight + tradeWeight + portfolioWeight;
         if (totalWeight <= 0) {
-            return 0.0;
+            return BASELINE_SCORE;
         }
-        return ((predictionWinRate * predictionWeight)
-                + (tradeWinRate * tradeWeight)
-                + (portfolioWinRate * portfolioWeight)) / totalWeight;
+        return ((predictionPosteriorRate * predictionWeight)
+                + (tradePosteriorRate * tradeWeight)
+                + (portfolioPosteriorRate * portfolioWeight)) / totalWeight;
     }
 
     private PortfolioSignals buildPortfolioSignals(List<Portfolio> portfolios) {

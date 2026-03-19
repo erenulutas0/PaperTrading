@@ -25,14 +25,19 @@ interface UserProfile {
     trustBreakdown?: {
         blendedWinRate: number;
         predictionWinRate: number;
+        predictionPosteriorRate: number;
         resolvedPredictionCount: number;
         tradeWinRate: number;
+        tradePosteriorRate: number;
         resolvedTradeCount: number;
         profitablePortfolioCount: number;
         totalPortfolioCount: number;
         portfolioWinRate: number;
+        portfolioPosteriorRate: number;
         averagePortfolioReturn: number;
         aggregateRealizedPnl: number;
+        totalEvidenceCount: number;
+        confidenceScore: number;
         predictionComponent: number;
         tradeComponent: number;
         portfolioComponent: number;
@@ -551,34 +556,34 @@ export default function ProfilePage() {
                             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                                 <Link href="/trust-score#predictions" className="rounded-2xl border border-border bg-background/60 p-4 transition hover:border-primary/30">
                                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Prediction Signal</p>
-                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.predictionWinRate.toFixed(1)}%</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.predictionPosteriorRate.toFixed(1)}%</p>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        {profile.trustBreakdown.resolvedPredictionCount} resolved posts · component {profile.trustBreakdown.predictionComponent.toFixed(1)}
+                                        Raw {profile.trustBreakdown.predictionWinRate.toFixed(1)}% · {profile.trustBreakdown.resolvedPredictionCount} resolved posts · component {profile.trustBreakdown.predictionComponent.toFixed(1)}
                                     </p>
                                 </Link>
                                 <Link href="/trust-score#trades" className="rounded-2xl border border-border bg-background/60 p-4 transition hover:border-primary/30">
                                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Trade Signal</p>
                                     <p className="mt-2 text-lg font-semibold text-foreground">
                                         {profile.trustBreakdown.resolvedTradeCount > 0
-                                            ? `${profile.trustBreakdown.tradeWinRate.toFixed(1)}%`
+                                            ? `${profile.trustBreakdown.tradePosteriorRate.toFixed(1)}%`
                                             : 'N/A'}
                                     </p>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        {profile.trustBreakdown.resolvedTradeCount} closed trades · component {profile.trustBreakdown.tradeComponent.toFixed(1)}
+                                        Raw {profile.trustBreakdown.tradeWinRate.toFixed(1)}% · {profile.trustBreakdown.resolvedTradeCount} closed trades · component {profile.trustBreakdown.tradeComponent.toFixed(1)}
                                     </p>
                                 </Link>
                                 <Link href="/trust-score#portfolios" className="rounded-2xl border border-border bg-background/60 p-4 transition hover:border-primary/30">
                                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Portfolio Signal</p>
-                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.portfolioWinRate.toFixed(1)}%</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.portfolioPosteriorRate.toFixed(1)}%</p>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        {profile.trustBreakdown.profitablePortfolioCount}/{profile.trustBreakdown.totalPortfolioCount} profitable · component {profile.trustBreakdown.portfolioComponent.toFixed(1)}
+                                        Raw {profile.trustBreakdown.portfolioWinRate.toFixed(1)}% · {profile.trustBreakdown.profitablePortfolioCount}/{profile.trustBreakdown.totalPortfolioCount} profitable · component {profile.trustBreakdown.portfolioComponent.toFixed(1)}
                                     </p>
                                 </Link>
                                 <Link href="/trust-score#sample-size" className="rounded-2xl border border-border bg-background/60 p-4 transition hover:border-primary/30">
                                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Confidence</p>
-                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.experienceComponent.toFixed(1)}</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.confidenceScore.toFixed(1)}%</p>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                        Sample-size lift plus average-return adjustment {profile.trustBreakdown.returnComponent.toFixed(1)}
+                                        {profile.trustBreakdown.totalEvidenceCount} evidence units · experience alignment {profile.trustBreakdown.experienceComponent.toFixed(1)}
                                     </p>
                                 </Link>
                             </div>

@@ -100,10 +100,10 @@ class TrustScoreServiceTest {
 
         verify(userRepository, times(1)).saveAll(any(java.util.List.class));
 
-        assertEquals(61.71, userA.getTrustScore(), 0.001);
-        assertEquals(55.43, userB.getTrustScore(), 0.001);
+        assertEquals(57.71, userA.getTrustScore(), 0.001);
+        assertEquals(47.43, userB.getTrustScore(), 0.001);
         assertEquals(50.0, userC.getTrustScore(), 0.001);
-        assertEquals(52.9, userD.getTrustScore(), 0.001);
+        assertEquals(52.34, userD.getTrustScore(), 0.001);
     }
 
     @Test
@@ -125,8 +125,8 @@ class TrustScoreServiceTest {
 
         trustScoreService.computeTrustScores();
 
-        assertEquals(70.58, userExtremeUpper.getTrustScore(), 0.001);
-        assertEquals(49.63, userExtremeLower.getTrustScore(), 0.001);
+        assertEquals(70.2, userExtremeUpper.getTrustScore(), 0.001);
+        assertEquals(30.21, userExtremeLower.getTrustScore(), 0.001);
     }
 
     @Test
@@ -193,15 +193,37 @@ class TrustScoreServiceTest {
         TrustScoreBreakdownResponse breakdown = trustScoreService.buildTrustScoreBreakdown(userId);
 
         assertEquals(75.0, breakdown.getPredictionWinRate(), 0.001);
-        assertEquals(70.65, breakdown.getBlendedWinRate(), 0.001);
+        assertEquals(65.0, breakdown.getPredictionPosteriorRate(), 0.001);
+        assertEquals(62.22, breakdown.getBlendedWinRate(), 0.001);
         assertEquals(12L, breakdown.getResolvedPredictionCount());
         assertEquals(75.0, breakdown.getTradeWinRate(), 0.001);
+        assertEquals(61.11, breakdown.getTradePosteriorRate(), 0.001);
         assertEquals(8L, breakdown.getResolvedTradeCount());
         assertEquals(1, breakdown.getProfitablePortfolioCount());
         assertEquals(2, breakdown.getTotalPortfolioCount());
         assertEquals(50.0, breakdown.getPortfolioWinRate(), 0.001);
+        assertEquals(50.0, breakdown.getPortfolioPosteriorRate(), 0.001);
         assertEquals(5.0, breakdown.getAveragePortfolioReturn().doubleValue(), 0.001);
+        assertEquals(22L, breakdown.getTotalEvidenceCount());
+        assertEquals(52.38, breakdown.getConfidenceScore(), 0.001);
+        assertEquals(1.56, breakdown.getExperienceComponent(), 0.001);
         assertTrue(trustScoreService.calculateTrustScore(breakdown) > 50.0);
+    }
+
+    @Test
+    void buildTrustScoreBreakdown_keepsNoEvidenceAccountsNeutral() {
+        UUID userId = UUID.randomUUID();
+        when(analyticsService.calculateWinRate(userId)).thenReturn(0.0);
+        when(analyticsService.countResolvedPredictions(userId)).thenReturn(0L);
+        when(portfolioRepository.findByOwnerId(userId.toString())).thenReturn(List.of());
+
+        TrustScoreBreakdownResponse breakdown = trustScoreService.buildTrustScoreBreakdown(userId);
+
+        assertEquals(50.0, breakdown.getBlendedWinRate(), 0.001);
+        assertEquals(0L, breakdown.getTotalEvidenceCount());
+        assertEquals(0.0, breakdown.getConfidenceScore(), 0.001);
+        assertEquals(0.0, breakdown.getExperienceComponent(), 0.001);
+        assertEquals(50.0, trustScoreService.calculateTrustScore(breakdown), 0.001);
     }
 
     @Test

@@ -33,11 +33,42 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
-| Trust/Credibility Scores | 🔨 Building | Bayesian multi-signal scoring now blends resolved analysis accuracy, realized trade quality, profitable portfolio ratio, and average portfolio return; profile breakdown + user docs added, rollout verification pending |
+| Trust/Credibility Scores | 🔨 Building | Bayesian multi-signal scoring now blends resolved analysis accuracy, realized trade quality, profitable portfolio ratio, and average portfolio return; experience lift is now evidence-aligned instead of volume-only, profile breakdown/docs are live, and local rollout verification passed |
 | Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; read/export tooling still pending |
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Trust Score Experience Lift Now Aligns With Evidence Quality Instead Of Blind Activity Volume**
+  - **Problem observed**:
+    - The trust model already used Bayesian priors for individual signals, but one part of the score still behaved too mechanically:
+      - experience added a positive lift purely from activity volume
+      - the blended platform win-rate view also treated missing trade/portfolio evidence like raw zeroes instead of neutral evidence
+    - That meant low-quality but high-volume users could still get an undeserved upward push, while small-sample accounts looked less neutral than intended in the profile breakdown.
+  - **Implementation**:
+    - `TrustScoreService` now computes posterior rates per signal:
+      - predictions
+      - realized trades
+      - profitable portfolios
+    - The profile-facing blended win rate now uses posterior signal rates and only weights signals that actually have evidence.
+    - Experience lift is now aligned to posterior quality:
+      - strong evidence lifts trust gradually
+      - weak evidence stays near neutral
+      - sustained poor evidence can pull trust down instead of being rewarded for raw volume
+    - Added breakdown fields for:
+      - posterior rates
+      - total evidence count
+      - confidence score
+    - Updated the profile trust workspace so the confidence card reflects actual evidence strength instead of reusing the old activity bonus number.
+  - **Operational impact**:
+    - tiny lucky samples stay closer to neutral
+    - experienced authors gain credibility gradually only when evidence quality supports it
+    - profile trust explanations are now closer to the actual backend scoring logic
+  - **Validation**:
+    - Passed:
+      - `TrustScoreServiceTest`
+      - `TrustScoreIntegrationTest`
+      - `UserProfileServiceTest`
+      - `npx tsc --noEmit` in `apps/web`
 - **2026-03-20**: **Local Backend Contract Smoke Became A First-Class Validation Tool**
   - **Problem observed**:
     - Many remaining TODOs were no longer pure implementation gaps; they were “redeploy and verify” items spanning:
