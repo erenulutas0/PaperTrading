@@ -328,6 +328,18 @@ class NotificationControllerIntegrationTest {
         }
 
         @Test
+        void markSingleRead_WithInvalidNotificationId_ShouldReturnCorrelatedBadRequest() throws Exception {
+                mockMvc.perform(post("/api/v1/notifications/{notificationId}/mark-read", "not-a-uuid")
+                                .header("X-Request-Id", "notif-invalid-id-1")
+                                .header("X-User-Id", userB.getId().toString()))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "notif-invalid-id-1"))
+                                .andExpect(jsonPath("$.code").value("notification_id_invalid"))
+                                .andExpect(jsonPath("$.message").value("Notification id must be a valid UUID"))
+                                .andExpect(jsonPath("$.requestId").value("notif-invalid-id-1"));
+        }
+
+        @Test
         void unreadCount_WithBearerOnly_ShouldWork() throws Exception {
                 String token = jwtTokenService.generateAccessToken(userB.getId(), userB.getUsername());
 

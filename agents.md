@@ -38,6 +38,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Notification And Audit Edge Errors Now Reuse The Shared Correlated Contract End-To-End**
+  - **Problem observed**:
+    - Most controller failures had already moved to the shared `{code, message, details, requestId}` contract, but two edge cases still drifted:
+      - audit CSV export failures used a hand-built JSON payload
+      - notification mark-read with an invalid path UUID fell through to generic bad-request handling
+    - These were small gaps, but they weakened the claim that request correlation and machine-readable errors were consistent across operator and inbox surfaces.
+  - **Implementation**:
+    - Added `ApiErrorResponses.buildJson(...)` so controllers can force JSON content type while still reusing the shared correlated payload helper.
+    - Moved audit CSV export failures onto that helper.
+    - Hardened `NotificationController.markAsRead(...)` to catch invalid UUID path values and return:
+      - `code=notification_id_invalid`
+      - `message=Notification id must be a valid UUID`
+      - echoed `X-Request-Id`
+    - Added integration coverage for both paths.
+  - **Operational impact**:
+    - audit export failures no longer maintain a special-case payload shape
+    - notification read mutations now fail with a specific, correlated contract instead of relying on generic parsing fallout
+  - **Validation**:
+    - Passed:
+      - `AuditOpsControllerIntegrationTest`
+      - `NotificationControllerIntegrationTest`
 - **2026-03-20**: **Trust Score Experience Lift Now Aligns With Evidence Quality Instead Of Blind Activity Volume**
   - **Problem observed**:
     - The trust model already used Bayesian priors for individual signals, but one part of the score still behaved too mechanically:

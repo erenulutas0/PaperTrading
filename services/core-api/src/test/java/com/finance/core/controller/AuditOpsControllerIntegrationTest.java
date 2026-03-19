@@ -265,6 +265,7 @@ class AuditOpsControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/ops/auditlog/export")
                         .header("X-Request-Id", "audit-csv-err-1"))
                 .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
                 .andExpect(header().string("X-Request-Id", "audit-csv-err-1"))
                 .andExpect(jsonPath("$.code").value("audit_export_failed"))
                 .andExpect(jsonPath("$.message").value("Failed to export audit log"))

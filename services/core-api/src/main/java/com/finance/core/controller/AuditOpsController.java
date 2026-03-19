@@ -16,8 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -70,15 +68,12 @@ public class AuditOpsController {
                     .contentType(new MediaType("text", "csv"))
                     .body(csv);
         } catch (Exception ex) {
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("code", "audit_export_failed");
-            payload.put("message", "Failed to export audit log");
-            payload.put("details", null);
-            payload.put("requestId", ApiErrorResponses.requestId(request));
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header("X-Request-Id", ApiErrorResponses.requestId(request))
-                    .body(payload);
+            return ApiErrorResponses.buildJson(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "audit_export_failed",
+                    "Failed to export audit log",
+                    null,
+                    request);
         }
     }
 

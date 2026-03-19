@@ -291,7 +291,7 @@ Last updated: 2026-03-19
 - [ ] Redeploy backend after idempotency cleanup/inspection rollout and verify `/actuator/idempotency` reports sane counts while scheduled purge removes expired keys without breaking replay semantics
 - [ ] Redeploy backend after idempotency-key rollout and verify duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
 - [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
-- [ ] Redeploy backend after notification error cleanup and verify unread-count/mark-read paths now use the same correlated error contract as other controllers
+- [x] Re-ran notification error cleanup locally and verified unread-count/mark-read paths now use the same correlated error contract as other controllers, including invalid notification-id handling
 - [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
 - [ ] Redeploy backend after request-correlation + unified error contract rollout and verify `X-Request-Id` is echoed on errors plus auth failures now return `{code,message,details?,requestId}`
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths

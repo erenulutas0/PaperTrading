@@ -82,9 +82,20 @@ public class NotificationController {
             @CurrentUserId UUID userId,
             @PathVariable("notificationId") String notificationId,
             HttpServletRequest httpRequest) {
+        UUID parsedNotificationId;
+        try {
+            parsedNotificationId = UUID.fromString(notificationId);
+        } catch (IllegalArgumentException exception) {
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "notification_id_invalid",
+                    "Notification id must be a valid UUID",
+                    null,
+                    httpRequest);
+        }
         boolean marked = notificationService.markAsRead(
                 userId,
-                UUID.fromString(notificationId));
+                parsedNotificationId);
         return marked
                 ? ResponseEntity.ok().build()
                 : ApiErrorResponses.build(
