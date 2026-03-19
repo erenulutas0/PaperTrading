@@ -245,7 +245,7 @@ Last updated: 2026-03-19
   - symbol-scoped drawing persistence across reloads and market-terminal revisits
   - drawing mode resets cleanly when symbol/range/interval changes
 - [x] Redeploy frontend after deeper `ALL` history preload + viewport-preserving prepend rollout and verify `/watchlist` now starts with materially deeper history while `Load Older` extends candles without jumping the visible chart window
-- [ ] Redeploy frontend after market terminal OHLC info bar + volume histogram rollout and verify crosshair movement updates candle metrics without reintroducing chart refresh loops
+- [x] Redeploy frontend after market terminal OHLC info bar + volume histogram rollout and verify crosshair movement updates candle metrics without reintroducing chart refresh loops
 - [x] Redeploy frontend after market terminal favorites rollout and verify starred symbols persist locally and appear in the quick-switch favorites bar
 - [x] Redeploy frontend after market terminal compare-mode rollout and verify secondary instruments render as normalized overlay lines without disrupting primary candle history loading
 - [x] Redeploy backend/frontend after extended market terminal ranges (`3M/6M/1Y`) rollout and verify larger windows resolve cleanly for each supported interval

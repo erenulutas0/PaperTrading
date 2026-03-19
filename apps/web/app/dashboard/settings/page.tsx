@@ -210,6 +210,70 @@ export default function DashboardSettingsPage() {
     const favoriteCount = terminal?.favoriteSymbols?.length ?? 0;
     const compareCount = terminal?.compareSymbols?.length ?? 0;
 
+    const handleCopyAccountSummary = useCallback(async () => {
+        if (!profile) {
+            setError('Account summary is not ready yet.');
+            return;
+        }
+        const summary = [
+            'Account Settings Snapshot',
+            `User Id: ${profile.id}`,
+            `Username: @${profile.username}`,
+            `Display Name: ${profile.displayName ?? 'N/A'}`,
+            `Member Since: ${profile.memberSince ? new Date(profile.memberSince).toLocaleDateString() : 'N/A'}`,
+            `Followers: ${profile.followerCount}`,
+            `Following: ${profile.followingCount}`,
+            `Portfolios: ${profile.portfolioCount}`,
+            `Trust Score: ${profile.trustScore !== undefined ? profile.trustScore.toFixed(1) : 'N/A'}`,
+            `Terminal: ${terminal ? `${terminal.market} · ${terminal.symbol} · ${terminal.range}/${terminal.interval}` : 'N/A'}`,
+            `Favorites: ${favoriteCount}`,
+            `Compare Symbols: ${compareCount}`,
+            `Compare Baskets: ${compareBasketCount}`,
+            `Scanner Views: ${scannerViewCount}`,
+            `Layouts: ${layouts.length}`,
+        ].join('\n');
+
+        try {
+            await navigator.clipboard.writeText(summary);
+            setError(null);
+            setSuccess('Account summary copied.');
+        } catch (copyError) {
+            console.error(copyError);
+            setError('Account summary could not be copied.');
+        }
+    }, [compareBasketCount, compareCount, favoriteCount, layouts.length, profile, scannerViewCount, terminal]);
+
+    const handleExportSettingsSnapshot = useCallback(() => {
+        if (!profile) {
+            setError('Settings snapshot is not ready yet.');
+            return;
+        }
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            profile,
+            preferences,
+            layouts,
+            sessionSummary,
+        };
+
+        try {
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = `settings-${profile.username}.json`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+            setError(null);
+            setSuccess('Settings snapshot exported.');
+        } catch (exportError) {
+            console.error(exportError);
+            setError('Settings snapshot could not be exported.');
+        }
+    }, [layouts, preferences, profile, sessionSummary]);
+
     if (loading) {
         return <SettingsLoadingShell />;
     }
@@ -472,7 +536,27 @@ export default function DashboardSettingsPage() {
                                 <Link href="/discover" className="rounded-xl border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30">
                                     Open Discover
                                 </Link>
+                                <Link href="/trust-score" className="rounded-xl border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30">
+                                    Open Trust Score
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleCopyAccountSummary()}
+                                    className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/20"
+                                >
+                                    Copy Account Summary
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleExportSettingsSnapshot}
+                                    className="rounded-xl border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30"
+                                >
+                                    Export Settings JSON
+                                </button>
                             </div>
+                            <p className="mt-4 text-xs text-muted-foreground">
+                                Export produces a local JSON snapshot of current profile, preferences, layouts, and browser-session visibility. It is for inspection and backup, not a server-owned account archive.
+                            </p>
                         </SettingsPanel>
 
                         <SettingsPanel

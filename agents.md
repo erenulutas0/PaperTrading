@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Settings Workspace Now Owns Lightweight Account Snapshot Export**
+  - **Problem observed**:
+    - `/dashboard/settings` consolidated control surfaces, but it still lacked a direct way to extract the currently loaded account/profile/terminal state for support, debugging, or personal backup.
+    - That left the new settings workspace informative, but not yet operational.
+  - **Implementation**:
+    - Added:
+      - `Copy Account Summary`
+      - `Export Settings JSON`
+      - direct trust-score route entry
+    - Export remains client-owned and intentionally lightweight:
+      - current profile
+      - current user preferences
+      - saved terminal layouts
+      - browser session visibility flags
+  - **Operational impact**:
+    - settings is now a true control room instead of only a navigation hub
+    - support/debug flows can pull a lightweight state snapshot without reaching into unrelated surfaces
 - **2026-03-19**: **Terminal Chart Internals Tightened Around Typed Series Handles**
   - **Problem observed**:
     - `MarketWorkspaceChart.tsx` had accumulated untyped chart-series refs and a few compare/drawing render-sync shortcuts.
