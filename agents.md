@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Auth Refresh Rate Limits Now Follow Session Identity When Possible**
+  - **Problem observed**:
+    - Sensitive write rate limits had already moved away from raw Bearer-token hashes for comment/like/follow paths.
+    - `/api/v1/auth/refresh` still mostly fell back to IP-based throttling because refresh calls usually do not carry a Bearer token.
+    - That meant legitimate high-churn refresh activity from one user was not separated cleanly from unrelated traffic behind the same IP, while token-rotation-aware profile throttling remained incomplete.
+  - **Implementation**:
+    - Added a read-only refresh-token lookup helper in `AuthSessionService`.
+    - Updated `RateLimitFilter` to:
+      - cache refresh request bodies in-filter
+      - extract `refreshToken` from `/api/v1/auth/refresh`
+      - prefer `refresh-user:{userId}` bucket keys when the token maps to a stored session
+      - fall back to IP throttling when the token cannot be resolved
+    - Added targeted unit coverage for:
+      - resolved refresh-token user bucket
+      - unresolved refresh-token IP fallback
+  - **Operational impact**:
+    - auth refresh throttling now tracks real session ownership more closely when the backend can identify the session
+    - invalid/garbled refresh floods still collapse onto IP-based protection instead of creating unbounded token-key variance
 - **2026-03-20**: **Idempotency Filter Responses Now Echo Request Correlation**
   - **Problem observed**:
     - The idempotency filter already returned machine-readable error bodies for:

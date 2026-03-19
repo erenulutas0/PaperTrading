@@ -1,6 +1,7 @@
 package com.finance.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.security.AuthSessionService;
 import com.finance.core.security.JwtTokenClaims;
 import com.finance.core.security.JwtTokenService;
 import com.finance.core.web.ApiErrorResponse;
@@ -9,10 +10,13 @@ import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,10 +25,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.UUID;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -46,6 +54,7 @@ public class RateLimitFilter implements Filter {
 
     private final ConcurrentHashMap<String, Bucket> cache = new ConcurrentHashMap<>();
     private final JwtTokenService jwtTokenService;
+    private final AuthSessionService authSessionService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Bucket localBypassBucket = Bucket.builder()
             .addLimit(Bandwidth.builder()
@@ -69,8 +78,9 @@ public class RateLimitFilter implements Filter {
     @Value("${app.rate-limit.social-follow-capacity:20}")
     private int socialFollowCapacity = 20;
 
-    public RateLimitFilter(JwtTokenService jwtTokenService) {
+    public RateLimitFilter(JwtTokenService jwtTokenService, AuthSessionService authSessionService) {
         this.jwtTokenService = jwtTokenService;
+        this.authSessionService = authSessionService;
     }
 
     public Bucket resolveBucket(String ip) {
@@ -148,6 +158,15 @@ public class RateLimitFilter implements Filter {
     }
 
     private String resolveStablePrincipalKey(HttpServletRequest request) {
+        if (resolveProfile(request) == BucketProfile.AUTH_REFRESH) {
+            String refreshToken = extractRefreshToken(request);
+            if (refreshToken != null && !refreshToken.isBlank()) {
+                return authSessionService.resolveRefreshTokenUserId(refreshToken)
+                        .map(userId -> "refresh-user:" + userId)
+                        .orElse(null);
+            }
+        }
+
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (authorization != null && authorization.startsWith("Bearer ")) {
             String token = authorization.substring("Bearer ".length()).trim();
@@ -165,6 +184,21 @@ public class RateLimitFilter implements Filter {
         }
 
         return null;
+    }
+
+    private String extractRefreshToken(HttpServletRequest request) {
+        try {
+            if (!(request instanceof CachedBodyHttpServletRequest cachedRequest)) {
+                return null;
+            }
+            byte[] body = cachedRequest.getCachedBody();
+            if (body.length == 0) {
+                return null;
+            }
+            return objectMapper.readTree(body).path("refreshToken").asText(null);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private Bucket createNewBucket(BucketProfile profile) {
@@ -196,15 +230,23 @@ public class RateLimitFilter implements Filter {
             return;
         }
 
-        BucketProfile profile = resolveProfile(request);
-        String bucketKey = resolveBucketKey(request, profile);
+        HttpServletRequest requestToUse = shouldCacheBody(request)
+                ? new CachedBodyHttpServletRequest(request)
+                : request;
+
+        BucketProfile profile = resolveProfile(requestToUse);
+        String bucketKey = resolveBucketKey(requestToUse, profile);
         Bucket bucket = resolveBucket(bucketKey, profile);
 
         if (bucket.tryConsume(1)) {
-            filterChain.doFilter(servletRequest, servletResponse);
+            filterChain.doFilter(requestToUse, servletResponse);
         } else {
-            writeRateLimitError(request, response);
+            writeRateLimitError(requestToUse, response);
         }
+    }
+
+    boolean shouldCacheBody(HttpServletRequest request) {
+        return resolveProfile(request) == BucketProfile.AUTH_REFRESH;
     }
 
     void writeRateLimitError(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -229,5 +271,49 @@ public class RateLimitFilter implements Filter {
         request.setAttribute(RequestCorrelation.REQUEST_ID_ATTRIBUTE, requestId);
         response.setHeader(RequestCorrelation.REQUEST_ID_HEADER, requestId);
         return requestId;
+    }
+
+    static final class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
+
+        private final byte[] cachedBody;
+
+        CachedBodyHttpServletRequest(HttpServletRequest request) throws IOException {
+            super(request);
+            this.cachedBody = request.getInputStream().readAllBytes();
+        }
+
+        byte[] getCachedBody() {
+            return cachedBody;
+        }
+
+        @Override
+        public ServletInputStream getInputStream() {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(cachedBody);
+            return new ServletInputStream() {
+                @Override
+                public int read() {
+                    return inputStream.read();
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return inputStream.available() == 0;
+                }
+
+                @Override
+                public boolean isReady() {
+                    return true;
+                }
+
+                @Override
+                public void setReadListener(ReadListener readListener) {
+                }
+            };
+        }
+
+        @Override
+        public BufferedReader getReader() {
+            return new BufferedReader(new InputStreamReader(getInputStream(), StandardCharsets.UTF_8));
+        }
     }
 }

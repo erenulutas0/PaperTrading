@@ -602,6 +602,16 @@ Last updated: 2026-03-19
     - idempotency conflict/validation errors now guarantee the same correlation header as their body `requestId`
   - Coverage:
     - `IdempotencyKeyFilterIntegrationTest`
+- [x] Added profile-aware auth refresh rate-limit keys:
+  - Updated:
+    - `RateLimitFilter`
+    - `AuthSessionService`
+  - Behavior:
+    - `/api/v1/auth/refresh` now prefers `refresh-user:{userId}` buckets when the refresh token maps to a persisted session
+    - unresolved/garbled refresh tokens still fall back to IP-based throttling instead of creating token-specific escape buckets
+    - refresh request body is cached in-filter so bucket derivation does not consume the downstream request stream
+  - Coverage:
+    - `RateLimitFilterTest`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

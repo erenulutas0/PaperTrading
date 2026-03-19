@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -111,6 +112,14 @@ public class AuthSessionService {
             authSessionObservabilityService.recordInvalidRefreshAttempt();
         }
         recordSessionMetric("refresh", "invalid");
+    }
+
+    public Optional<UUID> resolveRefreshTokenUserId(String refreshTokenRaw) {
+        if (refreshTokenRaw == null || refreshTokenRaw.isBlank()) {
+            return Optional.empty();
+        }
+        return refreshTokenRepository.findByTokenHash(hashRefreshToken(refreshTokenRaw))
+                .map(RefreshToken::getUserId);
     }
 
     private AuthSessionTokens buildAndPersistSessionTokens(UUID userId, String accessToken) {

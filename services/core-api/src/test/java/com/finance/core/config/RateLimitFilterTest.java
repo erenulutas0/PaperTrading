@@ -1,22 +1,31 @@
 package com.finance.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.security.AuthSessionService;
 import com.finance.core.security.JwtRuntimeProperties;
 import com.finance.core.security.JwtTokenService;
 import io.github.bucket4j.Bucket;
 import org.junit.jupiter.api.Test;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RateLimitFilterTest {
 
     private final JwtRuntimeProperties jwtRuntimeProperties = new JwtRuntimeProperties();
     private final JwtTokenService jwtTokenService = new JwtTokenService(jwtRuntimeProperties, new ObjectMapper());
-    private final RateLimitFilter filter = new RateLimitFilter(jwtTokenService);
+    private final AuthSessionService authSessionService = mock(AuthSessionService.class);
+    private final RateLimitFilter filter = new RateLimitFilter(jwtTokenService, authSessionService);
 
     @Test
     void resolveBucket_loopbackShouldReuseSingleBypassBucket() {
@@ -94,6 +103,34 @@ class RateLimitFilterTest {
     }
 
     @Test
+    void resolveBucketKey_shouldPreferRefreshTokenUserForAuthRefresh() {
+        MockHttpServletRequest request = request("POST", "/api/v1/auth/refresh");
+        request.setContentType("application/json");
+        request.setContent("{\"refreshToken\":\"refresh-123\"}".getBytes(StandardCharsets.UTF_8));
+        request.setRemoteAddr("198.51.100.3");
+        when(authSessionService.resolveRefreshTokenUserId("refresh-123"))
+                .thenReturn(Optional.of(UUID.fromString("22222222-2222-2222-2222-222222222222")));
+
+        String key = filter.resolveBucketKey(wrapForBody(request), RateLimitFilter.BucketProfile.AUTH_REFRESH);
+
+        assertEquals("refresh-user:22222222-2222-2222-2222-222222222222", key);
+    }
+
+    @Test
+    void resolveBucketKey_shouldFallBackToIpForUnknownRefreshToken() {
+        MockHttpServletRequest request = request("POST", "/api/v1/auth/refresh");
+        request.setContentType("application/json");
+        request.setContent("{\"refreshToken\":\"unknown-refresh\"}".getBytes(StandardCharsets.UTF_8));
+        request.setRemoteAddr("198.51.100.3");
+        when(authSessionService.resolveRefreshTokenUserId("unknown-refresh"))
+                .thenReturn(Optional.empty());
+
+        String key = filter.resolveBucketKey(wrapForBody(request), RateLimitFilter.BucketProfile.AUTH_REFRESH);
+
+        assertEquals("198.51.100.3", key);
+    }
+
+    @Test
     void resolveBucketKey_shouldUseIpForDefaultProfile() {
         MockHttpServletRequest request = request("GET", "/api/v1/feed");
         request.setRemoteAddr("198.51.100.3");
@@ -129,5 +166,13 @@ class RateLimitFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest(method, uri);
         request.setRemoteAddr("127.0.0.1");
         return request;
+    }
+
+    private HttpServletRequest wrapForBody(MockHttpServletRequest request) {
+        try {
+            return new RateLimitFilter.CachedBodyHttpServletRequest(request);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }
