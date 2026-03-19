@@ -15,6 +15,8 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.TextMessage;
 
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -220,16 +222,7 @@ public class BinanceService extends TextWebSocketHandler {
     }
 
     static URI buildTickerPriceUri() {
-        try {
-            String symbolsJson = new ObjectMapper().writeValueAsString(TRACKED_SYMBOLS);
-            return UriComponentsBuilder.fromHttpUrl(BINANCE_REST_BASE_URL)
-                    .queryParam("symbols", symbolsJson)
-                    .build()
-                    .encode()
-                    .toUri();
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to build Binance ticker price URI", e);
-        }
+        return buildTrackedSymbolsUri(BINANCE_REST_BASE_URL);
     }
 
     private Map<String, Double> fetchTracked24hChangePercent() {
@@ -261,17 +254,18 @@ public class BinanceService extends TextWebSocketHandler {
         }
     }
 
-    private URI build24hTickerUri() {
-        try {
-            String symbolsJson = mapper.writeValueAsString(TRACKED_SYMBOLS);
-            return UriComponentsBuilder.fromHttpUrl(BINANCE_REST_24H_BASE_URL)
-                    .queryParam("symbols", symbolsJson)
-                    .build()
-                    .encode()
-                    .toUri();
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to build Binance 24h ticker URI", e);
-        }
+    static URI build24hTickerUri() {
+        return buildTrackedSymbolsUri(BINANCE_REST_24H_BASE_URL);
+    }
+
+    private static URI buildTrackedSymbolsUri(String baseUrl) {
+        String symbolsJson = TRACKED_SYMBOLS.stream()
+                .map(symbol -> "\"" + symbol + "\"")
+                .reduce((left, right) -> left + "," + right)
+                .map(body -> "[" + body + "]")
+                .orElse("[]");
+        String encodedSymbols = URLEncoder.encode(symbolsJson, StandardCharsets.UTF_8);
+        return URI.create(baseUrl + "?symbols=" + encodedSymbols);
     }
 
     private URI buildKlinesUri(String symbol, String interval, int limit, Long endTime) {

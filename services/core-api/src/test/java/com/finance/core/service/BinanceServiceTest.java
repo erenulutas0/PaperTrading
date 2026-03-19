@@ -14,7 +14,19 @@ class BinanceServiceTest {
 
         assertThat(uri.toString())
                 .isEqualTo(
-                        "https://api.binance.com/api/v3/ticker/price?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22SOLUSDT%22,%22AVAXUSDT%22,%22BNBUSDT%22%5D");
+                        "https://api.binance.com/api/v3/ticker/price?symbols=%5B%22BTCUSDT%22%2C%22ETHUSDT%22%2C%22SOLUSDT%22%2C%22AVAXUSDT%22%2C%22BNBUSDT%22%5D");
         assertThat(uri.toString()).doesNotContain(" ");
+    }
+
+    @Test
+    void build24hTickerUri_shouldEncodeSymbolsJsonWithoutWhitespace() {
+        URI uri = BinanceService.build24hTickerUri();
+
+        assertThat(uri.toString())
+                .isEqualTo(
+                        "https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22%2C%22ETHUSDT%22%2C%22SOLUSDT%22%2C%22AVAXUSDT%22%2C%22BNBUSDT%22%5D");
+        assertThat(uri.toString()).doesNotContain(" ");
+        assertThat(uri.toString()).doesNotContain("[");
+        assertThat(uri.toString()).doesNotContain("]");
     }
 }

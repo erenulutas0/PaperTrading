@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Binance REST Fallback Batch Queries Now Use Explicitly Encoded `symbols` URIs**
+  - **Problem observed**:
+    - The Binance REST fallback path was still relying on a generic URI builder for the batch `symbols` parameter.
+    - That left startup/stale-read hydration exposed to request-format drift around JSON-array query encoding, the same class of bug that had previously produced `Illegal characters found in parameter 'symbols'`.
+  - **Implementation**:
+    - Replaced builder-based batch-symbol URI construction with an explicit helper that:
+      - serializes the tracked symbol set as the expected JSON array
+      - URL-encodes the full payload deterministically
+      - builds both ticker-price and 24h ticker URIs from the same helper
+    - Added targeted test coverage for:
+      - `buildTickerPriceUri()`
+      - `build24hTickerUri()`
+  - **Operational impact**:
+    - cold-start and stale-read REST hydration no longer depend on framework-specific query encoding behavior
+    - market fallback reads are structurally safer when websocket price state is absent or stale
 - **2026-03-19**: **Notification Copy Now Uses A Shared Comment-Aware Presentation Helper**
   - **Problem observed**:
     - The frontend already knew about comment-specific notification types, but bell dropdown, inbox page, and live-toast copy were formatting them independently.
