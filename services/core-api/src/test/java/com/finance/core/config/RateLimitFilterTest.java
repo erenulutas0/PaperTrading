@@ -3,6 +3,7 @@ package com.finance.core.config;
 import io.github.bucket4j.Bucket;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -88,6 +89,21 @@ class RateLimitFilterTest {
     void shouldBypass_shouldSkipActuatorEndpoints() {
         assertEquals(true, filter.shouldBypass(request("GET", "/actuator/health")));
         assertEquals(false, filter.shouldBypass(request("GET", "/api/v1/leaderboards")));
+    }
+
+    @Test
+    void writeRateLimitError_shouldReturnCorrelatedApiErrorPayload() throws Exception {
+        MockHttpServletRequest request = request("POST", "/api/v1/interactions/123/comments");
+        request.addHeader("X-Request-Id", "rate-limit-req-1");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.writeRateLimitError(request, response);
+
+        assertEquals(429, response.getStatus());
+        assertEquals("rate-limit-req-1", response.getHeader("X-Request-Id"));
+        assertEquals(
+                "{\"code\":\"rate_limit_exceeded\",\"message\":\"Too many requests - Rate limit exceeded. Try again later.\",\"details\":null,\"requestId\":\"rate-limit-req-1\"}",
+                response.getContentAsString());
     }
 
     private MockHttpServletRequest request(String method, String uri) {

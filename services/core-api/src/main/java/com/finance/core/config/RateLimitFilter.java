@@ -1,5 +1,8 @@
 package com.finance.core.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.web.ApiErrorResponse;
+import com.finance.core.web.RequestCorrelation;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.Filter;
@@ -17,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.UUID;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,6 +43,7 @@ public class RateLimitFilter implements Filter {
     }
 
     private final ConcurrentHashMap<String, Bucket> cache = new ConcurrentHashMap<>();
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final Bucket localBypassBucket = Bucket.builder()
             .addLimit(Bandwidth.builder()
                     .capacity(100000)
@@ -166,10 +171,31 @@ public class RateLimitFilter implements Filter {
         if (bucket.tryConsume(1)) {
             filterChain.doFilter(servletRequest, servletResponse);
         } else {
-            response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-            response.setContentType("application/json");
-            response.getWriter().write(
-                    "{\"error\": \"Too many requests - Rate limit exceeded. Try again later.\", \"status\": 429}");
+            writeRateLimitError(request, response);
         }
+    }
+
+    void writeRateLimitError(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String requestId = ensureRequestId(request, response);
+        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        response.setContentType("application/json");
+        response.getWriter().write(objectMapper.writeValueAsString(new ApiErrorResponse(
+                "rate_limit_exceeded",
+                "Too many requests - Rate limit exceeded. Try again later.",
+                null,
+                requestId)));
+    }
+
+    private String ensureRequestId(HttpServletRequest request, HttpServletResponse response) {
+        Object existing = request.getAttribute(RequestCorrelation.REQUEST_ID_ATTRIBUTE);
+        String requestId = existing != null && !existing.toString().isBlank()
+                ? existing.toString()
+                : request.getHeader(RequestCorrelation.REQUEST_ID_HEADER);
+        if (requestId == null || requestId.isBlank()) {
+            requestId = UUID.randomUUID().toString();
+        }
+        request.setAttribute(RequestCorrelation.REQUEST_ID_ATTRIBUTE, requestId);
+        response.setHeader(RequestCorrelation.REQUEST_ID_HEADER, requestId);
+        return requestId;
     }
 }

@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Rate-Limit Rejections Now Emit Correlated API Error Payloads**
+  - **Problem observed**:
+    - Most controller error paths had already moved onto the shared `{code,message,details,requestId}` contract.
+    - The rate-limit filter was still returning a raw ad-hoc 429 body, which made one of the highest-frequency rejection paths inconsistent with the rest of the API surface.
+  - **Implementation**:
+    - Ordered request-correlation ahead of the rate-limit filter.
+    - Updated the rate-limit filter to:
+      - guarantee a request id exists
+      - echo `X-Request-Id`
+      - emit a structured `ApiErrorResponse` body for 429 rejections
+    - Added targeted test coverage for the correlated 429 payload.
+  - **Operational impact**:
+    - rate-limit rejections now match the same diagnostic contract as controller-side failures
+    - client and tooling flows can correlate 429s without special-case parsing
 - **2026-03-20**: **Auth Attack Runner Is Now Windows PowerShell-Compatible For Local Strict-Mode Verification**
   - **Problem observed**:
     - `run_auth_attack_scenarios.ps1` had already been hardened logically for:
