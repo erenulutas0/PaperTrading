@@ -1,6 +1,8 @@
 package com.finance.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.security.JwtTokenClaims;
+import com.finance.core.security.JwtTokenService;
 import com.finance.core.web.ApiErrorResponse;
 import com.finance.core.web.RequestCorrelation;
 import io.github.bucket4j.Bandwidth;
@@ -43,6 +45,7 @@ public class RateLimitFilter implements Filter {
     }
 
     private final ConcurrentHashMap<String, Bucket> cache = new ConcurrentHashMap<>();
+    private final JwtTokenService jwtTokenService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Bucket localBypassBucket = Bucket.builder()
             .addLimit(Bandwidth.builder()
@@ -65,6 +68,10 @@ public class RateLimitFilter implements Filter {
 
     @Value("${app.rate-limit.social-follow-capacity:20}")
     private int socialFollowCapacity = 20;
+
+    public RateLimitFilter(JwtTokenService jwtTokenService) {
+        this.jwtTokenService = jwtTokenService;
+    }
 
     public Bucket resolveBucket(String ip) {
         return resolveBucket(ip, BucketProfile.DEFAULT);
@@ -122,6 +129,11 @@ public class RateLimitFilter implements Filter {
             return clientIp;
         }
 
+        String stablePrincipalKey = resolveStablePrincipalKey(request);
+        if (stablePrincipalKey != null) {
+            return stablePrincipalKey;
+        }
+
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (authorization != null && !authorization.isBlank()) {
             return "bearer:" + Integer.toHexString(authorization.hashCode());
@@ -133,6 +145,26 @@ public class RateLimitFilter implements Filter {
         }
 
         return clientIp;
+    }
+
+    private String resolveStablePrincipalKey(HttpServletRequest request) {
+        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            String token = authorization.substring("Bearer ".length()).trim();
+            try {
+                JwtTokenClaims claims = jwtTokenService.parseAndValidate(token);
+                return "principal:" + claims.userId();
+            } catch (IllegalArgumentException ignored) {
+                // Fall back to legacy/token-hash behavior for malformed or expired tokens.
+            }
+        }
+
+        String legacyUserId = request.getHeader(LEGACY_USER_ID_HEADER);
+        if (legacyUserId != null && !legacyUserId.isBlank()) {
+            return "legacy:" + legacyUserId.trim();
+        }
+
+        return null;
     }
 
     private Bucket createNewBucket(BucketProfile profile) {

@@ -1,5 +1,8 @@
 package com.finance.core.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.security.JwtRuntimeProperties;
+import com.finance.core.security.JwtTokenService;
 import io.github.bucket4j.Bucket;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -11,7 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 class RateLimitFilterTest {
 
-    private final RateLimitFilter filter = new RateLimitFilter();
+    private final JwtRuntimeProperties jwtRuntimeProperties = new JwtRuntimeProperties();
+    private final JwtTokenService jwtTokenService = new JwtTokenService(jwtRuntimeProperties, new ObjectMapper());
+    private final RateLimitFilter filter = new RateLimitFilter(jwtTokenService);
 
     @Test
     void resolveBucket_loopbackShouldReuseSingleBypassBucket() {
@@ -66,12 +71,26 @@ class RateLimitFilterTest {
     @Test
     void resolveBucketKey_shouldPreferBearerIdentityForSensitiveWrites() {
         MockHttpServletRequest request = request("POST", "/api/v1/interactions/123/comments");
-        request.addHeader("Authorization", "Bearer sample-token");
+        String token = jwtTokenService.generateAccessToken(
+                java.util.UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "sample-user");
+        request.addHeader("Authorization", "Bearer " + token);
         request.setRemoteAddr("198.51.100.3");
 
         String key = filter.resolveBucketKey(request, RateLimitFilter.BucketProfile.INTERACTION_COMMENT);
 
-        assertEquals("bearer:" + Integer.toHexString("Bearer sample-token".hashCode()), key);
+        assertEquals("principal:11111111-1111-1111-1111-111111111111", key);
+    }
+
+    @Test
+    void resolveBucketKey_shouldFallBackToBearerHashWhenTokenIsInvalid() {
+        MockHttpServletRequest request = request("POST", "/api/v1/interactions/123/comments");
+        request.addHeader("Authorization", "Bearer invalid-token");
+        request.setRemoteAddr("198.51.100.3");
+
+        String key = filter.resolveBucketKey(request, RateLimitFilter.BucketProfile.INTERACTION_COMMENT);
+
+        assertEquals("bearer:" + Integer.toHexString("Bearer invalid-token".hashCode()), key);
     }
 
     @Test

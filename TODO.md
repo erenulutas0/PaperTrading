@@ -585,6 +585,15 @@ Last updated: 2026-03-19
     - CSV export preserves success-time `text/csv` behavior while still emitting JSON error contract on failure
   - Coverage:
     - `AuditOpsControllerIntegrationTest`
+- [x] Hardened endpoint-aware rate-limit keying for sensitive write paths:
+  - Updated:
+    - `RateLimitFilter`
+  - Behavior:
+    - comment/like/follow buckets now prefer stable JWT subject keys instead of raw Bearer-token hashes
+    - token rotation no longer gives the same authenticated actor a fresh sensitive-write bucket
+    - malformed Bearer tokens still fall back to hashed-token partitioning instead of crashing the filter
+  - Coverage:
+    - `RateLimitFilterTest`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

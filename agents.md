@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Sensitive Write Rate Limits Now Key On Stable Principal Identity**
+  - **Problem observed**:
+    - The endpoint-aware rate-limit rollout had already split sensitive paths into distinct buckets:
+      - auth refresh
+      - comment/reply writes
+      - likes
+      - follow churn
+    - But sensitive write bucket keys still preferred Bearer-token hashes.
+    - That meant normal token rotation could hand the same authenticated actor a fresh write bucket, weakening the intended per-profile throttling.
+  - **Implementation**:
+    - Updated `RateLimitFilter` so sensitive write paths now prefer a stable JWT subject-derived key (`principal:{userId}`).
+    - Kept fallback behavior for malformed/expired Bearer tokens by reverting to hashed-token partitioning instead of failing filter execution.
+    - Added targeted tests for:
+      - stable principal key extraction
+      - invalid-token fallback behavior
+  - **Operational impact**:
+    - comment/like/follow throttling now follows the authenticated actor more closely instead of the current token instance
+    - token refresh/rotation no longer weakens sensitive-write burst controls for already-authenticated users
 - **2026-03-20**: **Audit Ops Failures Now Emit Correlated API Errors**
   - **Problem observed**:
     - The audit ops workspace had already become a real operator surface, but its controller still mixed failure styles:
