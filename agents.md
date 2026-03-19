@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Notification Copy Now Uses A Shared Comment-Aware Presentation Helper**
+  - **Problem observed**:
+    - The frontend already knew about comment-specific notification types, but bell dropdown, inbox page, and live-toast copy were formatting them independently.
+    - That duplication made the UI more likely to drift, especially once backend comment-like/comment-reply semantics became explicit.
+  - **Implementation**:
+    - Added a shared web helper for notification presentation:
+      - message
+      - icon
+      - route link
+    - Updated:
+      - `NotificationBell`
+      - `LiveNotificationProvider`
+      - `/notifications`
+    - Copy now explicitly distinguishes:
+      - portfolio comment likes/replies
+      - analysis comment likes/replies
+  - **Operational impact**:
+    - bell, inbox, and toast surfaces now stay in sync on notification wording
+    - comment-specific backend types are now visible to users as distinct portfolio-vs-analysis interaction events instead of ambiguous generic copy
 - **2026-03-19**: **Comment Interactions Now Emit Comment-Specific Notification Types**
   - **Problem observed**:
     - The notification domain already defined:

@@ -5,6 +5,7 @@ import type { IMessage } from '@stomp/stompjs';
 import { wsHttpUrl } from '../lib/network';
 import { apiFetch } from '../lib/api-client';
 import { AUTH_STATE_CHANGED_EVENT } from '../lib/auth-storage';
+import { getNotificationIcon, getNotificationMessage } from '../lib/notification-presentation';
 
 interface NotificationPayload {
     id: string;
@@ -45,40 +46,6 @@ const LiveNotificationContext = createContext<LiveNotificationContextType>({
 
 export const useLiveNotifications = () => useContext(LiveNotificationContext);
 
-function getNotifMessage(n: NotificationPayload): string {
-    switch (n.type) {
-        case 'FOLLOW': return `${n.actorUsername} started following you`;
-        case 'PORTFOLIO_LIKE': return `${n.actorUsername} liked "${n.referenceLabel}"`;
-        case 'POST_LIKE': return `${n.actorUsername} liked your analysis "${n.referenceLabel}"`;
-        case 'PORTFOLIO_COMMENT': return `${n.actorUsername} commented on "${n.referenceLabel}"`;
-        case 'POST_COMMENT': return `${n.actorUsername} commented on "${n.referenceLabel}"`;
-        case 'PORTFOLIO_COMMENT_LIKE': return `${n.actorUsername} liked your comment on "${n.referenceLabel}"`;
-        case 'POST_COMMENT_LIKE': return `${n.actorUsername} liked your comment on "${n.referenceLabel}"`;
-        case 'PORTFOLIO_COMMENT_REPLY': return `${n.actorUsername} replied to your comment on "${n.referenceLabel}"`;
-        case 'POST_COMMENT_REPLY': return `${n.actorUsername} replied to your comment on "${n.referenceLabel}"`;
-        case 'PORTFOLIO_JOINED': return `${n.actorUsername} joined "${n.referenceLabel}"`;
-        case 'PRICE_ALERT': return `${n.referenceLabel}`;
-        default: return `${n.actorUsername || 'System'} sent a notification`;
-    }
-}
-
-function getNotifIcon(type: string): string {
-    switch (type) {
-        case 'FOLLOW': return '👤';
-        case 'PORTFOLIO_LIKE': return '❤️';
-        case 'POST_LIKE': return '💙';
-        case 'PORTFOLIO_COMMENT': return '💬';
-        case 'POST_COMMENT': return '💬';
-        case 'PORTFOLIO_COMMENT_LIKE': return '💟';
-        case 'POST_COMMENT_LIKE': return '💟';
-        case 'PORTFOLIO_COMMENT_REPLY': return '↩️';
-        case 'POST_COMMENT_REPLY': return '↩️';
-        case 'PORTFOLIO_JOINED': return '🤝';
-        case 'PRICE_ALERT': return '🔔';
-        default: return '📢';
-    }
-}
-
 export function LiveNotificationProvider({ children }: { children: ReactNode }) {
     const WS_CONNECT_WATCHDOG_MS = 7000;
     const POLL_INTERVAL_MS = 15000;
@@ -92,7 +59,7 @@ export function LiveNotificationProvider({ children }: { children: ReactNode }) 
     const addToast = useCallback((notif: NotificationPayload) => {
         const toast: Toast = {
             id: notif.id || Math.random().toString(36),
-            message: `${getNotifIcon(notif.type)} ${getNotifMessage(notif)}`,
+            message: `${getNotificationIcon(notif.type)} ${notif.actorUsername || 'System'} ${getNotificationMessage(notif)}`,
             type: notif.type,
             timestamp: Date.now(),
         };

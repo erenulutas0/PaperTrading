@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLiveNotifications } from './LiveNotificationProvider';
 import { apiFetch } from '../lib/api-client';
+import { getNotificationIcon, getNotificationLink, getNotificationMessage } from '../lib/notification-presentation';
 
 interface NotificationItem {
     id: string;
@@ -54,48 +55,6 @@ export default function NotificationBell() {
 
     const toggleOpen = () => {
         setIsOpen(!isOpen);
-    };
-
-    const getMessage = (n: NotificationItem) => {
-        switch (n.type) {
-            case 'FOLLOW': return `started following you`;
-            case 'PORTFOLIO_LIKE': return `liked your portfolio "${n.referenceLabel}"`;
-            case 'POST_LIKE': return `liked your analysis "${n.referenceLabel}"`;
-            case 'PORTFOLIO_COMMENT': return `commented on "${n.referenceLabel}"`;
-            case 'POST_COMMENT': return `commented on "${n.referenceLabel}"`;
-            case 'PORTFOLIO_COMMENT_LIKE': return `liked your comment on "${n.referenceLabel}"`;
-            case 'POST_COMMENT_LIKE': return `liked your comment on "${n.referenceLabel}"`;
-            case 'PORTFOLIO_COMMENT_REPLY': return `replied to your comment on "${n.referenceLabel}"`;
-            case 'POST_COMMENT_REPLY': return `replied to your comment on "${n.referenceLabel}"`;
-            case 'PORTFOLIO_JOINED': return `joined your portfolio "${n.referenceLabel}"`;
-            case 'PRICE_ALERT': return `${n.referenceLabel}`;
-            default: return `sent a notification`;
-        }
-    };
-
-    const getLink = (n: NotificationItem) => {
-        if (n.type === 'FOLLOW' && n.referenceId) return `/profile/${n.referenceId}`;
-        if (n.type === 'PRICE_ALERT') return '/watchlist';
-        if (n.type?.startsWith('PORTFOLIO')) return `/dashboard/portfolio/${n.referenceId}`;
-        if (n.type?.startsWith('POST')) return `/dashboard/analysis/${n.referenceId}`;
-        return '/dashboard';
-    };
-
-    const getIcon = (type: string) => {
-        switch (type) {
-            case 'FOLLOW': return '👤';
-            case 'PORTFOLIO_LIKE': return '❤️';
-            case 'POST_LIKE': return '💙';
-            case 'PORTFOLIO_COMMENT': return '💬';
-            case 'POST_COMMENT': return '💬';
-            case 'PORTFOLIO_COMMENT_LIKE': return '💟';
-            case 'POST_COMMENT_LIKE': return '💟';
-            case 'PORTFOLIO_COMMENT_REPLY': return '↩️';
-            case 'POST_COMMENT_REPLY': return '↩️';
-            case 'PORTFOLIO_JOINED': return '🤝';
-            case 'PRICE_ALERT': return '🔔';
-            default: return '📢';
-        }
     };
 
     const canFollowBack = (n: NotificationItem) =>
@@ -247,7 +206,7 @@ export default function NotificationBell() {
                                         className={`p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors flex gap-3 ${!n.read ? 'bg-green-500/5' : ''}`}
                                     >
                                         <Link
-                                            href={getLink(n)}
+                                            href={getNotificationLink(n)}
                                             className="contents"
                                             onClick={() => {
                                                 if (!n.read) {
@@ -257,11 +216,11 @@ export default function NotificationBell() {
                                             }}
                                         >
                                             <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-sm shrink-0">
-                                                {getIcon(n.type)}
+                                                {getNotificationIcon(n.type)}
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-xs text-zinc-300 leading-tight">
-                                                    <span className="font-bold text-white">{n.actorUsername || 'System'}</span> {getMessage(n)}
+                                                    <span className="font-bold text-white">{n.actorUsername || 'System'}</span> {getNotificationMessage(n)}
                                                 </p>
                                                 <div className="mt-1 flex items-center gap-2 text-[10px] text-zinc-600">
                                                     <span>{formatRelativeTime(n.createdAt)}</span>

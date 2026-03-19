@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLiveNotifications } from '../../components/LiveNotificationProvider';
 import { apiFetch } from '../../lib/api-client';
+import { getNotificationIcon, getNotificationLink, getNotificationMessage } from '../../lib/notification-presentation';
 
 type FilterType = 'ALL' | 'FOLLOW' | 'PORTFOLIO' | 'POST' | 'PRICE_ALERT';
 type NotificationWorkspaceTab = 'OVERVIEW' | 'INBOX';
@@ -76,69 +77,6 @@ export default function NotificationsPage() {
 
     const alertCount = notifications.filter((notification) => notification.type === 'PRICE_ALERT').length;
     const socialCount = notifications.filter((notification) => notification.type !== 'PRICE_ALERT').length;
-
-    const getMessage = (n: NotificationItem) => {
-        switch (n.type) {
-            case 'FOLLOW':
-                return 'started following you';
-            case 'PORTFOLIO_LIKE':
-                return `liked your portfolio "${n.referenceLabel}"`;
-            case 'POST_LIKE':
-                return `liked your analysis "${n.referenceLabel}"`;
-            case 'PORTFOLIO_COMMENT':
-                return `commented on "${n.referenceLabel}"`;
-            case 'POST_COMMENT':
-                return `commented on "${n.referenceLabel}"`;
-            case 'PORTFOLIO_COMMENT_LIKE':
-                return `liked your comment on "${n.referenceLabel}"`;
-            case 'POST_COMMENT_LIKE':
-                return `liked your comment on "${n.referenceLabel}"`;
-            case 'PORTFOLIO_COMMENT_REPLY':
-                return `replied to your comment on "${n.referenceLabel}"`;
-            case 'POST_COMMENT_REPLY':
-                return `replied to your comment on "${n.referenceLabel}"`;
-            case 'PORTFOLIO_JOINED':
-                return `joined your portfolio "${n.referenceLabel}"`;
-            case 'PRICE_ALERT':
-                return n.referenceLabel;
-            default:
-                return 'sent a notification';
-        }
-    };
-
-    const getIcon = (type: string) => {
-        switch (type) {
-            case 'FOLLOW':
-                return '👤';
-            case 'PORTFOLIO_LIKE':
-                return '❤️';
-            case 'POST_LIKE':
-                return '💙';
-            case 'PORTFOLIO_COMMENT':
-            case 'POST_COMMENT':
-                return '💬';
-            case 'PORTFOLIO_COMMENT_LIKE':
-            case 'POST_COMMENT_LIKE':
-                return '💟';
-            case 'PORTFOLIO_COMMENT_REPLY':
-            case 'POST_COMMENT_REPLY':
-                return '↩️';
-            case 'PORTFOLIO_JOINED':
-                return '🤝';
-            case 'PRICE_ALERT':
-                return '🔔';
-            default:
-                return '📢';
-        }
-    };
-
-    const getLink = (n: NotificationItem) => {
-        if (n.type === 'FOLLOW' && n.referenceId) return `/profile/${n.referenceId}`;
-        if (n.type === 'PRICE_ALERT') return '/watchlist';
-        if (n.type.startsWith('PORTFOLIO')) return `/dashboard/portfolio/${n.referenceId}`;
-        if (n.type.startsWith('POST')) return `/dashboard/analysis/${n.referenceId}`;
-        return '/dashboard';
-    };
 
     const getAccentColor = (type: string) => {
         switch (type) {
@@ -341,11 +279,11 @@ export default function NotificationsPage() {
                             >
                                 <div className="flex items-start gap-3">
                                     <div className="h-10 w-10 shrink-0 rounded-lg border border-border bg-accent flex items-center justify-center text-lg">
-                                        {getIcon(n.type)}
+                                        {getNotificationIcon(n.type)}
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <Link
-                                            href={getLink(n)}
+                                            href={getNotificationLink(n)}
                                             onClick={() => {
                                                 if (!n.read) {
                                                     void markRead(n.id);
@@ -357,7 +295,7 @@ export default function NotificationsPage() {
                                                 <span className="font-semibold text-foreground">
                                                     {n.actorUsername || 'System'}
                                                 </span>{' '}
-                                                {getMessage(n)}
+                                                {getNotificationMessage(n)}
                                             </p>
                                         </Link>
                                         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
@@ -391,7 +329,7 @@ export default function NotificationsPage() {
                                             </span>
                                         )}
                                         <Link
-                                            href={getLink(n)}
+                                            href={getNotificationLink(n)}
                                             onClick={() => {
                                                 if (!n.read) {
                                                     void markRead(n.id);
