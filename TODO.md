@@ -569,6 +569,14 @@ Last updated: 2026-03-19
   - Coverage:
     - `TradeControllerIntegrationTest`
     - `PortfolioControllerIntegrationTest`
+- [x] Extended unified error contract into leaderboard controller paths:
+  - Updated:
+    - `LeaderboardController`
+  - Behavior:
+    - leaderboard fetch/account fetch/manual refresh failures now return the shared `{code,message,details?,requestId}` payload
+    - `X-Request-Id` is echoed on manual leaderboard failures instead of falling back to empty `500` or raw message bodies
+  - Coverage:
+    - `LeaderboardControllerIntegrationTest`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

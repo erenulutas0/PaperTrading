@@ -23,10 +23,13 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -114,5 +117,32 @@ class LeaderboardControllerIntegrationTest {
                                 .andExpect(jsonPath("$.content[0].publicPortfolioCount").value(3))
                                 .andExpect(jsonPath("$.content[0].trustScore").value(63.4))
                                 .andExpect(jsonPath("$.content[0].winRate").value(68.5));
+        }
+
+        @Test
+        void getLeaderboard_whenServiceFails_ShouldReturnCorrelatedApiError() throws Exception {
+                when(leaderboardService.getLeaderboard(eq("1D"), eq("RETURN_PERCENTAGE"), eq("DESC"), any(Pageable.class)))
+                                .thenThrow(new RuntimeException("boom"));
+
+                mockMvc.perform(get("/api/v1/leaderboards?period=1D")
+                                .header("X-Request-Id", "leaderboard-err-1"))
+                                .andExpect(status().isInternalServerError())
+                                .andExpect(header().string("X-Request-Id", "leaderboard-err-1"))
+                                .andExpect(jsonPath("$.code").value("leaderboard_fetch_failed"))
+                                .andExpect(jsonPath("$.message").value("Failed to fetch leaderboard"))
+                                .andExpect(jsonPath("$.requestId").value("leaderboard-err-1"));
+        }
+
+        @Test
+        void refreshLeaderboard_whenServiceFails_ShouldReturnCorrelatedApiError() throws Exception {
+                doThrow(new RuntimeException("refresh-boom")).when(leaderboardService).refreshLeaderboardJob();
+
+                mockMvc.perform(post("/api/v1/leaderboards/refresh")
+                                .header("X-Request-Id", "leaderboard-refresh-err-1"))
+                                .andExpect(status().isInternalServerError())
+                                .andExpect(header().string("X-Request-Id", "leaderboard-refresh-err-1"))
+                                .andExpect(jsonPath("$.code").value("leaderboard_refresh_failed"))
+                                .andExpect(jsonPath("$.message").value("Failed to refresh leaderboard"))
+                                .andExpect(jsonPath("$.requestId").value("leaderboard-refresh-err-1"));
         }
 }

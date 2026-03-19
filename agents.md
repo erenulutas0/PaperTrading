@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Leaderboard Controller Failures Now Emit Correlated API Errors**
+  - **Problem observed**:
+    - The broader controller migration had already aligned portfolio, trade, tournament, watchlist, and notification paths around the shared error contract.
+    - `LeaderboardController` still had manual `500` paths:
+      - empty internal-server-error bodies on fetch failures
+      - raw exception text on manual refresh failures
+    - That left a visible read surface outside the same `{code,message,details,requestId}` discipline.
+  - **Implementation**:
+    - Updated leaderboard fetch, account leaderboard fetch, and manual refresh endpoints to use `ApiErrorResponses`.
+    - Threaded `HttpServletRequest` into the controller methods so the shared builder can reuse the correlated request id.
+    - Added integration coverage asserting:
+      - `X-Request-Id` echo
+      - stable `code`
+      - stable `message`
+      - body `requestId`
+  - **Operational impact**:
+    - leaderboard failure paths now match the same machine-readable error contract as other core product controllers
+    - frontend or ops tooling no longer needs special handling for leaderboard `500` responses
 - **2026-03-20**: **Rate-Limit Rejections Now Emit Correlated API Error Payloads**
   - **Problem observed**:
     - Most controller error paths had already moved onto the shared `{code,message,details,requestId}` contract.
