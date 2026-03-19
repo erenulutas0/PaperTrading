@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSyncExternalStore } from 'react';
 import NotificationBell from '../../components/NotificationBell';
 import LogoutButton from '../../components/LogoutButton';
 
@@ -13,6 +14,7 @@ const navigation = [
     { name: 'Tournaments', href: '/tournaments' },
     { name: 'Markets', href: '/watchlist' },
     { name: 'Audit', href: '/dashboard/audit' },
+    { name: 'Settings', href: '/dashboard/settings' },
 ];
 
 export default function DashboardLayout({
@@ -21,7 +23,11 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
-    const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+    const currentUserId = useSyncExternalStore(
+        () => () => { },
+        () => localStorage.getItem('userId'),
+        () => null,
+    );
     const currentSection = navigation.find((item) => pathname === item.href || pathname.startsWith(item.href + '/'))?.name ?? 'Workspace';
 
     return (

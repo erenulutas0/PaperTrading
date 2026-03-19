@@ -13,4 +13,9 @@ if (-not (Test-Path ".\\package.json")) {
     throw "Frontend package.json not found at $frontendDir"
 }
 
-npm run dev
+$nextCli = ".\\node_modules\\next\\dist\\bin\\next"
+if (-not (Test-Path $nextCli)) {
+    throw "Next.js CLI not found. Run npm install inside apps/web first."
+}
+
+node $nextCli dev -p 3005

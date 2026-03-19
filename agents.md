@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Settings Promoted From Scattered Links To Unified Dashboard Workspace**
+  - **Problem observed**:
+    - Account management existed in fragments:
+      - profile edit on a dedicated route
+      - terminal preferences hidden behind market surfaces
+      - session/logout controls split across navbar and auth flows
+    - The product had most of the ingredients, but not one user-owned control room.
+  - **Implementation**:
+    - Added `/dashboard/settings` under the shared dashboard shell.
+    - Split the new surface into:
+      - `Profile`
+      - `Terminal`
+      - `Session`
+      - `Account`
+    - Reused the existing profile update endpoint and terminal-preferences helpers instead of inventing a new backend settings contract.
+    - Added dashboard-shell navigation entry for `Settings`.
+  - **Operational impact**:
+    - account, terminal, and session governance now live in one predictable workspace
+    - future security/privacy/account exports have a natural home instead of leaking into unrelated routes
 - **2026-03-19**: **Local Development Bootstrap Standardized Around Docker Infra + Local App Runtimes**
   - **Problem observed**:
     - Railway quota pressure makes always-on hosted dev environments brittle.

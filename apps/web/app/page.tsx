@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 export default function Home() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    setIsLoggedIn(Boolean(localStorage.getItem('userId')));
-  }, []);
+  const isLoggedIn = useSyncExternalStore(
+    () => () => { },
+    () => Boolean(localStorage.getItem('userId')),
+    () => false,
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground noise-bg">

@@ -11,6 +11,7 @@ Recommended local topology:
 - Docker Desktop
 - Java 21
 - Node.js + npm
+- `apps/web/node_modules` installed (`npm install` in `apps/web`)
 
 ## Start order
 

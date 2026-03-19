@@ -11,6 +11,11 @@ Last updated: 2026-03-11
   - `.\infra\check-local-stack.ps1`
   - confirm frontend can talk to backend on `localhost`
   - confirm local notification transport degrades to SSE without dev-overlay noise when STOMP is rejected
+- [ ] Redeploy frontend after settings workspace rollout and verify `/dashboard/settings` now separates:
+  - public profile editing
+  - terminal preference/layout summary
+  - session/token visibility + logout
+  - account routing/control links
 - [ ] Redeploy backend/frontend after portfolio analytics summary rollout and verify `/analytics/{portfolioId}` now surfaces:
   - portfolio identity and visibility in the header
   - current equity / net return / peak / trough summary cards
