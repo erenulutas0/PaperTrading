@@ -577,6 +577,14 @@ Last updated: 2026-03-19
     - `X-Request-Id` is echoed on manual leaderboard failures instead of falling back to empty `500` or raw message bodies
   - Coverage:
     - `LeaderboardControllerIntegrationTest`
+- [x] Extended unified error contract into audit ops controller paths:
+  - Updated:
+    - `AuditOpsController`
+  - Behavior:
+    - audit snapshot, CSV export, and JSON export failures now return correlated error payloads instead of ad-hoc fatal maps or converter-driven `400` responses
+    - CSV export preserves success-time `text/csv` behavior while still emitting JSON error contract on failure
+  - Coverage:
+    - `AuditOpsControllerIntegrationTest`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

@@ -4,8 +4,10 @@ import com.finance.core.domain.AuditActionType;
 import com.finance.core.domain.AuditLogEntry;
 import com.finance.core.domain.AuditResourceType;
 import com.finance.core.repository.AuditLogRepository;
+import com.finance.core.service.AuditLogInspectionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,8 +18,11 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -31,6 +36,9 @@ class AuditOpsControllerIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @SpyBean
+    private AuditLogInspectionService inspectionService;
 
     @BeforeEach
     void setUp() {
@@ -229,5 +237,53 @@ class AuditOpsControllerIntegrationTest {
                 .andExpect(jsonPath("$.count").value(1))
                 .andExpect(jsonPath("$.totalCount").value(3))
                 .andExpect(jsonPath("$.hasMore").value(false));
+    }
+
+    @Test
+    void auditOpsEndpoint_whenInspectionFails_ShouldReturnCorrelatedApiError() throws Exception {
+        doThrow(new RuntimeException("boom"))
+                .when(inspectionService)
+                .snapshot(nullable(Integer.class), nullable(Integer.class), nullable(Integer.class), nullable(String.class),
+                        nullable(String.class), nullable(UUID.class), nullable(AuditActionType.class), nullable(AuditResourceType.class));
+
+        mockMvc.perform(get("/api/v1/ops/auditlog")
+                        .header("X-Request-Id", "audit-err-1"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(header().string("X-Request-Id", "audit-err-1"))
+                .andExpect(jsonPath("$.code").value("audit_snapshot_failed"))
+                .andExpect(jsonPath("$.message").value("Failed to inspect audit log"))
+                .andExpect(jsonPath("$.requestId").value("audit-err-1"));
+    }
+
+    @Test
+    void auditOpsExport_whenCsvExportFails_ShouldReturnCorrelatedApiError() throws Exception {
+        doThrow(new RuntimeException("csv-boom"))
+                .when(inspectionService)
+                .exportCsv(nullable(Integer.class), nullable(Integer.class), nullable(String.class), nullable(String.class),
+                        nullable(UUID.class), nullable(AuditActionType.class), nullable(AuditResourceType.class));
+
+        mockMvc.perform(get("/api/v1/ops/auditlog/export")
+                        .header("X-Request-Id", "audit-csv-err-1"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(header().string("X-Request-Id", "audit-csv-err-1"))
+                .andExpect(jsonPath("$.code").value("audit_export_failed"))
+                .andExpect(jsonPath("$.message").value("Failed to export audit log"))
+                .andExpect(jsonPath("$.requestId").value("audit-csv-err-1"));
+    }
+
+    @Test
+    void auditOpsExport_whenJsonExportFails_ShouldReturnCorrelatedApiError() throws Exception {
+        doThrow(new RuntimeException("json-boom"))
+                .when(inspectionService)
+                .exportJson(nullable(Integer.class), nullable(Integer.class), nullable(Integer.class), nullable(String.class),
+                        nullable(String.class), nullable(UUID.class), nullable(AuditActionType.class), nullable(AuditResourceType.class));
+
+        mockMvc.perform(get("/api/v1/ops/auditlog/export/json")
+                        .header("X-Request-Id", "audit-json-err-1"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(header().string("X-Request-Id", "audit-json-err-1"))
+                .andExpect(jsonPath("$.code").value("audit_export_json_failed"))
+                .andExpect(jsonPath("$.message").value("Failed to export audit log view"))
+                .andExpect(jsonPath("$.requestId").value("audit-json-err-1"));
     }
 }

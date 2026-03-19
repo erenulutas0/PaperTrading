@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Audit Ops Failures Now Emit Correlated API Errors**
+  - **Problem observed**:
+    - The audit ops workspace had already become a real operator surface, but its controller still mixed failure styles:
+      - ad-hoc fatal map on snapshot failure
+      - export paths that could fall into converter-level `400` behavior instead of a stable server error payload
+    - That made one of the main investigation surfaces inconsistent with the broader request-correlation rollout.
+  - **Implementation**:
+    - Updated `AuditOpsController` so snapshot, CSV export, and JSON export failures now return the shared correlated error shape.
+    - Kept CSV success responses as `text/csv`, but explicitly return JSON contract bodies on failure.
+    - Added integration coverage for:
+      - snapshot failure
+      - CSV export failure
+      - JSON export failure
+      with `X-Request-Id` echo assertions.
+  - **Operational impact**:
+    - audit investigation tooling no longer has bespoke failure parsing rules
+    - operator-facing export paths now align with the same machine-readable contract as the rest of the backend
 - **2026-03-20**: **Leaderboard Controller Failures Now Emit Correlated API Errors**
   - **Problem observed**:
     - The broader controller migration had already aligned portfolio, trade, tournament, watchlist, and notification paths around the shared error contract.
