@@ -299,10 +299,10 @@ Last updated: 2026-03-19
 - [ ] Keep `run_auth_attack_scenarios.ps1` header-mismatch scenario intact and use it as the explicit spoof-regression check after strict-mode cutover
 - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [ ] Redeploy backend after reverting accidental `V3` migration edit and verify Flyway validation passes with `COMMENT` support coming only from `V10`
-- [ ] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
-- [ ] Redeploy backend/frontend after comment-thread interaction upgrade and verify portfolio/post comments now support comment likes + replies with sane notifications and root-page links
-- [ ] Redeploy frontend after global bell relocation + follow-back action and verify notifications are visible from all dashboard sub-pages without header clipping
-- [ ] Redeploy frontend after notification dropdown inbox-preview improvement and verify bell panel now supports scrollable recent notifications without forcing `View All`
+- [x] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
+- [x] Redeploy backend/frontend after comment-thread interaction upgrade and verify portfolio/post comments now support comment likes + replies with sane notifications and root-page links
+- [x] Redeploy frontend after global bell relocation + follow-back action and verify notifications are visible from all dashboard sub-pages without header clipping
+- [x] Redeploy frontend after notification dropdown inbox-preview improvement and verify bell panel now supports scrollable recent notifications without forcing `View All`
 - [ ] Redeploy staging after market-price fallback + portfolio equity calculation fix, then verify leaderboard P/L/return and portfolio detail P/L no longer freeze at false losses when Binance WS is sparse
 - [ ] Verify Flyway `V9__backfill_buy_trade_realized_pnl.sql` applied in staging and confirm legacy BUY history rows now render `0` instead of `-`
 - [ ] Redeploy backend/frontend after notification SSE stream-token hardening and verify WS->SSE fallback still delivers notifications without duplicates
