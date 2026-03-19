@@ -38,6 +38,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Local Backend Contract Smoke Became A First-Class Validation Tool**
+  - **Problem observed**:
+    - Many remaining TODOs were no longer pure implementation gaps; they were “redeploy and verify” items spanning:
+      - request correlation
+      - idempotency replay
+      - audit ops
+      - actuator observability
+    - Relying on ad-hoc manual checking for all of those slows local iteration and makes tracker items harder to close confidently.
+  - **Implementation**:
+    - Added `infra/load-test/run_backend_contract_smoke.ps1`.
+    - The script exercises a small but valuable local slice:
+      - portfolio write with request correlation
+      - idempotent replay header behavior
+      - unauthorized notification read contract
+      - `/actuator/idempotency`
+      - `/api/v1/ops/auditlog`
+      - `/actuator/auditlog`
+    - First local run generated a report and also exposed an operational caveat:
+      - if the backend process has not been restarted after recent code changes, smoke output can reflect stale runtime behavior rather than current source state
+  - **Operational impact**:
+    - backend contract verification is now scriptable instead of purely manual
+    - local restart discipline becomes explicit when validating post-change runtime behavior
 - **2026-03-20**: **Status-Aware ResponseStatusException Handling Restores Proper Unauthorized Contracts**
   - **Problem observed**:
     - The backend had already standardized many controller and filter failures around the shared error payload.

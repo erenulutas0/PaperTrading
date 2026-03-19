@@ -624,6 +624,18 @@ Last updated: 2026-03-19
     - missing or invalid authenticated-user resolution now returns correlated `unauthorized` payloads
   - Coverage:
     - `NotificationControllerIntegrationTest`
+- [x] Added local backend contract smoke script for recurring post-change verification:
+  - Added:
+    - `infra/load-test/run_backend_contract_smoke.ps1`
+  - Scope:
+    - request correlation echo
+    - idempotent replay
+    - unauthorized error contract
+    - `/actuator/idempotency`
+    - `/api/v1/ops/auditlog`
+    - `/actuator/auditlog`
+  - Notes:
+    - first local run produced a report and surfaced that the long-running local backend process needs a restart before smoke results reflect the latest backend commits
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

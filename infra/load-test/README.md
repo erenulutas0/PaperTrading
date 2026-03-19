@@ -35,6 +35,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `calibrate_auth_observability_thresholds.ps1`
 - `assess_auth_strict_mode_readiness.ps1`
 - `run_auth_attack_scenarios.ps1`
+- `run_backend_contract_smoke.ps1`
 
 ## Prerequisites
 
@@ -180,6 +181,13 @@ Validate against an already running app:
   -SkipAppStart `
   -ServerPort 8080 `
   -WebhookPort 19099
+```
+
+Run backend contract smoke against a local backend:
+
+```powershell
+./infra/load-test/run_backend_contract_smoke.ps1 `
+  -BaseUrl "http://localhost:8080"
 ```
 
 Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, runs skip validation, then stops app):

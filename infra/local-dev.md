@@ -72,6 +72,23 @@ Open:
 .\infra\check-local-stack.ps1
 ```
 
+## Backend contract smoke
+
+After the stack is up, run:
+
+```powershell
+.\infra\load-test\run_backend_contract_smoke.ps1 -BaseUrl "http://localhost:8080"
+```
+
+This validates a small but useful local slice:
+
+- request correlation echo
+- idempotent replay behavior
+- `/actuator/idempotency`
+- `/api/v1/ops/auditlog`
+- `/actuator/auditlog`
+- unauthorized API error contract
+
 ## Stop infra
 
 ```powershell
