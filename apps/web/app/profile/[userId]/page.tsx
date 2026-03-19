@@ -535,6 +535,57 @@ export default function ProfilePage() {
                         <article className="glass-panel rounded-xl border border-border/80 p-4">
                             <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div>
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Methodology</p>
+                                    <h2 className="mt-2 text-xl font-semibold">Trust score is evidence-weighted, not popularity-weighted</h2>
+                                    <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+                                        Prediction outcomes, realized trade quality, and portfolio behavior all contribute. Small samples stay discounted on purpose.
+                                    </p>
+                                </div>
+                                <Link
+                                    href="/trust-score"
+                                    className="rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary transition hover:bg-primary/20"
+                                >
+                                    Open Methodology
+                                </Link>
+                            </div>
+                            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <Link href="/trust-score#predictions" className="rounded-2xl border border-border bg-background/60 p-4 transition hover:border-primary/30">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Prediction Signal</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.predictionWinRate.toFixed(1)}%</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {profile.trustBreakdown.resolvedPredictionCount} resolved posts · component {profile.trustBreakdown.predictionComponent.toFixed(1)}
+                                    </p>
+                                </Link>
+                                <Link href="/trust-score#trades" className="rounded-2xl border border-border bg-background/60 p-4 transition hover:border-primary/30">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Trade Signal</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">
+                                        {profile.trustBreakdown.resolvedTradeCount > 0
+                                            ? `${profile.trustBreakdown.tradeWinRate.toFixed(1)}%`
+                                            : 'N/A'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {profile.trustBreakdown.resolvedTradeCount} closed trades · component {profile.trustBreakdown.tradeComponent.toFixed(1)}
+                                    </p>
+                                </Link>
+                                <Link href="/trust-score#portfolios" className="rounded-2xl border border-border bg-background/60 p-4 transition hover:border-primary/30">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Portfolio Signal</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.portfolioWinRate.toFixed(1)}%</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {profile.trustBreakdown.profitablePortfolioCount}/{profile.trustBreakdown.totalPortfolioCount} profitable · component {profile.trustBreakdown.portfolioComponent.toFixed(1)}
+                                    </p>
+                                </Link>
+                                <Link href="/trust-score#sample-size" className="rounded-2xl border border-border bg-background/60 p-4 transition hover:border-primary/30">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Confidence</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{profile.trustBreakdown.experienceComponent.toFixed(1)}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        Sample-size lift plus average-return adjustment {profile.trustBreakdown.returnComponent.toFixed(1)}
+                                    </p>
+                                </Link>
+                            </div>
+                        </article>
+                        <article className="glass-panel rounded-xl border border-border/80 p-4">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
                                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Trust Trend</p>
                                     <h2 className="mt-2 text-xl font-semibold">Last 30 profile evaluations</h2>
                                     <p className="mt-1 text-xs text-muted-foreground">

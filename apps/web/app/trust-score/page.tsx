@@ -4,26 +4,32 @@ import Link from 'next/link';
 
 const sections = [
     {
+        id: 'predictions',
         title: '1. Prediction Accuracy',
         body: 'Structured analysis posts with target, stop, and expiry are the strongest trust input. When the system resolves them as HIT, MISSED, or EXPIRED, they feed the prediction accuracy component.',
     },
     {
+        id: 'trades',
         title: '2. Trade Win Rate',
         body: 'Closed trades with realized P/L are counted as evidence. Consistently profitable closes help the score; consistently losing closes pull it down.',
     },
     {
+        id: 'portfolios',
         title: '3. Portfolio Quality',
         body: 'We look at how many of your portfolios are currently positive, their average return, and realized trade quality. This keeps the score tied to real portfolio behavior, not only posts.',
     },
     {
+        id: 'sample-size',
         title: '4. Sample Size',
         body: 'Small samples are discounted on purpose. A few lucky wins should not look highly credible. More resolved posts and more closed trades increase confidence gradually.',
     },
     {
+        id: 'baseline',
         title: '5. Why It Starts Near 50',
         body: 'New or inactive accounts stay near a neutral baseline until the platform has enough evidence. Trust score is a credibility signal, not a popularity metric.',
     },
     {
+        id: 'trend',
         title: '6. Why The Trend Matters',
         body: 'Profiles now show a trust trend and platform win-rate trend. A flat line means little new evidence; a rising or falling line means the user is adding meaningful results over time.',
     },
@@ -60,7 +66,7 @@ export default function TrustScorePage() {
 
                 <section className="grid gap-4 md:grid-cols-2">
                     {sections.map((section) => (
-                        <article key={section.title} className="glass-panel rounded-2xl border border-border/80 p-5">
+                        <article id={section.id} key={section.title} className="glass-panel scroll-mt-24 rounded-2xl border border-border/80 p-5">
                             <h2 className="text-lg font-semibold">{section.title}</h2>
                             <p className="mt-3 text-sm leading-6 text-muted-foreground">{section.body}</p>
                         </article>

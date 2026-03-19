@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Profile Trust Signals Now Link Directly Into Scoring Methodology**
+  - **Problem observed**:
+    - Profile trust pages already surfaced prediction, trade, and portfolio evidence, but the explanation route on `/trust-score` was still detached from those live signals.
+    - Users could see the score ingredients without a direct path into the exact methodology block behind each ingredient.
+  - **Implementation**:
+    - Added a methodology panel to the profile `Trust` workspace.
+    - Surfaced direct links from the trust workspace into anchored sections on `/trust-score` for:
+      - predictions
+      - trades
+      - portfolios
+      - sample size
+    - Added stable section ids to the trust-score documentation page so those deep links land on the intended explanation cards.
+  - **Operational impact**:
+    - live trust evidence and trust documentation are now connected at the point of use
+    - users can move from a concrete profile signal to the matching scoring rationale without hunting through docs
 - **2026-03-19**: **Settings Session Controls Split Between Cache Reset And True Session Reset**
   - **Problem observed**:
     - A merged settings surface is useful, but auth/session debugging still needs a sharp distinction between:
