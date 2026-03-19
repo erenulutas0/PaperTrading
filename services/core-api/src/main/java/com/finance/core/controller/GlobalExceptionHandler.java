@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
@@ -24,6 +25,24 @@ public class GlobalExceptionHandler {
                 ex.getMessage() != null ? ex.getMessage() : "Invalid refresh token",
                 null,
                 request);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatusException(
+            ResponseStatusException ex,
+            HttpServletRequest request) {
+        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        String code = switch (status) {
+            case UNAUTHORIZED -> "unauthorized";
+            case FORBIDDEN -> "forbidden";
+            case NOT_FOUND -> "not_found";
+            case BAD_REQUEST -> "bad_request";
+            default -> status.name().toLowerCase();
+        };
+        String message = ex.getReason() != null && !ex.getReason().isBlank()
+                ? ex.getReason()
+                : status.getReasonPhrase();
+        return ApiErrorResponses.build(status, code, message, null, request);
     }
 
     @ExceptionHandler(RuntimeException.class)

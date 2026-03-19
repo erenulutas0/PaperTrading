@@ -348,6 +348,29 @@ class NotificationControllerIntegrationTest {
         }
 
         @Test
+        void unreadCount_WithoutAuthenticatedUser_ShouldReturnCorrelatedUnauthorizedError() throws Exception {
+                mockMvc.perform(get("/api/v1/notifications/unread-count")
+                                .header("X-Request-Id", "notif-auth-missing-1"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(header().string("X-Request-Id", "notif-auth-missing-1"))
+                                .andExpect(jsonPath("$.code").value("unauthorized"))
+                                .andExpect(jsonPath("$.message").value("Missing authenticated user"))
+                                .andExpect(jsonPath("$.requestId").value("notif-auth-missing-1"));
+        }
+
+        @Test
+        void unreadCount_WithInvalidLegacyUserId_ShouldReturnCorrelatedUnauthorizedError() throws Exception {
+                mockMvc.perform(get("/api/v1/notifications/unread-count")
+                                .header("X-Request-Id", "notif-auth-invalid-1")
+                                .header("X-User-Id", "not-a-uuid"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(header().string("X-Request-Id", "notif-auth-invalid-1"))
+                                .andExpect(jsonPath("$.code").value("unauthorized"))
+                                .andExpect(jsonPath("$.message").value("Invalid authenticated user id"))
+                                .andExpect(jsonPath("$.requestId").value("notif-auth-invalid-1"));
+        }
+
+        @Test
         void streamToken_WithBearerOnly_ShouldReturnShortLivedStreamToken() throws Exception {
                 String token = jwtTokenService.generateAccessToken(userB.getId(), userB.getUsername());
 

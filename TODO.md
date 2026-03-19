@@ -615,6 +615,15 @@ Last updated: 2026-03-19
   - Local validation:
     - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_attack_scenarios.ps1 -BaseUrl http://localhost:8080 -NoFail`
     - result: `PASSED | Unexpected HTTP outcomes: 0 | CanaryFailures: 0`
+- [x] Corrected `CurrentUserId` unauthorized failures to use status-aware error contract mapping:
+  - Updated:
+    - `GlobalExceptionHandler`
+    - `NotificationControllerIntegrationTest`
+  - Behavior:
+    - `ResponseStatusException` now preserves `401/403/404` semantics instead of collapsing into generic `400 bad_request`
+    - missing or invalid authenticated-user resolution now returns correlated `unauthorized` payloads
+  - Coverage:
+    - `NotificationControllerIntegrationTest`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

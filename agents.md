@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Status-Aware ResponseStatusException Handling Restores Proper Unauthorized Contracts**
+  - **Problem observed**:
+    - The backend had already standardized many controller and filter failures around the shared error payload.
+    - But `CurrentUserIdArgumentResolver` throws `ResponseStatusException`, and the global runtime catch-all could collapse those into generic `400 bad_request` responses instead of preserving `401 unauthorized`.
+    - That created a subtle but real contract drift on authenticated-user resolution failures.
+  - **Implementation**:
+    - Added a dedicated `ResponseStatusException` handler in `GlobalExceptionHandler`.
+    - Mapped common statuses to stable codes:
+      - `unauthorized`
+      - `forbidden`
+      - `not_found`
+      - `bad_request`
+    - Added integration assertions on notification unread-count reads for:
+      - missing authenticated user
+      - invalid `X-User-Id`
+      with `X-Request-Id` echo and body `requestId`.
+  - **Operational impact**:
+    - resolver-driven auth failures now preserve the intended HTTP semantics
+    - clients and tooling no longer have to interpret missing-auth cases as generic bad requests
 - **2026-03-20**: **Auth Refresh Rate Limits Now Follow Session Identity When Possible**
   - **Problem observed**:
     - Sensitive write rate limits had already moved away from raw Bearer-token hashes for comment/like/follow paths.
