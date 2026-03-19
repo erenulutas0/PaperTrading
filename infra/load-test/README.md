@@ -190,6 +190,17 @@ Run backend contract smoke against a local backend:
   -BaseUrl "http://localhost:8080"
 ```
 
+The backend contract smoke currently checks:
+- health
+- register + authenticated write
+- idempotent replay + request-id echo
+- unauthorized notification contract
+- invalid notification-id `400` contract
+- missing notification `404` contract
+- `/actuator/idempotency`
+- `/api/v1/ops/auditlog`
+- `/actuator/auditlog`
+
 Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, runs skip validation, then stops app):
 
 ```powershell

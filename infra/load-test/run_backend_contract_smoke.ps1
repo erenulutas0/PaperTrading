@@ -184,6 +184,28 @@ $notificationRequestId = [string](Get-ObjectPropertyValue -Object $notification4
 Assert-Condition -Results $results -Name "Unauthorized Contract" -Condition ($notification401.status -eq 401 -and $notificationCode -eq "unauthorized") -Detail "status=$($notification401.status), code=$notificationCode, body=$($notification401.content)"
 Assert-Condition -Results $results -Name "Unauthorized Request Id Echo" -Condition ($notifHeaderRequestId -like "*contract-auth-$suffix*" -and $notificationRequestId -eq "contract-auth-$suffix") -Detail "header=$notifHeaderRequestId body=$notificationRequestId"
 
+$notificationInvalidId = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/notifications/not-a-uuid/mark-read" -Headers @{
+  "Authorization" = "Bearer $accessToken"
+  "X-Request-Id"  = "contract-notif-invalid-$suffix"
+}
+$notificationInvalidIdJson = if ($notificationInvalidId.content) { $notificationInvalidId.content | ConvertFrom-Json } else { $null }
+$notificationInvalidIdHeader = Get-HeaderValue -Headers $notificationInvalidId.headers -Name "X-Request-Id"
+$notificationInvalidIdCode = [string](Get-ObjectPropertyValue -Object $notificationInvalidIdJson -Name "code")
+$notificationInvalidIdRequestId = [string](Get-ObjectPropertyValue -Object $notificationInvalidIdJson -Name "requestId")
+Assert-Condition -Results $results -Name "Notification Invalid Id Contract" -Condition ($notificationInvalidId.status -eq 400 -and $notificationInvalidIdCode -eq "notification_id_invalid") -Detail "status=$($notificationInvalidId.status), code=$notificationInvalidIdCode, body=$($notificationInvalidId.content)"
+Assert-Condition -Results $results -Name "Notification Invalid Id Echo" -Condition ($notificationInvalidIdHeader -like "*contract-notif-invalid-$suffix*" -and $notificationInvalidIdRequestId -eq "contract-notif-invalid-$suffix") -Detail "header=$notificationInvalidIdHeader body=$notificationInvalidIdRequestId"
+
+$notificationMissingId = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/notifications/$([guid]::NewGuid())/mark-read" -Headers @{
+  "Authorization" = "Bearer $accessToken"
+  "X-Request-Id"  = "contract-notif-missing-$suffix"
+}
+$notificationMissingIdJson = if ($notificationMissingId.content) { $notificationMissingId.content | ConvertFrom-Json } else { $null }
+$notificationMissingIdHeader = Get-HeaderValue -Headers $notificationMissingId.headers -Name "X-Request-Id"
+$notificationMissingIdCode = [string](Get-ObjectPropertyValue -Object $notificationMissingIdJson -Name "code")
+$notificationMissingIdRequestId = [string](Get-ObjectPropertyValue -Object $notificationMissingIdJson -Name "requestId")
+Assert-Condition -Results $results -Name "Notification Missing Id Contract" -Condition ($notificationMissingId.status -eq 404 -and $notificationMissingIdCode -eq "notification_not_found") -Detail "status=$($notificationMissingId.status), code=$notificationMissingIdCode, body=$($notificationMissingId.content)"
+Assert-Condition -Results $results -Name "Notification Missing Id Echo" -Condition ($notificationMissingIdHeader -like "*contract-notif-missing-$suffix*" -and $notificationMissingIdRequestId -eq "contract-notif-missing-$suffix") -Detail "header=$notificationMissingIdHeader body=$notificationMissingIdRequestId"
+
 $idempotencyActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/idempotency"
 $idempotencyJson = if ($idempotencyActuator.content) { $idempotencyActuator.content | ConvertFrom-Json } else { $null }
 $idempotencyTotal = Get-ObjectPropertyValue -Object $idempotencyJson -Name "totalRecords"

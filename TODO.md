@@ -631,6 +631,7 @@ Last updated: 2026-03-19
     - request correlation echo
     - idempotent replay
     - unauthorized error contract
+    - notification mark-read invalid/missing id contracts
     - `/actuator/idempotency`
     - `/api/v1/ops/auditlog`
     - `/actuator/auditlog`
