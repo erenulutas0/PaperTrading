@@ -612,6 +612,9 @@ Last updated: 2026-03-19
     - refresh request body is cached in-filter so bucket derivation does not consume the downstream request stream
   - Coverage:
     - `RateLimitFilterTest`
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_attack_scenarios.ps1 -BaseUrl http://localhost:8080 -NoFail`
+    - result: `PASSED | Unexpected HTTP outcomes: 0 | CanaryFailures: 0`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

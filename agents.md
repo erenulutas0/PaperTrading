@@ -56,6 +56,11 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - auth refresh throttling now tracks real session ownership more closely when the backend can identify the session
     - invalid/garbled refresh floods still collapse onto IP-based protection instead of creating unbounded token-key variance
+  - **Validation**:
+    - Re-ran:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_attack_scenarios.ps1 -BaseUrl http://localhost:8080 -NoFail`
+    - Result:
+      - `Status: PASSED | Unexpected HTTP outcomes: 0 | CanaryFailures: 0`
 - **2026-03-20**: **Idempotency Filter Responses Now Echo Request Correlation**
   - **Problem observed**:
     - The idempotency filter already returned machine-readable error bodies for:
