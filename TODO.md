@@ -1,9 +1,9 @@
 # TODO - Core API Reliability & Scalability Sweep
 
-Last updated: 2026-03-11
+Last updated: 2026-03-19
 
 ## In Progress
-- [ ] Verify the new local-dev bootstrap path:
+- [x] Verify the new local-dev bootstrap path:
   - `.\infra\start-local-infra.ps1`
   - `.\infra\start-local-backend.ps1`
   - `.\infra\start-local-frontend.ps1`
@@ -11,7 +11,7 @@ Last updated: 2026-03-11
   - `.\infra\check-local-stack.ps1`
   - confirm frontend can talk to backend on `localhost`
   - confirm local notification transport degrades to SSE without dev-overlay noise when STOMP is rejected
-- [ ] Redeploy frontend after settings workspace rollout and verify `/dashboard/settings` now separates:
+- [x] Redeploy frontend after settings workspace rollout and verify `/dashboard/settings` now separates:
   - public profile editing
   - terminal preference/layout summary
   - session/token visibility + logout
@@ -53,102 +53,102 @@ Last updated: 2026-03-11
   - compare workspace now splits `Overview / Momentum / Risk` instead of stacking every compare surface at once
   - analytics top controls now collapse into a tabbed deck so filter/export and curve-window controls do not occupy separate cards
   - lower analytics content now splits into `Core / Live / Outcomes` so curve/risk structure, open-risk inspection, and closed-result analysis no longer compete in one long wall
-- [ ] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
-- [ ] Redeploy frontend after profile workspace cleanup and verify `/profile/{userId}` now separates:
+- [x] Redeploy frontend after public shared-layout preview rollout and verify shared links now open a lightweight `/watchlist/shared` preview page before the full terminal
+- [x] Redeploy frontend after profile workspace cleanup and verify `/profile/{userId}` now separates:
   - summary cards + portfolio record
   - trust breakdown / trend
   - follower/following network management
-- [ ] Redeploy frontend after leaderboard workspace cleanup and verify both `/dashboard/leaderboard` and `/leaderboards` now separate:
+- [x] Redeploy frontend after leaderboard workspace cleanup and verify both `/dashboard/leaderboard` and `/leaderboards` now separate:
   - operating/filter context
   - live ranked board table
   - pagination only when the board surface is active
-- [ ] Redeploy frontend after notifications workspace cleanup and verify:
+- [x] Redeploy frontend after notifications workspace cleanup and verify:
   - `/notifications` now separates overview context from the live inbox stream
   - bell dropdown now supports `Recent / Alerts / Social` slices instead of one undifferentiated list
-- [ ] Redeploy frontend after auth workspace cleanup and verify:
+- [x] Redeploy frontend after auth workspace cleanup and verify:
   - `/auth/login` now separates account context from the actual sign-in form
   - `/auth/register` now separates identity/rules context from the actual signup form
-- [ ] Redeploy frontend after dashboard workspace cleanup and verify `/dashboard` now separates:
+- [x] Redeploy frontend after dashboard workspace cleanup and verify `/dashboard` now separates:
   - high-level overview and route guidance
   - portfolio administration / card grid
   - live market + activity pulse
-- [ ] Redeploy frontend after discover workspace cleanup and verify `/discover` now separates:
+- [x] Redeploy frontend after discover workspace cleanup and verify `/discover` now separates:
   - public discovery context
   - live public portfolio feed
-- [ ] Redeploy frontend after discover feed controls rollout and verify `/discover` now supports:
+- [x] Redeploy frontend after discover feed controls rollout and verify `/discover` now supports:
   - page-aware public portfolio browsing
   - sort presets (`Latest`, `Oldest`, `Top Balance`, `Low Balance`)
   - local slice search by name/description/symbol
   - `Prev / Next` navigation across public portfolio pages
-- [ ] Redeploy backend/frontend after discover backend-search rollout and verify `/discover` now:
+- [x] Redeploy backend/frontend after discover backend-search rollout and verify `/discover` now:
   - sends `q` to `/api/v1/portfolios/discover`
   - filters across portfolio name, description, and item symbols
   - keeps page/sort navigation working under filtered public discovery
-- [ ] Redeploy backend after discover two-step page fetch rollout and verify `/api/v1/portfolios/discover` no longer relies on collection-fetch pagination for the public portfolio slice
-- [ ] Redeploy frontend after tournaments workspace cleanup and verify `/tournaments` now separates:
+- [x] Redeploy backend after discover two-step page fetch rollout and verify `/api/v1/portfolios/discover` no longer relies on collection-fetch pagination for the public portfolio slice
+- [x] Redeploy frontend after tournaments workspace cleanup and verify `/tournaments` now separates:
   - competition context
   - arena list / join operations
   - spotlight leaderboard
-- [ ] Redeploy backend/frontend after tournament leaderboard/trade pagination rollout and verify:
+- [x] Redeploy backend/frontend after tournament leaderboard/trade pagination rollout and verify:
   - `/api/v1/tournaments/{id}/leaderboard` now returns page metadata + content
   - `/api/v1/tournaments/{id}/trades` now returns page metadata + content
   - `/tournaments` spotlight still reads the first leaderboard slice correctly
   - `/tournaments/{id}/hub` still reads leaderboard + trade feed from paged responses correctly
-- [ ] Redeploy backend/frontend after watchlist alert-history pagination rollout and verify:
+- [x] Redeploy backend/frontend after watchlist alert-history pagination rollout and verify:
   - `/api/v1/watchlists/items/{id}/alert-history` now returns page metadata + content
   - `/watchlist` alert history panel still reads the first filtered slice correctly
   - `days` and `direction` filters still narrow paged alert-history responses correctly
-- [ ] Redeploy backend/frontend after watchlist-list pagination rollout and verify:
+- [x] Redeploy backend/frontend after watchlist-list pagination rollout and verify:
   - `/api/v1/watchlists` now returns page metadata + content
   - `/watchlist` still restores the first available watchlist correctly from the paged payload
   - create/delete watchlist flows still converge on the refreshed paged list
-- [ ] Redeploy backend/frontend after terminal-layout pagination rollout and verify:
+- [x] Redeploy backend/frontend after terminal-layout pagination rollout and verify:
   - `/api/v1/users/me/preferences/terminal-layouts` now returns page metadata + content
   - `/watchlist` saved-layout panel still hydrates from the paged payload
   - save/update/delete layout flows still converge on the refreshed layout list
-- [ ] Redeploy backend/frontend after chart-note pagination rollout and verify:
+- [x] Redeploy backend/frontend after chart-note pagination rollout and verify:
   - `/api/v1/market/chart-notes` now returns page metadata + content
   - `/watchlist` symbol note panel still hydrates from the paged payload
   - create/update/delete/pin note flows still converge on the refreshed note list
-- [ ] Redeploy backend/frontend after portfolio-history pagination rollout and verify:
+- [x] Redeploy backend/frontend after portfolio-history pagination rollout and verify:
   - `/api/v1/portfolios/{id}/history` now returns page metadata + content
   - `/dashboard/portfolio/{id}` still renders recent trade history from the normalized paged payload
   - legacy `limit` compatibility still narrows the first history slice correctly
-- [ ] Redeploy backend/frontend after watchlist-item pagination rollout and verify:
+- [x] Redeploy backend/frontend after watchlist-item pagination rollout and verify:
   - `/api/v1/watchlists/{id}/items` now returns page metadata + content
   - `/watchlist` still hydrates the active basket from the normalized paged payload
   - add/remove item and alert-edit flows still converge on the refreshed item slice
-- [ ] Redeploy backend after tournament-badge pagination rollout and verify:
+- [x] Redeploy backend after tournament-badge pagination rollout and verify:
   - `/api/v1/tournaments/badges/{userId}` now returns page metadata + content
   - any future badge consumer can normalize the paged contract without backend changes
-- [ ] Redeploy frontend after analysis workspace cleanup and verify:
+- [x] Redeploy frontend after analysis workspace cleanup and verify:
   - `/dashboard/analysis` now separates immutable workflow context from the live thesis feed
   - `/dashboard/analysis/{id}` now separates thesis reading, accountability context, and discussion
   - `/dashboard/analysis/new` now separates immutable publishing rules from the actual thesis composer
-- [ ] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
+- [x] Redeploy frontend after terminal snapshot SVG export rollout and verify `/watchlist` now supports:
   - branded SVG share-card download for the current terminal state
   - pinned-note preview embedded inside the exported card
-- [ ] Redeploy frontend after richer terminal snapshot/shared-layout preview rollout and verify `/watchlist` now surfaces:
+- [x] Redeploy frontend after richer terminal snapshot/shared-layout preview rollout and verify `/watchlist` now surfaces:
   - watchlist context in snapshot output
   - compare/favorites counts in snapshot/share surfaces
   - pinned-note preview inside the snapshot card
-- [ ] Redeploy frontend after terminal snapshot/share-card rollout and verify `/watchlist` now supports:
+- [x] Redeploy frontend after terminal snapshot/share-card rollout and verify `/watchlist` now supports:
   - copyable current-state terminal summary
   - current-state share link generation without saving a layout first
   - current-state JSON snapshot download
-- [ ] Redeploy frontend after terminal layout share-link rollout and verify `/watchlist` now supports:
+- [x] Redeploy frontend after terminal layout share-link rollout and verify `/watchlist` now supports:
   - copying a portable shared-layout URL
   - opening a shared layout banner from `?sharedLayout=...`
   - applying or saving a shared preset into account-backed layouts
-- [ ] Redeploy frontend after market terminal layout export/import + overwrite/rename polish and verify `/watchlist` now supports:
+- [x] Redeploy frontend after market terminal layout export/import + overwrite/rename polish and verify `/watchlist` now supports:
   - named layout save/apply/remove
   - rename + overwrite of existing saved layouts
   - JSON export/import for account layout presets
-- [ ] Redeploy backend/frontend after saved market terminal layouts rollout and verify `/watchlist` now supports:
+- [x] Redeploy backend/frontend after saved market terminal layouts rollout and verify `/watchlist` now supports:
   - account-backed named layout snapshots
   - apply/remove flows
   - restoring saved market/symbol/watchlist/compare/range/interval/favorites bundles
-- [ ] Redeploy frontend after market terminal layout cleanup pass and verify `/watchlist` now:
+- [x] Redeploy frontend after market terminal layout cleanup pass and verify `/watchlist` now:
   - keeps the chart in its own full-width row instead of compressing it against the scanner rail
   - renders instrument universe / heatmap / sector pulse / saved scanner views without text overflow
   - keeps draw + alert controls grouped above the chart workspace
@@ -162,26 +162,26 @@ Last updated: 2026-03-11
   - splits the right rail into `Overview / Watchlists / Basket` tabs so summary, list management, and tracked rows do not render all at once
   - uses right-rail tab-aware CTA flow so add/watchlist/basket empty states route users into the correct section
   - smooths medium-breakpoint layout so the create-watchlist form and scanner grids stop feeling desktop-only
-- [ ] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
+- [x] Redeploy backend/frontend after terminal session persistence rollout and verify `/watchlist` now restores:
   - market
   - selected symbol
   - compare basket + overlay visibility
   - range / interval
   - favorites
   from authenticated user preferences instead of browser-only state
-- [ ] Redeploy frontend after watchlist note-filter/export polish and verify `/watchlist` now supports:
+- [x] Redeploy frontend after watchlist note-filter/export polish and verify `/watchlist` now supports:
   - `All / Pinned / Unpinned` saved-note filtering
   - CSV export for filtered alert history window/direction views
-- [ ] Redeploy backend/frontend after pinned chart-note rollout and verify `/watchlist` saved notes now support:
+- [x] Redeploy backend/frontend after pinned chart-note rollout and verify `/watchlist` saved notes now support:
   - account-backed pin/unpin state
   - pinned-first ordering
   - pinned state preserved through note edit flows
-- [ ] Redeploy backend/frontend after watchlist chart-notes + alert-history rollout and verify `/watchlist` now supports:
+- [x] Redeploy backend/frontend after watchlist chart-notes + alert-history rollout and verify `/watchlist` now supports:
   - symbol-scoped persistent chart notes backed by authenticated account storage
   - selected-item recent alert trigger history
   - triggered alert messages/threshold/triggered-price inspection from the terminal
-- [ ] Redeploy frontend after multi-symbol compare rollout and verify `/watchlist` now supports up to three simultaneous overlay symbols with independent removal, persisted session state, and compare summaries
-- [ ] Redeploy backend/frontend after account-backed compare-basket rollout and verify `/watchlist` now supports:
+- [x] Redeploy frontend after multi-symbol compare rollout and verify `/watchlist` now supports up to three simultaneous overlay symbols with independent removal, persisted session state, and compare summaries
+- [x] Redeploy backend/frontend after account-backed compare-basket rollout and verify `/watchlist` now supports:
   - compare baskets restored from authenticated terminal preferences across logout/login and device changes
   - saving current compare overlays as lightweight market-aware baskets
   - reapplying compare baskets without restoring the entire terminal layout
@@ -192,69 +192,69 @@ Last updated: 2026-03-11
   - removing saved compare baskets
   - active-basket highlighting against the current compare session
 - [ ] Redeploy backend/frontend after market instrument metadata enrichment and verify `/watchlist` now surfaces market/exchange/currency/delay chips, richer BIST/crypto search, and descriptive names inside the right-rail watch basket
-- [ ] Redeploy frontend after instrument-universe quick-filter rollout and verify `/watchlist` now supports one-click scanner-style filtering for:
+- [x] Redeploy frontend after instrument-universe quick-filter rollout and verify `/watchlist` now supports one-click scanner-style filtering for:
   - gainers
   - losers
   - favorites
   - sector peers
-- [ ] Redeploy frontend after instrument-universe sorting rollout and verify `/watchlist` now supports scanner-style sorting for:
+- [x] Redeploy frontend after instrument-universe sorting rollout and verify `/watchlist` now supports scanner-style sorting for:
   - top move
   - worst move
   - highest price
   - alpha
-- [ ] Redeploy frontend after universe movers-strip rollout and verify `/watchlist` now surfaces quick top/bottom movers cards that jump into the corresponding scanner slice
-- [ ] Redeploy frontend after saved scanner-view rollout and verify `/watchlist` now supports saving and restoring instrument-universe filter/sort/search presets per market
-- [ ] Redeploy frontend after built-in compare-basket rollout and verify `/watchlist` now surfaces reusable market-defined compare baskets (e.g. crypto majors, BIST banks, BIST holdings)
-- [ ] Redeploy frontend after compare-basket snapshot-badge rollout and verify `/watchlist` compare basket cards now show quick 24h basket context before apply
-- [ ] Redeploy backend/frontend after scanner-view preference rollout and verify `/watchlist` saved scanner views now restore across refresh, logout/login, and device change
-- [ ] Redeploy frontend after heatmap-slice rollout and verify `/watchlist` now shows a clickable mini heatmap of the strongest movers in the active market universe
-- [ ] Redeploy frontend after scanner-view share/export/import rollout and verify `/watchlist` scanner presets now support portable JSON export/import plus shareable deep links
-- [ ] Redeploy frontend after compare-basket performance-pill rollout and verify `/watchlist` compare basket cards now show quick directional tone badges before apply
-- [ ] Redeploy frontend after scanner-view rename/overwrite rollout and verify `/watchlist` saved scanner presets now support inline rename plus overwriting with the current scanner state
-- [ ] Redeploy frontend after sector-pulse rollout and verify `/watchlist` heatmap area now includes clickable sector-group scanner pivots based on average 24h sector move
-- [ ] Redeploy backend/frontend after scanner-view anchor-symbol rollout and verify sector-based scanner presets now restore with the correct symbol context and support one-click save from `Sector Pulse`
-- [ ] Redeploy frontend after compare-basket sparkline rollout and verify compare basket cards now show a mini relative-strength curve derived from current basket 24h moves
-- [ ] Redeploy frontend after session-rail rollout and verify `/watchlist` now surfaces compact market/watchlist/compare/scanner/favorites context cards above the instrument header
-- [ ] Redeploy frontend after universe-metric-pill rollout and verify instrument cards now surface move-rank plus watchlist/compare/active state pills for faster scanner reads
-- [ ] Redeploy frontend after universe-signal-pill rollout and verify instrument cards now surface market-relative, sector-relative, and velocity scanner pills
-- [ ] Redeploy frontend after compare-basket-to-layout rollout and verify saved compare baskets can now be promoted into full named terminal layouts without manually rebuilding the entire state
-- [ ] Redeploy frontend after compare-source-to-layout rollout and verify suggested, built-in, and saved compare baskets can all be promoted into full named terminal layouts
-- [ ] Redeploy frontend after compare-basket-delta-chip rollout and verify compare basket cards now surface leader, weakest, and spread chips before apply
-- [ ] Redeploy frontend after compare-basket-overlap-chip rollout and verify compare basket cards now surface watchlist/favorites/session overlap chips before apply
-- [ ] Redeploy frontend after compare-basket-apply-impact rollout and verify compare basket cards now surface usable/add/drop/will-reveal preview chips before apply
-- [ ] Redeploy frontend after right-rail-summary rollout and verify `/watchlist` now surfaces compact watchlist/compare/scanner/favorites context inside the right rail
-- [ ] Redeploy frontend after right-rail-counter rollout and verify `/watchlist` right rail now surfaces alert-binding, triggered-alert, and note counters beside the compact session summary
-- [ ] Redeploy frontend after right-rail-quick-actions rollout and verify `/watchlist` right rail now exposes fast favorite/basket/alert actions for the active symbol
-- [ ] Redeploy frontend after right-rail-layout-capture rollout and verify `/watchlist` right rail can promote the active terminal state directly into saved layouts
-- [ ] Redeploy frontend after scanner-view-summary rollout and verify saved scanner views now surface match count, average move, leader, and sector context
-- [ ] Redeploy frontend after right-rail-scanner-capture rollout and verify `/watchlist` right rail can capture the active scanner state directly into saved scanner views
-- [ ] Redeploy frontend after scanner-view-overlap-chip rollout and verify saved scanner views now surface watchlist/favorites/anchor-link overlap chips
-- [ ] Redeploy frontend after scanner-view-fit-pill rollout and verify saved scanner views now surface a current market-fit tone pill
-- [ ] Redeploy frontend after right-rail-share-state rollout and verify `/watchlist` right rail can copy a shared link for the current terminal state
+- [x] Redeploy frontend after universe movers-strip rollout and verify `/watchlist` now surfaces quick top/bottom movers cards that jump into the corresponding scanner slice
+- [x] Redeploy frontend after saved scanner-view rollout and verify `/watchlist` now supports saving and restoring instrument-universe filter/sort/search presets per market
+- [x] Redeploy frontend after built-in compare-basket rollout and verify `/watchlist` now surfaces reusable market-defined compare baskets (e.g. crypto majors, BIST banks, BIST holdings)
+- [x] Redeploy frontend after compare-basket snapshot-badge rollout and verify `/watchlist` compare basket cards now show quick 24h basket context before apply
+- [x] Redeploy backend/frontend after scanner-view preference rollout and verify `/watchlist` saved scanner views now restore across refresh, logout/login, and device change
+- [x] Redeploy frontend after heatmap-slice rollout and verify `/watchlist` now shows a clickable mini heatmap of the strongest movers in the active market universe
+- [x] Redeploy frontend after scanner-view share/export/import rollout and verify `/watchlist` scanner presets now support portable JSON export/import plus shareable deep links
+- [x] Redeploy frontend after compare-basket performance-pill rollout and verify `/watchlist` compare basket cards now show quick directional tone badges before apply
+- [x] Redeploy frontend after scanner-view rename/overwrite rollout and verify `/watchlist` saved scanner presets now support inline rename plus overwriting with the current scanner state
+- [x] Redeploy frontend after sector-pulse rollout and verify `/watchlist` heatmap area now includes clickable sector-group scanner pivots based on average 24h sector move
+- [x] Redeploy backend/frontend after scanner-view anchor-symbol rollout and verify sector-based scanner presets now restore with the correct symbol context and support one-click save from `Sector Pulse`
+- [x] Redeploy frontend after compare-basket sparkline rollout and verify compare basket cards now show a mini relative-strength curve derived from current basket 24h moves
+- [x] Redeploy frontend after session-rail rollout and verify `/watchlist` now surfaces compact market/watchlist/compare/scanner/favorites context cards above the instrument header
+- [x] Redeploy frontend after universe-metric-pill rollout and verify instrument cards now surface move-rank plus watchlist/compare/active state pills for faster scanner reads
+- [x] Redeploy frontend after universe-signal-pill rollout and verify instrument cards now surface market-relative, sector-relative, and velocity scanner pills
+- [x] Redeploy frontend after compare-basket-to-layout rollout and verify saved compare baskets can now be promoted into full named terminal layouts without manually rebuilding the entire state
+- [x] Redeploy frontend after compare-source-to-layout rollout and verify suggested, built-in, and saved compare baskets can all be promoted into full named terminal layouts
+- [x] Redeploy frontend after compare-basket-delta-chip rollout and verify compare basket cards now surface leader, weakest, and spread chips before apply
+- [x] Redeploy frontend after compare-basket-overlap-chip rollout and verify compare basket cards now surface watchlist/favorites/session overlap chips before apply
+- [x] Redeploy frontend after compare-basket-apply-impact rollout and verify compare basket cards now surface usable/add/drop/will-reveal preview chips before apply
+- [x] Redeploy frontend after right-rail-summary rollout and verify `/watchlist` now surfaces compact watchlist/compare/scanner/favorites context inside the right rail
+- [x] Redeploy frontend after right-rail-counter rollout and verify `/watchlist` right rail now surfaces alert-binding, triggered-alert, and note counters beside the compact session summary
+- [x] Redeploy frontend after right-rail-quick-actions rollout and verify `/watchlist` right rail now exposes fast favorite/basket/alert actions for the active symbol
+- [x] Redeploy frontend after right-rail-layout-capture rollout and verify `/watchlist` right rail can promote the active terminal state directly into saved layouts
+- [x] Redeploy frontend after scanner-view-summary rollout and verify saved scanner views now surface match count, average move, leader, and sector context
+- [x] Redeploy frontend after right-rail-scanner-capture rollout and verify `/watchlist` right rail can capture the active scanner state directly into saved scanner views
+- [x] Redeploy frontend after scanner-view-overlap-chip rollout and verify saved scanner views now surface watchlist/favorites/anchor-link overlap chips
+- [x] Redeploy frontend after scanner-view-fit-pill rollout and verify saved scanner views now surface a current market-fit tone pill
+- [x] Redeploy frontend after right-rail-share-state rollout and verify `/watchlist` right rail can copy a shared link for the current terminal state
 - [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol
   - clear compare action
   - chart legend state that reflects active vs hidden compare overlays
   - relative performance gap for primary vs compare symbol over the selected window
-- [ ] Redeploy frontend after first-pass drawing tools rollout and verify `/watchlist` now supports:
+- [x] Redeploy frontend after first-pass drawing tools rollout and verify `/watchlist` now supports:
   - horizontal level placement
   - two-click trend line placement
   - clear drawings
   - visible drawing list with single-item removal
   - symbol-scoped drawing persistence across reloads and market-terminal revisits
   - drawing mode resets cleanly when symbol/range/interval changes
-- [ ] Redeploy frontend after deeper `ALL` history preload + viewport-preserving prepend rollout and verify `/watchlist` now starts with materially deeper history while `Load Older` extends candles without jumping the visible chart window
+- [x] Redeploy frontend after deeper `ALL` history preload + viewport-preserving prepend rollout and verify `/watchlist` now starts with materially deeper history while `Load Older` extends candles without jumping the visible chart window
 - [ ] Redeploy frontend after market terminal OHLC info bar + volume histogram rollout and verify crosshair movement updates candle metrics without reintroducing chart refresh loops
-- [ ] Redeploy frontend after market terminal favorites rollout and verify starred symbols persist locally and appear in the quick-switch favorites bar
-- [ ] Redeploy frontend after market terminal compare-mode rollout and verify secondary instruments render as normalized overlay lines without disrupting primary candle history loading
-- [ ] Redeploy backend/frontend after extended market terminal ranges (`3M/6M/1Y`) rollout and verify larger windows resolve cleanly for each supported interval
-- [ ] Redeploy backend/frontend after advanced market terminal rollout and verify:
+- [x] Redeploy frontend after market terminal favorites rollout and verify starred symbols persist locally and appear in the quick-switch favorites bar
+- [x] Redeploy frontend after market terminal compare-mode rollout and verify secondary instruments render as normalized overlay lines without disrupting primary candle history loading
+- [x] Redeploy backend/frontend after extended market terminal ranges (`3M/6M/1Y`) rollout and verify larger windows resolve cleanly for each supported interval
+- [x] Redeploy backend/frontend after advanced market terminal rollout and verify:
   - `/watchlist` supports direct instrument switching from the universe rail without requiring watchlist insertion
   - chart supports intervals (`1m`, `15m`, `30m`, `1h`, `4h`, `1d`)
   - `ALL` mode can pull older candles incrementally as the chart is scrolled left
   - selected watchlist items still drive the same chart surface
-- [ ] Redeploy backend/frontend after market workspace rollout and verify `/watchlist` now behaves as a TradingView-style markets surface with:
+- [x] Redeploy backend/frontend after market workspace rollout and verify `/watchlist` now behaves as a TradingView-style markets surface with:
   - supported instrument universe from backend
   - right-rail watchlists with add/remove flows
   - 24h change shown in list and selected header

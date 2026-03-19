@@ -14,7 +14,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-11)
+### Progress Tracker (updated 2026-03-19)
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
@@ -70,6 +70,11 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - local stack health check
     - Added `infra/local-dev.md` documenting the intended run order and default local env contract.
     - Local backend bootstrap disables alerting and websocket canary noise by default while keeping the rest of the app path intact.
+    - Verified the stack locally with:
+      - Docker-backed Postgres/Redis
+      - backend health `200` on `localhost:8080`
+      - frontend health `200` on `localhost:3005`
+      - notification transport downgrading cleanly when STOMP is rejected during local dev
   - **Operational impact**:
     - the platform can now move off Railway for day-to-day development without re-deriving env wiring each time
     - local stack startup is now repeatable instead of tribal knowledge
