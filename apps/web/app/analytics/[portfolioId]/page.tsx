@@ -25,6 +25,27 @@ interface AnalyticsData {
         snapshotCount: number;
         firstSnapshotAt: string | null;
         latestSnapshotAt: string | null;
+        contributionSummary?: {
+            realizedPnl: number;
+            unrealizedPnl: number;
+            netPnl: number;
+            grossExposure: number;
+            openPositions: number;
+            activeRiskSymbols: number;
+        };
+        highlightSummary?: {
+            topRealizedSymbol: string | null;
+            topRealizedPnl: number;
+            topRealizedTradeCount: number;
+            topExposureSymbol: string | null;
+            topExposure: number;
+            topExposureUnrealizedPnl: number;
+            topExposureShare: number;
+            sevenDayReturnPercentage: number;
+            thirtyDayReturnPercentage: number;
+            bestMoveReturnPercentage: number;
+            worstMoveReturnPercentage: number;
+        };
     };
     positionSummary?: {
         openPositions: number;
@@ -1045,6 +1066,27 @@ export default function AnalyticsPage({ params }: { params: Promise<{ portfolioI
     const topExposureAttribution = filteredRiskAttribution
         .slice()
         .sort((left, right) => right.exposure - left.exposure)[0] ?? null;
+    const contributionSummary = summary.contributionSummary ?? {
+        realizedPnl: positionSummary.realizedPnl,
+        unrealizedPnl: positionSummary.unrealizedPnl,
+        netPnl: positionSummary.netPnl,
+        grossExposure: positionSummary.grossExposure,
+        openPositions: positionSummary.openPositions,
+        activeRiskSymbols: filteredRiskAttribution.length,
+    };
+    const highlightSummary = summary.highlightSummary ?? {
+        topRealizedSymbol: topRealizedAttribution?.symbol ?? null,
+        topRealizedPnl: topRealizedAttribution?.realizedPnl ?? 0,
+        topRealizedTradeCount: topRealizedAttribution?.tradeCount ?? 0,
+        topExposureSymbol: topExposureAttribution?.symbol ?? null,
+        topExposure: topExposureAttribution?.exposure ?? 0,
+        topExposureUnrealizedPnl: topExposureAttribution?.unrealizedPnl ?? 0,
+        topExposureShare: topExposureAttribution?.exposureShare ?? 0,
+        sevenDayReturnPercentage: performanceWindows['7d'].returnPercentage,
+        thirtyDayReturnPercentage: performanceWindows['30d'].returnPercentage,
+        bestMoveReturnPercentage: periodExtremes.bestMove.returnPercentage,
+        worstMoveReturnPercentage: periodExtremes.worstMove.returnPercentage,
+    };
     const snapshotContextChips = [
         summary.visibility,
         selectedCurveWindow,
@@ -1289,6 +1331,92 @@ ${lines}
                             {data.predictionWinRate.toFixed(2)}%
                         </p>
                         <p className="mt-2 text-xs text-zinc-500">Resolved analysis hit rate</p>
+                    </div>
+                </div>
+
+                <div className="mb-6 grid gap-6 xl:grid-cols-12">
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-7">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Contribution Snapshot</h2>
+                                <p className="mt-1 text-[10px] text-zinc-600">Backend summary block for realized, unrealized, and live-risk contribution context.</p>
+                            </div>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+                                {contributionSummary.openPositions} live
+                            </span>
+                        </div>
+                        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            {[
+                                { label: 'Realized PnL', value: contributionSummary.realizedPnl, neutral: false },
+                                { label: 'Unrealized PnL', value: contributionSummary.unrealizedPnl, neutral: false },
+                                { label: 'Net PnL', value: contributionSummary.netPnl, neutral: false },
+                                { label: 'Gross Exposure', value: contributionSummary.grossExposure, neutral: true },
+                            ].map((metric) => (
+                                <div key={metric.label} className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">{metric.label}</p>
+                                    <p className={`mt-2 text-2xl font-bold font-mono ${metric.neutral ? 'text-white' : metric.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {formatEquity(metric.value)}
+                                    </p>
+                                    <p className="mt-2 text-xs text-zinc-500">
+                                        {metric.label === 'Gross Exposure'
+                                            ? `${contributionSummary.activeRiskSymbols} live risk symbols`
+                                            : `${contributionSummary.openPositions} open positions in current snapshot`}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 xl:col-span-5">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-300">Summary Highlights</h2>
+                            <p className="mt-1 text-[10px] text-zinc-600">Fast read on attribution leaders and recent window behavior from the same backend summary block.</p>
+                        </div>
+                        <div className="mt-5 space-y-3">
+                            <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Top Realized Symbol</p>
+                                <div className="mt-2 flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-lg font-bold text-white">{highlightSummary.topRealizedSymbol ?? 'N/A'}</p>
+                                        <p className="mt-1 text-xs text-zinc-500">{highlightSummary.topRealizedTradeCount} recorded trades</p>
+                                    </div>
+                                    <p className={`text-sm font-mono ${highlightSummary.topRealizedPnl >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                                        {highlightSummary.topRealizedSymbol ? formatCurrency(highlightSummary.topRealizedPnl) : 'No realized attribution'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">Top Live Exposure</p>
+                                <div className="mt-2 flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-lg font-bold text-white">{highlightSummary.topExposureSymbol ?? 'N/A'}</p>
+                                        <p className="mt-1 text-xs text-zinc-500">{highlightSummary.topExposureShare.toFixed(2)}% of live exposure</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm font-mono text-zinc-200">
+                                            {highlightSummary.topExposureSymbol ? formatEquity(highlightSummary.topExposure) : 'No live exposure'}
+                                        </p>
+                                        <p className={`mt-1 text-xs font-mono ${highlightSummary.topExposureUnrealizedPnl >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                                            {highlightSummary.topExposureSymbol ? formatCurrency(highlightSummary.topExposureUnrealizedPnl) : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                {[
+                                    { label: '7D', value: highlightSummary.sevenDayReturnPercentage },
+                                    { label: '30D', value: highlightSummary.thirtyDayReturnPercentage },
+                                    { label: 'Best Interval', value: highlightSummary.bestMoveReturnPercentage },
+                                    { label: 'Worst Interval', value: highlightSummary.worstMoveReturnPercentage },
+                                ].map((metric) => (
+                                    <div key={metric.label} className="rounded-xl border border-white/5 bg-black/20 p-4">
+                                        <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500">{metric.label}</p>
+                                        <p className={`mt-2 text-lg font-bold font-mono ${metric.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {metric.value >= 0 ? '+' : ''}{metric.value.toFixed(2)}%
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
 

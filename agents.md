@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Portfolio Analytics Header Now Reads From A Richer Backend Summary Block**
+  - **Problem observed**:
+    - `/analytics/{portfolioId}` already had most of the deep analytics surfaces, but the top summary layer still depended on client-side recomposition across multiple response blocks.
+    - That left realized/unrealized/live-risk headline context more fragmented than the rest of the analytics workspace.
+  - **Implementation**:
+    - Extended the backend analytics `summary` block with:
+      - `contributionSummary`
+      - `highlightSummary`
+    - These now carry:
+      - realized / unrealized / net PnL
+      - gross exposure
+      - open-position and active-risk counts
+      - top realized symbol
+      - top live-exposure symbol
+      - 7D / 30D / best / worst move percentages
+    - Updated the analytics page to render a new header-adjacent `Contribution Snapshot` and `Summary Highlights` surface from that richer summary block.
+    - Hardened analytics CSV export so nullable summary highlights no longer break export generation.
+  - **Operational impact**:
+    - the analytics header now exposes the important realized/live-risk context without forcing users to scan lower sections first
+    - export and top-level analytics summary now share the same backend-owned headline data instead of diverging in client-side composition
 - **2026-03-19**: **Profile Trust Signals Now Link Directly Into Scoring Methodology**
   - **Problem observed**:
     - Profile trust pages already surfaced prediction, trade, and portfolio evidence, but the explanation route on `/trust-score` was still detached from those live signals.

@@ -21,7 +21,7 @@ Last updated: 2026-03-19
   - local JSON settings snapshot export
   - browser-side cache clear without deleting server-owned preferences
   - full browser session clear for fresh-login debugging
-- [ ] Redeploy backend/frontend after portfolio analytics summary rollout and verify `/analytics/{portfolioId}` now surfaces:
+- [x] Redeploy backend/frontend after portfolio analytics summary rollout and verify `/analytics/{portfolioId}` now surfaces:
   - portfolio identity and visibility in the header
   - current equity / net return / peak / trough summary cards
   - responsive trade/risk sections backed by the new backend `summary` block

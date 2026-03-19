@@ -209,6 +209,8 @@ class PerformanceAnalyticsServiceTest {
         java.util.List<Map<String, Object>> symbolMiniTimelines = (java.util.List<Map<String, Object>>) result.get("symbolMiniTimelines");
         java.util.List<Map<String, Object>> riskAttribution = (java.util.List<Map<String, Object>>) result.get("riskAttribution");
         java.util.List<Map<String, Object>> pnlTimeline = (java.util.List<Map<String, Object>>) result.get("pnlTimeline");
+        Map<String, Object> contributionSummary = (Map<String, Object>) summary.get("contributionSummary");
+        Map<String, Object> highlightSummary = (Map<String, Object>) summary.get("highlightSummary");
 
         assertEquals("Alpha", summary.get("portfolioName"));
         assertEquals("PUBLIC", summary.get("visibility"));
@@ -216,6 +218,13 @@ class PerformanceAnalyticsServiceTest {
         assertEquals(105000.0, (double) summary.get("currentEquity"), 0.001);
         assertEquals(5000.0, (double) summary.get("absoluteReturn"), 0.001);
         assertEquals(5.0, (double) summary.get("returnPercentage"), 0.001);
+        assertEquals(1500.0, (double) contributionSummary.get("realizedPnl"), 0.001);
+        assertEquals(4000.0, (double) contributionSummary.get("unrealizedPnl"), 0.001);
+        assertEquals(5500.0, (double) contributionSummary.get("netPnl"), 0.001);
+        assertEquals(1, contributionSummary.get("openPositions"));
+        assertEquals(1, contributionSummary.get("activeRiskSymbols"));
+        assertEquals("BTCUSDT", highlightSummary.get("topRealizedSymbol"));
+        assertEquals("BTCUSDT", highlightSummary.get("topExposureSymbol"));
         assertEquals(1, positionSummary.get("openPositions"));
         assertEquals(104000.0, (double) positionSummary.get("grossExposure"), 0.001);
         assertEquals(1500.0, (double) positionSummary.get("realizedPnl"), 0.001);

@@ -275,13 +275,27 @@ public class PerformanceAnalyticsService {
                 .orElseThrow(() -> new RuntimeException("Portfolio not found"));
         List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
         List<TradeActivity> trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId);
+        Map<String, Object> positionSummary = buildPositionSummary(portfolio, trades);
+        List<Map<String, Object>> riskAttribution = buildRiskAttribution(portfolio);
+        Map<String, Object> performanceWindows = buildPerformanceWindows(snapshots);
+        Map<String, Object> periodExtremes = buildPeriodExtremes(snapshots);
+        List<Map<String, Object>> symbolAttribution = buildSymbolAttribution(trades);
+        List<Map<String, Object>> symbolMiniTimelines = buildSymbolMiniTimelines(trades);
+        List<Map<String, Object>> pnlTimeline = buildPnlTimeline(snapshots, trades);
 
-        analytics.put("summary", buildPortfolioSummary(portfolio, snapshots));
-        analytics.put("positionSummary", buildPositionSummary(portfolio, trades));
-        analytics.put("riskAttribution", buildRiskAttribution(portfolio));
-        analytics.put("performanceWindows", buildPerformanceWindows(snapshots));
-        analytics.put("periodExtremes", buildPeriodExtremes(snapshots));
-        analytics.put("pnlTimeline", buildPnlTimeline(snapshots, trades));
+        analytics.put("summary", buildPortfolioSummary(
+                portfolio,
+                snapshots,
+                positionSummary,
+                riskAttribution,
+                performanceWindows,
+                periodExtremes,
+                symbolAttribution));
+        analytics.put("positionSummary", positionSummary);
+        analytics.put("riskAttribution", riskAttribution);
+        analytics.put("performanceWindows", performanceWindows);
+        analytics.put("periodExtremes", periodExtremes);
+        analytics.put("pnlTimeline", pnlTimeline);
 
         // Risk Metrics
         Map<String, Object> risk = new LinkedHashMap<>();
@@ -297,8 +311,8 @@ public class PerformanceAnalyticsService {
 
         // Trade Stats
         analytics.put("tradeStats", buildTradeStats(trades));
-        analytics.put("symbolAttribution", buildSymbolAttribution(trades));
-        analytics.put("symbolMiniTimelines", buildSymbolMiniTimelines(trades));
+        analytics.put("symbolAttribution", symbolAttribution);
+        analytics.put("symbolMiniTimelines", symbolMiniTimelines);
 
         // Equity Curve
         analytics.put("equityCurve", getEquityCurve(portfolioId));
@@ -335,12 +349,24 @@ public class PerformanceAnalyticsService {
         rows.add(List.of("summary", "currentEquity", summary.get("currentEquity")));
         rows.add(List.of("summary", "absoluteReturn", summary.get("absoluteReturn")));
         rows.add(List.of("summary", "returnPercentage", summary.get("returnPercentage")));
+        Map<String, Object> contributionSummary = castMap(summary.get("contributionSummary"));
+        rows.add(List.of("summary", "realizedPnl", contributionSummary.getOrDefault("realizedPnl", 0.0)));
+        rows.add(List.of("summary", "unrealizedPnl", contributionSummary.getOrDefault("unrealizedPnl", 0.0)));
+        rows.add(List.of("summary", "netPnl", contributionSummary.getOrDefault("netPnl", 0.0)));
+        rows.add(List.of("summary", "grossExposure", contributionSummary.getOrDefault("grossExposure", 0.0)));
+        rows.add(List.of("summary", "openPositions", contributionSummary.getOrDefault("openPositions", 0)));
+        rows.add(List.of("summary", "activeRiskSymbols", contributionSummary.getOrDefault("activeRiskSymbols", 0)));
         rows.add(List.of("positions", "openPositions", positionSummary.get("openPositions")));
         rows.add(List.of("positions", "grossExposure", positionSummary.get("grossExposure")));
         rows.add(List.of("positions", "realizedPnl", positionSummary.get("realizedPnl")));
         rows.add(List.of("positions", "unrealizedPnl", positionSummary.get("unrealizedPnl")));
         rows.add(List.of("context", "curveWindow", normalizeCurveWindow(curveWindow)));
         rows.add(List.of("context", "symbolFilter", Objects.requireNonNullElse(normalizeSymbolFilter(symbolFilter), "")));
+        Map<String, Object> highlightSummary = castMap(summary.get("highlightSummary"));
+        rows.add(List.of("summary", "topRealizedSymbol", Objects.requireNonNullElse(highlightSummary.get("topRealizedSymbol"), "")));
+        rows.add(List.of("summary", "topExposureSymbol", Objects.requireNonNullElse(highlightSummary.get("topExposureSymbol"), "")));
+        rows.add(List.of("summary", "sevenDayReturnPercentage", highlightSummary.getOrDefault("sevenDayReturnPercentage", 0.0)));
+        rows.add(List.of("summary", "thirtyDayReturnPercentage", highlightSummary.getOrDefault("thirtyDayReturnPercentage", 0.0)));
 
         Map<String, Object> window7d = castMap(performanceWindows.get("7d"));
         Map<String, Object> window30d = castMap(performanceWindows.get("30d"));
@@ -385,7 +411,14 @@ public class PerformanceAnalyticsService {
         return returns;
     }
 
-    private Map<String, Object> buildPortfolioSummary(Portfolio portfolio, List<PortfolioSnapshot> snapshots) {
+    private Map<String, Object> buildPortfolioSummary(
+            Portfolio portfolio,
+            List<PortfolioSnapshot> snapshots,
+            Map<String, Object> positionSummary,
+            List<Map<String, Object>> riskAttribution,
+            Map<String, Object> performanceWindows,
+            Map<String, Object> periodExtremes,
+            List<Map<String, Object>> symbolAttribution) {
         double fallbackEquity = portfolio.getBalance() != null ? portfolio.getBalance().doubleValue() : 0.0;
         double startEquity = snapshots.isEmpty() ? fallbackEquity : snapshots.get(0).getTotalEquity().doubleValue();
         double currentEquity = snapshots.isEmpty() ? fallbackEquity : snapshots.get(snapshots.size() - 1).getTotalEquity().doubleValue();
@@ -417,6 +450,35 @@ public class PerformanceAnalyticsService {
         summary.put("snapshotCount", snapshots.size());
         summary.put("firstSnapshotAt", snapshots.isEmpty() ? null : snapshots.get(0).getTimestamp().toString());
         summary.put("latestSnapshotAt", snapshots.isEmpty() ? null : snapshots.get(snapshots.size() - 1).getTimestamp().toString());
+
+        Map<String, Object> contributionSummary = new LinkedHashMap<>();
+        contributionSummary.put("realizedPnl", positionSummary.getOrDefault("realizedPnl", 0.0));
+        contributionSummary.put("unrealizedPnl", positionSummary.getOrDefault("unrealizedPnl", 0.0));
+        contributionSummary.put("netPnl", positionSummary.getOrDefault("netPnl", 0.0));
+        contributionSummary.put("grossExposure", positionSummary.getOrDefault("grossExposure", 0.0));
+        contributionSummary.put("openPositions", positionSummary.getOrDefault("openPositions", 0));
+        contributionSummary.put("activeRiskSymbols", riskAttribution.size());
+        summary.put("contributionSummary", contributionSummary);
+
+        Map<String, Object> highlightSummary = new LinkedHashMap<>();
+        Map<String, Object> topRealized = symbolAttribution.isEmpty() ? Map.of() : symbolAttribution.get(0);
+        Map<String, Object> topExposure = riskAttribution.isEmpty() ? Map.of() : riskAttribution.get(0);
+        Map<String, Object> window7d = castMap(performanceWindows.get("7d"));
+        Map<String, Object> window30d = castMap(performanceWindows.get("30d"));
+        Map<String, Object> bestMove = castMap(periodExtremes.get("bestMove"));
+        Map<String, Object> worstMove = castMap(periodExtremes.get("worstMove"));
+        highlightSummary.put("topRealizedSymbol", topRealized.getOrDefault("symbol", null));
+        highlightSummary.put("topRealizedPnl", topRealized.getOrDefault("realizedPnl", 0.0));
+        highlightSummary.put("topRealizedTradeCount", topRealized.getOrDefault("tradeCount", 0));
+        highlightSummary.put("topExposureSymbol", topExposure.getOrDefault("symbol", null));
+        highlightSummary.put("topExposure", topExposure.getOrDefault("exposure", 0.0));
+        highlightSummary.put("topExposureUnrealizedPnl", topExposure.getOrDefault("unrealizedPnl", 0.0));
+        highlightSummary.put("topExposureShare", topExposure.getOrDefault("exposureShare", 0.0));
+        highlightSummary.put("sevenDayReturnPercentage", window7d.getOrDefault("returnPercentage", 0.0));
+        highlightSummary.put("thirtyDayReturnPercentage", window30d.getOrDefault("returnPercentage", 0.0));
+        highlightSummary.put("bestMoveReturnPercentage", bestMove.getOrDefault("returnPercentage", 0.0));
+        highlightSummary.put("worstMoveReturnPercentage", worstMove.getOrDefault("returnPercentage", 0.0));
+        summary.put("highlightSummary", highlightSummary);
         return summary;
     }
 
