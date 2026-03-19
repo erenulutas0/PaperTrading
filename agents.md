@@ -38,6 +38,17 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Compare Overlay State Made Persistent And Visible Even When Hidden**
+  - **Problem observed**:
+    - `/watchlist` compare mode already preserved symbols and relative gap math, but once overlays were hidden the chart-level compare legend stopped reflecting that state.
+    - That made hidden compare sessions feel ambiguous instead of intentionally parked.
+  - **Implementation**:
+    - Separated compare legend summarization from compare-line rendering in the chart workspace.
+    - The chart now keeps compare legend context visible even when overlay lines are hidden.
+    - The compare-session strip now explains whether symbols are actively rendered or merely parked in session state awaiting reveal.
+  - **Operational impact**:
+    - hide/show overlay no longer feels like dropping compare context
+    - users can park a compare basket without losing visual confirmation that the session is still attached
 - **2026-03-19**: **Terminal Watch Basket Shifted From Symbol List To Metadata-Aware Instrument Surface**
   - **Problem observed**:
     - `/watchlist` already carried market metadata in the instrument universe and selected-header context, but the right-rail basket still read mostly like a raw symbol list.

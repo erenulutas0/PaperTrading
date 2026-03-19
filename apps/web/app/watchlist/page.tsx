@@ -3602,6 +3602,11 @@ export default function WatchlistPage() {
                                             <div className="flex flex-wrap items-start justify-between gap-3">
                                                 <div className="min-w-0">
                                                 <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compare Session</p>
+                                                <p className="mt-1 text-xs text-zinc-400">
+                                                    {compareVisible
+                                                        ? 'Normalized overlay lines are active on the chart and relative gap pills track primary-vs-compare spread.'
+                                                        : 'Compare symbols are still attached to the session. Use Show Overlay to reveal them again without rebuilding the basket.'}
+                                                </p>
                                                 <div className="mt-2 flex flex-wrap items-center gap-2">
                                                     <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-amber-300">
                                                         {selectedSymbol}
@@ -3678,6 +3683,11 @@ export default function WatchlistPage() {
                                                         {summary.displayName} · {summary.relativeGapPercent >= 0 ? '+' : ''}{summary.relativeGapPercent.toFixed(2)}%
                                                     </button>
                                                 ))}
+                                                {!compareVisible && (
+                                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] font-semibold text-zinc-400">
+                                                        Legend stays in sync while overlay is hidden.
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     )}

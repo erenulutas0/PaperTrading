@@ -231,7 +231,7 @@ Last updated: 2026-03-19
 - [x] Redeploy frontend after scanner-view-overlap-chip rollout and verify saved scanner views now surface watchlist/favorites/anchor-link overlap chips
 - [x] Redeploy frontend after scanner-view-fit-pill rollout and verify saved scanner views now surface a current market-fit tone pill
 - [x] Redeploy frontend after right-rail-share-state rollout and verify `/watchlist` right rail can copy a shared link for the current terminal state
-- [ ] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
+- [x] Redeploy frontend after compare-mode polish and verify `/watchlist` now supports:
   - compare session banner
   - hide/show overlay without losing selected compare symbol
   - clear compare action

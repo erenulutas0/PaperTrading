@@ -159,10 +159,7 @@ export default function MarketWorkspaceChart({
         }));
     }, [normalizedData]);
 
-    const compareSeriesData = useMemo(() => {
-        if (!compareVisible) {
-            return [];
-        }
+    const compareIndexedSeries = useMemo(() => {
         return normalizedCompareSeries.map((series) => {
             const baseClose = series.data[0]?.close || 1;
             return {
@@ -174,13 +171,20 @@ export default function MarketWorkspaceChart({
                 })),
             };
         });
-    }, [compareVisible, normalizedCompareSeries]);
+    }, [normalizedCompareSeries]);
+
+    const compareSeriesData = useMemo(() => {
+        if (!compareVisible) {
+            return [];
+        }
+        return compareIndexedSeries;
+    }, [compareIndexedSeries, compareVisible]);
 
     const primaryLatestIndexedValue = normalizedData.length > 0
         ? ((normalizedData[normalizedData.length - 1].close / (normalizedData[0].close || 1)) * 100)
         : null;
-    const comparePerformanceSummaries = useMemo(() => {
-        return compareSeriesData.map((series) => {
+    const compareLegendSummaries = useMemo(() => {
+        return compareIndexedSeries.map((series) => {
             const latestValue = series.data.length > 0 ? series.data[series.data.length - 1]?.value ?? null : null;
             const relativePerformanceGap = latestValue !== null && primaryLatestIndexedValue !== null
                 ? primaryLatestIndexedValue - latestValue
@@ -192,7 +196,7 @@ export default function MarketWorkspaceChart({
                 relativePerformanceGap,
             };
         });
-    }, [compareSeriesData, primaryLatestIndexedValue]);
+    }, [compareIndexedSeries, primaryLatestIndexedValue]);
 
     const resolvedActivePoint = activePoint ?? normalizedData[normalizedData.length - 1] ?? null;
     const activeChange = resolvedActivePoint ? resolvedActivePoint.close - resolvedActivePoint.open : 0;
@@ -680,7 +684,7 @@ export default function MarketWorkspaceChart({
                         {resolvedActivePoint ? resolvedActivePoint.volume.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
                     </span>
                 </div>
-                {comparePerformanceSummaries.map((summary) => (
+                {compareLegendSummaries.map((summary) => (
                     <div key={summary.label} style={{ color: summary.color }}>
                         <span className="text-zinc-500">{summary.label} </span>
                         <span className="font-mono">
@@ -690,10 +694,10 @@ export default function MarketWorkspaceChart({
                 ))}
             </div>
             <div ref={chartContainerRef} className="h-[520px] w-full" />
-            {comparePerformanceSummaries.length > 0 && (
+            {compareLegendSummaries.length > 0 && (
                 <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/8 bg-black/30 px-4 py-3 text-xs">
                     <span className="uppercase tracking-[0.24em] text-zinc-500">Compare</span>
-                    {comparePerformanceSummaries.map((summary) => (
+                    {compareLegendSummaries.map((summary) => (
                         <div key={summary.label} className="flex items-center gap-2">
                             <span
                                 className="rounded-full border px-3 py-1 font-semibold"
@@ -706,7 +710,9 @@ export default function MarketWorkspaceChart({
                                 {summary.label}
                             </span>
                             <span className="text-zinc-500">
-                                {summary.latestValue !== null ? `Overlay active · ${summary.latestValue.toFixed(2)} indexed` : 'Overlay hidden'}
+                                {summary.latestValue !== null
+                                    ? `${compareVisible ? 'Overlay active' : 'Overlay hidden'} · ${summary.latestValue.toFixed(2)} indexed`
+                                    : (compareVisible ? 'Overlay active' : 'Overlay hidden')}
                             </span>
                             {summary.relativePerformanceGap !== null && (
                                 <span className={summary.relativePerformanceGap >= 0 ? 'text-emerald-400' : 'text-red-400'}>
