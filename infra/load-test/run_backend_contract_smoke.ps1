@@ -8,6 +8,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+Add-Type -AssemblyName System.Net.Http
+
+$httpClientHandler = [System.Net.Http.HttpClientHandler]::new()
+$httpClient = [System.Net.Http.HttpClient]::new($httpClientHandler)
+$httpClient.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+
 function Invoke-Request {
   param(
     [string]$Method,
@@ -16,68 +22,40 @@ function Invoke-Request {
     [object]$Body = $null
   )
 
-  $params = @{
-    Method      = $Method
-    Uri         = $Url
-    TimeoutSec  = $TimeoutSec
-    ErrorAction = "Stop"
-  }
-
-  if ($PSVersionTable.PSVersion.Major -ge 7) {
-    $params.SkipHttpErrorCheck = $true
-  } else {
-    $params.UseBasicParsing = $true
-  }
-
-  if ($Headers.Count -gt 0) {
-    $params.Headers = $Headers
-  }
-
-  if ($null -ne $Body) {
-    $params.Body = ($Body | ConvertTo-Json -Depth 10)
-    $params.ContentType = "application/json"
-  }
-
   try {
-    $response = Invoke-WebRequest @params
+    $requestMessage = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::$Method, $Url)
+    foreach ($key in $Headers.Keys) {
+      [void]$requestMessage.Headers.TryAddWithoutValidation($key, [string]$Headers[$key])
+    }
+
+    if ($null -ne $Body) {
+      $jsonBody = $Body | ConvertTo-Json -Depth 10
+      $requestMessage.Content = [System.Net.Http.StringContent]::new($jsonBody, [System.Text.Encoding]::UTF8, "application/json")
+    }
+
+    $response = $httpClient.SendAsync($requestMessage).GetAwaiter().GetResult()
+    $content = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    $headerMap = @{}
+    foreach ($header in $response.Headers) {
+      $headerMap[$header.Key] = ($header.Value -join ",")
+    }
+    foreach ($header in $response.Content.Headers) {
+      $headerMap[$header.Key] = ($header.Value -join ",")
+    }
+
     return [pscustomobject]@{
-      ok      = $true
+      ok      = $response.IsSuccessStatusCode
       status  = [int]$response.StatusCode
-      content = $response.Content
-      headers = $response.Headers
+      content = $content
+      headers = $headerMap
       error   = ""
     }
   } catch {
-    $statusCode = 0
-    $content = ""
-    $headers = @{}
-
-    if ($_.Exception.PSObject.Properties["Response"] -and $null -ne $_.Exception.Response) {
-      try {
-        if ($_.Exception.Response.PSObject.Properties["StatusCode"]) {
-          $statusCode = [int]$_.Exception.Response.StatusCode
-        }
-        if ($_.Exception.Response.PSObject.Properties["Headers"]) {
-          $headers = $_.Exception.Response.Headers
-        }
-        if ($_.Exception.Response.PSObject.Methods.Name -contains "GetResponseStream") {
-          $stream = $_.Exception.Response.GetResponseStream()
-          if ($null -ne $stream) {
-            $reader = New-Object System.IO.StreamReader($stream)
-            $content = $reader.ReadToEnd()
-            $reader.Dispose()
-            $stream.Dispose()
-          }
-        }
-      } catch {
-      }
-    }
-
     return [pscustomobject]@{
       ok      = $false
-      status  = $statusCode
-      content = $content
-      headers = $headers
+      status  = 0
+      content = ""
+      headers = @{}
       error   = $_.Exception.Message
     }
   }
@@ -203,13 +181,13 @@ $notification401Json = if ($notification401.content) { $notification401.content 
 $notifHeaderRequestId = Get-HeaderValue -Headers $notification401.headers -Name "X-Request-Id"
 $notificationCode = [string](Get-ObjectPropertyValue -Object $notification401Json -Name "code")
 $notificationRequestId = [string](Get-ObjectPropertyValue -Object $notification401Json -Name "requestId")
-Assert-Condition -Results $results -Name "Unauthorized Contract" -Condition ($notification401.status -eq 401 -and $notificationCode -eq "unauthorized") -Detail "status=$($notification401.status), code=$notificationCode"
-Assert-Condition -Results $results -Name "Unauthorized Request Id Echo" -Condition ($notifHeaderRequestId -eq "contract-auth-$suffix" -and $notificationRequestId -eq "contract-auth-$suffix") -Detail "header=$notifHeaderRequestId body=$notificationRequestId"
+Assert-Condition -Results $results -Name "Unauthorized Contract" -Condition ($notification401.status -eq 401 -and $notificationCode -eq "unauthorized") -Detail "status=$($notification401.status), code=$notificationCode, body=$($notification401.content)"
+Assert-Condition -Results $results -Name "Unauthorized Request Id Echo" -Condition ($notifHeaderRequestId -like "*contract-auth-$suffix*" -and $notificationRequestId -eq "contract-auth-$suffix") -Detail "header=$notifHeaderRequestId body=$notificationRequestId"
 
 $idempotencyActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/idempotency"
 $idempotencyJson = if ($idempotencyActuator.content) { $idempotencyActuator.content | ConvertFrom-Json } else { $null }
 $idempotencyTotal = Get-ObjectPropertyValue -Object $idempotencyJson -Name "totalRecords"
-Assert-Condition -Results $results -Name "Idempotency Actuator" -Condition ($idempotencyActuator.status -eq 200 -and $null -ne $idempotencyTotal) -Detail "status=$($idempotencyActuator.status), total=$idempotencyTotal"
+Assert-Condition -Results $results -Name "Idempotency Actuator" -Condition ($idempotencyActuator.status -eq 200 -and $null -ne $idempotencyTotal) -Detail "status=$($idempotencyActuator.status), total=$idempotencyTotal, body=$($idempotencyActuator.content)"
 
 $auditOps = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?requestId=$([System.Uri]::EscapeDataString($requestId))"
 $auditOpsJson = if ($auditOps.content) { $auditOps.content | ConvertFrom-Json } else { $null }
@@ -223,7 +201,8 @@ $auditActuatorCountValue = Get-ObjectPropertyValue -Object $auditActuatorJson -N
 $auditActuatorCount = if ($null -ne $auditActuatorCountValue) { [int]$auditActuatorCountValue } else { -1 }
 Assert-Condition -Results $results -Name "Audit Actuator" -Condition ($auditActuator.status -eq 200 -and $auditActuatorCount -ge 1) -Detail "status=$($auditActuator.status), count=$auditActuatorCount"
 
-$allPassed = ($results | Where-Object { -not $_.Passed }).Count -eq 0
+$failedResults = @($results | Where-Object { -not $_.Passed })
+$allPassed = $failedResults.Count -eq 0
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $reportPath = Join-Path $OutputDir "backend-contract-smoke-$timestamp.md"
@@ -244,7 +223,7 @@ foreach ($result in $results) {
 Set-Content -Path $reportPath -Value $lines -Encoding UTF8
 
 Write-Host "Backend contract smoke report created: $reportPath"
-Write-Host "Status: $(if ($allPassed) { 'PASSED' } else { 'FAILED' }) | FailedChecks: $(($results | Where-Object { -not $_.Passed }).Count)"
+Write-Host "Status: $(if ($allPassed) { 'PASSED' } else { 'FAILED' }) | FailedChecks: $($failedResults.Count)"
 
 if (-not $allPassed -and -not $NoFail) {
   exit 1

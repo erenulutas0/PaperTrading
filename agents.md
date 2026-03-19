@@ -60,6 +60,11 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - backend contract verification is now scriptable instead of purely manual
     - local restart discipline becomes explicit when validating post-change runtime behavior
+  - **Validation**:
+    - Re-ran after backend restart and script hardening:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_backend_contract_smoke.ps1 -BaseUrl http://localhost:8080 -NoFail`
+    - Result:
+      - `Status: PASSED | FailedChecks: 0`
 - **2026-03-20**: **Status-Aware ResponseStatusException Handling Restores Proper Unauthorized Contracts**
   - **Problem observed**:
     - The backend had already standardized many controller and filter failures around the shared error payload.

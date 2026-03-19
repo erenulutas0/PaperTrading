@@ -636,6 +636,9 @@ Last updated: 2026-03-19
     - `/actuator/auditlog`
   - Notes:
     - first local run produced a report and surfaced that the long-running local backend process needs a restart before smoke results reflect the latest backend commits
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_backend_contract_smoke.ps1 -BaseUrl http://localhost:8080 -NoFail`
+    - final result after script hardening + backend restart: `PASSED | FailedChecks: 0`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`
