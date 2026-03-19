@@ -259,7 +259,7 @@ Last updated: 2026-03-19
   - right-rail watchlists with add/remove flows
   - 24h change shown in list and selected header
   - candlestick chart range switching (`1D` / `1W` / `1M`)
-- [ ] Redeploy backend/frontend after mixed leaderboard rollout and verify:
+- [x] Redeploy backend/frontend after mixed leaderboard rollout and verify:
   - `RETURN_PERCENTAGE` / `PROFIT_LOSS` still rank portfolios
   - `WIN_RATE` / `TRUST_SCORE` rank accounts
   - account rows drill into profile while portfolio rows still drill into portfolio detail
