@@ -270,8 +270,8 @@ Last updated: 2026-03-19
   - account rows drill into profile while portfolio rows still drill into portfolio detail
 - [x] Redeploy backend/frontend after trust score breakdown rollout and verify profile pages show prediction/trade/portfolio signals plus methodology page links
 - [ ] Redeploy backend after Bayesian/sample-size-aware trust score rollout and verify profile trust scores no longer overreact to tiny resolved-post samples while experienced authors gain gradual credibility lift
-- [ ] Redeploy backend after bypassing rate limiting for `/actuator/**` and re-run `run_auth_attack_scenarios.ps1` to confirm health probes no longer fail with `429`
-- [ ] Redeploy backend after auth attack script warmup probe tolerates `429/503` health states and verify strict-mode attack run no longer exits early as `UNAVAILABLE`
+- [x] Redeploy backend after bypassing rate limiting for `/actuator/**` and re-run `run_auth_attack_scenarios.ps1` to confirm health probes no longer fail with `429`
+- [x] Redeploy backend after auth attack script warmup probe tolerates `429/503` health states and verify strict-mode attack run no longer exits early as `UNAVAILABLE`
 - [x] Redeploy backend after interaction read-path batching and verify portfolio/post comment lists no longer lag or appear partially populated under concurrent like/reply traffic
 - [x] Redeploy frontend after interaction widget live-refresh hardening and verify portfolio comments/likes stay visible across tab focus changes and shortly after posting without manual refresh
 - [x] Redeploy frontend after optimistic comment/reply insertion + inline notification `Mark read` action and verify comment panels converge immediately while notifications can be marked read without navigation
@@ -280,7 +280,7 @@ Last updated: 2026-03-19
 - [x] Redeploy backend/frontend after interaction summary endpoint rollout and verify collapsed widgets no longer flash `0 likes / 0 comments` before settling on real counts
 - [x] Redeploy frontend after legacy-summary fallback and reduced comment auto-refresh rollout; verify counts still render if `/summary` is stale/missing and opened reply threads no longer visually reset every few seconds
 - [x] Redeploy frontend after auth-state-aware notification reconnect + polling fallback and verify receiver gets follow/like/comment notifications without manual refresh after login or transient WS/SSE stalls
-- [ ] Re-run `run_auth_attack_scenarios.ps1` after accepting rate-limit `429` on invalid refresh flood and making websocket canary parsing schema-tolerant for current endpoint payloads
+- [x] Re-run `run_auth_attack_scenarios.ps1` after accepting rate-limit `429` on invalid refresh flood and making websocket canary parsing schema-tolerant for current endpoint payloads
 - [ ] Redeploy backend after simplifying custom actuator audit endpoint to zero-argument snapshot mode and verify `/actuator/auditlog` returns recent rows without relying on optional parameter binding
 - [ ] Redeploy backend after JDBC-based audit inspection rewrite and verify both `/api/v1/ops/auditlog` and `/actuator/auditlog` return recent rows instead of `internal_error`
 - [ ] Redeploy backend after REST audit ops endpoint rollout and verify `/api/v1/ops/auditlog` exposes recent audit rows even if custom actuator inspection remains unstable in this runtime

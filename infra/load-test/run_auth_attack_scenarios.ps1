@@ -80,7 +80,11 @@ function Invoke-Request {
       Uri                = $Url
       TimeoutSec         = $TimeoutSec
       ErrorAction        = "Stop"
-      SkipHttpErrorCheck = $true
+    }
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+      $params.SkipHttpErrorCheck = $true
+    } else {
+      $params.UseBasicParsing = $true
     }
     if ($Headers.Count -gt 0) {
       $params.Headers = $Headers
@@ -101,10 +105,29 @@ function Invoke-Request {
     }
   } catch {
     $stopwatch.Stop()
+    $statusCode = 0
+    $content = ""
+    if ($_.Exception.PSObject.Properties["Response"] -and $null -ne $_.Exception.Response) {
+      try {
+        if ($_.Exception.Response.PSObject.Properties["StatusCode"]) {
+          $statusCode = [int]$_.Exception.Response.StatusCode
+        }
+        if ($_.Exception.Response.PSObject.Methods.Name -contains "GetResponseStream") {
+          $stream = $_.Exception.Response.GetResponseStream()
+          if ($null -ne $stream) {
+            $reader = New-Object System.IO.StreamReader($stream)
+            $content = $reader.ReadToEnd()
+            $reader.Dispose()
+            $stream.Dispose()
+          }
+        }
+      } catch {
+      }
+    }
     return [pscustomobject]@{
-      status    = 0
+      status    = $statusCode
       latencyMs = [double]$stopwatch.Elapsed.TotalMilliseconds
-      content   = ""
+      content   = $content
       ok        = $false
       error     = $_.Exception.Message
     }

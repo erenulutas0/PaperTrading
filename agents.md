@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Auth Attack Runner Is Now Windows PowerShell-Compatible For Local Strict-Mode Verification**
+  - **Problem observed**:
+    - `run_auth_attack_scenarios.ps1` had already been hardened logically for:
+      - actuator health `429/503` warmup tolerance
+      - websocket canary schema variation
+    - but on Windows PowerShell it still failed before reaching the app because `Invoke-WebRequest` was using:
+      - `-SkipHttpErrorCheck`
+      - no `-UseBasicParsing`
+    - That made the script report `UNAVAILABLE` for tooling reasons instead of real auth health.
+  - **Implementation**:
+    - Updated the shared request helper so it now:
+      - uses `SkipHttpErrorCheck` only on PowerShell 7+
+      - uses `UseBasicParsing` on Windows PowerShell
+      - extracts status/body from error responses when HTTP exceptions occur
+    - Re-ran the attack scenario script locally against `http://localhost:8080`.
+    - Verified targeted rate-limit bypass coverage with `RateLimitFilterTest`.
+  - **Operational impact**:
+    - auth attack verification is now runnable on the local Windows setup instead of failing on shell-version differences
+    - strict-mode verification can distinguish real auth/rate-limit regressions from PowerShell transport quirks
 - **2026-03-20**: **Interaction Comment Reads Collapsed Into A Single Paged Projection Query**
   - **Problem observed**:
     - Comment list rendering was already functionally correct, but each page read still fanned out into multiple follow-up queries for:
