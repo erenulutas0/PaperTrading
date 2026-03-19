@@ -2,7 +2,9 @@ package com.finance.core.service;
 
 import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Interaction;
+import com.finance.core.domain.Notification;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.event.NotificationEvent;
 import com.finance.core.dto.InteractionRequest;
 import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.InteractionRepository;
@@ -44,6 +46,8 @@ class InteractionServiceTest {
     private ActivityFeedService activityFeedService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private InteractionService interactionService;
@@ -197,8 +201,42 @@ class InteractionServiceTest {
 
         assertEquals(Interaction.TargetType.COMMENT, reply.getTargetType());
         assertEquals(commentId, reply.getTargetId());
-        verify(eventPublisher).publishEvent(any());
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertEquals(Notification.NotificationType.PORTFOLIO_COMMENT_REPLY, eventCaptor.getValue().getType());
         verify(activityFeedService).publish(any(), any(), any(), any(), eq(targetId), eq("Growth"));
+    }
+
+    @Test
+    void likeComment_ShouldGenerateCommentLikeNotificationType() {
+        UUID commentId = UUID.randomUUID();
+        UUID commentOwnerId = UUID.randomUUID();
+
+        InteractionRequest request = new InteractionRequest();
+        request.setTargetType("COMMENT");
+
+        Interaction parentComment = Interaction.builder()
+                .id(commentId)
+                .actorId(commentOwnerId)
+                .interactionType(Interaction.InteractionType.COMMENT)
+                .targetType(Interaction.TargetType.PORTFOLIO)
+                .targetId(targetId)
+                .content("Original comment")
+                .build();
+
+        when(interactionRepository.findByActorIdAndTargetTypeAndTargetIdAndInteractionType(
+                actorId, Interaction.TargetType.COMMENT, commentId, Interaction.InteractionType.LIKE))
+                .thenReturn(Optional.empty());
+        when(interactionRepository.findByIdAndInteractionType(commentId, Interaction.InteractionType.COMMENT))
+                .thenReturn(Optional.of(parentComment));
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(AppUser.builder().id(actorId).username("actor").build()));
+
+        interactionService.toggleLike(actorId, commentId, request);
+
+        var eventCaptor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertEquals(Notification.NotificationType.PORTFOLIO_COMMENT_LIKE, eventCaptor.getValue().getType());
     }
 
     @Test

@@ -80,7 +80,7 @@ public class InteractionService {
         }
         log.info("User {} LIKED {} {}", actorId, targetType, targetId);
 
-        sendNotification(actor, target, targetId, true);
+        sendNotification(actor, target, targetType, targetId, true);
         publishActivity(actor, target, targetId, true);
         auditLogService.record(
                 actorId,
@@ -116,7 +116,7 @@ public class InteractionService {
         comment = interactionRepository.save(comment);
         log.info("User {} COMMENTED on {} {}", actorId, targetType, targetId);
 
-        sendNotification(actor, target, targetId, false);
+        sendNotification(actor, target, targetType, targetId, false);
         publishActivity(actor, target, targetId, false);
         auditLogService.record(
                 actorId,
@@ -309,8 +309,13 @@ public class InteractionService {
         return resolveRootTarget(parentComment);
     }
 
-    private void sendNotification(AppUser actor, TargetMetadata target, UUID targetId, boolean isLike) {
-        NotificationType type = isLike ? target.likeNotificationType() : target.commentNotificationType();
+    private void sendNotification(
+            AppUser actor,
+            TargetMetadata target,
+            Interaction.TargetType targetType,
+            UUID targetId,
+            boolean isLike) {
+        NotificationType type = resolveNotificationType(target, targetType, isLike);
         if (actor.getId().equals(target.ownerId())) {
             return;
         }
@@ -324,6 +329,16 @@ public class InteractionService {
                 .referenceLabel(target.label())
                 .build();
         eventPublisher.publishEvent(event);
+    }
+
+    private NotificationType resolveNotificationType(
+            TargetMetadata target,
+            Interaction.TargetType targetType,
+            boolean isLike) {
+        if (targetType == Interaction.TargetType.COMMENT) {
+            return isLike ? target.commentLikeNotificationType() : target.commentReplyNotificationType();
+        }
+        return isLike ? target.likeNotificationType() : target.commentNotificationType();
     }
 
     private void publishActivity(AppUser actor, TargetMetadata target, UUID targetId, boolean isLike) {

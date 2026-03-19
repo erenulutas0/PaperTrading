@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Comment Interactions Now Emit Comment-Specific Notification Types**
+  - **Problem observed**:
+    - The notification domain already defined:
+      - `PORTFOLIO_COMMENT_LIKE`
+      - `PORTFOLIO_COMMENT_REPLY`
+      - `POST_COMMENT_LIKE`
+      - `POST_COMMENT_REPLY`
+    - but interaction notification publishing still treated comment targets like their root portfolio/post target.
+    - That meant comment likes and replies could degrade into generic root-level interaction notifications.
+  - **Implementation**:
+    - Updated `InteractionService` so notification type resolution now branches on `COMMENT` targets:
+      - comment likes emit `*_COMMENT_LIKE`
+      - comment replies emit `*_COMMENT_REPLY`
+    - Added service-level assertions for both reply and comment-like flows.
+    - Re-ran targeted integration coverage against the live notification controller path.
+  - **Operational impact**:
+    - bell/inbox copy can now reliably distinguish comment likes and replies from generic portfolio/post interactions
+    - notification semantics now match the existing frontend message mapping contract instead of depending on root-target fallback
 - **2026-03-19**: **Portfolio Analytics Header Now Reads From A Richer Backend Summary Block**
   - **Problem observed**:
     - `/analytics/{portfolioId}` already had most of the deep analytics surfaces, but the top summary layer still depended on client-side recomposition across multiple response blocks.

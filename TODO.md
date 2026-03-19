@@ -275,7 +275,7 @@ Last updated: 2026-03-19
 - [ ] Redeploy backend after interaction read-path batching and verify portfolio/post comment lists no longer lag or appear partially populated under concurrent like/reply traffic
 - [ ] Redeploy frontend after interaction widget live-refresh hardening and verify portfolio comments/likes stay visible across tab focus changes and shortly after posting without manual refresh
 - [ ] Redeploy frontend after optimistic comment/reply insertion + inline notification `Mark read` action and verify comment panels converge immediately while notifications can be marked read without navigation
-- [ ] Redeploy backend after comment-specific notification type rollout and verify liking/replying to a comment produces distinct notifications (`*_COMMENT_LIKE`, `*_COMMENT_REPLY`) instead of generic portfolio/post comment messages
+- [x] Redeploy backend after comment-specific notification type rollout and verify liking/replying to a comment produces distinct notifications (`*_COMMENT_LIKE`, `*_COMMENT_REPLY`) instead of generic portfolio/post comment messages
 - [ ] Redeploy frontend after notification message mapping upgrade and verify bell/inbox copy clearly distinguishes portfolio/post comment likes vs replies
 - [ ] Redeploy backend/frontend after interaction summary endpoint rollout and verify collapsed widgets no longer flash `0 likes / 0 comments` before settling on real counts
 - [ ] Redeploy frontend after legacy-summary fallback and reduced comment auto-refresh rollout; verify counts still render if `/summary` is stale/missing and opened reply threads no longer visually reset every few seconds
