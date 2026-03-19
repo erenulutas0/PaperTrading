@@ -20,9 +20,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
-import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -242,40 +242,26 @@ class InteractionServiceTest {
     @Test
     void getComments_ShouldReturnCommentDtoWithReplyAndLikeMetadata() {
         UUID commentId = UUID.randomUUID();
-        AppUser actor = AppUser.builder()
-                .id(actorId)
-                .username("commenter")
-                .displayName("Commenter")
-                .build();
-        Interaction comment = Interaction.builder()
-                .id(commentId)
-                .actorId(actorId)
-                .interactionType(Interaction.InteractionType.COMMENT)
-                .targetType(Interaction.TargetType.PORTFOLIO)
-                .targetId(targetId)
-                .content("Root comment")
-                .build();
-
-        when(interactionRepository.findByTargetTypeAndTargetIdAndInteractionTypeOrderByCreatedAtDesc(
-                eq(Interaction.TargetType.PORTFOLIO), eq(targetId), eq(Interaction.InteractionType.COMMENT), any()))
-                .thenReturn(new PageImpl<>(List.of(comment)));
-        when(userRepository.findByIdIn(any())).thenReturn(List.of(actor));
-        when(interactionRepository.aggregateCountsByTargetIds(
-                Interaction.TargetType.COMMENT,
-                Set.of(commentId),
-                Interaction.InteractionType.LIKE))
-                .thenReturn(List.of(aggregate(commentId, 2L)));
-        when(interactionRepository.findTargetIdsLikedByActor(
+        InteractionRepository.CommentRowView comment = commentRow(
+                commentId,
                 actorId,
-                Interaction.TargetType.COMMENT,
-                Set.of(commentId),
-                Interaction.InteractionType.LIKE))
-                .thenReturn(List.of(commentId));
-        when(interactionRepository.aggregateCountsByTargetIds(
-                Interaction.TargetType.COMMENT,
-                Set.of(commentId),
-                Interaction.InteractionType.COMMENT))
-                .thenReturn(List.of(aggregate(commentId, 1L)));
+                "commenter",
+                "Commenter",
+                "Root comment",
+                2L,
+                true,
+                1L);
+
+        when(interactionRepository.findCommentRows(
+                eq(Interaction.TargetType.PORTFOLIO),
+                eq(targetId),
+                eq(Interaction.InteractionType.COMMENT),
+                eq(Interaction.TargetType.COMMENT),
+                eq(Interaction.InteractionType.COMMENT),
+                eq(Interaction.InteractionType.LIKE),
+                eq(actorId),
+                any()))
+                .thenReturn(new PageImpl<>(List.of(comment)));
 
         var page = interactionService.getComments(targetId, "PORTFOLIO", actorId, PageRequest.of(0, 20));
 
@@ -286,16 +272,64 @@ class InteractionServiceTest {
         assertTrue(page.getContent().get(0).isHasLiked());
     }
 
-    private InteractionRepository.InteractionAggregateView aggregate(UUID targetId, long totalCount) {
-        return new InteractionRepository.InteractionAggregateView() {
+    private InteractionRepository.CommentRowView commentRow(
+            UUID id,
+            UUID actorId,
+            String username,
+            String displayName,
+            String content,
+            long likeCount,
+            boolean hasLiked,
+            long replyCount) {
+        return new InteractionRepository.CommentRowView() {
             @Override
-            public UUID getTargetId() {
-                return targetId;
+            public UUID getId() {
+                return id;
             }
 
             @Override
-            public long getTotalCount() {
-                return totalCount;
+            public UUID getActorId() {
+                return actorId;
+            }
+
+            @Override
+            public String getActorUsername() {
+                return username;
+            }
+
+            @Override
+            public String getActorDisplayName() {
+                return displayName;
+            }
+
+            @Override
+            public String getActorAvatarUrl() {
+                return null;
+            }
+
+            @Override
+            public String getContent() {
+                return content;
+            }
+
+            @Override
+            public java.time.LocalDateTime getCreatedAt() {
+                return java.time.LocalDateTime.now();
+            }
+
+            @Override
+            public long getLikeCount() {
+                return likeCount;
+            }
+
+            @Override
+            public boolean getHasLiked() {
+                return hasLiked;
+            }
+
+            @Override
+            public long getReplyCount() {
+                return replyCount;
             }
         };
     }

@@ -272,7 +272,7 @@ Last updated: 2026-03-19
 - [ ] Redeploy backend after Bayesian/sample-size-aware trust score rollout and verify profile trust scores no longer overreact to tiny resolved-post samples while experienced authors gain gradual credibility lift
 - [ ] Redeploy backend after bypassing rate limiting for `/actuator/**` and re-run `run_auth_attack_scenarios.ps1` to confirm health probes no longer fail with `429`
 - [ ] Redeploy backend after auth attack script warmup probe tolerates `429/503` health states and verify strict-mode attack run no longer exits early as `UNAVAILABLE`
-- [ ] Redeploy backend after interaction read-path batching and verify portfolio/post comment lists no longer lag or appear partially populated under concurrent like/reply traffic
+- [x] Redeploy backend after interaction read-path batching and verify portfolio/post comment lists no longer lag or appear partially populated under concurrent like/reply traffic
 - [x] Redeploy frontend after interaction widget live-refresh hardening and verify portfolio comments/likes stay visible across tab focus changes and shortly after posting without manual refresh
 - [x] Redeploy frontend after optimistic comment/reply insertion + inline notification `Mark read` action and verify comment panels converge immediately while notifications can be marked read without navigation
 - [x] Redeploy backend after comment-specific notification type rollout and verify liking/replying to a comment produces distinct notifications (`*_COMMENT_LIKE`, `*_COMMENT_REPLY`) instead of generic portfolio/post comment messages

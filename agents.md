@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Interaction Comment Reads Collapsed Into A Single Paged Projection Query**
+  - **Problem observed**:
+    - Comment list rendering was already functionally correct, but each page read still fanned out into multiple follow-up queries for:
+      - actor metadata
+      - like counts
+      - reply counts
+      - requester-specific liked state
+    - Under concurrent like/reply traffic that pattern makes comment panels more likely to feel laggy or temporarily uneven.
+  - **Implementation**:
+    - Added a paged repository projection for comment rows that fetches, per row:
+      - actor identity fields
+      - like count
+      - reply count
+      - requester-specific `hasLiked`
+    - `InteractionService#getComments(...)` now maps directly from that projection instead of doing separate actor/count batching after the page read.
+    - Updated service and controller test coverage to lock the new read path and the current error-contract expectation.
+  - **Operational impact**:
+    - root comment and reply list reads now require fewer backend round-trips per page
+    - comment panels are less exposed to partial-looking metadata hydration under like/reply churn
 - **2026-03-20**: **Binance REST Fallback Batch Queries Now Use Explicitly Encoded `symbols` URIs**
   - **Problem observed**:
     - The Binance REST fallback path was still relying on a generic URI builder for the batch `symbols` parameter.

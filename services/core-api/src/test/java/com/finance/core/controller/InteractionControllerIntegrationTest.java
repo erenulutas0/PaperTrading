@@ -220,6 +220,7 @@ class InteractionControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.detail").value(containsString("Portfolio not found")));
+                .andExpect(jsonPath("$.code").value("not_found"))
+                .andExpect(jsonPath("$.message").value(containsString("Portfolio not found")));
     }
 }
