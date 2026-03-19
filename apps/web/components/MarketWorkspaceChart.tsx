@@ -6,9 +6,12 @@ import {
     ColorType,
     HistogramSeries,
     IChartApi,
-    LineData,
+    ISeriesApi,
     LineSeries,
     LineStyle,
+    LogicalRange,
+    MouseEventParams,
+    Time,
     UTCTimestamp,
     createChart,
 } from 'lightweight-charts';
@@ -100,6 +103,24 @@ function normalizeCandleSeries(points: CandlePoint[]): CandlePoint[] {
     return Array.from(deduped.values()).sort((left, right) => left.openTime - right.openTime);
 }
 
+function toEpochMillis(time: Time | undefined): number | null {
+    if (typeof time === 'number') {
+        return Number(time) * 1000;
+    }
+    if (typeof time === 'string') {
+        const parsed = Date.parse(time);
+        return Number.isNaN(parsed) ? null : parsed;
+    }
+    if (time && typeof time === 'object' && 'year' in time && 'month' in time && 'day' in time) {
+        return Date.UTC(time.year, time.month - 1, time.day);
+    }
+    return null;
+}
+
+type CandlestickApi = ISeriesApi<'Candlestick'>;
+type HistogramApi = ISeriesApi<'Histogram'>;
+type LineApi = ISeriesApi<'Line'>;
+
 export default function MarketWorkspaceChart({
     data,
     compareSeries = [],
@@ -115,11 +136,11 @@ export default function MarketWorkspaceChart({
 }: MarketWorkspaceChartProps) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
-    const seriesRef = useRef<any>(null);
-    const volumeSeriesRef = useRef<any>(null);
-    const compareSeriesRefs = useRef<Array<{ label: string; color: string; series: any }>>([]);
-    const drawingSeriesRef = useRef<Array<{ id: string; series: any }>>([]);
-    const alertSeriesRef = useRef<Array<{ id: string; series: any }>>([]);
+    const seriesRef = useRef<CandlestickApi | null>(null);
+    const volumeSeriesRef = useRef<HistogramApi | null>(null);
+    const compareSeriesRefs = useRef<Array<{ label: string; color: string; series: LineApi }>>([]);
+    const drawingSeriesRef = useRef<Array<{ id: string; series: LineApi }>>([]);
+    const alertSeriesRef = useRef<Array<{ id: string; series: LineApi }>>([]);
     const lastRequestedOldestRef = useRef<number | null>(null);
     const dataRef = useRef<CandlePoint[]>(data);
     const onReachStartRef = useRef(onReachStart);
@@ -133,6 +154,7 @@ export default function MarketWorkspaceChart({
     const hydratedDrawingStorageKeyRef = useRef<string | null>(null);
     const [activePoint, setActivePoint] = useState<CandlePoint | null>(data[data.length - 1] ?? null);
     const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+    const [hasPendingTrendAnchor, setHasPendingTrendAnchor] = useState(false);
     const normalizedData = useMemo(() => normalizeCandleSeries(data), [data]);
     const normalizedCompareSeries = useMemo(() => {
         return compareSeries.map((series) => ({
@@ -222,6 +244,8 @@ export default function MarketWorkspaceChart({
 
     useEffect(() => {
         dataRef.current = normalizedData;
+        // Sync the visible OHLC info bar to the newest normalized bar set.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setActivePoint((current) => {
             if (!normalizedData.length) {
                 return null;
@@ -251,11 +275,14 @@ export default function MarketWorkspaceChart({
 
     useEffect(() => {
         pendingTrendAnchorRef.current = null;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setHasPendingTrendAnchor(false);
     }, [drawingMode]);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !drawingStorageKey) {
             hydratedDrawingStorageKeyRef.current = null;
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setDrawings([]);
             return;
         }
@@ -345,7 +372,7 @@ export default function MarketWorkspaceChart({
             },
         });
         chart.priceScale('left').applyOptions({
-            visible: compareSeries.length > 0,
+            visible: false,
             borderColor: 'rgba(245,158,11,0.18)',
             scaleMargins: {
                 top: 0.08,
@@ -366,7 +393,7 @@ export default function MarketWorkspaceChart({
             chart.applyOptions({ width: chartContainerRef.current.clientWidth });
         };
 
-        const handleVisibleRangeChange = (range: any) => {
+        const handleVisibleRangeChange = (range: LogicalRange | null) => {
             const latestData = dataRef.current;
             const reachStart = onReachStartRef.current;
             if (!range || !reachStart || latestData.length === 0) {
@@ -384,25 +411,28 @@ export default function MarketWorkspaceChart({
             reachStart(oldestOpenTime);
         };
 
-        const handleCrosshairMove = (param: any) => {
+        const handleCrosshairMove = (param: MouseEventParams<Time>) => {
             const latestData = dataRef.current;
-            if (!param?.time || latestData.length === 0) {
+            const hoveredTime = toEpochMillis(param.time);
+            if (hoveredTime === null || latestData.length === 0) {
                 setActivePoint(latestData[latestData.length - 1] ?? null);
                 return;
             }
 
-            const hoveredTime = Number(param.time) * 1000;
             const matchingPoint = latestData.find((point) => point.openTime === hoveredTime);
             setActivePoint(matchingPoint ?? latestData[latestData.length - 1] ?? null);
         };
 
-        const handleClick = (param: any) => {
+        const handleClick = (param: MouseEventParams<Time>) => {
             const currentDrawingMode = drawingModeRef.current;
             if (currentDrawingMode === 'none' || !param?.time || !param?.point || !seriesRef.current) {
                 return;
             }
 
-            const clickedTime = Number(param.time) * 1000;
+            const clickedTime = toEpochMillis(param.time);
+            if (clickedTime === null) {
+                return;
+            }
             const price = seriesRef.current.coordinateToPrice(param.point.y);
             if (typeof price !== 'number' || Number.isNaN(price)) {
                 return;
@@ -427,15 +457,18 @@ export default function MarketWorkspaceChart({
                     time: clickedTime,
                     price,
                 };
+                setHasPendingTrendAnchor(true);
                 return;
             }
 
             const anchor = pendingTrendAnchorRef.current;
             if (anchor.time === clickedTime) {
                 pendingTrendAnchorRef.current = null;
+                setHasPendingTrendAnchor(false);
                 return;
             }
             pendingTrendAnchorRef.current = null;
+            setHasPendingTrendAnchor(false);
             setDrawings((current) => [
                 ...current,
                 {
@@ -639,13 +672,15 @@ export default function MarketWorkspaceChart({
             return;
         }
         previousClearDrawingsTokenRef.current = clearDrawingsToken;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDrawings([]);
         pendingTrendAnchorRef.current = null;
+        setHasPendingTrendAnchor(false);
         if (typeof window !== 'undefined' && drawingStorageKey) {
             window.localStorage.removeItem(`market.drawings.${drawingStorageKey}`);
         }
         hydratedDrawingStorageKeyRef.current = drawingStorageKey;
-    }, [clearDrawingsToken]);
+    }, [clearDrawingsToken, drawingStorageKey]);
 
     return (
         <div className="space-y-3">
@@ -726,7 +761,7 @@ export default function MarketWorkspaceChart({
                             Draw mode · {drawingMode === 'horizontal' ? 'click chart to place a level' : 'click two points for a trend line'}
                         </span>
                     )}
-                    {pendingTrendAnchorRef.current && (
+                    {hasPendingTrendAnchor && (
                         <span className="text-pink-300">
                             Trend anchor locked · choose end point
                         </span>

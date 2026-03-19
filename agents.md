@@ -38,6 +38,17 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Terminal Chart Internals Tightened Around Typed Series Handles**
+  - **Problem observed**:
+    - `MarketWorkspaceChart.tsx` had accumulated untyped chart-series refs and a few compare/drawing render-sync shortcuts.
+    - That left the most stateful client component in the terminal harder to evolve safely.
+  - **Implementation**:
+    - Replaced `any`-based chart series refs with explicit Lightweight Charts series types.
+    - Normalized compare legend summaries independently from overlay rendering so hidden compare sessions keep legend context.
+    - Moved pending-trend visual state off direct ref reads during render.
+  - **Operational impact**:
+    - chart internals are now easier to change without widening runtime risk
+    - compare, OHLC, and volume layers share a cleaner typed base for later polish passes
 - **2026-03-19**: **Compare Overlay State Made Persistent And Visible Even When Hidden**
   - **Problem observed**:
     - `/watchlist` compare mode already preserved symbols and relative gap math, but once overlays were hidden the chart-level compare legend stopped reflecting that state.
