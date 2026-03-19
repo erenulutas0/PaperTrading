@@ -16,6 +16,11 @@ Last updated: 2026-03-19
   - terminal preference/layout summary
   - session/token visibility + logout
   - account routing/control links
+- [x] Redeploy frontend after settings cleanup rollout and verify `/dashboard/settings` now supports:
+  - copyable account/session summaries
+  - local JSON settings snapshot export
+  - browser-side cache clear without deleting server-owned preferences
+  - full browser session clear for fresh-login debugging
 - [ ] Redeploy backend/frontend after portfolio analytics summary rollout and verify `/analytics/{portfolioId}` now surfaces:
   - portfolio identity and visibility in the header
   - current equity / net return / peak / trough summary cards

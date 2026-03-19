@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Settings Session Controls Split Between Cache Reset And True Session Reset**
+  - **Problem observed**:
+    - A merged settings surface is useful, but auth/session debugging still needs a sharp distinction between:
+      - browser-only cache noise
+      - actual authenticated session state
+    - Without that distinction, “clear session” actions become too blunt and hard to trust.
+  - **Implementation**:
+    - Added settings actions for:
+      - `Copy Session Summary`
+      - `Clear Local Cache`
+      - `Clear Browser Session`
+    - Added a data-footprint panel clarifying which state is:
+      - server-owned
+      - browser-owned
+    - Kept browser reset local-only instead of inventing a destructive server-side account wipe path.
+  - **Operational impact**:
+    - auth/debug workflows can now reset the browser environment without conflating cache cleanup with account deletion
+    - settings better explains the platform’s ownership boundary between local state and server evidence
 - **2026-03-19**: **Settings Workspace Now Owns Lightweight Account Snapshot Export**
   - **Problem observed**:
     - `/dashboard/settings` consolidated control surfaces, but it still lacked a direct way to extract the currently loaded account/profile/terminal state for support, debugging, or personal backup.

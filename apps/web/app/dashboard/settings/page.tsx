@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import LogoutButton from '../../../components/LogoutButton';
+import { clearAuthSession } from '../../../lib/auth-storage';
 import { apiFetch, userIdHeaders } from '../../../lib/api-client';
 import {
     fetchTerminalLayouts,
@@ -26,6 +27,15 @@ interface EditableProfile {
     trustScore?: number;
     winRate?: number;
 }
+
+const LOCAL_SETTINGS_CACHE_KEYS = [
+    'market.terminal.session',
+    'market.terminal.compare-baskets',
+    'market.terminal.scanner-views',
+    'market.favoriteSymbols',
+    'dashboard_leaderboard_preferences_v1',
+    'public_leaderboard_preferences_v1',
+];
 
 function SettingsLoadingShell() {
     return (
@@ -61,13 +71,15 @@ function SettingsPanel({
     title,
     body,
     children,
+    className,
 }: {
     title: string;
     body?: string;
     children: React.ReactNode;
+    className?: string;
 }) {
     return (
-        <section className="glass-panel rounded-2xl border border-border/80 p-6">
+        <section className={`glass-panel rounded-2xl border border-border/80 p-6 ${className ?? ''}`}>
             <div className="flex flex-col gap-1">
                 <h2 className="text-lg font-semibold">{title}</h2>
                 {body ? <p className="text-sm text-muted-foreground">{body}</p> : null}
@@ -273,6 +285,49 @@ export default function DashboardSettingsPage() {
             setError('Settings snapshot could not be exported.');
         }
     }, [layouts, preferences, profile, sessionSummary]);
+
+    const handleCopySessionSummary = useCallback(async () => {
+        const summary = [
+            'Browser Session Snapshot',
+            `User Id: ${userId ?? 'N/A'}`,
+            `Username: ${sessionSummary.username}`,
+            `Access Token: ${sessionSummary.hasAccessToken ? 'Present' : 'Missing'}`,
+            `Refresh Token: ${sessionSummary.hasRefreshToken ? 'Present' : 'Missing'}`,
+            `Local Cache Keys: ${LOCAL_SETTINGS_CACHE_KEYS.length}`,
+        ].join('\n');
+
+        try {
+            await navigator.clipboard.writeText(summary);
+            setError(null);
+            setSuccess('Session summary copied.');
+        } catch (copyError) {
+            console.error(copyError);
+            setError('Session summary could not be copied.');
+        }
+    }, [sessionSummary, userId]);
+
+    const handleClearLocalTerminalCache = useCallback(() => {
+        for (const key of LOCAL_SETTINGS_CACHE_KEYS) {
+            window.localStorage.removeItem(key);
+        }
+        setError(null);
+        setSuccess('Local terminal and leaderboard cache cleared. Account-backed preferences remain on the server.');
+    }, []);
+
+    const handleClearBrowserSession = useCallback(() => {
+        clearAuthSession();
+        for (const key of LOCAL_SETTINGS_CACHE_KEYS) {
+            window.localStorage.removeItem(key);
+        }
+        setSessionSummary({
+            username: 'Unknown',
+            hasAccessToken: false,
+            hasRefreshToken: false,
+        });
+        setUserId(null);
+        setError(null);
+        setSuccess('Browser session cleared. Re-open login to start a fresh session.');
+    }, []);
 
     if (loading) {
         return <SettingsLoadingShell />;
@@ -499,6 +554,27 @@ export default function DashboardSettingsPage() {
                                 <Link href="/auth/login" className="rounded-xl border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30">
                                     Re-open Login
                                 </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleCopySessionSummary()}
+                                    className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/20"
+                                >
+                                    Copy Session Summary
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleClearLocalTerminalCache}
+                                    className="rounded-xl border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30"
+                                >
+                                    Clear Local Cache
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleClearBrowserSession}
+                                    className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
+                                >
+                                    Clear Browser Session
+                                </button>
                             </div>
                         </SettingsPanel>
 
@@ -510,6 +586,7 @@ export default function DashboardSettingsPage() {
                                 <p>Use this surface to verify that the current browser still carries both access and refresh credentials before debugging auth or notification issues.</p>
                                 <p>If tokens are missing but the app partially works, refresh churn or stale browser storage is the first place to inspect.</p>
                                 <p>For portfolio, market, and analytics issues, it is better to verify session state here before assuming backend failure.</p>
+                                <p>`Clear Local Cache` only removes browser-side terminal and leaderboard state. `Clear Browser Session` also removes auth tokens and identity keys.</p>
                             </div>
                         </SettingsPanel>
                     </div>
@@ -580,6 +657,42 @@ export default function DashboardSettingsPage() {
                                     <p className="font-medium text-foreground">Inbox</p>
                                     <p className="mt-1 text-muted-foreground">Follow, interaction, and alert stream handling remains in the notification workspace.</p>
                                 </Link>
+                            </div>
+                        </SettingsPanel>
+
+                        <SettingsPanel
+                            className="xl:col-span-2"
+                            title="Data Footprint"
+                            body="What this account keeps on the server versus what this browser keeps locally."
+                        >
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Server-Owned</p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Profile</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Trust History</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Terminal Preferences</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Layouts</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Analytics</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Audit Trails</span>
+                                    </div>
+                                    <p className="mt-3 text-xs text-muted-foreground">
+                                        These survive logout/login and can follow the account across devices.
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Browser-Owned</p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Access Token</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Refresh Token</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Local Scanner Cache</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Compare Cache</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Temporary Terminal State</span>
+                                    </div>
+                                    <p className="mt-3 text-xs text-muted-foreground">
+                                        These can be reset from the `Session` workspace without deleting the server-owned account record.
+                                    </p>
+                                </div>
                             </div>
                         </SettingsPanel>
                     </div>
