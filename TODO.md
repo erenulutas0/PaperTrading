@@ -594,6 +594,14 @@ Last updated: 2026-03-19
     - malformed Bearer tokens still fall back to hashed-token partitioning instead of crashing the filter
   - Coverage:
     - `RateLimitFilterTest`
+- [x] Extended request correlation into idempotency filter responses:
+  - Updated:
+    - `IdempotencyKeyFilter`
+  - Behavior:
+    - idempotent replay responses now echo `X-Request-Id`
+    - idempotency conflict/validation errors now guarantee the same correlation header as their body `requestId`
+  - Coverage:
+    - `IdempotencyKeyFilterIntegrationTest`
 - [x] Added request correlation + first-pass unified backend error contract:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/config/RequestCorrelationFilter.java`

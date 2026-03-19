@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Idempotency Filter Responses Now Echo Request Correlation**
+  - **Problem observed**:
+    - The idempotency filter already returned machine-readable error bodies for:
+      - invalid keys
+      - in-progress conflicts
+      - reused-key conflicts
+    - But it did not consistently echo `X-Request-Id`, and replay responses also omitted the current request correlation header.
+    - That left an avoidable diagnostics gap in a filter that sits on critical write paths.
+  - **Implementation**:
+    - Updated `IdempotencyKeyFilter` so:
+      - replay responses echo `X-Request-Id`
+      - idempotency validation/conflict errors also set `X-Request-Id` alongside the body `requestId`
+    - Added integration assertions for:
+      - replay path
+      - conflict path
+      - recoverable bad-request path
+  - **Operational impact**:
+    - write replay/conflict flows can now be traced with the same correlation header discipline as controller and rate-limit failures
+    - debugging duplicate-submit behavior no longer depends on body-only request ids
 - **2026-03-20**: **Sensitive Write Rate Limits Now Key On Stable Principal Identity**
   - **Problem observed**:
     - The endpoint-aware rate-limit rollout had already split sensitive paths into distinct buckets:

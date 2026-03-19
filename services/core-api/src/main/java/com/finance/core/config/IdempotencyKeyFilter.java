@@ -82,7 +82,7 @@ public class IdempotencyKeyFilter extends OncePerRequestFilter {
 
         switch (claim.type()) {
             case REPLAY -> {
-                writeReplayResponse(response, claim.record());
+                writeReplayResponse(response, claim.record(), request);
                 return;
             }
             case CONFLICT -> {
@@ -177,7 +177,7 @@ public class IdempotencyKeyFilter extends OncePerRequestFilter {
         }
     }
 
-    private void writeReplayResponse(HttpServletResponse response, IdempotencyKeyRecord record) throws IOException {
+    private void writeReplayResponse(HttpServletResponse response, IdempotencyKeyRecord record, HttpServletRequest request) throws IOException {
         response.setStatus(record.getResponseStatus() != null ? record.getResponseStatus() : HttpServletResponse.SC_OK);
         if (record.getResponseContentType() != null && !record.getResponseContentType().isBlank()) {
             response.setContentType(record.getResponseContentType());
@@ -185,6 +185,10 @@ public class IdempotencyKeyFilter extends OncePerRequestFilter {
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         }
         response.setHeader(IDEMPOTENT_REPLAY_HEADER, "true");
+        Object requestId = request.getAttribute(RequestCorrelation.REQUEST_ID_ATTRIBUTE);
+        if (requestId instanceof String value && !value.isBlank()) {
+            response.setHeader(RequestCorrelation.REQUEST_ID_HEADER, value);
+        }
         if (record.getResponseBody() != null) {
             response.getWriter().write(record.getResponseBody());
         }
@@ -199,6 +203,9 @@ public class IdempotencyKeyFilter extends OncePerRequestFilter {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         Object requestId = request.getAttribute(RequestCorrelation.REQUEST_ID_ATTRIBUTE);
+        if (requestId instanceof String value && !value.isBlank()) {
+            response.setHeader(RequestCorrelation.REQUEST_ID_HEADER, value);
+        }
         ApiErrorResponse payload = new ApiErrorResponse(
                 code,
                 message,

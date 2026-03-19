@@ -87,10 +87,12 @@ class IdempotencyKeyFilterIntegrationTest {
 
         String secondBody = mockMvc.perform(post("/api/v1/portfolios")
                         .header("Idempotency-Key", "portfolio-create-key")
+                        .header("X-Request-Id", "idem-replay-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Idempotent-Replay", "true"))
+                .andExpect(header().string("X-Request-Id", "idem-replay-1"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -121,9 +123,11 @@ class IdempotencyKeyFilterIntegrationTest {
 
         mockMvc.perform(post("/api/v1/portfolios")
                         .header("Idempotency-Key", "portfolio-conflict-key")
+                        .header("X-Request-Id", "idem-conflict-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(secondRequest)))
                 .andExpect(status().isConflict())
+                .andExpect(header().string("X-Request-Id", "idem-conflict-1"))
                 .andExpect(jsonPath("$.code").value("idempotency_key_reused"));
     }
 
@@ -147,8 +151,10 @@ class IdempotencyKeyFilterIntegrationTest {
     void failedWrite_shouldReleaseKeySoFixedRetryCanProceed() throws Exception {
         mockMvc.perform(post("/api/v1/users/{userId}/follow", userA.getId())
                         .header("Idempotency-Key", "recoverable-key")
+                        .header("X-Request-Id", "idem-bad-1")
                         .header("X-User-Id", userA.getId().toString()))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "idem-bad-1"));
 
         mockMvc.perform(post("/api/v1/users/{userId}/follow", userB.getId())
                         .header("Idempotency-Key", "recoverable-key")
