@@ -52,6 +52,21 @@ interface InstrumentOption {
     changePercent24h: number;
 }
 
+function instrumentMatchesQuery(instrument: InstrumentOption, query: string) {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) {
+        return true;
+    }
+    return instrument.symbol.toLowerCase().includes(normalized)
+        || instrument.displayName.toLowerCase().includes(normalized)
+        || (instrument.assetType ?? '').toLowerCase().includes(normalized)
+        || (instrument.market ?? '').toLowerCase().includes(normalized)
+        || (instrument.exchange ?? '').toLowerCase().includes(normalized)
+        || (instrument.currency ?? '').toLowerCase().includes(normalized)
+        || (instrument.sector ?? '').toLowerCase().includes(normalized)
+        || (instrument.delayLabel ?? '').toLowerCase().includes(normalized);
+}
+
 interface CandlePoint {
     openTime: number;
     open: number;
@@ -455,6 +470,7 @@ export default function WatchlistPage() {
 
     const [newName, setNewName] = useState('');
     const [addSymbol, setAddSymbol] = useState('BTCUSDT');
+    const [addSymbolQuery, setAddSymbolQuery] = useState('');
     const [addAlertAbove, setAddAlertAbove] = useState('');
     const [addAlertBelow, setAddAlertBelow] = useState('');
     const [addNotes, setAddNotes] = useState('');
@@ -1363,13 +1379,7 @@ export default function WatchlistPage() {
         });
         const queryFiltered = !query
             ? quickFiltered
-            : quickFiltered.filter((instrument) =>
-            instrument.symbol.toLowerCase().includes(query)
-            || instrument.displayName.toLowerCase().includes(query)
-            || (instrument.market ?? '').toLowerCase().includes(query)
-            || (instrument.exchange ?? '').toLowerCase().includes(query)
-            || (instrument.currency ?? '').toLowerCase().includes(query)
-            || (instrument.sector ?? '').toLowerCase().includes(query));
+            : quickFiltered.filter((instrument) => instrumentMatchesQuery(instrument, query));
 
         return [...queryFiltered].sort((left, right) => {
             switch (universeSortMode) {
@@ -1434,13 +1444,7 @@ export default function WatchlistPage() {
 
         const queryFiltered = !query
             ? quickFiltered
-            : quickFiltered.filter((instrument) =>
-                instrument.symbol.toLowerCase().includes(query)
-                || instrument.displayName.toLowerCase().includes(query)
-                || (instrument.market ?? '').toLowerCase().includes(query)
-                || (instrument.exchange ?? '').toLowerCase().includes(query)
-                || (instrument.currency ?? '').toLowerCase().includes(query)
-                || (instrument.sector ?? '').toLowerCase().includes(query));
+            : quickFiltered.filter((instrument) => instrumentMatchesQuery(instrument, query));
 
         const sorted = [...queryFiltered].sort((left, right) => {
             switch (view.sortMode) {
@@ -1618,7 +1622,7 @@ export default function WatchlistPage() {
         },
     ]), [
         activeCompareBasket?.name,
-        activeScannerView?.name,
+        activeScannerView,
         compareSymbols.length,
         compareVisible,
         favoriteSymbols.length,
@@ -1809,6 +1813,16 @@ export default function WatchlistPage() {
         const existingSymbols = new Set(enrichedItems.map((item) => item.symbol));
         return instrumentUniverse.filter((item) => !existingSymbols.has(item.symbol) || item.symbol === addSymbol);
     }, [addSymbol, enrichedItems, instrumentUniverse]);
+
+    const filteredAvailableSymbols = useMemo(() => {
+        return availableSymbols.filter((instrument) => instrumentMatchesQuery(instrument, addSymbolQuery));
+    }, [addSymbolQuery, availableSymbols]);
+
+    const selectedAddInstrument = useMemo(() => {
+        return filteredAvailableSymbols.find((instrument) => instrument.symbol === addSymbol)
+            ?? availableSymbols.find((instrument) => instrument.symbol === addSymbol)
+            ?? null;
+    }, [addSymbol, availableSymbols, filteredAvailableSymbols]);
 
     const toggleFavoriteSymbol = useCallback((symbol: string) => {
         setFavoriteSymbols((current) => {
@@ -5548,17 +5562,58 @@ export default function WatchlistPage() {
 
                             {showAddForm && selectedWatchlist && (
                                 <form onSubmit={handleAddItem} className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-zinc-950/60 p-4">
+                                    <input
+                                        type="text"
+                                        value={addSymbolQuery}
+                                        onChange={(event) => setAddSymbolQuery(event.target.value)}
+                                        placeholder="Search symbol, company, sector, exchange..."
+                                        className="w-full rounded-xl border border-zinc-700 bg-black px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
+                                    />
                                     <select
                                         value={addSymbol}
                                         onChange={(event) => setAddSymbol(event.target.value)}
                                         className="w-full rounded-xl border border-zinc-700 bg-black px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
                                     >
-                                        {availableSymbols.map((instrument) => (
+                                        {filteredAvailableSymbols.length === 0 ? (
+                                            <option value="" disabled>
+                                                No matching instrument
+                                            </option>
+                                        ) : filteredAvailableSymbols.map((instrument) => (
                                             <option key={instrument.symbol} value={instrument.symbol}>
-                                                {instrument.displayName} ({instrument.symbol})
+                                                {instrument.displayName} ({instrument.symbol}) · {instrument.exchange ?? instrument.market ?? 'MARKET'}
                                             </option>
                                         ))}
                                     </select>
+                                    {filteredAvailableSymbols.length === 0 && (
+                                        <p className="text-xs text-zinc-500">Refine the query or clear it to see the supported market universe again.</p>
+                                    )}
+                                    {selectedAddInstrument && (
+                                        <div className="rounded-xl border border-white/10 bg-black/60 p-3">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <p className="text-sm font-semibold text-white">{selectedAddInstrument.displayName}</p>
+                                                <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-300">
+                                                    {selectedAddInstrument.symbol}
+                                                </span>
+                                            </div>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {[selectedAddInstrument.market, selectedAddInstrument.exchange, selectedAddInstrument.currency, selectedAddInstrument.sector]
+                                                    .filter(Boolean)
+                                                    .map((chip) => (
+                                                        <span
+                                                            key={`${selectedAddInstrument.symbol}-${chip}`}
+                                                            className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                                                        >
+                                                            {chip}
+                                                        </span>
+                                                    ))}
+                                                {selectedAddInstrument.delayLabel && (
+                                                    <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                                                        {selectedAddInstrument.delayLabel}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="grid grid-cols-2 gap-3">
                                         <input
                                             type="number"
@@ -5584,7 +5639,11 @@ export default function WatchlistPage() {
                                         placeholder="Why are you tracking it?"
                                         className="w-full rounded-xl border border-zinc-700 bg-black px-3 py-2 text-sm text-white outline-none focus:border-amber-400"
                                     />
-                                    <button type="submit" className="w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-black transition hover:bg-amber-400">
+                                    <button
+                                        type="submit"
+                                        disabled={filteredAvailableSymbols.length === 0}
+                                        className="w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
                                         Add to basket
                                     </button>
                                 </form>
@@ -5597,23 +5656,50 @@ export default function WatchlistPage() {
                                 {selectedWatchlist ? (
                                     enrichedItems.length > 0 ? (
                                         enrichedItems.map((item) => (
-                                            <button
+                                            <div
                                                 key={item.id}
+                                                role="button"
+                                                tabIndex={0}
                                                 onClick={() => setSelectedSymbol(item.symbol)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === 'Enter' || event.key === ' ') {
+                                                        event.preventDefault();
+                                                        setSelectedSymbol(item.symbol);
+                                                    }
+                                                }}
                                                 className={`w-full rounded-2xl border p-4 text-left transition ${selectedSymbol === item.symbol
                                                     ? 'border-amber-400/35 bg-amber-400/10'
                                                     : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}
                                             >
                                                 <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <p className="text-sm font-bold text-white">{item.symbol}</p>
-                                                        <p className="mt-1 text-xs text-zinc-400">{instrumentMap.get(item.symbol)?.displayName ?? item.notes ?? 'No note yet'}</p>
-                                                        <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-zinc-500">
-                                                            {instrumentMap.get(item.symbol)?.exchange ?? 'WATCHLIST'}
-                                                            {instrumentMap.get(item.symbol)?.delayLabel ? ` · ${instrumentMap.get(item.symbol)?.delayLabel}` : ''}
-                                                        </p>
+                                                    <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <p className="truncate text-sm font-bold text-white">{instrumentMap.get(item.symbol)?.displayName ?? item.symbol}</p>
+                                                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-300">
+                                                                {item.symbol}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                            {[instrumentMap.get(item.symbol)?.market, instrumentMap.get(item.symbol)?.exchange, instrumentMap.get(item.symbol)?.currency]
+                                                                .filter(Boolean)
+                                                                .map((chip) => (
+                                                                    <span
+                                                                        key={`${item.id}-${chip}`}
+                                                                        className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                                                                    >
+                                                                        {chip}
+                                                                    </span>
+                                                                ))}
+                                                            {instrumentMap.get(item.symbol)?.delayLabel && (
+                                                                <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                                                                    {instrumentMap.get(item.symbol)?.delayLabel}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="mt-2 line-clamp-2 text-xs text-zinc-500">{item.notes || 'No note yet'}</p>
                                                     </div>
                                                     <button
+                                                        type="button"
                                                         onClick={(event) => {
                                                             event.stopPropagation();
                                                             handleRemoveItem(item.id);
@@ -5635,7 +5721,7 @@ export default function WatchlistPage() {
                                                         {item.alertPriceBelow ? <p className="mt-1">DOWN {item.alertPriceBelow}</p> : <p className="mt-1">DOWN -</p>}
                                                     </div>
                                                 </div>
-                                            </button>
+                                            </div>
                                         ))
                                     ) : (
                                         <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center">

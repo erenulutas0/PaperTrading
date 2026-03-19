@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-19**: **Terminal Watch Basket Shifted From Symbol List To Metadata-Aware Instrument Surface**
+  - **Problem observed**:
+    - `/watchlist` already carried market metadata in the instrument universe and selected-header context, but the right-rail basket still read mostly like a raw symbol list.
+    - Add-to-basket flow also lacked metadata-aware narrowing, which made BIST and crypto symbol lookup weaker than the rest of the terminal.
+  - **Implementation**:
+    - Reused a shared metadata-aware instrument query matcher across universe and add-to-basket filtering.
+    - Added search-driven instrument narrowing inside the right-rail add form.
+    - Promoted descriptive instrument context into basket rows:
+      - display name
+      - symbol pill
+      - market / exchange / currency chips
+      - delay chip
+    - Replaced the nested button structure in basket rows with an accessible non-nested card interaction pattern.
+  - **Operational impact**:
+    - watch baskets now read like instrument worklists instead of raw ticker stacks
+    - BIST/crypto lookup inside the terminal is more descriptive and less symbol-dependent
 - **2026-03-19**: **Settings Promoted From Scattered Links To Unified Dashboard Workspace**
   - **Problem observed**:
     - Account management existed in fragments:

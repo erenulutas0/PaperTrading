@@ -191,7 +191,7 @@ Last updated: 2026-03-19
   - suggested peer baskets derived from sector, favorites, and market core
   - removing saved compare baskets
   - active-basket highlighting against the current compare session
-- [ ] Redeploy backend/frontend after market instrument metadata enrichment and verify `/watchlist` now surfaces market/exchange/currency/delay chips, richer BIST/crypto search, and descriptive names inside the right-rail watch basket
+- [x] Redeploy backend/frontend after market instrument metadata enrichment and verify `/watchlist` now surfaces market/exchange/currency/delay chips, richer BIST/crypto search, and descriptive names inside the right-rail watch basket
 - [x] Redeploy frontend after instrument-universe quick-filter rollout and verify `/watchlist` now supports one-click scanner-style filtering for:
   - gainers
   - losers
