@@ -2,6 +2,7 @@ package com.finance.core.observability;
 
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
+import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +24,19 @@ public class IdempotencyEndpoint {
     public Map<String, Object> idempotencyStatus() {
         try {
             return toMap(service.refreshSnapshot());
+        } catch (Throwable ex) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("enabled", true);
+            payload.put("error", ex.getMessage());
+            payload.put("fatal", true);
+            return payload;
+        }
+    }
+
+    @WriteOperation
+    public Map<String, Object> cleanupExpired() {
+        try {
+            return toMap(service.cleanupExpiredNow());
         } catch (Throwable ex) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("enabled", true);

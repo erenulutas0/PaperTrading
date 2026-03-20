@@ -38,6 +38,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Idempotency Cleanup Became Locally Triggerable And Smoke-Verifiable**
+  - **Problem observed**:
+    - Idempotency observability already exposed read-only counters, but cleanup validation still depended on waiting for the scheduled purge window or inferring behavior indirectly from the database.
+    - That made it awkward to prove that expired records can be removed without damaging cached replay semantics.
+  - **Implementation**:
+    - Extended `IdempotencyObservabilityService` with a reusable cleanup path used by both the scheduler and actuator.
+    - Added `POST /actuator/idempotency` as a controlled write operation that purges expired keys and returns the refreshed snapshot.
+    - Added `IdempotencyEndpointIntegrationTest` coverage for the cleanup write path.
+    - Added `infra/load-test/run_idempotency_cleanup_smoke.ps1`, which:
+      - registers a user
+      - performs an idempotent protected write
+      - verifies replay before cleanup
+      - seeds an expired idempotency row into local Postgres
+      - triggers actuator cleanup
+      - verifies the refreshed snapshot and replay behavior after cleanup
+  - **Operational impact**:
+    - expired idempotency cleanup is now directly testable during local ops work instead of being tied to scheduler timing
+    - replay durability can be checked in the same smoke pass that validates cleanup
+  - **Validation**:
+    - Passed:
+      - `IdempotencyEndpointIntegrationTest`
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_idempotency_cleanup_smoke.ps1 -BaseUrl http://localhost:8080`
 - **2026-03-20**: **Rate Limiting Now Separates Core Write Surfaces From The Default Read Bucket**
   - **Problem observed**:
     - Earlier rate-limit hardening fixed bucket identity for sensitive endpoints, but many important writes still shared the generic default profile:

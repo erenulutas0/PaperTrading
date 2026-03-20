@@ -288,7 +288,7 @@ Last updated: 2026-03-19
 - [ ] Redeploy backend after audit log inspection endpoint rollout and verify `/actuator/auditlog` shows recent write events plus `requestId` filtering for follow/trade/comment smoke actions
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
-- [ ] Redeploy backend after idempotency cleanup/inspection rollout and verify `/actuator/idempotency` reports sane counts while scheduled purge removes expired keys without breaking replay semantics
+- [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics
 - [x] Re-ran idempotency-key rollout locally and verified duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
 - [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
 - [x] Re-ran notification error cleanup locally and verified unread-count/mark-read paths now use the same correlated error contract as other controllers, including invalid notification-id handling
@@ -512,8 +512,18 @@ Last updated: 2026-03-19
   - Behavior:
     - scheduled ShedLock-protected purge removes expired idempotency rows
     - `/actuator/idempotency` exposes total/in-progress/completed/expired counts plus cleanup metadata
+    - `POST /actuator/idempotency` now also supports a controlled manual cleanup path for local ops validation
   - Goal:
     - keep idempotency storage bounded and make replay health observable in staging/ops
+- [x] Added local idempotency cleanup smoke tooling:
+  - Added:
+    - `infra/load-test/run_idempotency_cleanup_smoke.ps1`
+  - Behavior:
+    - local smoke seeds an expired idempotency row into Postgres
+    - triggers manual cleanup through actuator
+    - verifies live replay semantics still work after purge
+  - Coverage:
+    - `IdempotencyEndpointIntegrationTest`
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`

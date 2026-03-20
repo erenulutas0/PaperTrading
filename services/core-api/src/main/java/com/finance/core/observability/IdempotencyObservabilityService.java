@@ -43,15 +43,20 @@ public class IdempotencyObservabilityService {
     @Scheduled(fixedDelayString = "${app.idempotency.cleanup-interval:PT30M}")
     @SchedulerLock(name = "IdempotencyObservabilityService.cleanupExpiredScheduled", lockAtMostFor = "PT10M", lockAtLeastFor = "PT5S")
     public void cleanupExpiredScheduled() {
+        cleanupExpiredNow();
+    }
+
+    public IdempotencySnapshot cleanupExpiredNow() {
         LocalDateTime cutoff = LocalDateTime.now();
         long before = idempotencyKeyRepository.countByExpiresAtBefore(cutoff);
         idempotencyService.purgeExpired(cutoff);
         lastCleanupAt.set(LocalDateTime.now());
         lastCleanupDeletedCount.set(before);
-        refreshSnapshot();
+        IdempotencySnapshot snapshot = refreshSnapshot();
         if (before > 0) {
             log.info("Purged {} expired idempotency records", before);
         }
+        return snapshot;
     }
 
     public IdempotencySnapshot getLatestSnapshot() {

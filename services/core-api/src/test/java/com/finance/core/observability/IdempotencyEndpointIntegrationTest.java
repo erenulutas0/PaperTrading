@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -79,5 +80,44 @@ class IdempotencyEndpointIntegrationTest {
                 .andExpect(jsonPath("$.expiredRecords").value(1))
                 .andExpect(jsonPath("$.ttlSeconds").isNumber())
                 .andExpect(jsonPath("$.cleanupIntervalSeconds").isNumber());
+    }
+
+    @Test
+    void idempotencyEndpoint_cleanupWriteOperationShouldPurgeExpiredRecords() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+
+        idempotencyKeyRepository.save(IdempotencyKeyRecord.builder()
+                .actorScope("user-live")
+                .idempotencyKey("key-live")
+                .requestMethod("POST")
+                .requestPath("/api/v1/portfolios")
+                .requestHash("hash-live")
+                .status(IdempotencyKeyRecord.Status.COMPLETED)
+                .responseStatus(200)
+                .responseBody("{}")
+                .completedAt(now.minusMinutes(1))
+                .expiresAt(now.plusHours(1))
+                .build());
+
+        idempotencyKeyRepository.save(IdempotencyKeyRecord.builder()
+                .actorScope("user-expired")
+                .idempotencyKey("key-expired-cleanup")
+                .requestMethod("POST")
+                .requestPath("/api/v1/interactions/x/comments")
+                .requestHash("hash-expired")
+                .status(IdempotencyKeyRecord.Status.COMPLETED)
+                .responseStatus(200)
+                .responseBody("{}")
+                .completedAt(now.minusHours(2))
+                .expiresAt(now.minusMinutes(2))
+                .build());
+
+        mockMvc.perform(post("/actuator/idempotency"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRecords").value(1))
+                .andExpect(jsonPath("$.completedRecords").value(1))
+                .andExpect(jsonPath("$.expiredRecords").value(0))
+                .andExpect(jsonPath("$.lastCleanupDeletedCount").value(1))
+                .andExpect(jsonPath("$.lastCleanupAt").isNotEmpty());
     }
 }

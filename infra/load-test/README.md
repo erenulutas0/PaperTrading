@@ -36,6 +36,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `assess_auth_strict_mode_readiness.ps1`
 - `run_auth_attack_scenarios.ps1`
 - `run_backend_contract_smoke.ps1`
+- `run_idempotency_cleanup_smoke.ps1`
 
 ## Prerequisites
 
@@ -200,6 +201,21 @@ The backend contract smoke currently checks:
 - `/actuator/idempotency`
 - `/api/v1/ops/auditlog`
 - `/actuator/auditlog`
+
+Run idempotency cleanup smoke against a local backend + local Docker Postgres:
+
+```powershell
+./infra/load-test/run_idempotency_cleanup_smoke.ps1 `
+  -BaseUrl "http://localhost:8080"
+```
+
+The idempotency cleanup smoke checks:
+- register + protected idempotent write
+- replay still works before cleanup
+- expired idempotency row can be seeded into local Postgres
+- `POST /actuator/idempotency` purges expired rows
+- `/actuator/idempotency` reflects the cleanup result
+- replay semantics for a live key still work after cleanup
 
 Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, runs skip validation, then stops app):
 
