@@ -244,7 +244,7 @@ The audit write-capture smoke checks:
   - comment
   - analysis create
   - analysis delete
-- verify `/actuator/auditlog` still exposes a filtered recent snapshot
+- verify `/actuator/auditlog` still exposes a recent unfiltered snapshot
 
 Run endpoint-aware rate-limit profile smoke against a local backend:
 

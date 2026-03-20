@@ -34,7 +34,7 @@ class AuditLogEndpointIntegrationTest {
     }
 
     @Test
-    void auditLogEndpoint_shouldExposeRecentEntriesAndRequestIdFilter() throws Exception {
+    void auditLogEndpoint_shouldExposeRecentSnapshotWithoutRuntimeFilters() throws Exception {
         auditLogRepository.save(AuditLogEntry.builder()
                 .actorId(UUID.randomUUID())
                 .actionType(AuditActionType.USER_FOLLOWED)
@@ -62,23 +62,23 @@ class AuditLogEndpointIntegrationTest {
         mockMvc.perform(get("/actuator/auditlog")
                         .param("limit", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.limit").value(1))
-                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.limit").value(20))
+                .andExpect(jsonPath("$.count").value(2))
                 .andExpect(jsonPath("$.entries[0].requestId").value("req-audit-2"))
                 .andExpect(jsonPath("$.entries[0].details.name").value("Smoke"));
 
         mockMvc.perform(get("/actuator/auditlog")
                         .param("requestId", "req-audit-1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.count").value(1))
-                .andExpect(jsonPath("$.entries[0].requestId").value("req-audit-1"))
-                .andExpect(jsonPath("$.entries[0].actionType").value("USER_FOLLOWED"));
+                .andExpect(jsonPath("$.count").value(2))
+                .andExpect(jsonPath("$.entries[0].requestId").value("req-audit-2"))
+                .andExpect(jsonPath("$.entries[1].requestId").value("req-audit-1"));
 
         mockMvc.perform(get("/actuator/auditlog")
                         .param("requestPath", "/api/v1/portfolios"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.count").value(1))
-                .andExpect(jsonPath("$.requestPath").value("/api/v1/portfolios"))
+                .andExpect(jsonPath("$.count").value(2))
+                .andExpect(jsonPath("$.requestPath").isEmpty())
                 .andExpect(jsonPath("$.entries[0].requestPath").value("/api/v1/portfolios"));
     }
 }

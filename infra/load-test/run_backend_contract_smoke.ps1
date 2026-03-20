@@ -217,7 +217,7 @@ $auditOpsCountValue = Get-ObjectPropertyValue -Object $auditOpsJson -Name "count
 $auditOpsCount = if ($null -ne $auditOpsCountValue) { [int]$auditOpsCountValue } else { -1 }
 Assert-Condition -Results $results -Name "Audit Ops REST" -Condition ($auditOps.status -eq 200 -and $auditOpsCount -ge 1) -Detail "status=$($auditOps.status), count=$auditOpsCount"
 
-$auditActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/auditlog?requestId=$([System.Uri]::EscapeDataString($requestId))"
+$auditActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/auditlog"
 $auditActuatorJson = if ($auditActuator.content) { $auditActuator.content | ConvertFrom-Json } else { $null }
 $auditActuatorCountValue = Get-ObjectPropertyValue -Object $auditActuatorJson -Name "count"
 $auditActuatorCount = if ($null -ne $auditActuatorCountValue) { [int]$auditActuatorCountValue } else { -1 }

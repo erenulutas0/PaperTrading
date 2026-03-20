@@ -224,7 +224,7 @@ Assert-AuditSnapshot -Results $results -Name "Analysis Create Audit Capture" -Re
 $analysisDeleteAudit = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?requestId=$([System.Uri]::EscapeDataString($analysisDeleteRequestId))"
 Assert-AuditSnapshot -Results $results -Name "Analysis Delete Audit Capture" -Response $analysisDeleteAudit -ExpectedAction "ANALYSIS_POST_DELETED" -ExpectedPath "/api/v1/analysis-posts/$analysisPostId" -ExpectedRequestId $analysisDeleteRequestId
 
-$auditActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/auditlog?requestId=$([System.Uri]::EscapeDataString($analysisDeleteRequestId))"
+$auditActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/auditlog"
 $auditActuatorJson = if ($auditActuator.content) { $auditActuator.content | ConvertFrom-Json } else { $null }
 $auditActuatorCountValue = Get-ObjectPropertyValue -Object $auditActuatorJson -Name "count"
 $auditActuatorCount = if ($null -ne $auditActuatorCountValue) { [int]$auditActuatorCountValue } else { -1 }

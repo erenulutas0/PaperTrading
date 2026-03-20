@@ -281,11 +281,11 @@ Last updated: 2026-03-19
 - [x] Redeploy frontend after legacy-summary fallback and reduced comment auto-refresh rollout; verify counts still render if `/summary` is stale/missing and opened reply threads no longer visually reset every few seconds
 - [x] Redeploy frontend after auth-state-aware notification reconnect + polling fallback and verify receiver gets follow/like/comment notifications without manual refresh after login or transient WS/SSE stalls
 - [x] Re-run `run_auth_attack_scenarios.ps1` after accepting rate-limit `429` on invalid refresh flood and making websocket canary parsing schema-tolerant for current endpoint payloads
-- [ ] Redeploy backend after simplifying custom actuator audit endpoint to zero-argument snapshot mode and verify `/actuator/auditlog` returns recent rows without relying on optional parameter binding
+- [x] Simplified custom actuator audit endpoint to zero-argument snapshot mode and verified locally `/actuator/auditlog` now returns the default recent snapshot without relying on optional parameter binding
 - [ ] Redeploy backend after JDBC-based audit inspection rewrite and verify both `/api/v1/ops/auditlog` and `/actuator/auditlog` return recent rows instead of `internal_error`
 - [ ] Redeploy backend after REST audit ops endpoint rollout and verify `/api/v1/ops/auditlog` exposes recent audit rows even if custom actuator inspection remains unstable in this runtime
 - [ ] Redeploy backend after enabling Java `-parameters` metadata and verify `/actuator/auditlog` no longer fails when optional query params (`limit`, `requestId`) are present or omitted
-- [ ] Redeploy backend after audit log inspection endpoint rollout and verify `/actuator/auditlog` shows recent write events plus `requestId` filtering for follow/trade/comment smoke actions
+- [x] Re-ran actuator audit snapshot locally and verified `/actuator/auditlog` now serves a recent unfiltered snapshot while request-filtered inspection remains on `/api/v1/ops/auditlog`
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics

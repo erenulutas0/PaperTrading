@@ -38,6 +38,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Actuator Audit Inspection Was Narrowed To A Zero-Argument Snapshot Surface**
+  - **Problem observed**:
+    - Audit inspection had already moved toward a split model:
+      - rich filtered inspection on `/api/v1/ops/auditlog`
+      - lightweight operational snapshot on `/actuator/auditlog`
+    - But the actuator endpoint still accepted optional filter arguments, which kept parameter binding and runtime variance in a surface that should stay minimal.
+  - **Implementation**:
+    - Reduced `AuditLogEndpoint` to a zero-argument `@ReadOperation`.
+    - It now always returns the default recent audit snapshot via `inspectionService.snapshot(null, ...)`.
+    - Updated:
+      - `AuditLogEndpointIntegrationTest`
+      - `run_backend_contract_smoke.ps1`
+      - `run_audit_write_capture_smoke.ps1`
+      so actuator validation no longer assumes request-filtered behavior.
+  - **Operational impact**:
+    - `/actuator/auditlog` is now a simpler health/ops snapshot instead of a second filtered query surface
+    - request-filtered audit inspection remains on the REST ops endpoint, which is easier to keep stable and diagnose
+  - **Validation**:
+    - Passed:
+      - `AuditLogEndpointIntegrationTest`
+      - `run_backend_contract_smoke.ps1`
+      - `run_audit_write_capture_smoke.ps1`
 - **2026-03-20**: **Social Follow And Portfolio Participation Edge Paths Now Emit Explicit Correlated Errors**
   - **Problem observed**:
     - The broader error-contract rollout had already aligned portfolio/trade/tournament/watchlist flows, but two user-facing social write surfaces still leaned on generic runtime mapping:

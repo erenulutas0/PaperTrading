@@ -1,18 +1,14 @@
 package com.finance.core.observability;
 
-import com.finance.core.domain.AuditActionType;
-import com.finance.core.domain.AuditResourceType;
 import com.finance.core.service.AuditLogInspectionService;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Component
 @Endpoint(id = "auditlog")
@@ -25,28 +21,20 @@ public class AuditLogEndpoint {
     }
 
     @ReadOperation
-    public Map<String, Object> auditLog(
-            @Nullable Integer limit,
-            @Nullable Integer page,
-            @Nullable Integer days,
-            @Nullable String requestId,
-            @Nullable String requestPath,
-            @Nullable UUID actorId,
-            @Nullable AuditActionType actionType,
-            @Nullable AuditResourceType resourceType) {
+    public Map<String, Object> auditLog() {
         try {
-            return inspectionService.snapshot(limit, page, days, requestId, requestPath, actorId, actionType, resourceType);
+            return inspectionService.snapshot(null, null, null, null, null, null, null, null);
         } catch (Throwable ex) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("checkedAt", LocalDateTime.now());
-            payload.put("limit", limit);
-            payload.put("page", page);
-            payload.put("days", days);
-            payload.put("requestId", requestId);
-            payload.put("requestPath", requestPath);
-            payload.put("actorId", actorId);
-            payload.put("actionType", actionType);
-            payload.put("resourceType", resourceType);
+            payload.put("limit", null);
+            payload.put("page", null);
+            payload.put("days", null);
+            payload.put("requestId", null);
+            payload.put("requestPath", null);
+            payload.put("actorId", null);
+            payload.put("actionType", null);
+            payload.put("resourceType", null);
             payload.put("count", 0);
             payload.put("entries", List.of());
             payload.put("error", ex.getMessage());
