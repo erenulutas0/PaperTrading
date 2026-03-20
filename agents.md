@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Audit Staging Verification Got A Dedicated Checklist Wrapper**
+  - **Problem observed**:
+    - The audit validation suite already unified contract smoke and write-capture validation, but staging/redeploy steps still required remembering that generic suite name and its optional skips.
+    - That is small friction, but it reintroduces manual judgement in exactly the place where rollout should be most repeatable.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_audit_staging_checklist.ps1`
+    - The wrapper delegates to `run_audit_validation_suite.ps1` with a clearer staging-oriented entrypoint and passthrough skip flags.
+  - **Operational impact**:
+    - audit redeploy verification now has a single explicit command for staging operators
+    - open audit TODOs are narrower because operator memory is no longer part of the verification path
+  - **Validation**:
+    - Passed:
+      - `run_audit_staging_checklist.ps1`
 - **2026-03-20**: **Audit Verification Was Consolidated Into A Single Validation Suite**
   - **Problem observed**:
     - Audit runtime proof already existed, but it was split across two separate smoke entrypoints:

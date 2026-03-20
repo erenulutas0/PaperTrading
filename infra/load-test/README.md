@@ -262,6 +262,18 @@ Useful notes:
 - `-SkipWriteCapture` is useful when you only want contract/endpoint health.
 - the suite writes a summary markdown report that links the child reports.
 
+Run the staging-oriented audit checklist wrapper:
+
+```powershell
+./infra/load-test/run_audit_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Useful notes:
+- this wrapper delegates to `run_audit_validation_suite.ps1` with staging-friendly defaults.
+- use `-SkipWriteCapture` if you only want endpoint health/inspection validation.
+- use `-SkipContractSmoke` if you only want append-only write capture validation.
+
 Run endpoint-aware rate-limit profile smoke against a local backend:
 
 ```powershell

@@ -294,6 +294,13 @@ Last updated: 2026-03-19
     - produces one summary report for audit inspection + audit write verification
     - makes staging/local audit verification a single repeatable command instead of two separate steps
 - [x] Re-ran audit validation suite locally and verified backend contract + audit write capture pass together from one entrypoint
+- [x] Added staging-focused audit checklist wrapper:
+  - Added:
+    - `infra/load-test/run_audit_staging_checklist.ps1`
+  - Behavior:
+    - delegates to `run_audit_validation_suite.ps1` with a staging-style entrypoint
+    - reduces audit redeploy verification to one explicit command instead of ad hoc script selection
+- [x] Re-ran audit staging checklist wrapper locally and verified it delegates cleanly into the audit validation suite
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics
