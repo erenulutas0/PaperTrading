@@ -59,6 +59,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Validation**:
     - Passed:
       - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_portfolio_pagination_warning_smoke.ps1 -NoFail`
+- **2026-03-21**: **Strict-Mode Cutover Now Has A Dedicated Spoof-Regression Entry Point**
+  - **Problem observed**:
+    - The broader auth attack script already exercised the important spoof case:
+      - `Authorization: Bearer <userA>` + `X-User-Id: <userB>`
+    - But staging cutover guidance still depended on operators remembering that this specific row inside `run_auth_attack_scenarios.ps1` was the post-cutover spoof proof.
+  - **Implementation**:
+    - Hardened `run_auth_attack_scenarios.ps1` so zero-attempt scenarios are valid instead of accidentally executing extra requests.
+    - Added:
+      - `infra/load-test/run_auth_spoof_regression_check.ps1`
+    - The wrapper reuses the attack script, but narrows execution to the header-mismatch flood and emits a focused markdown report.
+  - **Operational impact**:
+    - post-cutover spoof verification is now a single explicit command instead of an implied sub-row inside a larger auth attack report
+    - staging operators can prove the strict Bearer/header mismatch rejection still holds without running the full broader attack suite
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_spoof_regression_check.ps1 -BaseUrl http://localhost:8080 -NoFail`
 - **2026-03-21**: **Owner-Scoped Portfolio Pages Now Use Two-Step Hydration Instead Of Paged EntityGraph Fetching**
   - **Problem observed**:
     - Discover and scheduler-oriented portfolio reads had already moved to id-first loading patterns, but the owner-scoped portfolio list still used paged `@EntityGraph(items)` hydration.

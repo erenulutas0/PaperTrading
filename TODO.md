@@ -381,7 +381,15 @@ Last updated: 2026-03-19
     - produces one summary report that links the child baseline + relay reports
   - Local validation:
     - partial pass with `-SkipRelay` confirmed the wrapper now reports child-script failure correctly and baseline runs cleanly under Windows PowerShell
-  - [ ] Keep `run_auth_attack_scenarios.ps1` header-mismatch scenario intact and use it as the explicit spoof-regression check after strict-mode cutover
+  - [x] Added focused spoof-regression wrapper for strict-mode cutover checks:
+    - Added:
+      - `infra/load-test/run_auth_spoof_regression_check.ps1`
+    - Behavior:
+      - reuses `run_auth_attack_scenarios.ps1`
+      - drives only the Bearer + mismatched `X-User-Id` flood
+      - writes a focused report proving the header-mismatch scenario still returns only `401`
+    - Local validation:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_spoof_regression_check.ps1 -BaseUrl http://localhost:8080 -NoFail`
   - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [x] Added local endpoint-aware rate-limit smoke tooling:
   - Added:

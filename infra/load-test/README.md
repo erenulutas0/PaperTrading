@@ -35,6 +35,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `calibrate_auth_observability_thresholds.ps1`
 - `assess_auth_strict_mode_readiness.ps1`
 - `run_auth_attack_scenarios.ps1`
+- `run_auth_spoof_regression_check.ps1`
 - `run_backend_contract_smoke.ps1`
 - `run_idempotency_cleanup_smoke.ps1`
 - `run_audit_write_capture_smoke.ps1`
@@ -321,6 +322,19 @@ The auth strict-mode smoke checks:
 - Bearer + matching `X-User-Id` remains accepted
 - Bearer + mismatched `X-User-Id` is rejected
 - authenticated follow still works without legacy-header auth
+
+Run a focused spoof-regression check after strict-mode cutover:
+
+```powershell
+./infra/load-test/run_auth_spoof_regression_check.ps1 `
+  -BaseUrl "http://localhost:8080"
+```
+
+The spoof-regression check:
+- reuses `run_auth_attack_scenarios.ps1`
+- drives only the Bearer + mismatched `X-User-Id` flood
+- keeps a small canary probe tail so the auth path is checked under the same live runtime
+- emits a focused markdown report that proves the header-mismatch scenario still returns only `401`
 
 Run a strict-mode validation suite that chains the main rollout checks:
 

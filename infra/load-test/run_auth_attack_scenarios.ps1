@@ -294,6 +294,20 @@ function Run-StatusScenario {
   $unexpectedCount = 0
   $firstUnexpected = ""
 
+  if ($Attempts -le 0) {
+    return [pscustomobject]@{
+      name            = $Name
+      attempts        = 0
+      expectedStatus  = ($ExpectedStatuses -join "/")
+      expectedCount   = 0
+      unexpectedCount = 0
+      avgLatencyMs    = 0.0
+      p95LatencyMs    = 0.0
+      p99LatencyMs    = 0.0
+      firstUnexpected = ""
+    }
+  }
+
   for ($i = 1; $i -le $Attempts; $i++) {
     $response = & $RequestFactory $i
     $latencies.Add([double]$response.latencyMs)
