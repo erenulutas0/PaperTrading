@@ -1,16 +1,10 @@
 param(
-  [string]$BaseUrl = "http://localhost:8080",
-  [string]$StrictSmokeBaseUrl = "",
+  [string]$BaseUrl,
   [string]$ReportsDir = "infra/load-test/reports",
-  [double]$MaxLegacyAccepted = 0,
-  [int]$BaselineSeedEvents = 40,
-  [int]$BaselineConcurrency = 4,
-  [int]$BaselineRequestsPerWorker = 20,
+  [int]$BaselineSeedEvents = 80,
+  [int]$BaselineConcurrency = 6,
+  [int]$BaselineRequestsPerWorker = 40,
   [string]$RelayBrokerRestartCommand = "",
-  [switch]$SkipLegacyUsage,
-  [switch]$SkipStrictSmoke,
-  [switch]$SkipAuthAttack,
-  [switch]$SkipRateLimitProfile,
   [switch]$SkipBaseline,
   [switch]$SkipRelay,
   [switch]$NoFail
@@ -18,6 +12,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
+  throw "BaseUrl is required for strict transport validation."
+}
 
 function New-StepResult {
   param(
@@ -50,24 +48,6 @@ function Get-LatestReport {
   return $report.FullName
 }
 
-function Parse-MarkdownStatus {
-  param([string]$ReportPath)
-
-  if (-not (Test-Path $ReportPath)) {
-    return ""
-  }
-  $content = Get-Content $ReportPath -Raw
-  $match = [regex]::Match($content, "- Status:\s+\*\*(.+?)\*\*", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-  if ($match.Success -and $match.Groups.Count -ge 2) {
-    return $match.Groups[1].Value.Trim()
-  }
-  $lineMatch = [regex]::Match($content, "Status:\s+([A-Z_]+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-  if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
-    return $lineMatch.Groups[1].Value.Trim()
-  }
-  return ""
-}
-
 function Invoke-ScriptStep {
   param(
     [string]$Name,
@@ -88,68 +68,34 @@ function Invoke-ScriptStep {
     }
     $report = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
     if ([string]::IsNullOrWhiteSpace($report)) {
-      return New-StepResult -Name $Name -Status "FAILED" -Detail "report_not_found" -ReportPath ""
+      return New-StepResult -Name $Name -Status "FAILED" -Detail "report_not_found"
     }
-    $status = Parse-MarkdownStatus -ReportPath $report
-    if ([string]::IsNullOrWhiteSpace($status)) {
-      $status = "PASSED"
-    }
-    return New-StepResult -Name $Name -Status $status -Detail "ok" -ReportPath $report
+    return New-StepResult -Name $Name -Status "PASSED" -Detail "ok" -ReportPath $report
   } catch {
     $report = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
-    $detail = $_.Exception.Message
     if ($report -eq $before) {
       $report = ""
     }
-    return New-StepResult -Name $Name -Status "FAILED" -Detail $detail -ReportPath $report
+    return New-StepResult -Name $Name -Status "FAILED" -Detail $_.Exception.Message -ReportPath $report
   }
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $null = New-Item -ItemType Directory -Path $ReportsDir -Force
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$reportPath = Join-Path $ReportsDir "auth-strict-mode-validation-suite-$timestamp.md"
+$reportPath = Join-Path $ReportsDir "auth-strict-transport-validation-$timestamp.md"
 $results = New-Object 'System.Collections.Generic.List[object]'
-
-$strictBase = if ([string]::IsNullOrWhiteSpace($StrictSmokeBaseUrl)) { $BaseUrl } else { $StrictSmokeBaseUrl }
-
-if (-not $SkipLegacyUsage) {
-  $results.Add((Invoke-ScriptStep `
-        -Name "Legacy Usage" `
-        -ScriptPath (Join-Path $scriptDir "check_auth_legacy_usage.ps1") `
-        -Arguments @("-BaseUrl", $BaseUrl, "-MaxLegacyAccepted", "$MaxLegacyAccepted", "-NoFail") `
-        -ReportPattern "auth-legacy-usage-*.md")) | Out-Null
-}
-
-if (-not $SkipStrictSmoke) {
-  $results.Add((Invoke-ScriptStep `
-        -Name "Strict Smoke" `
-        -ScriptPath (Join-Path $scriptDir "run_auth_strict_mode_smoke.ps1") `
-        -Arguments @("-BaseUrl", $strictBase, "-NoFail") `
-        -ReportPattern "auth-strict-mode-smoke-*.md")) | Out-Null
-}
-
-if (-not $SkipAuthAttack) {
-  $results.Add((Invoke-ScriptStep `
-        -Name "Auth Attack" `
-        -ScriptPath (Join-Path $scriptDir "run_auth_attack_scenarios.ps1") `
-        -Arguments @("-BaseUrl", $BaseUrl, "-NoFail") `
-        -ReportPattern "auth-attack-scenarios-*.md")) | Out-Null
-}
-
-if (-not $SkipRateLimitProfile) {
-  $results.Add((Invoke-ScriptStep `
-        -Name "Rate-Limit Profiles" `
-        -ScriptPath (Join-Path $scriptDir "run_rate_limit_profile_smoke.ps1") `
-        -Arguments @("-BaseUrl", $BaseUrl, "-NoFail") `
-        -ReportPattern "rate-limit-profile-smoke-*.md")) | Out-Null
-}
 
 if (-not $SkipBaseline) {
   $results.Add((Invoke-ScriptStep `
         -Name "Baseline" `
         -ScriptPath (Join-Path $scriptDir "lightweight_baseline.ps1") `
-        -Arguments @("-BaseUrl", $BaseUrl, "-SeedEvents", "$BaselineSeedEvents", "-Concurrency", "$BaselineConcurrency", "-RequestsPerWorker", "$BaselineRequestsPerWorker") `
+        -Arguments @(
+          "-BaseUrl", $BaseUrl,
+          "-SeedEvents", "$BaselineSeedEvents",
+          "-Concurrency", "$BaselineConcurrency",
+          "-RequestsPerWorker", "$BaselineRequestsPerWorker"
+        ) `
         -ReportPattern "load-baseline-*.md")) | Out-Null
 }
 
@@ -165,16 +111,21 @@ if (-not $SkipRelay) {
         -ReportPattern "websocket-relay-smoke-*.md")) | Out-Null
 }
 
-$failed = @($results | Where-Object { $_.Status -notin @("PASSED", "READY", "CONDITIONAL_READY", "STABLE", "OBSERVE_WARNING") })
+$failed = @($results | Where-Object { $_.Status -ne "PASSED" })
 $overallStatus = if ($failed.Count -eq 0) { "PASSED" } else { "FAILED" }
 
 $lines = @()
-$lines += "# Auth Strict Mode Validation Suite"
+$lines += "# Auth Strict Transport Validation"
 $lines += ""
 $lines += "- Timestamp: $(Get-Date -Format s)"
 $lines += "- Base URL: $BaseUrl"
-$lines += "- Strict Smoke Base URL: $strictBase"
 $lines += "- Status: **$overallStatus**"
+$lines += "- Baseline config: seed=$BaselineSeedEvents concurrency=$BaselineConcurrency requestsPerWorker=$BaselineRequestsPerWorker"
+$lines += "- Relay restart command supplied: $(if ([string]::IsNullOrWhiteSpace($RelayBrokerRestartCommand)) { 'no' } else { 'yes' })"
+$lines += ""
+$lines += "Bearer-only transport focus:"
+$lines += '- `lightweight_baseline.ps1` already authenticates personalized/write traffic with `Authorization: Bearer ...`'
+$lines += '- `validate_websocket_relay_smoke.ps1` already authenticates REST follow/join paths and STOMP `CONNECT` with Bearer tokens'
 $lines += ""
 $lines += "| Step | Status | Detail | Report |"
 $lines += "|---|---|---|---|"
@@ -185,7 +136,7 @@ foreach ($result in $results) {
 
 Set-Content -Path $reportPath -Value $lines -Encoding UTF8
 
-Write-Host "Auth strict-mode validation suite report created: $reportPath"
+Write-Host "Auth strict transport validation report created: $reportPath"
 Write-Host "Status: $overallStatus | FailedSteps: $($failed.Count)"
 
 if ($overallStatus -eq "FAILED" -and -not $NoFail) {

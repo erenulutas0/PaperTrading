@@ -74,6 +74,45 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Validation**:
     - Passed:
       - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_mode_validation_suite.ps1 -BaseUrl http://localhost:8080 -SkipLegacyUsage -SkipStrictSmoke -SkipAuthAttack -SkipBaseline -SkipRelay -NoFail`
+- **2026-03-20**: **Bearer-Only Transport Checks Now Have A Dedicated Wrapper**
+  - **Problem observed**:
+    - After migrating `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` to Bearer auth, the remaining strict-mode staging TODO still depended on remembering those two scripts as a pair.
+    - The broader strict-mode suite can already run them, but it also carries extra auth rollout steps that are not always needed when the question is simply:
+      - do browser/feed paths still work without legacy headers?
+      - do notification/tournament relay paths still work with Bearer-only auth?
+  - **Implementation**:
+    - Added `infra/load-test/run_auth_strict_transport_validation.ps1`.
+    - The wrapper runs:
+      - `lightweight_baseline.ps1`
+      - `validate_websocket_relay_smoke.ps1`
+    - It writes a single transport-focused summary report linking the child reports.
+  - **Operational impact**:
+    - post-cutover Bearer transport validation now has a smaller entrypoint than the full strict-mode suite
+    - staging operators can verify browser/feed/relay health without dragging in unrelated auth rollout checks
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_transport_validation.ps1 -BaseUrl http://localhost:8080 -BaselineSeedEvents 10 -BaselineConcurrency 2 -BaselineRequestsPerWorker 5 -SkipRelay -NoFail`
+- **2026-03-20**: **Load-Test Wrappers Now Respect Child Exit Codes And Stay Windows PowerShell-Compatible**
+  - **Problem observed**:
+    - The new transport wrapper initially reported `PASSED` even when `lightweight_baseline.ps1` was failing at parse time.
+    - Root causes:
+      - some load-test scripts still used `??`, which Windows PowerShell does not support
+      - orchestration wrappers were not treating non-zero child script exits as failures
+  - **Implementation**:
+    - Removed `??` usage from:
+      - `infra/load-test/lightweight_baseline.ps1`
+      - `infra/load-test/calibrate_auth_observability_thresholds.ps1`
+      - `infra/load-test/run_websocket_canary_external.ps1`
+    - Hardened child script execution in:
+      - `infra/load-test/run_auth_strict_mode_validation_suite.ps1`
+      - `infra/load-test/run_auth_strict_transport_validation.ps1`
+    - Wrappers now mark steps failed when child scripts exit non-zero instead of silently trusting the last report on disk.
+  - **Operational impact**:
+    - local Windows validation is less brittle
+    - strict-mode/staging suites no longer produce false-green summaries when a child script fails before writing a fresh valid report
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_transport_validation.ps1 -BaseUrl http://localhost:8080 -BaselineSeedEvents 10 -BaselineConcurrency 2 -BaselineRequestsPerWorker 5 -SkipRelay -NoFail`
 - **2026-03-20**: **Strict-Mode Staging Rollout Now Has A Checklist Wrapper**
   - **Problem observed**:
     - The validation suite solved orchestration, but staging rollout still required remembering which defaults to use:

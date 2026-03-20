@@ -48,6 +48,25 @@ function To-IntSafe {
   }
 }
 
+function Get-PropertyValueOrDefault {
+  param(
+    [object]$Object,
+    [string]$Name,
+    [object]$DefaultValue
+  )
+
+  if ($null -eq $Object) {
+    return $DefaultValue
+  }
+
+  $property = $Object.PSObject.Properties[$Name]
+  if ($null -eq $property -or $null -eq $property.Value) {
+    return $DefaultValue
+  }
+
+  return $property.Value
+}
+
 function Get-Percentile {
   param(
     [double[]]$Values,
@@ -113,7 +132,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
       $error = "empty response from endpoint"
     } else {
       $successRuns++
-      $alertState = [string]($snapshot.alertState ?? "UNKNOWN")
+      $alertState = [string](Get-PropertyValueOrDefault -Object $snapshot -Name "alertState" -DefaultValue "UNKNOWN")
       $windowSeconds = To-IntSafe -Value $snapshot.windowSeconds
       $refreshSuccessCount = To-IntSafe -Value $snapshot.refreshSuccessCount
       $invalidRefreshCount = To-IntSafe -Value $snapshot.invalidRefreshCount

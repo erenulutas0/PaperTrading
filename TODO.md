@@ -297,8 +297,17 @@ Last updated: 2026-03-19
 - [x] Re-ran request-correlation + unified error contract rollout locally and verified `X-Request-Id` is echoed on errors plus auth failures return `{code,message,details?,requestId}`
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
 - [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance
-- [ ] Keep `run_auth_attack_scenarios.ps1` header-mismatch scenario intact and use it as the explicit spoof-regression check after strict-mode cutover
-- [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
+- [x] Added strict transport validation wrapper for Bearer-only staging checks:
+  - Added:
+    - `infra/load-test/run_auth_strict_transport_validation.ps1`
+  - Behavior:
+    - runs `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` as one staged transport checklist
+    - keeps focus on Bearer-authenticated browser/feed/notification/tournament relay paths after legacy-header cutover
+    - produces one summary report that links the child baseline + relay reports
+  - Local validation:
+    - partial pass with `-SkipRelay` confirmed the wrapper now reports child-script failure correctly and baseline runs cleanly under Windows PowerShell
+  - [ ] Keep `run_auth_attack_scenarios.ps1` header-mismatch scenario intact and use it as the explicit spoof-regression check after strict-mode cutover
+  - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [x] Added local endpoint-aware rate-limit smoke tooling:
   - Added:
     - `infra/load-test/run_rate_limit_profile_smoke.ps1`
@@ -573,6 +582,12 @@ Last updated: 2026-03-19
     - skips strict-smoke by default unless an explicit strict preview/runtime URL is supplied
     - keeps relay restart command wiring at the checklist entrypoint
 - [x] Re-ran staging checklist wrapper in partial local mode and verified it delegates cleanly into the strict validation suite with staging presets
+- [x] Added strict transport wrapper for post-cutover Bearer path checks:
+  - Added:
+    - `infra/load-test/run_auth_strict_transport_validation.ps1`
+  - Behavior:
+    - isolates `lightweight_baseline.ps1` + `validate_websocket_relay_smoke.ps1` into a single Bearer-transport validation command
+    - keeps strict auth transport checks separate from the broader auth-attack/legacy-usage suite when operators only need browser + relay confirmation
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`

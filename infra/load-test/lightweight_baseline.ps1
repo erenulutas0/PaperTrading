@@ -91,6 +91,19 @@ function Parse-RedisInfo {
     return $map
 }
 
+function Get-HashtableValueOrDefault {
+    param(
+        [hashtable]$Map,
+        [string]$Key,
+        [object]$DefaultValue
+    )
+
+    if ($null -eq $Map -or -not $Map.ContainsKey($Key) -or $null -eq $Map[$Key]) {
+        return $DefaultValue
+    }
+    return $Map[$Key]
+}
+
 function Get-ActuatorMetricValue {
     param(
         [string]$ApiBase,
@@ -227,12 +240,12 @@ function Get-RedisSnapshot {
             return [pscustomobject]@{
                 metrics_source           = "redis-cli"
                 redis_version            = $server["redis_version"]
-                total_commands_processed = [long]($stats["total_commands_processed"] ?? 0)
-                keyspace_hits            = [long]($stats["keyspace_hits"] ?? 0)
-                keyspace_misses          = [long]($stats["keyspace_misses"] ?? 0)
-                evicted_keys             = [long]($stats["evicted_keys"] ?? 0)
-                used_memory              = [long]($memory["used_memory"] ?? 0)
-                connected_clients        = [long]($clients["connected_clients"] ?? 0)
+                total_commands_processed = [long](Get-HashtableValueOrDefault -Map $stats -Key "total_commands_processed" -DefaultValue 0)
+                keyspace_hits            = [long](Get-HashtableValueOrDefault -Map $stats -Key "keyspace_hits" -DefaultValue 0)
+                keyspace_misses          = [long](Get-HashtableValueOrDefault -Map $stats -Key "keyspace_misses" -DefaultValue 0)
+                evicted_keys             = [long](Get-HashtableValueOrDefault -Map $stats -Key "evicted_keys" -DefaultValue 0)
+                used_memory              = [long](Get-HashtableValueOrDefault -Map $memory -Key "used_memory" -DefaultValue 0)
+                connected_clients        = [long](Get-HashtableValueOrDefault -Map $clients -Key "connected_clients" -DefaultValue 0)
                 observed_redis_metrics   = 7
             }
         } catch {

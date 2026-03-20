@@ -47,6 +47,25 @@ function To-DoubleSafe {
   }
 }
 
+function Get-PropertyValueOrDefault {
+  param(
+    [object]$Object,
+    [string]$Name,
+    [object]$DefaultValue
+  )
+
+  if ($null -eq $Object) {
+    return $DefaultValue
+  }
+
+  $property = $Object.PSObject.Properties[$Name]
+  if ($null -eq $property -or $null -eq $property.Value) {
+    return $DefaultValue
+  }
+
+  return $property.Value
+}
+
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $reportsDir = "infra/load-test/reports"
 $null = New-Item -ItemType Directory -Path $reportsDir -Force
@@ -89,11 +108,11 @@ for ($i = 1; $i -le $Iterations; $i++) {
     if ($null -ne $snapshot) {
       $success = [bool]$snapshot.success
       $latencyMs = To-DoubleSafe -Value $snapshot.latencyMs
-      $consecutiveFailures = [int]($snapshot.consecutiveFailures ?? 0)
-      $alertState = [string]($snapshot.alertState ?? "unknown")
-      $error = [string]($snapshot.error ?? "")
-      $topicReceived = [bool]($snapshot.topicReceived ?? $false)
-      $userQueueReceived = [bool]($snapshot.userQueueReceived ?? $false)
+      $consecutiveFailures = [int](Get-PropertyValueOrDefault -Object $snapshot -Name "consecutiveFailures" -DefaultValue 0)
+      $alertState = [string](Get-PropertyValueOrDefault -Object $snapshot -Name "alertState" -DefaultValue "unknown")
+      $error = [string](Get-PropertyValueOrDefault -Object $snapshot -Name "error" -DefaultValue "")
+      $topicReceived = [bool](Get-PropertyValueOrDefault -Object $snapshot -Name "topicReceived" -DefaultValue $false)
+      $userQueueReceived = [bool](Get-PropertyValueOrDefault -Object $snapshot -Name "userQueueReceived" -DefaultValue $false)
       $latencies.Add($latencyMs)
     } else {
       $error = "empty-canary-response"
@@ -106,8 +125,8 @@ for ($i = 1; $i -le $Iterations; $i++) {
     try {
       $wsSnapshot = Invoke-JsonGet -Url $websocketEndpoint -TimeoutSec $RequestTimeoutSec
       if ($null -ne $wsSnapshot) {
-        $activeSessions = [string]($wsSnapshot.activeSessions ?? "")
-        $stompErrors = [string]($wsSnapshot.stompErrorEvents ?? "")
+        $activeSessions = [string](Get-PropertyValueOrDefault -Object $wsSnapshot -Name "activeSessions" -DefaultValue "")
+        $stompErrors = [string](Get-PropertyValueOrDefault -Object $wsSnapshot -Name "stompErrorEvents" -DefaultValue "")
       }
     } catch {
       if ([string]::IsNullOrWhiteSpace($error)) {
