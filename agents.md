@@ -114,6 +114,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Validation**:
     - Passed:
       - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_post_cutover_checklist.ps1 -BaseUrl http://localhost:8080 -SkipRelay -NoFail`
+- **2026-03-21**: **Browser-Origin Verification Now Has A Dedicated Staging Checklist**
+  - **Problem observed**:
+    - The staging runbook already called out two separate origin-sensitive tasks:
+      - backend CORS allowed origins for browser REST
+      - backend WebSocket allowed origins for notification/tournament streams
+    - But operators still had to verify them manually with separate mental steps, and the relay smoke did not expose an explicit `Origin` header for handshake testing.
+  - **Implementation**:
+    - Added `-OriginHeader` support to `validate_websocket_relay_smoke.ps1`.
+    - Hardened the relay smoke helper functions so strict-mode PowerShell cleanup/session handling stays stable under explicit origin testing.
+    - Added:
+      - `infra/load-test/run_browser_origin_staging_checklist.ps1`
+    - The new checklist verifies:
+      - REST preflight origin acceptance
+      - register/login/protected-read with a browser-style `Origin`
+      - optional WebSocket relay smoke with the same `Origin` header
+  - **Operational impact**:
+    - staging CORS/origin validation is now a single explicit checklist instead of split manual probes
+    - websocket origin verification is no longer implicit; the relay smoke can exercise the same browser-origin contract as the HTTP checks
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_browser_origin_staging_checklist.ps1 -BaseUrl http://localhost:8080 -FrontendOrigin http://localhost:3005 -SkipRelay -NoFail`
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\validate_websocket_relay_smoke.ps1 -SkipAppStart -BaseUrl http://localhost:8080 -OriginHeader http://localhost:3005 -NoFail`
 - **2026-03-21**: **Owner-Scoped Portfolio Pages Now Use Two-Step Hydration Instead Of Paged EntityGraph Fetching**
   - **Problem observed**:
     - Discover and scheduler-oriented portfolio reads had already moved to id-first loading patterns, but the owner-scoped portfolio list still used paged `@EntityGraph(items)` hydration.

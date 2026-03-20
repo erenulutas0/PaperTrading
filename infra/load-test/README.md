@@ -47,6 +47,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_auth_strict_mode_staging_checklist.ps1`
 - `run_auth_strict_transport_validation.ps1`
 - `run_auth_strict_post_cutover_checklist.ps1`
+- `run_browser_origin_staging_checklist.ps1`
 
 ## Prerequisites
 
@@ -400,6 +401,21 @@ Checklist behavior:
 - runs focused spoof-regression validation
 - runs endpoint-aware rate-limit isolation validation
 - use `-SkipRelay` when no relay-enabled target exists yet
+
+Run the browser-origin staging checklist for CORS + WebSocket origin verification:
+
+```powershell
+./infra/load-test/run_browser_origin_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -FrontendOrigin "https://frontend.up.railway.app" `
+  -RelayBrokerRestartCommand "docker restart finance-rabbitmq"
+```
+
+Checklist behavior:
+- verifies REST preflight returns `Access-Control-Allow-Origin` for the frontend origin
+- verifies register/login/protected-read requests succeed with the same browser origin
+- reuses `validate_websocket_relay_smoke.ps1` with an explicit WebSocket `Origin` header
+- use `-SkipRelay` when only HTTP CORS verification is needed
 
 Run Bearer-only transport validation for the two scripts that matter most after strict auth cutover:
 

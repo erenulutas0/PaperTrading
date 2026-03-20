@@ -430,6 +430,16 @@ Last updated: 2026-03-19
 - [ ] Switch frontend Railway deploy mode to Dockerfile fallback (`apps/web/Dockerfile`) to bypass Railpack `npm ci` lockfile mismatch and verify successful build/start on port 3000
 - [ ] Set backend staging `APP_WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` to include frontend Railway domain and verify notification websocket handshake
 - [ ] Set backend staging `APP_CORS_ALLOWED_ORIGIN_PATTERNS` to include frontend Railway domain and re-test register/login flows for CORS-free API proxying
+- [x] Added browser-origin staging checklist wrapper:
+  - Added:
+    - `infra/load-test/run_browser_origin_staging_checklist.ps1`
+  - Behavior:
+    - verifies REST preflight + register/login/protected-read with an explicit browser `Origin`
+    - delegates websocket validation to `validate_websocket_relay_smoke.ps1` with `-OriginHeader`
+    - turns staging CORS/origin verification into a single explicit command
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_browser_origin_staging_checklist.ps1 -BaseUrl http://localhost:8080 -FrontendOrigin http://localhost:3005 -SkipRelay -NoFail`
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\validate_websocket_relay_smoke.ps1 -SkipAppStart -BaseUrl http://localhost:8080 -OriginHeader http://localhost:3005 -NoFail`
 - [ ] Confirm websocket canary transitions from initial `UNKNOWN (not-run-yet)` to healthy probe state after scheduled run window
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline

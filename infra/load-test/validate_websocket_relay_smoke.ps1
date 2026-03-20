@@ -2,6 +2,7 @@ param(
   [string]$CoreApiDir = "services/core-api",
   [string]$BaseUrl = "http://localhost:8080",
   [string]$WsUrl = "",
+  [string]$OriginHeader = "",
   [int]$ServerPort = 18082,
   [int]$StartupTimeoutSec = 180,
   [int]$EventTimeoutSec = 45,
@@ -199,7 +200,7 @@ function Parse-StompFrame {
 }
 
 function Try-DequeueStompFrame {
-  param([pscustomobject]$Session)
+  param([object]$Session)
 
   while ($true) {
     $separatorIndex = $Session.Buffer.IndexOf([char]0)
@@ -229,7 +230,7 @@ function Send-WebSocketText {
 
   $payload = [System.Text.Encoding]::UTF8.GetBytes($Text)
   $segment = [System.ArraySegment[byte]]::new($payload)
-  $Socket.SendAsync(
+  $null = $Socket.SendAsync(
     $segment,
     [System.Net.WebSockets.WebSocketMessageType]::Text,
     $true,
@@ -239,21 +240,32 @@ function Send-WebSocketText {
 
 function Send-StompFrame {
   param(
-    [pscustomobject]$Session,
+    [object]$Session,
     [string]$Command,
     [hashtable]$Headers,
     [string]$Body = ""
   )
 
+  $socketProperty = if ($null -ne $Session) { $Session.PSObject.Properties["Socket"] } else { $null }
+  if ($null -eq $socketProperty -or $null -eq $socketProperty.Value) {
+    throw "STOMP session socket is not available."
+  }
+
   $frameText = New-StompFrameText -Command $Command -Headers $Headers -Body $Body
-  Send-WebSocketText -Socket $Session.Socket -Text $frameText
+  Send-WebSocketText -Socket $socketProperty.Value -Text $frameText
 }
 
 function Receive-StompFrame {
   param(
-    [pscustomobject]$Session,
+    [object]$Session,
     [int]$TimeoutSec
   )
+
+  $socketProperty = if ($null -ne $Session) { $Session.PSObject.Properties["Socket"] } else { $null }
+  if ($null -eq $socketProperty -or $null -eq $socketProperty.Value) {
+    throw "STOMP session socket is not available."
+  }
+  $socket = $socketProperty.Value
 
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
   while ((Get-Date) -lt $deadline) {
@@ -262,8 +274,8 @@ function Receive-StompFrame {
       return $queued
     }
 
-    if ($Session.Socket.State -ne [System.Net.WebSockets.WebSocketState]::Open) {
-      throw "WebSocket is not open. Current state: $($Session.Socket.State)"
+    if ($socket.State -ne [System.Net.WebSockets.WebSocketState]::Open) {
+      throw "WebSocket is not open. Current state: $($socket.State)"
     }
 
     $remainingMs = [Math]::Max(1, [int]($deadline - (Get-Date)).TotalMilliseconds)
@@ -273,7 +285,7 @@ function Receive-StompFrame {
     $segment = [System.ArraySegment[byte]]::new($buffer)
 
     try {
-      $result = $Session.Socket.ReceiveAsync($segment, $cts.Token).GetAwaiter().GetResult()
+      $result = $socket.ReceiveAsync($segment, $cts.Token).GetAwaiter().GetResult()
     } catch [System.OperationCanceledException] {
       continue
     } finally {
@@ -295,7 +307,7 @@ function Receive-StompFrame {
 
 function Wait-StompMessage {
   param(
-    [pscustomobject]$Session,
+    [object]$Session,
     [int]$TimeoutSec,
     [scriptblock]$Matcher,
     [string]$Expectation
@@ -332,14 +344,18 @@ function New-StompSession {
     [string]$SocketUrl,
     [string]$AccessToken,
     [string]$HostHeader,
+    [string]$OriginHeader,
     [int]$ConnectTimeoutSec
   )
 
   $socket = [System.Net.WebSockets.ClientWebSocket]::new()
   $socket.Options.KeepAliveInterval = [TimeSpan]::FromSeconds(20)
+  if (-not [string]::IsNullOrWhiteSpace($OriginHeader)) {
+    $null = $socket.Options.SetRequestHeader("Origin", $OriginHeader)
+  }
   $cts = [System.Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds($ConnectTimeoutSec))
   try {
-    $socket.ConnectAsync([Uri]$SocketUrl, $cts.Token).GetAwaiter().GetResult()
+    $null = $socket.ConnectAsync([Uri]$SocketUrl, $cts.Token).GetAwaiter().GetResult()
   } finally {
     $cts.Dispose()
   }
@@ -355,29 +371,36 @@ function New-StompSession {
     "heart-beat"     = "10000,10000"
     "Authorization"  = "Bearer $AccessToken"
   }
-  Send-StompFrame -Session $session -Command "CONNECT" -Headers $connectHeaders
+  $null = Send-StompFrame -Session $session -Command "CONNECT" -Headers $connectHeaders
   $connectedFrame = Receive-StompFrame -Session $session -TimeoutSec $ConnectTimeoutSec
   if ($connectedFrame.Command -ne "CONNECTED") {
     throw "Expected CONNECTED frame but received '$($connectedFrame.Command)'."
   }
-  return $session
+  return ,$session
 }
 
 function Close-StompSession {
-  param([pscustomobject]$Session)
-  if ($null -eq $Session -or $null -eq $Session.Socket) {
+  param([object]$Session)
+  if ($null -eq $Session) {
     return
   }
 
+  $socketProperty = $Session.PSObject.Properties["Socket"]
+  if ($null -eq $socketProperty -or $null -eq $socketProperty.Value) {
+    return
+  }
+
+  $socket = $socketProperty.Value
+
   try {
-    if ($Session.Socket.State -eq [System.Net.WebSockets.WebSocketState]::Open) {
+    if ($socket.State -eq [System.Net.WebSockets.WebSocketState]::Open) {
       try {
         Send-StompFrame -Session $Session -Command "DISCONNECT" -Headers @{ receipt = "disconnect-$([Guid]::NewGuid())" }
       } catch {
       }
       $cts = [System.Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(2))
       try {
-        $Session.Socket.CloseAsync(
+        $socket.CloseAsync(
           [System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure,
           "relay-smoke-finished",
           $cts.Token
@@ -389,7 +412,7 @@ function Close-StompSession {
     }
   } finally {
     try {
-      $Session.Socket.Dispose()
+      $socket.Dispose()
     } catch {
     }
   }
@@ -525,7 +548,7 @@ try {
   $portfolioId = [string]$joinResult.portfolioId
 
   $hostHeader = if ([string]::IsNullOrWhiteSpace($RelayVirtualHost)) { "localhost" } else { $RelayVirtualHost }
-  $session = New-StompSession -SocketUrl $WsUrl -AccessToken $receiver.accessToken -HostHeader $hostHeader -ConnectTimeoutSec 30
+  $session = New-StompSession -SocketUrl $WsUrl -AccessToken $receiver.accessToken -HostHeader $hostHeader -OriginHeader $OriginHeader -ConnectTimeoutSec 30
 
   Send-StompFrame -Session $session -Command "SUBSCRIBE" -Headers @{
     id          = "sub-notifications"
@@ -581,7 +604,7 @@ try {
     }
 
     Close-StompSession -Session $session
-    $session = New-StompSession -SocketUrl $WsUrl -AccessToken $receiver.accessToken -HostHeader $hostHeader -ConnectTimeoutSec 30
+    $session = New-StompSession -SocketUrl $WsUrl -AccessToken $receiver.accessToken -HostHeader $hostHeader -OriginHeader $OriginHeader -ConnectTimeoutSec 30
     Send-StompFrame -Session $session -Command "SUBSCRIBE" -Headers @{
       id          = "sub-notifications-reconnect"
       destination = "/user/queue/notifications"
