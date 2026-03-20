@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Local Strict-Mode Auth Validation Now Has A Dedicated Starter And Smoke Path**
+  - **Problem observed**:
+    - Strict-mode readiness tooling already measured observability and legacy-header usage, but there was still no small direct local proof that browser-style Bearer flows survive once `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`.
+    - That left a gap between “metrics look ready” and “actual strict runtime behavior was exercised.”
+  - **Implementation**:
+    - Added `infra/start-local-backend-strict.ps1` to start the backend locally with:
+      - `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`
+      - `APP_AUTH_ENFORCE_HEADER_TOKEN_MATCH=true`
+      - default port `18080`
+    - Added `infra/load-test/run_auth_strict_mode_smoke.ps1`.
+    - The smoke validates:
+      - legacy `X-User-Id` only request is rejected
+      - Bearer-only request is accepted
+      - Bearer + matching legacy header remains accepted
+      - Bearer + mismatched legacy header is rejected
+      - authenticated follow flow still works in strict mode
+  - **Operational impact**:
+    - strict-mode auth can now be validated locally with direct request semantics, not only telemetry/report synthesis
+    - staging cutover prep now has a smaller runtime proof path before broader websocket/load scripts are re-run
 - **2026-03-20**: **Audit Write Capture Is Now Smoke-Verifiable From Local Runtime**
   - **Problem observed**:
     - Audit persistence and inspection tooling already existed, but the last verification step still lived mostly in integration tests and manual spot-checking.

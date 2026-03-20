@@ -38,6 +38,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_backend_contract_smoke.ps1`
 - `run_idempotency_cleanup_smoke.ps1`
 - `run_audit_write_capture_smoke.ps1`
+- `run_auth_strict_mode_smoke.ps1`
 
 ## Prerequisites
 
@@ -240,6 +241,21 @@ The audit write-capture smoke checks:
   - analysis create
   - analysis delete
 - verify `/actuator/auditlog` still exposes a filtered recent snapshot
+
+Run auth strict-mode smoke against a backend started with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`:
+
+```powershell
+./infra/load-test/run_auth_strict_mode_smoke.ps1 `
+  -BaseUrl "http://localhost:18080"
+```
+
+The auth strict-mode smoke checks:
+- register two users
+- legacy `X-User-Id` only request is rejected with correlated `401 unauthorized`
+- Bearer-only request is still accepted
+- Bearer + matching `X-User-Id` remains accepted
+- Bearer + mismatched `X-User-Id` is rejected
+- authenticated follow still works without legacy-header auth
 
 Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, runs skip validation, then stops app):
 

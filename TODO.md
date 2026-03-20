@@ -532,6 +532,14 @@ Last updated: 2026-03-19
     - local smoke emits portfolio/trade/follow/comment/analysis create-delete writes with unique `X-Request-Id` values
     - verifies request-filtered audit rows through `/api/v1/ops/auditlog`
     - verifies `/actuator/auditlog` still serves a filtered recent snapshot
+- [x] Added local auth strict-mode smoke tooling:
+  - Added:
+    - `infra/start-local-backend-strict.ps1`
+    - `infra/load-test/run_auth_strict_mode_smoke.ps1`
+  - Behavior:
+    - starts backend with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`
+    - verifies legacy-header-only auth is rejected while Bearer-only flows still work
+    - verifies mismatched `Authorization` + `X-User-Id` remains rejected under strict mode
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`

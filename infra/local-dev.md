@@ -48,6 +48,18 @@ Local backend defaults used by the script:
 - Alerting disabled
 - WebSocket canary disabled
 
+Strict-mode backend variant:
+
+```powershell
+.\infra\start-local-backend-strict.ps1
+```
+
+This keeps the same local infra contract, but starts backend with:
+
+- `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`
+- `APP_AUTH_ENFORCE_HEADER_TOKEN_MATCH=true`
+- default strict-mode port: `18080`
+
 ### 3. Frontend
 
 ```powershell
@@ -88,6 +100,22 @@ This validates a small but useful local slice:
 - `/api/v1/ops/auditlog`
 - `/actuator/auditlog`
 - unauthorized API error contract
+
+## Auth strict-mode smoke
+
+Against a strict-mode local backend:
+
+```powershell
+.\infra\load-test\run_auth_strict_mode_smoke.ps1 -BaseUrl "http://localhost:18080"
+```
+
+This validates:
+
+- legacy `X-User-Id` only requests are rejected
+- Bearer-only requests still work
+- Bearer + matching legacy header is tolerated
+- Bearer + mismatched legacy header is rejected
+- authenticated follow flow still works in strict mode
 
 ## Stop infra
 
