@@ -89,7 +89,11 @@ public class PortfolioController {
     public ResponseEntity<Page<Portfolio>> listPortfolios(
             @RequestParam String ownerId,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(portfolioRepository.findByOwnerId(ownerId, pageable));
+        Page<UUID> idPage = portfolioRepository.findIdsByOwnerId(ownerId, pageable);
+        if (idPage.isEmpty()) {
+            return ResponseEntity.ok(Page.empty(pageable));
+        }
+        return ResponseEntity.ok(toOrderedPortfolioPage(idPage, pageable, false));
     }
 
     @GetMapping("/{id}")
@@ -156,17 +160,7 @@ public class PortfolioController {
         if (idPage.isEmpty()) {
             return ResponseEntity.ok(Page.empty(pageable));
         }
-
-        List<Portfolio> fetched = portfolioRepository.findByIdInAndVisibility(idPage.getContent(), Portfolio.Visibility.PUBLIC);
-        Map<UUID, Integer> orderIndex = new HashMap<>();
-        for (int i = 0; i < idPage.getContent().size(); i++) {
-            orderIndex.put(idPage.getContent().get(i), i);
-        }
-        List<Portfolio> ordered = fetched.stream()
-                .sorted(Comparator.comparingInt(portfolio -> orderIndex.getOrDefault(portfolio.getId(), Integer.MAX_VALUE)))
-                .toList();
-
-        return ResponseEntity.ok(new PageImpl<>(ordered, pageable, idPage.getTotalElements()));
+        return ResponseEntity.ok(toOrderedPortfolioPage(idPage, pageable, true));
     }
 
     @PutMapping("/{id}/visibility")
@@ -367,5 +361,19 @@ public class PortfolioController {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    private Page<Portfolio> toOrderedPortfolioPage(Page<UUID> idPage, Pageable pageable, boolean publicOnly) {
+        List<Portfolio> fetched = publicOnly
+                ? portfolioRepository.findByIdInAndVisibility(idPage.getContent(), Portfolio.Visibility.PUBLIC)
+                : portfolioRepository.findByIdIn(idPage.getContent());
+        Map<UUID, Integer> orderIndex = new HashMap<>();
+        for (int i = 0; i < idPage.getContent().size(); i++) {
+            orderIndex.put(idPage.getContent().get(i), i);
+        }
+        List<Portfolio> ordered = fetched.stream()
+                .sorted(Comparator.comparingInt(portfolio -> orderIndex.getOrDefault(portfolio.getId(), Integer.MAX_VALUE)))
+                .toList();
+        return new PageImpl<>(ordered, pageable, idPage.getTotalElements());
     }
 }

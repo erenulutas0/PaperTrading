@@ -302,6 +302,17 @@ Last updated: 2026-03-19
     - reduces audit redeploy verification to one explicit command instead of ad hoc script selection
 - [x] Re-ran audit staging checklist wrapper locally and verified it delegates cleanly into the audit validation suite
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
+- [x] Moved owner-scoped portfolio page hydration to two-step id paging:
+  - Updated:
+    - `PortfolioRepository`
+    - `PortfolioController`
+    - `PortfolioControllerIntegrationTest`
+  - Behavior:
+    - `/api/v1/portfolios?ownerId=...` no longer uses paged `@EntityGraph(items)` hydration
+    - owner portfolio pages now resolve ids first, then fetch hydrated portfolios in id order
+    - existing page ordering and item hydration stay intact under pagination
+  - Local validation:
+    - `PortfolioControllerIntegrationTest`
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics
 - [x] Re-ran idempotency-key rollout locally and verified duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded

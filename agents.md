@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Owner-Scoped Portfolio Pages Now Use Two-Step Hydration Instead Of Paged EntityGraph Fetching**
+  - **Problem observed**:
+    - Discover and scheduler-oriented portfolio reads had already moved to id-first loading patterns, but the owner-scoped portfolio list still used paged `@EntityGraph(items)` hydration.
+    - That left one user-facing portfolio page path structurally closer to the `collection fetch + pagination` warning pattern the backend has been removing elsewhere.
+  - **Implementation**:
+    - Replaced paged `findByOwnerId(..., Pageable)` hydration with:
+      - `findIdsByOwnerId(...)`
+      - ordered `findByIdIn(...)` fetch
+    - Updated `PortfolioController` to rebuild the page from the id slice while preserving the original pageable order.
+    - Added integration coverage for:
+      - page ordering across multiple owner portfolios
+      - hydrated `items` preservation on the returned slice
+  - **Operational impact**:
+    - owner portfolio pages now follow the same safer id-page + hydrate pattern used elsewhere in the portfolio read surface
+    - remaining `HHH90003004` cleanup is narrower because one more paged item-hydration path has been removed
+  - **Validation**:
+    - Passed:
+      - `PortfolioControllerIntegrationTest`
 - **2026-03-21**: **Audit Staging Verification Got A Dedicated Checklist Wrapper**
   - **Problem observed**:
     - The audit validation suite already unified contract smoke and write-capture validation, but staging/redeploy steps still required remembering that generic suite name and its optional skips.

@@ -95,6 +95,49 @@ class PortfolioControllerIntegrationTest {
     }
 
     @Test
+    void listPortfolios_shouldPreserveOwnerPageOrderingWhileHydratingItems() throws Exception {
+        Portfolio secondPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Holdings Visibility Test Two")
+                .ownerId(ownerId)
+                .balance(BigDecimal.valueOf(5000))
+                .build());
+
+        TradeRequest request = new TradeRequest();
+        request.setPortfolioId(portfolio.getId().toString());
+        request.setSymbol("BTCUSDT");
+        request.setQuantity(BigDecimal.valueOf(0.1));
+        request.setLeverage(5);
+        request.setSide("LONG");
+
+        mockMvc.perform(post("/api/v1/trade/buy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/portfolios")
+                        .param("ownerId", ownerId)
+                        .param("page", "0")
+                        .param("size", "1")
+                        .param("sort", "createdAt,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(portfolio.getId().toString()))
+                .andExpect(jsonPath("$.content[0].items", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].items[0].symbol").value("BTCUSDT"))
+                .andExpect(jsonPath("$.page.totalElements").value(2));
+
+        mockMvc.perform(get("/api/v1/portfolios")
+                        .param("ownerId", ownerId)
+                        .param("page", "1")
+                        .param("size", "1")
+                .param("sort", "createdAt,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(secondPortfolio.getId().toString()))
+                .andExpect(jsonPath("$.page.totalElements").value(2));
+    }
+
+    @Test
     void getPortfolioHistory_shouldNormalizeLegacyBuyNullRealizedPnlToZero() throws Exception {
         tradeActivityRepository.save(TradeActivity.builder()
                 .portfolioId(portfolio.getId())

@@ -30,14 +30,12 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
     @EntityGraph(attributePaths = "items")
     List<Portfolio> findByOwnerId(String ownerId);
 
-    @EntityGraph(attributePaths = "items")
-    Page<Portfolio> findByOwnerId(String ownerId, Pageable pageable);
+    @Query(value = "SELECT p.id FROM Portfolio p WHERE p.ownerId = :ownerId",
+            countQuery = "SELECT COUNT(p) FROM Portfolio p WHERE p.ownerId = :ownerId")
+    Page<UUID> findIdsByOwnerId(@Param("ownerId") String ownerId, Pageable pageable);
 
     @EntityGraph(attributePaths = "items")
     List<Portfolio> findByVisibility(Portfolio.Visibility visibility);
-
-    @EntityGraph(attributePaths = "items")
-    Page<Portfolio> findByVisibility(Portfolio.Visibility visibility, Pageable pageable);
 
     @Query(value = """
             SELECT p.id FROM Portfolio p
@@ -90,7 +88,4 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
 
     @EntityGraph(attributePaths = "items")
     Optional<Portfolio> findWithItemsById(UUID id);
-
-    @EntityGraph(attributePaths = "items")
-    Page<Portfolio> findByOwnerIdAndVisibility(String ownerId, Portfolio.Visibility visibility, Pageable pageable);
 }
