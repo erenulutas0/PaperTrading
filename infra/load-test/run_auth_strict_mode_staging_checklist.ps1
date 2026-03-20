@@ -9,6 +9,7 @@ param(
   [switch]$SkipLegacyUsage,
   [switch]$SkipStrictSmoke,
   [switch]$SkipAuthAttack,
+  [switch]$SkipRateLimitProfile,
   [switch]$SkipBaseline,
   [switch]$SkipRelay,
   [switch]$NoFail
@@ -49,6 +50,7 @@ if (-not [string]::IsNullOrWhiteSpace($RelayBrokerRestartCommand)) {
 if ($SkipLegacyUsage) { $args += "-SkipLegacyUsage" }
 if ($SkipStrictSmoke) { $args += "-SkipStrictSmoke" }
 if ($SkipAuthAttack) { $args += "-SkipAuthAttack" }
+if ($SkipRateLimitProfile) { $args += "-SkipRateLimitProfile" }
 if ($SkipBaseline) { $args += "-SkipBaseline" }
 if ($SkipRelay) { $args += "-SkipRelay" }
 if ($NoFail) { $args += "-NoFail" }

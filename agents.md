@@ -58,6 +58,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Validation**:
     - Passed:
       - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_rate_limit_profile_smoke.ps1 -BaseUrl http://localhost:8080 -NoFail`
+- **2026-03-20**: **Strict-Mode Validation Suite Now Carries Rate-Limit Profile Checks**
+  - **Problem observed**:
+    - The new rate-limit profile smoke existed, but strict-mode/staging validation still treated it as a separate memory step.
+    - That left the rollout checklist slightly fragmented:
+      - auth spoof checks in one suite
+      - write-bucket verification in a separate manual run
+  - **Implementation**:
+    - Extended `infra/load-test/run_auth_strict_mode_validation_suite.ps1` with a `Rate-Limit Profiles` step.
+    - Extended `infra/load-test/run_auth_strict_mode_staging_checklist.ps1` with `-SkipRateLimitProfile` passthrough.
+    - Updated load-test docs so the suite/checklist explicitly mention rate-limit profile coverage.
+  - **Operational impact**:
+    - strict-mode staging validation now carries write-throttling verification by default instead of relying on operator memory
+    - auth and rate-limit rollout signals are closer to one repeatable command chain
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_mode_validation_suite.ps1 -BaseUrl http://localhost:8080 -SkipLegacyUsage -SkipStrictSmoke -SkipAuthAttack -SkipBaseline -SkipRelay -NoFail`
 - **2026-03-20**: **Strict-Mode Staging Rollout Now Has A Checklist Wrapper**
   - **Problem observed**:
     - The validation suite solved orchestration, but staging rollout still required remembering which defaults to use:

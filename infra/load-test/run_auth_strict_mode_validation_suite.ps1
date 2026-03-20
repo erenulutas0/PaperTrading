@@ -10,6 +10,7 @@ param(
   [switch]$SkipLegacyUsage,
   [switch]$SkipStrictSmoke,
   [switch]$SkipAuthAttack,
+  [switch]$SkipRateLimitProfile,
   [switch]$SkipBaseline,
   [switch]$SkipRelay,
   [switch]$NoFail
@@ -127,6 +128,14 @@ if (-not $SkipAuthAttack) {
         -ScriptPath (Join-Path $scriptDir "run_auth_attack_scenarios.ps1") `
         -Arguments @("-BaseUrl", $BaseUrl, "-NoFail") `
         -ReportPattern "auth-attack-scenarios-*.md")) | Out-Null
+}
+
+if (-not $SkipRateLimitProfile) {
+  $results.Add((Invoke-ScriptStep `
+        -Name "Rate-Limit Profiles" `
+        -ScriptPath (Join-Path $scriptDir "run_rate_limit_profile_smoke.ps1") `
+        -Arguments @("-BaseUrl", $BaseUrl, "-NoFail") `
+        -ReportPattern "rate-limit-profile-smoke-*.md")) | Out-Null
 }
 
 if (-not $SkipBaseline) {

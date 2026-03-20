@@ -289,6 +289,7 @@ The validation suite can orchestrate:
 - legacy usage check
 - strict-mode auth smoke
 - auth attack scenarios
+- rate-limit profile smoke
 - lightweight baseline
 - websocket relay smoke
 
@@ -308,6 +309,7 @@ Run the staging checklist wrapper with stricter rollout defaults:
 
 Checklist behavior:
 - wraps `run_auth_strict_mode_validation_suite.ps1`
+- includes rate-limit profile smoke unless explicitly skipped
 - uses a slightly heavier baseline preset intended for staging validation
 - skips strict-smoke by default unless `-StrictSmokeBaseUrl` is provided
 

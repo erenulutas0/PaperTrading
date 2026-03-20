@@ -557,7 +557,7 @@ Last updated: 2026-03-19
   - Added:
     - `infra/load-test/run_auth_strict_mode_validation_suite.ps1`
   - Behavior:
-    - coordinates legacy-usage, strict smoke, auth attack, baseline, and relay-smoke scripts
+    - coordinates legacy-usage, strict smoke, auth attack, rate-limit profile smoke, baseline, and relay-smoke scripts
     - writes one suite report instead of forcing manual script-by-script stitching
     - supports split base URLs so strict local runtime and staging API can be validated in one checklist
 - [x] Re-ran auth strict-mode validation suite in partial local mode and verified suite report generation works while chaining:
@@ -569,6 +569,7 @@ Last updated: 2026-03-19
     - `infra/load-test/run_auth_strict_mode_staging_checklist.ps1`
   - Behavior:
     - wraps the strict-mode validation suite with staging-oriented defaults
+    - carries rate-limit profile smoke by default alongside auth-attack/baseline/relay checks
     - skips strict-smoke by default unless an explicit strict preview/runtime URL is supplied
     - keeps relay restart command wiring at the checklist entrypoint
 - [x] Re-ran staging checklist wrapper in partial local mode and verified it delegates cleanly into the strict validation suite with staging presets
