@@ -57,6 +57,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
     - Passed:
       - `PortfolioControllerIntegrationTest`
       - `LiquidationServiceTest`
+      - `PortfolioRepositoryStructureTest`
 - **2026-03-21**: **Audit Staging Verification Got A Dedicated Checklist Wrapper**
   - **Problem observed**:
     - The audit validation suite already unified contract smoke and write-capture validation, but staging/redeploy steps still required remembering that generic suite name and its optional skips.

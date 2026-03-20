@@ -322,6 +322,13 @@ Last updated: 2026-03-19
     - liquidation tests now reflect the live id-page + hydrate scheduler pattern instead of the pre-refactor repository contract
   - Local validation:
     - `LiquidationServiceTest`
+- [x] Added structural guard against paged portfolio `EntityGraph(items)` regressions:
+  - Added:
+    - `PortfolioRepositoryStructureTest`
+  - Behavior:
+    - fails if `PortfolioRepository` reintroduces a `Page<Portfolio>` method annotated with `@EntityGraph(items)`
+  - Local validation:
+    - `PortfolioRepositoryStructureTest`
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics
 - [x] Re-ran idempotency-key rollout locally and verified duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
