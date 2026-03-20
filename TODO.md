@@ -552,6 +552,10 @@ Last updated: 2026-03-19
     - coordinates legacy-usage, strict smoke, auth attack, baseline, and relay-smoke scripts
     - writes one suite report instead of forcing manual script-by-script stitching
     - supports split base URLs so strict local runtime and staging API can be validated in one checklist
+- [x] Re-ran auth strict-mode validation suite in partial local mode and verified suite report generation works while chaining:
+  - legacy usage
+  - auth attack scenarios
+  - consolidated suite summary
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`

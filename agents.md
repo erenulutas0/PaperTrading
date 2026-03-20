@@ -59,6 +59,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - strict-mode rollout verification is now easier to repeat without re-deriving the sequence of scripts by hand
     - report collection is consolidated into one suite summary instead of scattered markdown artifacts only
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_mode_validation_suite.ps1 -BaseUrl http://localhost:8080 -SkipStrictSmoke -SkipBaseline -SkipRelay -NoFail`
 - **2026-03-20**: **Local Strict-Mode Auth Validation Now Has A Dedicated Starter And Smoke Path**
   - **Problem observed**:
     - Strict-mode readiness tooling already measured observability and legacy-header usage, but there was still no small direct local proof that browser-style Bearer flows survive once `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`.
