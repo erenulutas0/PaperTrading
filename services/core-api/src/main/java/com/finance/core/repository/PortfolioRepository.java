@@ -20,9 +20,6 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
     @Query("SELECT DISTINCT p FROM Portfolio p LEFT JOIN FETCH p.items")
     List<Portfolio> findAllWithItems();
 
-    @EntityGraph(attributePaths = "items")
-    Page<Portfolio> findAllBy(Pageable pageable);
-
     @Query(value = "SELECT p.id FROM Portfolio p",
             countQuery = "SELECT COUNT(p) FROM Portfolio p")
     Page<UUID> findAllIds(Pageable pageable);

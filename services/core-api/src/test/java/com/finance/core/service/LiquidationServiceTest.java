@@ -64,8 +64,10 @@ class LiquidationServiceTest {
     void testLongLiquidation() {
         // Entry: 10,000, Lev: 10x. Liq Price = 10,000 * (1 - 1/10) = 9,000
         when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 8900.0));
-        when(portfolioRepository.findAllBy(PageRequest.of(0, 250)))
-                .thenReturn(new PageImpl<>(java.util.List.of(portfolio), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findAllIds(PageRequest.of(0, 250)))
+                .thenReturn(new PageImpl<>(java.util.List.of(portfolio.getId()), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findByIdIn(java.util.List.of(portfolio.getId())))
+                .thenReturn(java.util.List.of(portfolio));
 
         liquidationService.monitorLiquidations();
 
@@ -79,8 +81,10 @@ class LiquidationServiceTest {
         leveragedItem.setSide("SHORT");
         // Entry: 10,000, Lev: 10x. Liq Price = 10,000 * (1 + 1/10) = 11,000
         when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 11100.0));
-        when(portfolioRepository.findAllBy(PageRequest.of(0, 250)))
-                .thenReturn(new PageImpl<>(java.util.List.of(portfolio), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findAllIds(PageRequest.of(0, 250)))
+                .thenReturn(new PageImpl<>(java.util.List.of(portfolio.getId()), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findByIdIn(java.util.List.of(portfolio.getId())))
+                .thenReturn(java.util.List.of(portfolio));
 
         liquidationService.monitorLiquidations();
 
@@ -91,8 +95,10 @@ class LiquidationServiceTest {
     @Test
     void testNoLiquidation() {
         when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 9500.0));
-        when(portfolioRepository.findAllBy(PageRequest.of(0, 250)))
-                .thenReturn(new PageImpl<>(java.util.List.of(portfolio), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findAllIds(PageRequest.of(0, 250)))
+                .thenReturn(new PageImpl<>(java.util.List.of(portfolio.getId()), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findByIdIn(java.util.List.of(portfolio.getId())))
+                .thenReturn(java.util.List.of(portfolio));
 
         liquidationService.monitorLiquidations();
 
@@ -105,7 +111,7 @@ class LiquidationServiceTest {
 
         liquidationService.monitorLiquidations();
 
-        verify(portfolioRepository, never()).findAllBy(any());
+        verify(portfolioRepository, never()).findAllIds(any());
         verifyNoInteractions(portfolioItemRepository, tradeActivityRepository);
     }
 }

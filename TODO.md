@@ -313,6 +313,15 @@ Last updated: 2026-03-19
     - existing page ordering and item hydration stay intact under pagination
   - Local validation:
     - `PortfolioControllerIntegrationTest`
+- [x] Removed the last unused paged portfolio `EntityGraph` helper from the repository surface:
+  - Updated:
+    - `PortfolioRepository`
+    - `LiquidationServiceTest`
+  - Behavior:
+    - stale `findAllBy(Pageable)` portfolio hydration path is gone
+    - liquidation tests now reflect the live id-page + hydrate scheduler pattern instead of the pre-refactor repository contract
+  - Local validation:
+    - `LiquidationServiceTest`
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics
 - [x] Re-ran idempotency-key rollout locally and verified duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
