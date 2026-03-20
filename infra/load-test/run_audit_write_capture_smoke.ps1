@@ -184,6 +184,28 @@ $comment = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/interactions/$por
 }
 Assert-Condition -Results $results -Name "Comment Portfolio" -Condition ($comment.status -eq 200) -Detail "status=$($comment.status)"
 
+$analysisCreateRequestId = "audit-analysis-create-$suffix"
+$analysisCreate = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/analysis-posts" -Headers @{
+  "Authorization" = "Bearer $actorToken"
+  "X-Request-Id"  = $analysisCreateRequestId
+} -Body @{
+  title            = "Audit thesis $suffix"
+  content          = "Audit smoke analysis body"
+  instrumentSymbol = "BTCUSDT"
+  direction        = "BULLISH"
+}
+$analysisCreateJson = if ($analysisCreate.content) { $analysisCreate.content | ConvertFrom-Json } else { $null }
+$analysisPostIdValue = Get-ObjectPropertyValue -Object $analysisCreateJson -Name "id"
+$analysisPostId = if ($null -ne $analysisPostIdValue) { [string]$analysisPostIdValue } else { "" }
+Assert-Condition -Results $results -Name "Create Analysis Post" -Condition ($analysisCreate.status -eq 200 -and -not [string]::IsNullOrWhiteSpace($analysisPostId)) -Detail "status=$($analysisCreate.status), body=$($analysisCreate.content)"
+
+$analysisDeleteRequestId = "audit-analysis-delete-$suffix"
+$analysisDelete = Invoke-Request -Method "DELETE" -Url "$BaseUrl/api/v1/analysis-posts/$analysisPostId" -Headers @{
+  "Authorization" = "Bearer $actorToken"
+  "X-Request-Id"  = $analysisDeleteRequestId
+}
+Assert-Condition -Results $results -Name "Delete Analysis Post" -Condition ($analysisDelete.status -eq 200) -Detail "status=$($analysisDelete.status)"
+
 $portfolioAudit = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?requestId=$([System.Uri]::EscapeDataString($portfolioRequestId))"
 Assert-AuditSnapshot -Results $results -Name "Portfolio Audit Capture" -Response $portfolioAudit -ExpectedAction "PORTFOLIO_CREATED" -ExpectedPath "/api/v1/portfolios" -ExpectedRequestId $portfolioRequestId
 
@@ -196,7 +218,13 @@ Assert-AuditSnapshot -Results $results -Name "Follow Audit Capture" -Response $f
 $commentAudit = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?requestId=$([System.Uri]::EscapeDataString($commentRequestId))"
 Assert-AuditSnapshot -Results $results -Name "Comment Audit Capture" -Response $commentAudit -ExpectedAction "INTERACTION_COMMENTED" -ExpectedPath "/api/v1/interactions/$portfolioId/comments" -ExpectedRequestId $commentRequestId
 
-$auditActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/auditlog?requestId=$([System.Uri]::EscapeDataString($commentRequestId))"
+$analysisCreateAudit = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?requestId=$([System.Uri]::EscapeDataString($analysisCreateRequestId))"
+Assert-AuditSnapshot -Results $results -Name "Analysis Create Audit Capture" -Response $analysisCreateAudit -ExpectedAction "ANALYSIS_POST_CREATED" -ExpectedPath "/api/v1/analysis-posts" -ExpectedRequestId $analysisCreateRequestId
+
+$analysisDeleteAudit = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?requestId=$([System.Uri]::EscapeDataString($analysisDeleteRequestId))"
+Assert-AuditSnapshot -Results $results -Name "Analysis Delete Audit Capture" -Response $analysisDeleteAudit -ExpectedAction "ANALYSIS_POST_DELETED" -ExpectedPath "/api/v1/analysis-posts/$analysisPostId" -ExpectedRequestId $analysisDeleteRequestId
+
+$auditActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/auditlog?requestId=$([System.Uri]::EscapeDataString($analysisDeleteRequestId))"
 $auditActuatorJson = if ($auditActuator.content) { $auditActuator.content | ConvertFrom-Json } else { $null }
 $auditActuatorCountValue = Get-ObjectPropertyValue -Object $auditActuatorJson -Name "count"
 $auditActuatorCount = if ($null -ne $auditActuatorCountValue) { [int]$auditActuatorCountValue } else { -1 }

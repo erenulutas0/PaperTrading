@@ -50,6 +50,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - execute trade buy
       - follow owner
       - comment on portfolio
+      - create + delete analysis post
     - Each write gets its own `X-Request-Id`, then the script verifies request-filtered rows through:
       - `GET /api/v1/ops/auditlog`
       - `GET /actuator/auditlog`

@@ -231,11 +231,14 @@ The audit write-capture smoke checks:
 - execute a trade against that portfolio
 - follow the owner from the actor account
 - comment on the portfolio from the actor account
+- create + delete an analysis post from the actor account
 - verify `/api/v1/ops/auditlog` exposes request-id-filtered rows for:
   - portfolio create
   - trade buy
   - follow
   - comment
+  - analysis create
+  - analysis delete
 - verify `/actuator/auditlog` still exposes a filtered recent snapshot
 
 Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, runs skip validation, then stops app):
