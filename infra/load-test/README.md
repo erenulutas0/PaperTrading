@@ -39,6 +39,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_idempotency_cleanup_smoke.ps1`
 - `run_audit_write_capture_smoke.ps1`
 - `run_auth_strict_mode_smoke.ps1`
+- `run_auth_strict_mode_validation_suite.ps1`
 
 ## Prerequisites
 
@@ -256,6 +257,27 @@ The auth strict-mode smoke checks:
 - Bearer + matching `X-User-Id` remains accepted
 - Bearer + mismatched `X-User-Id` is rejected
 - authenticated follow still works without legacy-header auth
+
+Run a strict-mode validation suite that chains the main rollout checks:
+
+```powershell
+./infra/load-test/run_auth_strict_mode_validation_suite.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -StrictSmokeBaseUrl "http://strict-local-backend:18081" `
+  -SkipRelay
+```
+
+The validation suite can orchestrate:
+- legacy usage check
+- strict-mode auth smoke
+- auth attack scenarios
+- lightweight baseline
+- websocket relay smoke
+
+Useful notes:
+- `-StrictSmokeBaseUrl` lets you point the strict smoke at a different runtime than the main staging base URL.
+- `-SkipRelay` is useful when the target runtime is not relay-enabled.
+- `-SkipBaseline` is useful when you only want auth- and websocket-focused validation.
 
 Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, runs skip validation, then stops app):
 

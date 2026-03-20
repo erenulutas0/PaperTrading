@@ -545,6 +545,13 @@ Last updated: 2026-03-19
   - Bearer-only requests still pass
   - mismatched `Authorization` + `X-User-Id` is rejected
   - authenticated follow flow still works without legacy-header auth
+- [x] Added strict-mode validation suite orchestration:
+  - Added:
+    - `infra/load-test/run_auth_strict_mode_validation_suite.ps1`
+  - Behavior:
+    - coordinates legacy-usage, strict smoke, auth attack, baseline, and relay-smoke scripts
+    - writes one suite report instead of forcing manual script-by-script stitching
+    - supports split base URLs so strict local runtime and staging API can be validated in one checklist
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`

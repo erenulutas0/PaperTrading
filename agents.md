@@ -38,6 +38,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Strict-Mode Rollout Checks Can Now Be Run As One Validation Suite**
+  - **Problem observed**:
+    - Strict-mode readiness had grown into a multi-script process:
+      - legacy usage
+      - strict auth smoke
+      - auth attack scenarios
+      - lightweight baseline
+      - relay smoke
+    - Each script existed, but stitching them together still depended on manual order and manual report collection.
+  - **Implementation**:
+    - Added `infra/load-test/run_auth_strict_mode_validation_suite.ps1`.
+    - The suite can orchestrate:
+      - `check_auth_legacy_usage.ps1`
+      - `run_auth_strict_mode_smoke.ps1`
+      - `run_auth_attack_scenarios.ps1`
+      - `lightweight_baseline.ps1`
+      - `validate_websocket_relay_smoke.ps1`
+    - Added split base-URL support so strict local runtime and staging API checks can be mixed in one run.
+  - **Operational impact**:
+    - strict-mode rollout verification is now easier to repeat without re-deriving the sequence of scripts by hand
+    - report collection is consolidated into one suite summary instead of scattered markdown artifacts only
 - **2026-03-20**: **Local Strict-Mode Auth Validation Now Has A Dedicated Starter And Smoke Path**
   - **Problem observed**:
     - Strict-mode readiness tooling already measured observability and legacy-header usage, but there was still no small direct local proof that browser-style Bearer flows survive once `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`.
