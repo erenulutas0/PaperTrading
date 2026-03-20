@@ -556,6 +556,14 @@ Last updated: 2026-03-19
   - legacy usage
   - auth attack scenarios
   - consolidated suite summary
+- [x] Added staging-focused strict-mode checklist wrapper:
+  - Added:
+    - `infra/load-test/run_auth_strict_mode_staging_checklist.ps1`
+  - Behavior:
+    - wraps the strict-mode validation suite with staging-oriented defaults
+    - skips strict-smoke by default unless an explicit strict preview/runtime URL is supplied
+    - keeps relay restart command wiring at the checklist entrypoint
+- [x] Re-ran staging checklist wrapper in partial local mode and verified it delegates cleanly into the strict validation suite with staging presets
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`

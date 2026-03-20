@@ -40,6 +40,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_audit_write_capture_smoke.ps1`
 - `run_auth_strict_mode_smoke.ps1`
 - `run_auth_strict_mode_validation_suite.ps1`
+- `run_auth_strict_mode_staging_checklist.ps1`
 
 ## Prerequisites
 
@@ -278,6 +279,20 @@ Useful notes:
 - `-StrictSmokeBaseUrl` lets you point the strict smoke at a different runtime than the main staging base URL.
 - `-SkipRelay` is useful when the target runtime is not relay-enabled.
 - `-SkipBaseline` is useful when you only want auth- and websocket-focused validation.
+
+Run the staging checklist wrapper with stricter rollout defaults:
+
+```powershell
+./infra/load-test/run_auth_strict_mode_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -StrictSmokeBaseUrl "http://strict-preview-core-api:8080" `
+  -RelayBrokerRestartCommand "docker restart finance-rabbitmq"
+```
+
+Checklist behavior:
+- wraps `run_auth_strict_mode_validation_suite.ps1`
+- uses a slightly heavier baseline preset intended for staging validation
+- skips strict-smoke by default unless `-StrictSmokeBaseUrl` is provided
 
 Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, runs skip validation, then stops app):
 

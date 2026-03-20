@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Strict-Mode Staging Rollout Now Has A Checklist Wrapper**
+  - **Problem observed**:
+    - The validation suite solved orchestration, but staging rollout still required remembering which defaults to use:
+      - whether strict smoke should run
+      - what baseline intensity is reasonable
+      - where to wire broker restart commands
+    - That is small friction, but it reintroduces manual judgement at the point where rollout should be most repeatable.
+  - **Implementation**:
+    - Added `infra/load-test/run_auth_strict_mode_staging_checklist.ps1`.
+    - The wrapper delegates to the validation suite, but with staging-oriented defaults:
+      - heavier baseline profile
+      - optional relay restart command passthrough
+      - strict smoke skipped by default unless an explicit strict preview/runtime URL is supplied
+  - **Operational impact**:
+    - staging auth cutover now has a clearer entrypoint than invoking the generic suite raw every time
+    - rollout operators can start with one script and only opt into extra strict-preview checks when they actually exist
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_mode_staging_checklist.ps1 -BaseUrl http://localhost:8080 -SkipBaseline -SkipRelay -SkipStrictSmoke -NoFail`
 - **2026-03-20**: **Strict-Mode Rollout Checks Can Now Be Run As One Validation Suite**
   - **Problem observed**:
     - Strict-mode readiness had grown into a multi-script process:
