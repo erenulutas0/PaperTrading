@@ -38,6 +38,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Audit Write Capture Is Now Smoke-Verifiable From Local Runtime**
+  - **Problem observed**:
+    - Audit persistence and inspection tooling already existed, but the last verification step still lived mostly in integration tests and manual spot-checking.
+    - That made it harder to prove from a running local backend that real write flows were producing correlated audit rows end-to-end.
+  - **Implementation**:
+    - Added `infra/load-test/run_audit_write_capture_smoke.ps1`.
+    - The script performs a small but representative audited slice:
+      - register owner + actor
+      - create portfolio
+      - execute trade buy
+      - follow owner
+      - comment on portfolio
+    - Each write gets its own `X-Request-Id`, then the script verifies request-filtered rows through:
+      - `GET /api/v1/ops/auditlog`
+      - `GET /actuator/auditlog`
+  - **Operational impact**:
+    - append-only audit capture can now be checked directly against a live local backend instead of only through repository-level assertions
+    - request correlation and audit persistence are validated together on real product routes
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_audit_write_capture_smoke.ps1 -BaseUrl http://localhost:8080`
 - **2026-03-20**: **Idempotency Cleanup Became Locally Triggerable And Smoke-Verifiable**
   - **Problem observed**:
     - Idempotency observability already exposed read-only counters, but cleanup validation still depended on waiting for the scheduled purge window or inferring behavior indirectly from the database.

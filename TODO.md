@@ -291,6 +291,7 @@ Last updated: 2026-03-19
 - [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics
 - [x] Re-ran idempotency-key rollout locally and verified duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
 - [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
+- [x] Re-ran audit log foundation locally and verified `/api/v1/ops/auditlog` captures correlated request-id rows for portfolio/trade/follow/comment smoke writes while `/actuator/auditlog` still exposes a filtered snapshot
 - [x] Re-ran notification error cleanup locally and verified unread-count/mark-read paths now use the same correlated error contract as other controllers, including invalid notification-id handling
 - [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
 - [x] Re-ran request-correlation + unified error contract rollout locally and verified `X-Request-Id` is echoed on errors plus auth failures return `{code,message,details?,requestId}`
@@ -524,6 +525,13 @@ Last updated: 2026-03-19
     - verifies live replay semantics still work after purge
   - Coverage:
     - `IdempotencyEndpointIntegrationTest`
+- [x] Added local audit write-capture smoke tooling:
+  - Added:
+    - `infra/load-test/run_audit_write_capture_smoke.ps1`
+  - Behavior:
+    - local smoke emits portfolio/trade/follow/comment writes with unique `X-Request-Id` values
+    - verifies request-filtered audit rows through `/api/v1/ops/auditlog`
+    - verifies `/actuator/auditlog` still serves a filtered recent snapshot
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`

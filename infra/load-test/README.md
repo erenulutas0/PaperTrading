@@ -37,6 +37,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_auth_attack_scenarios.ps1`
 - `run_backend_contract_smoke.ps1`
 - `run_idempotency_cleanup_smoke.ps1`
+- `run_audit_write_capture_smoke.ps1`
 
 ## Prerequisites
 
@@ -216,6 +217,26 @@ The idempotency cleanup smoke checks:
 - `POST /actuator/idempotency` purges expired rows
 - `/actuator/idempotency` reflects the cleanup result
 - replay semantics for a live key still work after cleanup
+
+Run audit write-capture smoke against a local backend:
+
+```powershell
+./infra/load-test/run_audit_write_capture_smoke.ps1 `
+  -BaseUrl "http://localhost:8080"
+```
+
+The audit write-capture smoke checks:
+- register owner + actor
+- create portfolio with correlated request id
+- execute a trade against that portfolio
+- follow the owner from the actor account
+- comment on the portfolio from the actor account
+- verify `/api/v1/ops/auditlog` exposes request-id-filtered rows for:
+  - portfolio create
+  - trade buy
+  - follow
+  - comment
+- verify `/actuator/auditlog` still exposes a filtered recent snapshot
 
 Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, runs skip validation, then stops app):
 
