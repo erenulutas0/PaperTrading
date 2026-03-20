@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Endpoint-Aware Rate-Limit Hardening Now Has A Local Profile Smoke**
+  - **Problem observed**:
+    - The rate-limit filter had already split comment/reply, follow, auth-refresh, and other write paths into dedicated profiles.
+    - But localhost development bypasses rate limiting entirely, so there was no simple live-runtime proof that:
+      - those write profiles actually hit `429`
+      - normal reads still stayed clear of write pressure
+  - **Implementation**:
+    - Added `infra/load-test/run_rate_limit_profile_smoke.ps1`.
+    - The smoke uses a synthetic `X-Forwarded-For` identity to avoid localhost bypass, then drives burst traffic against:
+      - comment writes
+      - reply writes
+      - follow writes
+      - auth refresh writes
+    - After each burst it runs normal read probes to confirm the default read bucket is still healthy.
+  - **Operational impact**:
+    - local rate-limit verification is no longer theoretical or test-only
+    - staged rollout now has a concrete live-runtime smoke to reuse before and after deploy
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_rate_limit_profile_smoke.ps1 -BaseUrl http://localhost:8080 -NoFail`
 - **2026-03-20**: **Strict-Mode Staging Rollout Now Has A Checklist Wrapper**
   - **Problem observed**:
     - The validation suite solved orchestration, but staging rollout still required remembering which defaults to use:

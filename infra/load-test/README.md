@@ -38,6 +38,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_backend_contract_smoke.ps1`
 - `run_idempotency_cleanup_smoke.ps1`
 - `run_audit_write_capture_smoke.ps1`
+- `run_rate_limit_profile_smoke.ps1`
 - `run_auth_strict_mode_smoke.ps1`
 - `run_auth_strict_mode_validation_suite.ps1`
 - `run_auth_strict_mode_staging_checklist.ps1`
@@ -243,6 +244,22 @@ The audit write-capture smoke checks:
   - analysis create
   - analysis delete
 - verify `/actuator/auditlog` still exposes a filtered recent snapshot
+
+Run endpoint-aware rate-limit profile smoke against a local backend:
+
+```powershell
+./infra/load-test/run_rate_limit_profile_smoke.ps1 `
+  -BaseUrl "http://localhost:8080"
+```
+
+The rate-limit profile smoke checks:
+- uses a synthetic `X-Forwarded-For` identity so localhost traffic does not bypass the rate limiter
+- drives burst traffic until `429` appears for:
+  - portfolio comment writes
+  - comment reply writes
+  - user follow writes
+  - auth refresh writes
+- verifies normal read probes still return `200` after each write burst, proving profile-specific write throttling does not starve the default read bucket
 
 Run auth strict-mode smoke against a backend started with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`:
 

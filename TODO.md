@@ -299,6 +299,14 @@ Last updated: 2026-03-19
 - [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance
 - [ ] Keep `run_auth_attack_scenarios.ps1` header-mismatch scenario intact and use it as the explicit spoof-regression check after strict-mode cutover
 - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
+- [x] Added local endpoint-aware rate-limit smoke tooling:
+  - Added:
+    - `infra/load-test/run_rate_limit_profile_smoke.ps1`
+  - Behavior:
+    - uses synthetic `X-Forwarded-For` so localhost development no longer bypasses the rate limiter
+    - drives comment, reply, follow, and auth-refresh bursts until each dedicated profile returns `429`
+    - verifies ordinary read probes still return `200`, so write throttling does not starve the default read bucket
+- [x] Re-ran endpoint-aware rate-limit hardening locally and verified comment/reply/follow/auth-refresh bursts now hit dedicated `429` buckets while normal reads continue to succeed
 - [ ] Redeploy backend after reverting accidental `V3` migration edit and verify Flyway validation passes with `COMMENT` support coming only from `V10`
 - [x] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
 - [x] Redeploy backend/frontend after comment-thread interaction upgrade and verify portfolio/post comments now support comment likes + replies with sane notifications and root-page links
@@ -654,6 +662,13 @@ Last updated: 2026-03-19
     - authenticated write buckets continue to prefer stable principal keys where available
   - Coverage:
     - `RateLimitFilterTest`
+- [x] Added endpoint-aware rate-limit profile smoke coverage:
+  - Added:
+    - `infra/load-test/run_rate_limit_profile_smoke.ps1`
+  - Behavior:
+    - simulates a non-loopback client with synthetic `X-Forwarded-For`
+    - verifies dedicated `429` behavior for comment/reply, follow, and auth-refresh write profiles
+    - confirms normal read probes stay `200` after each burst instead of getting trapped behind write pressure
 - [x] Extended request correlation into idempotency filter responses:
   - Updated:
     - `IdempotencyKeyFilter`
