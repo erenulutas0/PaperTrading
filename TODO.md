@@ -286,6 +286,14 @@ Last updated: 2026-03-19
 - [ ] Redeploy backend after REST audit ops endpoint rollout and verify `/api/v1/ops/auditlog` exposes recent audit rows even if custom actuator inspection remains unstable in this runtime
 - [ ] Redeploy backend after enabling Java `-parameters` metadata and verify `/actuator/auditlog` no longer fails when optional query params (`limit`, `requestId`) are present or omitted
 - [x] Re-ran actuator audit snapshot locally and verified `/actuator/auditlog` now serves a recent unfiltered snapshot while request-filtered inspection remains on `/api/v1/ops/auditlog`
+- [x] Added audit validation suite orchestration:
+  - Added:
+    - `infra/load-test/run_audit_validation_suite.ps1`
+  - Behavior:
+    - chains backend contract smoke and audit write-capture smoke
+    - produces one summary report for audit inspection + audit write verification
+    - makes staging/local audit verification a single repeatable command instead of two separate steps
+- [x] Re-ran audit validation suite locally and verified backend contract + audit write capture pass together from one entrypoint
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics

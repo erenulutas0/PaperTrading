@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Audit Verification Was Consolidated Into A Single Validation Suite**
+  - **Problem observed**:
+    - Audit runtime proof already existed, but it was split across two separate smoke entrypoints:
+      - backend contract smoke
+      - audit write-capture smoke
+    - That was workable locally, but still left staging/redeploy verification slightly fragmented because operators had to remember both commands and compare separate reports.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_audit_validation_suite.ps1`
+    - The wrapper orchestrates:
+      - `run_backend_contract_smoke.ps1`
+      - `run_audit_write_capture_smoke.ps1`
+    - It emits one markdown summary report while preserving the child reports for detail.
+  - **Operational impact**:
+    - audit inspection and append-only write capture can now be validated with one command in local or staging contexts
+    - remaining audit redeploy TODOs are narrower because the verification entrypoint is no longer split across operator memory
+  - **Validation**:
+    - Passed:
+      - `run_audit_validation_suite.ps1`
 - **2026-03-20**: **Actuator Audit Inspection Was Narrowed To A Zero-Argument Snapshot Surface**
   - **Problem observed**:
     - Audit inspection had already moved toward a split model:

@@ -246,6 +246,22 @@ The audit write-capture smoke checks:
   - analysis delete
 - verify `/actuator/auditlog` still exposes a recent unfiltered snapshot
 
+Run a combined audit validation suite against a local or staging backend:
+
+```powershell
+./infra/load-test/run_audit_validation_suite.ps1 `
+  -BaseUrl "http://localhost:8080"
+```
+
+The audit validation suite orchestrates:
+- `run_backend_contract_smoke.ps1`
+- `run_audit_write_capture_smoke.ps1`
+
+Useful notes:
+- `-SkipContractSmoke` is useful when you only want write-capture validation.
+- `-SkipWriteCapture` is useful when you only want contract/endpoint health.
+- the suite writes a summary markdown report that links the child reports.
+
 Run endpoint-aware rate-limit profile smoke against a local backend:
 
 ```powershell
