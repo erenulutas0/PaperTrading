@@ -390,6 +390,14 @@ Last updated: 2026-03-19
       - writes a focused report proving the header-mismatch scenario still returns only `401`
     - Local validation:
       - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_spoof_regression_check.ps1 -BaseUrl http://localhost:8080 -NoFail`
+  - [x] Added staging-focused rate-limit checklist wrapper:
+    - Added:
+      - `infra/load-test/run_rate_limit_staging_checklist.ps1`
+    - Behavior:
+      - delegates to `run_rate_limit_profile_smoke.ps1` with a staging-oriented burst preset
+      - keeps bootstrap requests off the synthetic forwarded identity so read-isolation checks stay meaningful
+    - Local validation:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_rate_limit_staging_checklist.ps1 -BaseUrl http://localhost:8080 -NoFail`
   - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [x] Added local endpoint-aware rate-limit smoke tooling:
   - Added:

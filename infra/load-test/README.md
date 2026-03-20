@@ -41,6 +41,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_audit_write_capture_smoke.ps1`
 - `run_portfolio_pagination_warning_smoke.ps1`
 - `run_rate_limit_profile_smoke.ps1`
+- `run_rate_limit_staging_checklist.ps1`
 - `run_auth_strict_mode_smoke.ps1`
 - `run_auth_strict_mode_validation_suite.ps1`
 - `run_auth_strict_mode_staging_checklist.ps1`
@@ -307,6 +308,18 @@ The rate-limit profile smoke checks:
   - user follow writes
   - auth refresh writes
 - verifies normal read probes still return `200` after each write burst, proving profile-specific write throttling does not starve the default read bucket
+
+Run the staging-focused rate-limit checklist wrapper:
+
+```powershell
+./infra/load-test/run_rate_limit_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Useful notes:
+- this wrapper delegates to `run_rate_limit_profile_smoke.ps1` with a staging-oriented burst preset
+- setup traffic uses separate non-synthetic headers so the read-isolation result is not polluted by test bootstrap requests
+- keep the default synthetic IP unless staging sits behind a proxy that rewrites `X-Forwarded-For`
 
 Run auth strict-mode smoke against a backend started with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`:
 

@@ -75,6 +75,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Validation**:
     - Passed:
       - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_spoof_regression_check.ps1 -BaseUrl http://localhost:8080 -NoFail`
+- **2026-03-21**: **Endpoint-Aware Rate-Limit Verification Now Has A Staging Wrapper**
+  - **Problem observed**:
+    - The rate-limit profile smoke already existed and passed locally, but staging verification still depended on remembering:
+      - the raw script name
+      - the preferred burst sizes
+      - the fact that bootstrap traffic should not consume the same synthetic forwarded identity as the read-isolation checks
+    - A heavier local wrapper run also exposed that setup traffic can pollute the default read bucket if it shares the same synthetic client identity.
+  - **Implementation**:
+    - Updated `run_rate_limit_profile_smoke.ps1` so setup traffic uses non-synthetic headers while burst/read checks keep the synthetic forwarded identity.
+    - Added:
+      - `infra/load-test/run_rate_limit_staging_checklist.ps1`
+    - The wrapper delegates to the smoke with a staging-oriented burst profile and keeps the operator entrypoint explicit.
+  - **Operational impact**:
+    - staging rate-limit verification is now a one-command checklist instead of a remembered raw smoke invocation
+    - read-isolation results are less likely to be polluted by setup requests, so the signal is closer to the real endpoint-aware throttling question
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_rate_limit_staging_checklist.ps1 -BaseUrl http://localhost:8080 -NoFail`
 - **2026-03-21**: **Owner-Scoped Portfolio Pages Now Use Two-Step Hydration Instead Of Paged EntityGraph Fetching**
   - **Problem observed**:
     - Discover and scheduler-oriented portfolio reads had already moved to id-first loading patterns, but the owner-scoped portfolio list still used paged `@EntityGraph(items)` hydration.

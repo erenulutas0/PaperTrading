@@ -117,13 +117,26 @@ function New-Headers {
   return $headers
 }
 
+function New-SetupHeaders {
+  param(
+    [string]$AccessToken = ""
+  )
+
+  $headers = @{}
+  if (-not [string]::IsNullOrWhiteSpace($AccessToken)) {
+    $headers["Authorization"] = "Bearer $AccessToken"
+  }
+
+  return $headers
+}
+
 function Register-TestUser {
   param(
     [string]$Label,
     [string]$Suffix
   )
 
-  $response = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/auth/register" -Headers (New-Headers) -Body @{
+  $response = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/auth/register" -Headers (New-SetupHeaders) -Body @{
     username = "rl_${Label}_$Suffix"
     email    = "rl_${Label}_$Suffix@test.com"
     password = "P@ssw0rd!123456"
@@ -246,7 +259,7 @@ for ($i = 1; $i -le $FollowAttempts; $i++) {
   $followTargets.Add((Register-TestUser -Label "follow_${i}" -Suffix $suffix)) | Out-Null
 }
 
-$createPortfolio = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/portfolios" -Headers (New-Headers) -Body @{
+$createPortfolio = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/portfolios" -Headers (New-SetupHeaders -AccessToken $owner.accessToken) -Body @{
   name       = "Rate Limit Smoke $suffix"
   ownerId    = $owner.id
   visibility = "PUBLIC"
@@ -255,7 +268,7 @@ $portfolioJson = if ($createPortfolio.content) { $createPortfolio.content | Conv
 $portfolioId = [string](Get-JsonValue -Object $portfolioJson -Name "id")
 Assert-Condition -Results $results -Name "Create Portfolio" -Condition ($createPortfolio.status -eq 200 -and -not [string]::IsNullOrWhiteSpace($portfolioId)) -Detail "status=$($createPortfolio.status)"
 
-$seedComment = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/interactions/$portfolioId/comments" -Headers (New-Headers -AccessToken $owner.accessToken) -Body @{
+$seedComment = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/interactions/$portfolioId/comments" -Headers (New-SetupHeaders -AccessToken $owner.accessToken) -Body @{
   targetType = "PORTFOLIO"
   content    = "Rate-limit reply seed"
 }
