@@ -38,6 +38,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_backend_contract_smoke.ps1`
 - `run_idempotency_cleanup_smoke.ps1`
 - `run_audit_write_capture_smoke.ps1`
+- `run_portfolio_pagination_warning_smoke.ps1`
 - `run_rate_limit_profile_smoke.ps1`
 - `run_auth_strict_mode_smoke.ps1`
 - `run_auth_strict_mode_validation_suite.ps1`
@@ -238,6 +239,22 @@ The audit write-capture smoke checks:
 - comment on the portfolio from the actor account
 - create + delete an analysis post from the actor account
 - verify `/api/v1/ops/auditlog` exposes request-id-filtered rows for:
+
+Run portfolio pagination warning smoke against local infra:
+
+```powershell
+./infra/load-test/run_portfolio_pagination_warning_smoke.ps1
+```
+
+The portfolio pagination warning smoke checks:
+- one-off backend boot with local Postgres/Redis wiring
+- market price hydration is live enough for scheduler work
+- owner portfolio page hydration still works after id-slice refactor
+- discover page hydration still works after id-slice refactor
+- snapshot scheduler activity is observed in logs
+- leaderboard scheduler activity is observed in logs
+- `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory`
+  does not appear during the observation window
   - portfolio create
   - trade buy
   - follow

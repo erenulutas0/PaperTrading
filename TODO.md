@@ -301,7 +301,16 @@ Last updated: 2026-03-19
     - delegates to `run_audit_validation_suite.ps1` with a staging-style entrypoint
     - reduces audit redeploy verification to one explicit command instead of ad hoc script selection
 - [x] Re-ran audit staging checklist wrapper locally and verified it delegates cleanly into the audit validation suite
-- [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
+- [x] Added runtime log smoke for the portfolio pagination warning cleanup and verified local scheduler-oriented reads stay clean:
+  - Added:
+    - `infra/load-test/run_portfolio_pagination_warning_smoke.ps1`
+  - Behavior:
+    - boots a one-off backend against local Postgres/Redis
+    - waits for market prices so snapshot/liquidation/leaderboard schedulers can actually run
+    - seeds owner/public portfolios and exercises owner/discover hydration paths
+    - scans runtime logs to assert `HHH90003004` does not appear during the observation window
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_portfolio_pagination_warning_smoke.ps1 -NoFail`
 - [x] Moved owner-scoped portfolio page hydration to two-step id paging:
   - Updated:
     - `PortfolioRepository`

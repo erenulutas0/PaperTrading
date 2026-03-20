@@ -38,6 +38,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Portfolio Pagination Warning Cleanup Now Has A Runtime Log Smoke**
+  - **Problem observed**:
+    - The portfolio read surface had already been refactored away from paged `@EntityGraph(items)` fetches, but the remaining TODO was still runtime-oriented:
+      - prove local scheduler-driven reads no longer emit `HHH90003004`
+    - Repository and integration tests reduced structural risk, but they did not replace a real app log check across snapshot/liquidation/leaderboard timing.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_portfolio_pagination_warning_smoke.ps1`
+    - The smoke:
+      - boots a one-off backend against local Postgres/Redis
+      - waits for live market prices so scheduler work is real instead of a false pass
+      - seeds owner/public portfolios
+      - exercises owner and discover hydration paths
+      - observes scheduler logs for snapshot and leaderboard activity
+      - fails if `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` appears during the observation window
+  - **Operational impact**:
+    - the `HHH90003004` cleanup is no longer guarded only by repository/test structure; it now has a repeatable runtime proof
+    - future regressions in scheduler-oriented portfolio pagination can be detected from one explicit local smoke command
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_portfolio_pagination_warning_smoke.ps1 -NoFail`
 - **2026-03-21**: **Owner-Scoped Portfolio Pages Now Use Two-Step Hydration Instead Of Paged EntityGraph Fetching**
   - **Problem observed**:
     - Discover and scheduler-oriented portfolio reads had already moved to id-first loading patterns, but the owner-scoped portfolio list still used paged `@EntityGraph(items)` hydration.
