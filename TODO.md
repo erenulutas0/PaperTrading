@@ -398,6 +398,16 @@ Last updated: 2026-03-19
       - keeps bootstrap requests off the synthetic forwarded identity so read-isolation checks stay meaningful
     - Local validation:
       - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_rate_limit_staging_checklist.ps1 -BaseUrl http://localhost:8080 -NoFail`
+  - [x] Added post-cutover strict auth checklist wrapper:
+    - Added:
+      - `infra/load-test/run_auth_strict_post_cutover_checklist.ps1`
+    - Behavior:
+      - runs Bearer-only transport validation
+      - runs focused spoof-regression validation
+      - runs endpoint-aware rate-limit isolation validation
+      - leaves relay optional with `-SkipRelay` for local or pre-relay targets
+    - Local validation:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_post_cutover_checklist.ps1 -BaseUrl http://localhost:8080 -SkipRelay -NoFail`
   - [ ] Redeploy backend after endpoint-aware rate-limit hardening and verify staged comment/reply/follow/auth-refresh bursts now hit profile-specific limits without hurting normal reads
 - [x] Added local endpoint-aware rate-limit smoke tooling:
   - Added:

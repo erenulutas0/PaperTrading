@@ -93,6 +93,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Validation**:
     - Passed:
       - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_rate_limit_staging_checklist.ps1 -BaseUrl http://localhost:8080 -NoFail`
+- **2026-03-21**: **Strict Auth Cutover Now Has A Post-Cutover Checklist Wrapper**
+  - **Problem observed**:
+    - By this point the auth rollout already had separate focused entrypoints for:
+      - Bearer transport validation
+      - spoof regression
+      - endpoint-aware rate-limit isolation
+    - That was operationally better than ad hoc commands, but post-cutover staging verification still required operators to know which three wrappers to chain after `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_auth_strict_post_cutover_checklist.ps1`
+    - The wrapper orchestrates:
+      - `run_auth_strict_transport_validation.ps1`
+      - `run_auth_spoof_regression_check.ps1`
+      - `run_rate_limit_staging_checklist.ps1`
+    - Relay validation remains optional via `-SkipRelay` so the same checklist works in local and pre-relay staging contexts.
+  - **Operational impact**:
+    - strict auth cutover no longer depends on remembering multiple separate wrapper names after legacy-header acceptance is disabled
+    - the remaining auth staging TODOs are narrower because transport, spoof, and throttling can be exercised from one explicit command
+  - **Validation**:
+    - Passed:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_post_cutover_checklist.ps1 -BaseUrl http://localhost:8080 -SkipRelay -NoFail`
 - **2026-03-21**: **Owner-Scoped Portfolio Pages Now Use Two-Step Hydration Instead Of Paged EntityGraph Fetching**
   - **Problem observed**:
     - Discover and scheduler-oriented portfolio reads had already moved to id-first loading patterns, but the owner-scoped portfolio list still used paged `@EntityGraph(items)` hydration.

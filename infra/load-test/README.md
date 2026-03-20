@@ -46,6 +46,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_auth_strict_mode_validation_suite.ps1`
 - `run_auth_strict_mode_staging_checklist.ps1`
 - `run_auth_strict_transport_validation.ps1`
+- `run_auth_strict_post_cutover_checklist.ps1`
 
 ## Prerequisites
 
@@ -385,6 +386,20 @@ Checklist behavior:
 - includes rate-limit profile smoke unless explicitly skipped
 - uses a slightly heavier baseline preset intended for staging validation
 - skips strict-smoke by default unless `-StrictSmokeBaseUrl` is provided
+
+Run the post-cutover strict auth checklist once legacy header acceptance is disabled:
+
+```powershell
+./infra/load-test/run_auth_strict_post_cutover_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -RelayBrokerRestartCommand "docker restart finance-rabbitmq"
+```
+
+Checklist behavior:
+- runs Bearer-only transport validation (`lightweight_baseline.ps1` + `validate_websocket_relay_smoke.ps1`)
+- runs focused spoof-regression validation
+- runs endpoint-aware rate-limit isolation validation
+- use `-SkipRelay` when no relay-enabled target exists yet
 
 Run Bearer-only transport validation for the two scripts that matter most after strict auth cutover:
 
