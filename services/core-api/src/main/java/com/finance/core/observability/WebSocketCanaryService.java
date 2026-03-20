@@ -104,8 +104,9 @@ public class WebSocketCanaryService {
         );
 
         long startedNs = System.nanoTime();
-        WebSocketCanaryProbeResult result = canaryClient.probe(request);
-        long runLatencyMs = (System.nanoTime() - startedNs) / 1_000_000;
+        WebSocketCanaryProbeResult result = executeProbeSafely(request, startedNs);
+        long runDurationNs = System.nanoTime() - startedNs;
+        long runLatencyMs = result.latencyMs() > 0 ? result.latencyMs() : runDurationNs / 1_000_000;
         boolean success = result.success();
 
         totalRuns.incrementAndGet();
@@ -154,7 +155,7 @@ public class WebSocketCanaryService {
         Timer.builder("app.websocket.canary.run.latency")
                 .tag("result", success ? "success" : "failed")
                 .register(meterRegistry)
-                .record(System.nanoTime() - startedNs, java.util.concurrent.TimeUnit.NANOSECONDS);
+                .record(runDurationNs, java.util.concurrent.TimeUnit.NANOSECONDS);
 
         WebSocketCanarySnapshot snapshot = new WebSocketCanarySnapshot(
                 LocalDateTime.now(),
@@ -213,6 +214,29 @@ public class WebSocketCanaryService {
         );
     }
 
+    private WebSocketCanaryProbeResult executeProbeSafely(WebSocketCanaryProbeRequest request, long startedNs) {
+        try {
+            WebSocketCanaryProbeResult result = canaryClient.probe(request);
+            if (result == null) {
+                return new WebSocketCanaryProbeResult(
+                        false,
+                        false,
+                        elapsedMillis(startedNs),
+                        "null-probe-result"
+                );
+            }
+            return result;
+        } catch (Exception ex) {
+            log.warn("WebSocket canary probe raised exception: {}", ex.getMessage(), ex);
+            return new WebSocketCanaryProbeResult(
+                    false,
+                    false,
+                    elapsedMillis(startedNs),
+                    normalizeError(ex)
+            );
+        }
+    }
+
     private double computeSuccessRatio() {
         long runs = totalRuns.get();
         if (runs <= 0) {
@@ -242,6 +266,22 @@ public class WebSocketCanaryService {
                 "Synthetic websocket canary recovered",
                 details
         );
+    }
+
+    private long elapsedMillis(long startedNs) {
+        return Math.max(0L, (System.nanoTime() - startedNs) / 1_000_000);
+    }
+
+    private String normalizeError(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown-error";
+        }
+        String message = throwable.getMessage();
+        if (!StringUtils.hasText(message)) {
+            message = throwable.getClass().getSimpleName();
+        }
+        String singleLine = message.replace('\r', ' ').replace('\n', ' ').trim();
+        return singleLine.length() > 200 ? singleLine.substring(0, 200) : singleLine;
     }
 
     private WindowStats appendWindowAndCollectStats(boolean success, int windowSize) {

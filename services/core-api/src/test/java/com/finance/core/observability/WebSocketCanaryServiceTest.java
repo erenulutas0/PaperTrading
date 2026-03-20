@@ -139,4 +139,29 @@ class WebSocketCanaryServiceTest {
                 anyMap()
         );
     }
+
+    @Test
+    void runCanaryProbe_whenClientThrows_shouldReturnFailedSnapshotInsteadOfThrowing() {
+        properties.setWarningConsecutiveFailureThreshold(1);
+        when(canaryClient.probe(any())).thenThrow(new IllegalStateException("broker unavailable"));
+
+        WebSocketCanarySnapshot snapshot = service.runCanaryProbe();
+
+        assertEquals(false, snapshot.success());
+        assertEquals(1, snapshot.consecutiveFailures());
+        assertEquals("broker unavailable", snapshot.error());
+        assertEquals("WARNING", snapshot.alertState());
+
+        Counter failCounter = meterRegistry.find("app.websocket.canary.runs.total")
+                .tags("result", "failed")
+                .counter();
+        assertEquals(1.0, failCounter.count());
+        verify(opsAlertPublisher, times(1)).publish(
+                eq("websocket-canary"),
+                eq(OpsAlertSeverity.WARNING),
+                eq("probe-failed"),
+                anyString(),
+                anyMap()
+        );
+    }
 }

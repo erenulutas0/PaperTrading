@@ -14,7 +14,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-19)
+### Progress Tracker (updated 2026-03-21)
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
@@ -38,6 +38,33 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **WebSocket Canary Latest Snapshot Is Now Readable Without Forcing A Probe**
+  - **Problem observed**:
+    - The synthetic canary tooling had two practical operator gaps:
+      - `GET /actuator/websocketcanary` always executed a fresh probe, so there was no direct way to inspect the current `not-run-yet` vs evaluated state before triggering a new run.
+      - the external PowerShell runner still collided with the built-in `$Error` variable, which made the script itself brittle on Windows PowerShell.
+    - That combination made the open staging TODO awkward:
+      - prove initial `UNKNOWN/not-run-yet`
+      - then prove transition into a healthy evaluated snapshot
+  - **Implementation**:
+    - `WebSocketCanaryEndpoint` now accepts `?refresh=false` and returns the latest snapshot without forcing a new probe.
+    - `WebSocketCanaryService` now converts probe-time exceptions into failed snapshots instead of bubbling a `500` from the actuator endpoint.
+    - `run_websocket_canary_external.ps1` now:
+      - captures initial and final latest-snapshot state
+      - emits an explicit markdown `Status`
+      - avoids the PowerShell `$Error` collision
+    - Added:
+      - `infra/load-test/run_websocket_canary_staging_checklist.ps1`
+    - Added regression coverage in:
+      - `WebSocketCanaryServiceTest`
+      - `WebSocketCanaryEndpointIntegrationTest`
+  - **Operational impact**:
+    - staging operators can now distinguish "latest state is still not-run-yet" from "a new probe was just executed" without inventing manual steps
+    - the external canary path is less brittle on Windows PowerShell and closer to a one-command staging verification flow
+  - **Validation**:
+    - Passed:
+      - `WebSocketCanaryServiceTest`
+      - `WebSocketCanaryEndpointIntegrationTest`
 - **2026-03-21**: **Portfolio Pagination Warning Cleanup Now Has A Runtime Log Smoke**
   - **Problem observed**:
     - The portfolio read surface had already been refactored away from paged `@EntityGraph(items)` fetches, but the remaining TODO was still runtime-oriented:

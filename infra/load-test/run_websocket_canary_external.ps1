@@ -66,6 +66,19 @@ function Get-PropertyValueOrDefault {
   return $property.Value
 }
 
+function Get-CanaryLatestSnapshot {
+  param(
+    [string]$Url,
+    [int]$TimeoutSec
+  )
+
+  try {
+    return Invoke-JsonGet -Url "$Url?refresh=false" -TimeoutSec $TimeoutSec
+  } catch {
+    return $null
+  }
+}
+
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $reportsDir = "infra/load-test/reports"
 $null = New-Item -ItemType Directory -Path $reportsDir -Force
@@ -80,6 +93,7 @@ $errors = New-Object System.Collections.Generic.List[string]
 $latencies = New-Object System.Collections.Generic.List[double]
 $successCount = 0
 $failureCount = 0
+$overallStatus = "PASSED"
 
 $healthStatus = "unknown"
 try {
@@ -91,13 +105,20 @@ try {
   $errors.Add("Health check failed: $($_.Exception.Message)")
 }
 
+$initialSnapshot = Get-CanaryLatestSnapshot -Url $canaryEndpoint -TimeoutSec $RequestTimeoutSec
+$initialCheckedAt = [string](Get-PropertyValueOrDefault -Object $initialSnapshot -Name "checkedAt" -DefaultValue "")
+$initialAlertState = [string](Get-PropertyValueOrDefault -Object $initialSnapshot -Name "alertState" -DefaultValue "")
+$initialSuccess = [string](Get-PropertyValueOrDefault -Object $initialSnapshot -Name "success" -DefaultValue "")
+$initialError = [string](Get-PropertyValueOrDefault -Object $initialSnapshot -Name "error" -DefaultValue "")
+$initialState = if ([string]::IsNullOrWhiteSpace($initialCheckedAt)) { "not-run-yet" } else { "snapshot-available" }
+
 for ($i = 1; $i -le $Iterations; $i++) {
   $checkedAt = (Get-Date).ToString("s")
   $success = $false
   $latencyMs = 0.0
   $consecutiveFailures = 0
   $alertState = "unknown"
-  $error = ""
+  $probeError = ""
   $topicReceived = $false
   $userQueueReceived = $false
   $activeSessions = ""
@@ -110,15 +131,15 @@ for ($i = 1; $i -le $Iterations; $i++) {
       $latencyMs = To-DoubleSafe -Value $snapshot.latencyMs
       $consecutiveFailures = [int](Get-PropertyValueOrDefault -Object $snapshot -Name "consecutiveFailures" -DefaultValue 0)
       $alertState = [string](Get-PropertyValueOrDefault -Object $snapshot -Name "alertState" -DefaultValue "unknown")
-      $error = [string](Get-PropertyValueOrDefault -Object $snapshot -Name "error" -DefaultValue "")
+      $probeError = [string](Get-PropertyValueOrDefault -Object $snapshot -Name "error" -DefaultValue "")
       $topicReceived = [bool](Get-PropertyValueOrDefault -Object $snapshot -Name "topicReceived" -DefaultValue $false)
       $userQueueReceived = [bool](Get-PropertyValueOrDefault -Object $snapshot -Name "userQueueReceived" -DefaultValue $false)
       $latencies.Add($latencyMs)
     } else {
-      $error = "empty-canary-response"
+      $probeError = "empty-canary-response"
     }
   } catch {
-    $error = $_.Exception.Message
+    $probeError = $_.Exception.Message
   }
 
   if ($IncludeWebSocketSnapshot) {
@@ -129,8 +150,8 @@ for ($i = 1; $i -le $Iterations; $i++) {
         $stompErrors = [string](Get-PropertyValueOrDefault -Object $wsSnapshot -Name "stompErrorEvents" -DefaultValue "")
       }
     } catch {
-      if ([string]::IsNullOrWhiteSpace($error)) {
-        $error = "websocket-endpoint-failed: $($_.Exception.Message)"
+      if ([string]::IsNullOrWhiteSpace($probeError)) {
+        $probeError = "websocket-endpoint-failed: $($_.Exception.Message)"
       }
     }
   }
@@ -152,7 +173,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
       userQueueReceived   = $userQueueReceived
       activeSessions      = $activeSessions
       stompErrorEvents    = $stompErrors
-      error               = $error
+      error               = $probeError
     })
 
   if ($i -lt $Iterations -and $IntervalSec -gt 0) {
@@ -165,6 +186,16 @@ $successRate = if ($totalRuns -gt 0) { [Math]::Round(($successCount * 100.0) / $
 $avgLatency = if ($latencies.Count -gt 0) { [Math]::Round((($latencies | Measure-Object -Average).Average), 2) } else { 0.0 }
 $p95Latency = [Math]::Round((Get-Percentile -Values $latencies.ToArray() -Percentile 95), 2)
 $p99Latency = [Math]::Round((Get-Percentile -Values $latencies.ToArray() -Percentile 99), 2)
+$finalSnapshot = Get-CanaryLatestSnapshot -Url $canaryEndpoint -TimeoutSec $RequestTimeoutSec
+$finalCheckedAt = [string](Get-PropertyValueOrDefault -Object $finalSnapshot -Name "checkedAt" -DefaultValue "")
+$finalAlertState = [string](Get-PropertyValueOrDefault -Object $finalSnapshot -Name "alertState" -DefaultValue "")
+$finalSuccess = [string](Get-PropertyValueOrDefault -Object $finalSnapshot -Name "success" -DefaultValue "")
+$finalError = [string](Get-PropertyValueOrDefault -Object $finalSnapshot -Name "error" -DefaultValue "")
+$finalState = if ([string]::IsNullOrWhiteSpace($finalCheckedAt)) { "not-run-yet" } else { "snapshot-available" }
+
+if ($failureCount -gt 0) {
+  $overallStatus = "FAILED"
+}
 
 $notesBlock = if ($errors.Count -eq 0) { "- none" } else { ($errors | ForEach-Object { "- $_" }) -join [Environment]::NewLine }
 
@@ -189,7 +220,20 @@ $reportLines = @(
   "- Include websocket endpoint snapshot: $IncludeWebSocketSnapshot",
   "- Initial health status: $healthStatus",
   "",
+  "## Snapshot Transition",
+  "- Initial latest state: $initialState",
+  "- Initial checkedAt: $(if ([string]::IsNullOrWhiteSpace($initialCheckedAt)) { 'n/a' } else { $initialCheckedAt })",
+  "- Initial success: $(if ([string]::IsNullOrWhiteSpace($initialSuccess)) { 'n/a' } else { $initialSuccess })",
+  "- Initial alertState: $(if ([string]::IsNullOrWhiteSpace($initialAlertState)) { 'n/a' } else { $initialAlertState })",
+  "- Initial error: $(if ([string]::IsNullOrWhiteSpace($initialError)) { 'n/a' } else { $initialError })",
+  "- Final latest state: $finalState",
+  "- Final checkedAt: $(if ([string]::IsNullOrWhiteSpace($finalCheckedAt)) { 'n/a' } else { $finalCheckedAt })",
+  "- Final success: $(if ([string]::IsNullOrWhiteSpace($finalSuccess)) { 'n/a' } else { $finalSuccess })",
+  "- Final alertState: $(if ([string]::IsNullOrWhiteSpace($finalAlertState)) { 'n/a' } else { $finalAlertState })",
+  "- Final error: $(if ([string]::IsNullOrWhiteSpace($finalError)) { 'n/a' } else { $finalError })",
+  "",
   "## Summary",
+  "- Status: **$overallStatus**",
   "- Total runs: $totalRuns",
   "- Success count: $successCount",
   "- Failure count: $failureCount",
@@ -209,7 +253,7 @@ $report = $reportLines -join [Environment]::NewLine
 Set-Content -Path $reportPath -Value $report -Encoding UTF8
 
 Write-Output "External canary report created: $reportPath"
-Write-Output "Runs: $totalRuns, Success: $successCount, Failure: $failureCount, SuccessRate: $successRate%"
+Write-Output "Status: $overallStatus | Runs: $totalRuns | Success: $successCount | Failure: $failureCount | SuccessRate: $successRate%"
 
 if ($FailOnAnyFailure -and $failureCount -gt 0) {
   exit 1

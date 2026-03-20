@@ -48,6 +48,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_auth_strict_transport_validation.ps1`
 - `run_auth_strict_post_cutover_checklist.ps1`
 - `run_browser_origin_staging_checklist.ps1`
+- `run_websocket_canary_staging_checklist.ps1`
 
 ## Prerequisites
 
@@ -475,6 +476,28 @@ Run websocket canary externally (recommended from a separate node/network path):
   -FailOnAnyFailure
 ```
 
+Useful notes:
+- the runner now reads `GET /actuator/websocketcanary?refresh=false` before and after the probe loop so the report shows:
+  - initial latest snapshot state
+  - final latest snapshot state
+  - whether the latest canary view stayed `not-run-yet` or moved into an evaluated snapshot
+- it no longer collides with PowerShell's built-in `$Error` variable while recording probe failures
+
+Run the staging checklist that proves latest-snapshot transition plus external canary health:
+
+```powershell
+./infra/load-test/run_websocket_canary_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -Iterations 12 `
+  -IntervalSec 20
+```
+
+Checklist behavior:
+- reuses `run_websocket_canary_external.ps1`
+- verifies the initial latest snapshot is `not-run-yet` unless `-AllowAlreadyProbed` is supplied
+- verifies the post-run latest snapshot is no longer `not-run-yet`
+- verifies the post-run latest snapshot is successful and not `CRITICAL`
+
 Check auth legacy-header usage readiness before disabling legacy mode:
 
 ```powershell
@@ -556,6 +579,7 @@ Report file:
 - `infra/load-test/reports/ops-alert-webhook-skipapp-flow-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/websocket-relay-smoke-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/websocket-canary-external-YYYYMMDD-HHMMSS.md`
+- `infra/load-test/reports/websocket-canary-staging-checklist-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-legacy-usage-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-observability-calibration-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-strict-readiness-YYYYMMDD-HHMMSS.md`

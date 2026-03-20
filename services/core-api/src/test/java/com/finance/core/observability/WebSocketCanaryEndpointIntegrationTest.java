@@ -9,6 +9,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,5 +43,16 @@ class WebSocketCanaryEndpointIntegrationTest {
                 .andExpect(jsonPath("$.latencyMs").exists())
                 .andExpect(jsonPath("$.topicDestination").exists())
                 .andExpect(jsonPath("$.userQueueDestination").exists());
+    }
+
+    @Test
+    void shouldReturnLatestSnapshotWithoutTriggeringProbeWhenRefreshDisabled() throws Exception {
+        mockMvc.perform(get("/actuator/websocketcanary").param("refresh", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.consecutiveFailures").value(0))
+                .andExpect(jsonPath("$.checkedAt").doesNotExist());
+
+        verify(webSocketCanaryClient, never()).probe(any());
     }
 }

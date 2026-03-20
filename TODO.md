@@ -1,6 +1,6 @@
 # TODO - Core API Reliability & Scalability Sweep
 
-Last updated: 2026-03-19
+Last updated: 2026-03-21
 
 ## In Progress
 - [x] Verify the new local-dev bootstrap path:
@@ -440,12 +440,22 @@ Last updated: 2026-03-19
   - Local validation:
     - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_browser_origin_staging_checklist.ps1 -BaseUrl http://localhost:8080 -FrontendOrigin http://localhost:3005 -SkipRelay -NoFail`
     - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\validate_websocket_relay_smoke.ps1 -SkipAppStart -BaseUrl http://localhost:8080 -OriginHeader http://localhost:3005 -NoFail`
-- [ ] Confirm websocket canary transitions from initial `UNKNOWN (not-run-yet)` to healthy probe state after scheduled run window
+- [x] Hardened websocket canary external runner and added transition checklist:
+  - `/actuator/websocketcanary` now supports `?refresh=false` to read the latest snapshot without forcing a new probe
+  - `infra/load-test/run_websocket_canary_external.ps1` now:
+    - captures initial + final latest-snapshot state
+    - emits an explicit markdown `Status`
+    - no longer collides with PowerShell's built-in `$Error` variable
+  - Added:
+    - `infra/load-test/run_websocket_canary_staging_checklist.ps1`
+  - Validation:
+    - `WebSocketCanaryServiceTest`
+    - `WebSocketCanaryEndpointIntegrationTest`
+- [ ] Run websocket canary staging checklist from a separate node/network path and attach report (`infra/load-test/run_websocket_canary_staging_checklist.ps1`) to confirm initial `not-run-yet` -> healthy snapshot transition
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
 - [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
 - [ ] Run websocket relay smoke/failover script in staging with real broker restart command and attach report (`infra/load-test/validate_websocket_relay_smoke.ps1`)
-- [ ] Run external websocket canary runner from a separate node/network path and attach report (`infra/load-test/run_websocket_canary_external.ps1`)
 - [ ] Run end-to-end websocket resilience check in staging (forced WS disconnect/reconnect, SSE fallback path, notification/tournament stream continuity)
 - [ ] Validate leaderboard period metrics with live user flows (`1D/1W/1M/ALL`) and confirm expected ranking semantics (portfolio ROI vs position ROE) with product decision
 - [ ] Monitor runtime for one sprint and tune pool/cache TTL values using real traffic metrics

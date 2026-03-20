@@ -3,6 +3,7 @@ package com.finance.core.observability;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -17,7 +18,10 @@ public class WebSocketCanaryEndpoint {
     }
 
     @ReadOperation
-    public WebSocketCanarySnapshot websocketCanaryStatus() {
+    public WebSocketCanarySnapshot websocketCanaryStatus(@Nullable Boolean refresh) {
+        if (Boolean.FALSE.equals(refresh)) {
+            return webSocketCanaryService.getLatestSnapshot();
+        }
         return webSocketCanaryService.runCanaryProbe();
     }
 }
