@@ -49,7 +49,11 @@ public class RateLimitFilter implements Filter {
         AUTH_REFRESH,
         INTERACTION_COMMENT,
         INTERACTION_LIKE,
-        SOCIAL_FOLLOW
+        SOCIAL_FOLLOW,
+        PORTFOLIO_WRITE,
+        TRADE_WRITE,
+        WATCHLIST_WRITE,
+        ANALYSIS_WRITE
     }
 
     private final ConcurrentHashMap<String, Bucket> cache = new ConcurrentHashMap<>();
@@ -77,6 +81,18 @@ public class RateLimitFilter implements Filter {
 
     @Value("${app.rate-limit.social-follow-capacity:20}")
     private int socialFollowCapacity = 20;
+
+    @Value("${app.rate-limit.portfolio-write-capacity:25}")
+    private int portfolioWriteCapacity = 25;
+
+    @Value("${app.rate-limit.trade-write-capacity:30}")
+    private int tradeWriteCapacity = 30;
+
+    @Value("${app.rate-limit.watchlist-write-capacity:40}")
+    private int watchlistWriteCapacity = 40;
+
+    @Value("${app.rate-limit.analysis-write-capacity:18}")
+    private int analysisWriteCapacity = 18;
 
     public RateLimitFilter(JwtTokenService jwtTokenService, AuthSessionService authSessionService) {
         this.jwtTokenService = jwtTokenService;
@@ -110,6 +126,21 @@ public class RateLimitFilter implements Filter {
         if (path.matches("^/api/v1/users/[^/]+/follow$") &&
                 ("POST".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))) {
             return BucketProfile.SOCIAL_FOLLOW;
+        }
+        if (path.matches("^/api/v1/portfolios(?:/[^/]+(?:/deposit|/visibility)?)?$") &&
+                ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))) {
+            return BucketProfile.PORTFOLIO_WRITE;
+        }
+        if (path.matches("^/api/v1/trade/(buy|sell)$") && "POST".equalsIgnoreCase(method)) {
+            return BucketProfile.TRADE_WRITE;
+        }
+        if (path.matches("^/api/v1/watchlists(?:$|/.*)") &&
+                ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))) {
+            return BucketProfile.WATCHLIST_WRITE;
+        }
+        if (path.matches("^/api/v1/analysis-posts(?:$|/[^/]+)$") &&
+                ("POST".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))) {
+            return BucketProfile.ANALYSIS_WRITE;
         }
         return BucketProfile.DEFAULT;
     }
@@ -207,6 +238,10 @@ public class RateLimitFilter implements Filter {
             case INTERACTION_COMMENT -> interactionCommentCapacity;
             case INTERACTION_LIKE -> interactionLikeCapacity;
             case SOCIAL_FOLLOW -> socialFollowCapacity;
+            case PORTFOLIO_WRITE -> portfolioWriteCapacity;
+            case TRADE_WRITE -> tradeWriteCapacity;
+            case WATCHLIST_WRITE -> watchlistWriteCapacity;
+            case ANALYSIS_WRITE -> analysisWriteCapacity;
             case DEFAULT -> defaultCapacity;
         };
 

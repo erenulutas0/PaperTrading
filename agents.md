@@ -38,6 +38,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Rate Limiting Now Separates Core Write Surfaces From The Default Read Bucket**
+  - **Problem observed**:
+    - Earlier rate-limit hardening fixed bucket identity for sensitive endpoints, but many important writes still shared the generic default profile:
+      - portfolio mutations
+      - trade execution
+      - watchlist mutations
+      - analysis publish/delete
+    - That meant a bursty writer on one of those paths could still consume the same coarse bucket used by ordinary reads from the same client.
+  - **Implementation**:
+    - Added dedicated `RateLimitFilter` profiles for:
+      - `PORTFOLIO_WRITE`
+      - `TRADE_WRITE`
+      - `WATCHLIST_WRITE`
+      - `ANALYSIS_WRITE`
+    - Added matching configurable capacities in `application.yml`.
+    - Kept stable principal-based bucket keying for all non-default authenticated write profiles.
+  - **Operational impact**:
+    - normal reads are less likely to be collateral damage from bursty write traffic
+    - high-value write paths now have clearer throttling boundaries instead of one broad “sensitive write” concept
+  - **Validation**:
+    - Passed:
+      - `RateLimitFilterTest`
 - **2026-03-20**: **Notification And Audit Edge Errors Now Reuse The Shared Correlated Contract End-To-End**
   - **Problem observed**:
     - Most controller failures had already moved to the shared `{code, message, details, requestId}` contract, but two edge cases still drifted:

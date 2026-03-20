@@ -289,11 +289,11 @@ Last updated: 2026-03-19
 - [ ] Redeploy backend after two-step paged portfolio hydration refactor and verify scheduler logs no longer emit `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory` during snapshot/liquidation/leaderboard refresh cycles
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [ ] Redeploy backend after idempotency cleanup/inspection rollout and verify `/actuator/idempotency` reports sane counts while scheduled purge removes expired keys without breaking replay semantics
-- [ ] Redeploy backend after idempotency-key rollout and verify duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
+- [x] Re-ran idempotency-key rollout locally and verified duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
 - [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
 - [x] Re-ran notification error cleanup locally and verified unread-count/mark-read paths now use the same correlated error contract as other controllers, including invalid notification-id handling
 - [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
-- [ ] Redeploy backend after request-correlation + unified error contract rollout and verify `X-Request-Id` is echoed on errors plus auth failures now return `{code,message,details?,requestId}`
+- [x] Re-ran request-correlation + unified error contract rollout locally and verified `X-Request-Id` is echoed on errors plus auth failures return `{code,message,details?,requestId}`
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
 - [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance
 - [ ] Keep `run_auth_attack_scenarios.ps1` header-mismatch scenario intact and use it as the explicit spoof-regression check after strict-mode cutover
@@ -592,6 +592,16 @@ Last updated: 2026-03-19
     - comment/like/follow buckets now prefer stable JWT subject keys instead of raw Bearer-token hashes
     - token rotation no longer gives the same authenticated actor a fresh sensitive-write bucket
     - malformed Bearer tokens still fall back to hashed-token partitioning instead of crashing the filter
+  - Coverage:
+    - `RateLimitFilterTest`
+- [x] Extended endpoint-aware rate-limit profiles beyond social/auth writes:
+  - Updated:
+    - `RateLimitFilter`
+    - `application.yml`
+  - Behavior:
+    - portfolio, trade, watchlist, and analysis writes now use dedicated rate-limit profiles instead of sharing the default read bucket
+    - aggressive write bursts on those paths are less likely to starve normal read traffic from the same client identity
+    - authenticated write buckets continue to prefer stable principal keys where available
   - Coverage:
     - `RateLimitFilterTest`
 - [x] Extended request correlation into idempotency filter responses:

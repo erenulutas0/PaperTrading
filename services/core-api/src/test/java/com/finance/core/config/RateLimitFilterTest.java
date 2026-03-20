@@ -65,6 +65,16 @@ class RateLimitFilterTest {
                 filter.resolveProfile(request("POST", "/api/v1/interactions/123/like")));
         assertEquals(RateLimitFilter.BucketProfile.SOCIAL_FOLLOW,
                 filter.resolveProfile(request("POST", "/api/v1/users/abc/follow")));
+        assertEquals(RateLimitFilter.BucketProfile.PORTFOLIO_WRITE,
+                filter.resolveProfile(request("POST", "/api/v1/portfolios")));
+        assertEquals(RateLimitFilter.BucketProfile.PORTFOLIO_WRITE,
+                filter.resolveProfile(request("PUT", "/api/v1/portfolios/123/visibility")));
+        assertEquals(RateLimitFilter.BucketProfile.TRADE_WRITE,
+                filter.resolveProfile(request("POST", "/api/v1/trade/buy")));
+        assertEquals(RateLimitFilter.BucketProfile.WATCHLIST_WRITE,
+                filter.resolveProfile(request("PUT", "/api/v1/watchlists/items/123/alerts")));
+        assertEquals(RateLimitFilter.BucketProfile.ANALYSIS_WRITE,
+                filter.resolveProfile(request("POST", "/api/v1/analysis-posts")));
         assertEquals(RateLimitFilter.BucketProfile.DEFAULT,
                 filter.resolveProfile(request("GET", "/api/v1/leaderboards")));
     }
@@ -89,6 +99,20 @@ class RateLimitFilterTest {
         String key = filter.resolveBucketKey(request, RateLimitFilter.BucketProfile.INTERACTION_COMMENT);
 
         assertEquals("principal:11111111-1111-1111-1111-111111111111", key);
+    }
+
+    @Test
+    void resolveBucketKey_shouldPreferBearerIdentityForPortfolioWrites() {
+        MockHttpServletRequest request = request("POST", "/api/v1/portfolios");
+        String token = jwtTokenService.generateAccessToken(
+                java.util.UUID.fromString("33333333-3333-3333-3333-333333333333"),
+                "portfolio-user");
+        request.addHeader("Authorization", "Bearer " + token);
+        request.setRemoteAddr("198.51.100.4");
+
+        String key = filter.resolveBucketKey(request, RateLimitFilter.BucketProfile.PORTFOLIO_WRITE);
+
+        assertEquals("principal:33333333-3333-3333-3333-333333333333", key);
     }
 
     @Test
