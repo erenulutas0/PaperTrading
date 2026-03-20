@@ -55,7 +55,7 @@ public class TournamentController {
                     request.getEndsAt());
             return ResponseEntity.ok(tournament);
         } catch (Exception e) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_create_failed", e.getMessage(), null, httpRequest);
+            return buildTournamentError(e, "tournament_create_failed", "Failed to create tournament", httpRequest);
         }
     }
 
@@ -69,7 +69,7 @@ public class TournamentController {
             Map<String, Object> result = tournamentService.joinTournament(tournamentId, userId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_join_failed", e.getMessage(), null, httpRequest);
+            return buildTournamentError(e, "tournament_join_failed", "Failed to join tournament", httpRequest);
         }
     }
 
@@ -98,7 +98,7 @@ public class TournamentController {
         try {
             return ResponseEntity.ok(tournamentService.getTournamentLeaderboard(tournamentId, pageable));
         } catch (Exception e) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_leaderboard_failed", e.getMessage(), null, httpRequest);
+            return buildTournamentError(e, "tournament_leaderboard_failed", "Failed to load tournament leaderboard", httpRequest);
         }
     }
 
@@ -129,7 +129,7 @@ public class TournamentController {
             }
             return ResponseEntity.ok(tournamentService.getTournamentTrades(tournamentId, effectivePageable));
         } catch (Exception e) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_trades_failed", e.getMessage(), null, httpRequest);
+            return buildTournamentError(e, "tournament_trades_failed", "Failed to load tournament trades", httpRequest);
         }
     }
 
@@ -148,5 +148,25 @@ public class TournamentController {
         private BigDecimal startingBalance;
         private LocalDateTime startsAt;
         private LocalDateTime endsAt;
+    }
+
+    private ResponseEntity<?> buildTournamentError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
+        String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
+        String normalized = message.toLowerCase();
+
+        if (normalized.contains("tournament not found")) {
+            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "tournament_not_found", "Tournament not found", null, request);
+        }
+        if (normalized.contains("already joined this tournament")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "tournament_already_joined", "Already joined this tournament", null, request);
+        }
+        if (normalized.contains("tournament is not active")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "tournament_not_active", message, null, request);
+        }
+        if (normalized.contains("user not found")) {
+            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "user_not_found", "User not found", null, request);
+        }
+
+        return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);
     }
 }

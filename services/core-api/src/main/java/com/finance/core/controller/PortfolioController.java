@@ -48,7 +48,7 @@ public class PortfolioController {
     private final AuditLogService auditLogService;
 
     @PostMapping
-    public ResponseEntity<Portfolio> createPortfolio(@RequestBody PortfolioRequest request) {
+    public ResponseEntity<?> createPortfolio(@RequestBody PortfolioRequest request, HttpServletRequest httpRequest) {
         Portfolio.PortfolioBuilder builder = Portfolio.builder()
                 .name(request.getName())
                 .ownerId(request.getOwnerId());
@@ -60,7 +60,12 @@ public class PortfolioController {
             try {
                 builder.visibility(Portfolio.Visibility.valueOf(request.getVisibility().toUpperCase()));
             } catch (IllegalArgumentException e) {
-                // Default to PRIVATE if invalid value
+                return ApiErrorResponses.build(
+                        HttpStatus.BAD_REQUEST,
+                        "invalid_visibility",
+                        "Invalid visibility value. Use PUBLIC or PRIVATE.",
+                        null,
+                        httpRequest);
             }
         }
 

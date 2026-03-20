@@ -149,4 +149,24 @@ class TradeControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Price not available for symbol: BTCUSDT"))
                 .andExpect(jsonPath("$.requestId").value("trade-err-1"));
     }
+
+    @Test
+    void testBuy_withInvalidPortfolioId_shouldReturnUnifiedErrorContract() throws Exception {
+        TradeRequest request = new TradeRequest();
+        request.setPortfolioId("not-a-uuid");
+        request.setSymbol("BTCUSDT");
+        request.setQuantity(BigDecimal.valueOf(0.1));
+        request.setLeverage(10);
+        request.setSide("LONG");
+
+        mockMvc.perform(post("/api/v1/trade/buy")
+                        .header("X-Request-Id", "trade-err-2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "trade-err-2"))
+                .andExpect(jsonPath("$.code").value("portfolio_id_invalid"))
+                .andExpect(jsonPath("$.message").value("Portfolio id must be a valid UUID"))
+                .andExpect(jsonPath("$.requestId").value("trade-err-2"));
+    }
 }

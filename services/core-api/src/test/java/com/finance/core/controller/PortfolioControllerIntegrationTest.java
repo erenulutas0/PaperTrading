@@ -129,4 +129,23 @@ class PortfolioControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Amount must be positive"))
                 .andExpect(jsonPath("$.requestId").value("portfolio-err-1"));
     }
+
+    @Test
+    void createPortfolio_withInvalidVisibility_shouldReturnUnifiedErrorContract() throws Exception {
+        mockMvc.perform(post("/api/v1/portfolios")
+                        .header("X-Request-Id", "portfolio-err-2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Invalid Visibility",
+                                  "ownerId": "owner-test",
+                                  "visibility": "SECRET"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-2"))
+                .andExpect(jsonPath("$.code").value("invalid_visibility"))
+                .andExpect(jsonPath("$.message").value("Invalid visibility value. Use PUBLIC or PRIVATE."))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-2"));
+    }
 }

@@ -40,7 +40,16 @@ public class TradeController {
     @PostMapping("/buy")
     @Transactional
     public ResponseEntity<?> buyAsset(@RequestBody TradeRequest request, HttpServletRequest httpRequest) {
-        UUID portfolioId = UUID.fromString(request.getPortfolioId());
+        if (request.getPortfolioId() == null || request.getPortfolioId().isBlank()) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "portfolio_id_invalid", "Portfolio id must be a valid UUID", null, httpRequest);
+        }
+
+        UUID portfolioId;
+        try {
+            portfolioId = UUID.fromString(request.getPortfolioId());
+        } catch (IllegalArgumentException ex) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "portfolio_id_invalid", "Portfolio id must be a valid UUID", null, httpRequest);
+        }
         Optional<Portfolio> portfolioOpt = portfolioRepository.findById(portfolioId);
 
         if (portfolioOpt.isEmpty()) {
@@ -48,6 +57,10 @@ public class TradeController {
         }
 
         Portfolio portfolio = portfolioOpt.get();
+        if (request.getSymbol() == null || request.getSymbol().isBlank()) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "symbol_required", "Symbol is required", null, httpRequest);
+        }
+
         String symbol = request.getSymbol().toUpperCase();
         Double currentPriceDouble = binanceService.getPrices().get(symbol);
 
@@ -156,7 +169,16 @@ public class TradeController {
     @PostMapping("/sell")
     @Transactional
     public ResponseEntity<?> sellAsset(@RequestBody TradeRequest request, HttpServletRequest httpRequest) {
-        UUID portfolioId = UUID.fromString(request.getPortfolioId());
+        if (request.getPortfolioId() == null || request.getPortfolioId().isBlank()) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "portfolio_id_invalid", "Portfolio id must be a valid UUID", null, httpRequest);
+        }
+
+        UUID portfolioId;
+        try {
+            portfolioId = UUID.fromString(request.getPortfolioId());
+        } catch (IllegalArgumentException ex) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "portfolio_id_invalid", "Portfolio id must be a valid UUID", null, httpRequest);
+        }
         Optional<Portfolio> portfolioOpt = portfolioRepository.findById(portfolioId);
 
         if (portfolioOpt.isEmpty()) {
@@ -164,6 +186,10 @@ public class TradeController {
         }
 
         Portfolio portfolio = portfolioOpt.get();
+        if (request.getSymbol() == null || request.getSymbol().isBlank()) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "symbol_required", "Symbol is required", null, httpRequest);
+        }
+
         String symbol = request.getSymbol().toUpperCase();
         Double currentPriceDouble = binanceService.getPrices().get(symbol);
 

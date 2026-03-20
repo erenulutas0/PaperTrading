@@ -61,7 +61,7 @@ public class WatchlistController {
             watchlistService.deleteWatchlist(watchlistId, userId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_delete_failed", e.getMessage(), null, httpRequest);
+            return buildWatchlistError(e, "watchlist_delete_failed", "Failed to delete watchlist", httpRequest);
         }
     }
 
@@ -72,6 +72,9 @@ public class WatchlistController {
             @CurrentUserId UUID userId,
             @RequestBody AddItemRequest request,
             HttpServletRequest httpRequest) {
+        if (request == null || request.getSymbol() == null || request.getSymbol().isBlank()) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_symbol_required", "Symbol is required", null, httpRequest);
+        }
         try {
             WatchlistItem item = watchlistService.addItem(
                     watchlistId, userId,
@@ -81,15 +84,19 @@ public class WatchlistController {
                     request.getNotes());
             return ResponseEntity.ok(item);
         } catch (Exception e) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_add_item_failed", e.getMessage(), null, httpRequest);
+            return buildWatchlistError(e, "watchlist_add_item_failed", "Failed to add watchlist item", httpRequest);
         }
     }
 
     /** Remove an item from a watchlist */
     @DeleteMapping("/items/{itemId}")
-    public ResponseEntity<?> removeItem(@PathVariable UUID itemId) {
-        watchlistService.removeItem(itemId);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> removeItem(@PathVariable UUID itemId, HttpServletRequest httpRequest) {
+        try {
+            watchlistService.removeItem(itemId);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return buildWatchlistError(e, "watchlist_remove_item_failed", "Failed to remove watchlist item", httpRequest);
+        }
     }
 
     /** Update the price alerts on a watchlist item */
@@ -103,7 +110,7 @@ public class WatchlistController {
                     request.getAlertPriceBelow());
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_update_alerts_failed", e.getMessage(), null, httpRequest);
+            return buildWatchlistError(e, "watchlist_update_alerts_failed", "Failed to update watchlist alerts", httpRequest);
         }
     }
 
@@ -118,7 +125,7 @@ public class WatchlistController {
             Page<Map<String, Object>> items = watchlistService.getEnrichedItemsPage(watchlistId, userId, pageable);
             return ResponseEntity.ok(items);
         } catch (Exception e) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_items_failed", e.getMessage(), null, httpRequest);
+            return buildWatchlistError(e, "watchlist_items_failed", "Failed to load watchlist items", httpRequest);
         }
     }
 
@@ -170,5 +177,19 @@ public class WatchlistController {
     static class UpdateAlertsRequest {
         private BigDecimal alertPriceAbove;
         private BigDecimal alertPriceBelow;
+    }
+
+    private ResponseEntity<?> buildWatchlistError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
+        String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
+        String normalized = message.toLowerCase();
+
+        if (normalized.contains("watchlist item not found")) {
+            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "watchlist_item_not_found", "Watchlist item not found", null, request);
+        }
+        if (normalized.contains("watchlist not found")) {
+            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "watchlist_not_found", "Watchlist not found", null, request);
+        }
+
+        return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);
     }
 }

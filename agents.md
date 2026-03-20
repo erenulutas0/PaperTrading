@@ -38,6 +38,37 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Manual Error Paths In Core Trading Controllers Now Return Explicit Correlated Contracts**
+  - **Problem observed**:
+    - The global error contract had already stabilized, but several high-touch product controllers still had weaker edge behavior:
+      - invalid portfolio visibility silently defaulted
+      - invalid trade portfolio ids fell through generic parsing
+      - missing watchlists/items were sometimes flattened into broad `400` failures
+      - tournament join/read conflicts used generic `400` despite clearer `404/409` semantics
+  - **Implementation**:
+    - Tightened controller-side/manual mappings in:
+      - `PortfolioController`
+      - `TradeController`
+      - `TournamentController`
+      - `WatchlistController`
+      - `WatchlistService`
+    - Added explicit contracts for:
+      - `invalid_visibility`
+      - `portfolio_id_invalid`
+      - `watchlist_not_found`
+      - `watchlist_item_not_found`
+      - `tournament_already_joined`
+      - `tournament_not_active`
+      - `tournament_not_found`
+  - **Operational impact**:
+    - common user-facing failures in portfolio/trade/tournament/watchlist flows are more machine-readable and less ambiguous
+    - frontend and smoke tooling can distinguish `404`, `409`, and `400` classes without parsing ad hoc strings
+  - **Validation**:
+    - Passed:
+      - `PortfolioControllerIntegrationTest`
+      - `TradeControllerIntegrationTest`
+      - `WatchlistControllerIntegrationTest`
+      - `TournamentControllerIntegrationTest`
 - **2026-03-20**: **Endpoint-Aware Rate-Limit Hardening Now Has A Local Profile Smoke**
   - **Problem observed**:
     - The rate-limit filter had already split comment/reply, follow, auth-refresh, and other write paths into dedicated profiles.

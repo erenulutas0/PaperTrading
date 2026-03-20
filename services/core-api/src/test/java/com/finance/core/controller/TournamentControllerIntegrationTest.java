@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -165,5 +166,42 @@ class TournamentControllerIntegrationTest {
                                 .andExpect(jsonPath("$.content", hasSize(1)))
                                 .andExpect(jsonPath("$.content[0].name").value("First Tournament"))
                                 .andExpect(jsonPath("$.page.totalElements").value(1));
+        }
+
+        @Test
+        void testJoinTournament_missingTournament_shouldReturnUnifiedErrorContract() throws Exception {
+                mockMvc.perform(post("/api/v1/tournaments/" + UUID.randomUUID() + "/join")
+                                .header("X-User-Id", testUser.getId().toString())
+                                .header("X-Request-Id", "tournament-err-1"))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "tournament-err-1"))
+                                .andExpect(jsonPath("$.code").value("tournament_not_found"))
+                                .andExpect(jsonPath("$.message").value("Tournament not found"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-err-1"));
+        }
+
+        @Test
+        void testJoinTournament_duplicateJoin_shouldReturnUnifiedErrorContract() throws Exception {
+                Tournament active = Tournament.builder()
+                                .name("Duplicate Join Challenge")
+                                .startingBalance(new BigDecimal("50000"))
+                                .status(Tournament.Status.ACTIVE)
+                                .startsAt(LocalDateTime.now().minusDays(1))
+                                .endsAt(LocalDateTime.now().plusDays(1))
+                                .build();
+                active = tournamentRepository.save(active);
+
+                mockMvc.perform(post("/api/v1/tournaments/" + active.getId() + "/join")
+                                .header("X-User-Id", testUser.getId().toString()))
+                                .andExpect(status().isOk());
+
+                mockMvc.perform(post("/api/v1/tournaments/" + active.getId() + "/join")
+                                .header("X-User-Id", testUser.getId().toString())
+                                .header("X-Request-Id", "tournament-err-2"))
+                                .andExpect(status().isConflict())
+                                .andExpect(header().string("X-Request-Id", "tournament-err-2"))
+                                .andExpect(jsonPath("$.code").value("tournament_already_joined"))
+                                .andExpect(jsonPath("$.message").value("Already joined this tournament"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-err-2"));
         }
 }

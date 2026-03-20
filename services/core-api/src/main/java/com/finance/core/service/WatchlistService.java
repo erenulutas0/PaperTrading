@@ -79,7 +79,9 @@ public class WatchlistService {
     /** Remove an item from a watchlist */
     @Transactional
     public void removeItem(UUID itemId) {
-        watchlistItemRepository.deleteById(itemId);
+        WatchlistItem item = watchlistItemRepository.findById(itemId)
+                .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
+        watchlistItemRepository.delete(item);
     }
 
     /** Update alert prices for an item */

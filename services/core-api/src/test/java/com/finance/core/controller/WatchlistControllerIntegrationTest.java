@@ -29,8 +29,11 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -268,6 +271,39 @@ class WatchlistControllerIntegrationTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition", org.hamcrest.Matchers.containsString("alert-history-above.csv")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("text/csv"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(org.hamcrest.Matchers.containsString("CSV trigger")));
+    }
+
+    @Test
+    void testDeleteWatchlist_missingWatchlist_shouldReturnUnifiedErrorContract() throws Exception {
+        UUID missingId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/v1/watchlists/" + missingId)
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-err-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "watchlist-err-1"))
+                .andExpect(jsonPath("$.code").value("watchlist_not_found"))
+                .andExpect(jsonPath("$.message").value("Watchlist not found"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-err-1"));
+    }
+
+    @Test
+    void testUpdateAlerts_missingItem_shouldReturnUnifiedErrorContract() throws Exception {
+        UUID missingItemId = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/watchlists/items/" + missingItemId + "/alerts")
+                        .header("X-Request-Id", "watchlist-err-2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "alertPriceAbove": 61000
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "watchlist-err-2"))
+                .andExpect(jsonPath("$.code").value("watchlist_item_not_found"))
+                .andExpect(jsonPath("$.message").value("Watchlist item not found"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-err-2"));
     }
 
         @Test
