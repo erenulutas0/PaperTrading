@@ -294,6 +294,7 @@ Last updated: 2026-03-19
 - [x] Re-ran audit log foundation locally and verified `/api/v1/ops/auditlog` captures correlated request-id rows for portfolio/trade/follow/comment/analysis smoke writes while `/actuator/auditlog` still exposes a filtered snapshot
 - [x] Re-ran notification error cleanup locally and verified unread-count/mark-read paths now use the same correlated error contract as other controllers, including invalid notification-id handling
 - [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
+- [ ] Redeploy backend after profile-follow/portfolio-participation manual error-path migration and verify social join/follow edge cases now return unified `{code,message,details?,requestId}` payloads instead of generic runtime fallbacks
 - [x] Tightened manual error-path mapping across portfolio/trade/tournament/watchlist controllers:
   - Updated:
     - `PortfolioController`
@@ -306,7 +307,17 @@ Last updated: 2026-03-19
     - invalid trade portfolio ids now return `400 portfolio_id_invalid`
     - watchlist missing resources now return `404 watchlist_not_found` / `404 watchlist_item_not_found`
     - tournament missing/inactive/already-joined flows now return explicit `404/409` correlated contracts
+- [x] Tightened manual error-path mapping across profile-follow and portfolio-participation controllers:
+  - Updated:
+    - `UserProfileController`
+    - `PortfolioParticipationController`
+  - Behavior:
+    - self-follow is now explicit `400 cannot_follow_self`
+    - duplicate follow is now `409 already_following`
+    - unfollow without relationship is now `404 follow_not_found`
+    - missing portfolio / duplicate join / leave-without-participation now return explicit `404/409` correlated contracts
 - [x] Re-ran portfolio/trade/tournament/watchlist error-contract rollout locally and verified targeted fail paths now emit correlated API errors instead of generic/raw responses
+- [x] Re-ran profile-follow/portfolio-participation error-contract rollout locally and verified targeted fail paths now emit correlated API errors instead of generic/raw responses
 - [x] Re-ran request-correlation + unified error contract rollout locally and verified `X-Request-Id` is echoed on errors plus auth failures return `{code,message,details?,requestId}`
 - [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
 - [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance

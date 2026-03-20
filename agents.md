@@ -38,6 +38,34 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-20**: **Social Follow And Portfolio Participation Edge Paths Now Emit Explicit Correlated Errors**
+  - **Problem observed**:
+    - The broader error-contract rollout had already aligned portfolio/trade/tournament/watchlist flows, but two user-facing social write surfaces still leaned on generic runtime mapping:
+      - user follow/unfollow
+      - portfolio join/leave
+    - That left duplicate/self/not-found participation cases dependent on exception text and default `400` handling.
+  - **Implementation**:
+    - Tightened controller-side/manual mappings in:
+      - `UserProfileController`
+      - `PortfolioParticipationController`
+    - Added explicit contracts for:
+      - `cannot_follow_self`
+      - `already_following`
+      - `follow_not_found`
+      - `portfolio_already_joined`
+      - `portfolio_participation_not_found`
+      - `cannot_join_own_portfolio`
+      - `portfolio_private`
+    - Added regression coverage in:
+      - `UserProfileControllerIntegrationTest`
+      - `PortfolioParticipationControllerIntegrationTest`
+  - **Operational impact**:
+    - social follow and portfolio join flows now distinguish `400`, `404`, and `409` classes without relying on raw runtime message parsing in clients
+    - the remaining manual controller migration surface is smaller and more isolated than before
+  - **Validation**:
+    - Passed:
+      - `UserProfileControllerIntegrationTest`
+      - `PortfolioParticipationControllerIntegrationTest`
 - **2026-03-20**: **Manual Error Paths In Core Trading Controllers Now Return Explicit Correlated Contracts**
   - **Problem observed**:
     - The global error contract had already stabilized, but several high-touch product controllers still had weaker edge behavior:

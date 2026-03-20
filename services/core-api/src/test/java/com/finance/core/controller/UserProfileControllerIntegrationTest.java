@@ -150,13 +150,17 @@ class UserProfileControllerIntegrationTest {
         @Test
         void follow_self_returnsBadRequest() throws Exception {
                 mockMvc.perform(post("/api/v1/users/{userId}/follow", userAlice.getId())
-                                .header("X-User-Id", userAlice.getId().toString()))
+                                .header("X-User-Id", userAlice.getId().toString())
+                                .header("X-Request-Id", "follow-err-1"))
                                 .andExpect(status().isBadRequest())
-                                .andExpect(jsonPath("$.detail").value("Cannot follow yourself"));
+                                .andExpect(header().string("X-Request-Id", "follow-err-1"))
+                                .andExpect(jsonPath("$.code").value("cannot_follow_self"))
+                                .andExpect(jsonPath("$.message").value("Cannot follow yourself"))
+                                .andExpect(jsonPath("$.requestId").value("follow-err-1"));
         }
 
         @Test
-        void follow_duplicate_returnsBadRequest() throws Exception {
+        void follow_duplicate_returnsConflict() throws Exception {
                 // First follow succeeds
                 mockMvc.perform(post("/api/v1/users/{userId}/follow", userBob.getId())
                                 .header("X-User-Id", userAlice.getId().toString()))
@@ -164,9 +168,13 @@ class UserProfileControllerIntegrationTest {
 
                 // Second follow should fail
                 mockMvc.perform(post("/api/v1/users/{userId}/follow", userBob.getId())
-                                .header("X-User-Id", userAlice.getId().toString()))
-                                .andExpect(status().isBadRequest())
-                                .andExpect(jsonPath("$.detail").value("Already following"));
+                                .header("X-User-Id", userAlice.getId().toString())
+                                .header("X-Request-Id", "follow-err-2"))
+                                .andExpect(status().isConflict())
+                                .andExpect(header().string("X-Request-Id", "follow-err-2"))
+                                .andExpect(jsonPath("$.code").value("already_following"))
+                                .andExpect(jsonPath("$.message").value("Already following"))
+                                .andExpect(jsonPath("$.requestId").value("follow-err-2"));
         }
 
         // ===== UNFOLLOW =====
@@ -195,11 +203,15 @@ class UserProfileControllerIntegrationTest {
         }
 
         @Test
-        void unfollow_whenNotFollowing_returnsBadRequest() throws Exception {
+        void unfollow_whenNotFollowing_returnsNotFound() throws Exception {
                 mockMvc.perform(delete("/api/v1/users/{userId}/follow", userBob.getId())
-                                .header("X-User-Id", userAlice.getId().toString()))
-                                .andExpect(status().isBadRequest())
-                                .andExpect(jsonPath("$.detail").value("Not following this user"));
+                                .header("X-User-Id", userAlice.getId().toString())
+                                .header("X-Request-Id", "follow-err-3"))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "follow-err-3"))
+                                .andExpect(jsonPath("$.code").value("follow_not_found"))
+                                .andExpect(jsonPath("$.message").value("Not following this user"))
+                                .andExpect(jsonPath("$.requestId").value("follow-err-3"));
         }
 
         // ===== FOLLOWERS / FOLLOWING LISTS =====
