@@ -57,6 +57,10 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - strict-mode auth can now be validated locally with direct request semantics, not only telemetry/report synthesis
     - staging cutover prep now has a smaller runtime proof path before broader websocket/load scripts are re-run
+  - **Validation**:
+    - Passed:
+      - `JwtAuthenticationFilterStrictModeIntegrationTest`
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_mode_smoke.ps1 -BaseUrl http://localhost:18081`
 - **2026-03-20**: **Audit Write Capture Is Now Smoke-Verifiable From Local Runtime**
   - **Problem observed**:
     - Audit persistence and inspection tooling already existed, but the last verification step still lived mostly in integration tests and manual spot-checking.

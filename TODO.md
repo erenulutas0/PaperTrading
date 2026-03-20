@@ -540,6 +540,11 @@ Last updated: 2026-03-19
     - starts backend with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`
     - verifies legacy-header-only auth is rejected while Bearer-only flows still work
     - verifies mismatched `Authorization` + `X-User-Id` remains rejected under strict mode
+- [x] Re-ran local auth strict-mode smoke against strict backend starter and verified:
+  - legacy `X-User-Id`-only auth is rejected
+  - Bearer-only requests still pass
+  - mismatched `Authorization` + `X-User-Id` is rejected
+  - authenticated follow flow still works without legacy-header auth
 - [x] Added first-pass backend `Idempotency-Key` support for critical write endpoints:
   - Added:
     - `services/core-api/src/main/resources/db/migration/V12__create_idempotency_keys_table.sql`
