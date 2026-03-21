@@ -5,6 +5,7 @@ import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
+import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
@@ -49,6 +50,9 @@ class StrategyBotRunControllerIntegrationTest {
     private PortfolioRepository portfolioRepository;
 
     @Autowired
+    private PortfolioItemRepository portfolioItemRepository;
+
+    @Autowired
     private StrategyBotRunRepository strategyBotRunRepository;
     @MockitoBean
     private MarketDataFacadeService marketDataFacadeService;
@@ -60,6 +64,7 @@ class StrategyBotRunControllerIntegrationTest {
     void setUp() {
         strategyBotRunRepository.deleteAll();
         strategyBotRepository.deleteAll();
+        portfolioItemRepository.deleteAll();
         portfolioRepository.deleteAll();
         userId = UUID.randomUUID();
         linkedPortfolio = portfolioRepository.save(Portfolio.builder()
@@ -249,6 +254,18 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(jsonPath("$.targetCashBalance").exists())
                 .andExpect(jsonPath("$.cashAligned").value(false))
                 .andExpect(jsonPath("$.portfolioAligned").value(false));
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/apply-reconciliation")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cashAligned").value(true))
+                .andExpect(jsonPath("$.quantityAligned").value(true))
+                .andExpect(jsonPath("$.portfolioAligned").value(true));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/reconciliation-plan")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.portfolioAligned").value(true));
     }
 
     @Test

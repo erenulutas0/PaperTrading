@@ -323,6 +323,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - reconciliation is now inspectable before any linked-portfolio write path exists
     - the eventual mutation flow can be built on a narrower, safer contract instead of hidden inferred state
+- **2026-03-22**: **Strategy Bot Linked-Portfolio Sync Added As Audited State Reconciliation, Not Synthetic Trade Replay**
+  - **Problem observed**:
+    - The new reconciliation-plan endpoint made drift explicit, but users still had no way to bring a linked paper portfolio back to the bot snapshot.
+    - Replaying synthetic trades immediately would have been misleading because a run snapshot can encode:
+      - open position state
+      - marked-to-market equity
+      - prior closed-PnL effects
+      without a clean one-to-one mapping to a single current BUY/SELL event.
+  - **Implementation**:
+    - Added `POST /api/v1/strategy-bots/{botId}/runs/{runId}/apply-reconciliation`.
+    - The apply path:
+      - only accepts `RUNNING` or `COMPLETED` runs
+      - blocks when reconciliation warnings indicate unsafe shape
+      - updates linked portfolio cash balance and the bot-symbol row to the persisted target snapshot
+      - records `STRATEGY_BOT_RUN_RECONCILED` audit entries with before/after deltas
+    - `/dashboard/bots` now exposes an `Apply Snapshot To Portfolio` action directly inside the reconciliation block.
+  - **Operational impact**:
+    - linked paper portfolios can now be brought back in line with bot state without inventing fake trade history
+    - trade-journal parity remains a separate follow-up instead of being silently approximated
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

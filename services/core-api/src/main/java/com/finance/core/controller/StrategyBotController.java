@@ -158,6 +158,19 @@ public class StrategyBotController {
         }
     }
 
+    @PostMapping("/{botId}/runs/{runId}/apply-reconciliation")
+    public ResponseEntity<?> applyRunReconciliation(
+            @PathVariable UUID botId,
+            @PathVariable UUID runId,
+            @CurrentUserId UUID userId,
+            HttpServletRequest request) {
+        try {
+            return ResponseEntity.ok(strategyBotRunService.applyRunReconciliation(botId, runId, userId));
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_run_reconciliation_apply_failed", "Failed to apply strategy bot reconciliation", request);
+        }
+    }
+
     @PostMapping("/{botId}/runs")
     public ResponseEntity<?> requestRun(
             @PathVariable UUID botId,
@@ -209,6 +222,18 @@ public class StrategyBotController {
         }
         if (normalized.contains("has no linked portfolio")) {
             return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_linked_portfolio_required", "Strategy bot has no linked portfolio", null, request);
+        }
+        if (normalized.contains("must be running or completed before reconciliation")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_reconciliation_not_ready", "Strategy bot run must be RUNNING or COMPLETED before reconciliation", null, request);
+        }
+        if (normalized.contains("reconciliation requires manual cleanup")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_reconciliation_manual_cleanup_required", "Strategy bot reconciliation requires manual cleanup", null, request);
+        }
+        if (normalized.contains("target quantity is invalid")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_reconciliation_target_invalid", "Strategy bot reconciliation target quantity is invalid", null, request);
+        }
+        if (normalized.contains("target price is unavailable")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_reconciliation_target_price_unavailable", "Strategy bot reconciliation target price is unavailable", null, request);
         }
         if (normalized.contains("invalid strategy bot status")) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_status", "Invalid strategy bot status", null, request);

@@ -565,7 +565,7 @@ Last updated: 2026-03-21
   - tests:
     - `StrategyBotControllerIntegrationTest`
 - [ ] Extend strategy-bot live paper execution beyond the current refresh-based forward-test slice:
-  - paper portfolio reconciliation instead of run-local capital only
+  - synthetic trade journal parity for linked-portfolio syncs
   - richer attribution views beyond run-level summary metrics
   - staging/runtime verification for recurring scheduled forward-test refresh
 - [x] Added strategy-bot run journal foundation:
@@ -707,6 +707,18 @@ Last updated: 2026-03-21
     - reports target/current cash and quantity deltas plus warning reasons before any mutation path exists
   - frontend:
     - `/dashboard/bots` selected-run detail now prefers persisted reconciliation-plan data and shows target/current position plus warning chips
+  - validation:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotRunControllerIntegrationTest`
+    - `apps/web` `npx tsc --noEmit`
+- [x] Added strategy-bot linked-portfolio apply flow:
+  - backend:
+    - `POST /api/v1/strategy-bots/{botId}/runs/{runId}/apply-reconciliation`
+    - audited state sync updates linked portfolio cash and the bot symbol row from the persisted run snapshot
+    - blocked when reconciliation warnings require manual cleanup
+  - frontend:
+    - `/dashboard/bots` selected-run reconciliation block now exposes `Apply Snapshot To Portfolio`
+    - sync button disables on warning states and shows audited state-sync guidance
   - validation:
     - `StrategyBotRunServiceTest`
     - `StrategyBotRunControllerIntegrationTest`

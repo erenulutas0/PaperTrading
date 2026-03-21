@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.AuditActionType;
 import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
@@ -89,6 +90,80 @@ public class StrategyBotRunService {
     public StrategyBotRunReconciliationResponse getRunReconciliation(UUID botId, UUID runId, UUID userId) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
+        return buildRunReconciliationState(bot, run).response();
+    }
+
+    @Transactional
+    public StrategyBotRunReconciliationResponse applyRunReconciliation(UUID botId, UUID runId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
+        if (run.getStatus() != StrategyBotRun.Status.RUNNING && run.getStatus() != StrategyBotRun.Status.COMPLETED) {
+            throw new IllegalStateException("Strategy bot run must be RUNNING or COMPLETED before reconciliation");
+        }
+
+        RunReconciliationState state = buildRunReconciliationState(bot, run);
+        StrategyBotRunReconciliationResponse plan = state.response();
+        if (!plan.getWarnings().isEmpty()) {
+            throw new IllegalStateException("Strategy bot reconciliation requires manual cleanup");
+        }
+        if (plan.isTargetPositionOpen() && plan.getTargetQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("Strategy bot reconciliation target quantity is invalid");
+        }
+        if (plan.isTargetPositionOpen() && plan.getTargetLastPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("Strategy bot reconciliation target price is unavailable");
+        }
+        if (plan.isPortfolioAligned()) {
+            return plan;
+        }
+
+        Portfolio linkedPortfolio = state.linkedPortfolio();
+        BigDecimal previousCashBalance = linkedPortfolio.getBalance().setScale(2, RoundingMode.HALF_UP);
+        linkedPortfolio.setBalance(plan.getTargetCashBalance());
+        portfolioRepository.save(linkedPortfolio);
+
+        if (plan.isTargetPositionOpen()) {
+            PortfolioItem targetItem = state.matchingItems().isEmpty()
+                    ? PortfolioItem.builder()
+                    .portfolio(linkedPortfolio)
+                    .symbol(bot.getSymbol().toUpperCase())
+                    .side("LONG")
+                    .leverage(1)
+                    .build()
+                    : state.matchingItems().get(0);
+            targetItem.setPortfolio(linkedPortfolio);
+            targetItem.setSymbol(bot.getSymbol().toUpperCase());
+            targetItem.setSide("LONG");
+            targetItem.setLeverage(1);
+            targetItem.setQuantity(plan.getTargetQuantity());
+            targetItem.setAveragePrice(plan.getTargetAveragePrice());
+            portfolioItemRepository.save(targetItem);
+        } else {
+            state.matchingItems().forEach(portfolioItemRepository::delete);
+        }
+
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+        details.put("strategyBotId", bot.getId());
+        details.put("runId", run.getId());
+        details.put("linkedPortfolioId", linkedPortfolio.getId());
+        details.put("previousCashBalance", previousCashBalance);
+        details.put("targetCashBalance", plan.getTargetCashBalance());
+        details.put("previousQuantity", plan.getCurrentQuantity());
+        details.put("targetQuantity", plan.getTargetQuantity());
+        details.put("targetAveragePrice", plan.getTargetAveragePrice());
+        details.put("targetPositionOpen", plan.isTargetPositionOpen());
+        details.put("cashDelta", plan.getCashDelta());
+        details.put("quantityDelta", plan.getQuantityDelta());
+        auditLogService.record(
+                userId,
+                AuditActionType.STRATEGY_BOT_RUN_RECONCILED,
+                AuditResourceType.STRATEGY_BOT_RUN,
+                run.getId(),
+                details);
+
+        return buildRunReconciliationState(bot, run).response();
+    }
+
+    private RunReconciliationState buildRunReconciliationState(StrategyBot bot, StrategyBotRun run) {
         if (bot.getLinkedPortfolioId() == null) {
             throw new IllegalStateException("Strategy bot has no linked portfolio");
         }
@@ -134,6 +209,16 @@ public class StrategyBotRunService {
         if (matchingItems.size() > 1) {
             warnings.add("Linked portfolio contains multiple rows for the bot symbol");
         }
+        boolean hasNonLongRows = matchingItems.stream()
+                .anyMatch(item -> item.getSide() != null && !"LONG".equalsIgnoreCase(item.getSide()));
+        if (hasNonLongRows) {
+            warnings.add("Linked portfolio contains non-LONG rows for the bot symbol");
+        }
+        boolean hasLeveragedRows = matchingItems.stream()
+                .anyMatch(item -> item.getLeverage() != null && item.getLeverage() != 1);
+        if (hasLeveragedRows) {
+            warnings.add("Linked portfolio contains leveraged rows for the bot symbol");
+        }
         if (!targetPositionOpen && currentQuantity.compareTo(BigDecimal.ZERO) > 0) {
             warnings.add("Linked portfolio is still holding the bot symbol while run target is flat");
         }
@@ -142,7 +227,7 @@ public class StrategyBotRunService {
         boolean quantityAligned = quantityDelta.abs().compareTo(new BigDecimal("0.00000001")) < 0;
         boolean portfolioAligned = cashAligned && quantityAligned && warnings.isEmpty();
 
-        return StrategyBotRunReconciliationResponse.builder()
+        StrategyBotRunReconciliationResponse response = StrategyBotRunReconciliationResponse.builder()
                 .runId(run.getId())
                 .strategyBotId(bot.getId())
                 .linkedPortfolioId(linkedPortfolio.getId())
@@ -166,6 +251,7 @@ public class StrategyBotRunService {
                 .extraSymbolCount(extraSymbolCount)
                 .warnings(warnings)
                 .build();
+        return new RunReconciliationState(linkedPortfolio, matchingItems, response);
     }
 
     @Transactional
@@ -891,5 +977,11 @@ public class StrategyBotRunService {
             double returnPercent,
             double maxDrawdownPercent,
             Long lastEvaluatedOpenTime) {
+    }
+
+    private record RunReconciliationState(
+            Portfolio linkedPortfolio,
+            List<PortfolioItem> matchingItems,
+            StrategyBotRunReconciliationResponse response) {
     }
 }

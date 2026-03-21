@@ -79,6 +79,7 @@ export default function StrategyBotsPage() {
     const [requestingRun, setRequestingRun] = useState(false);
     const [executingRunId, setExecutingRunId] = useState<string | null>(null);
     const [refreshingRunId, setRefreshingRunId] = useState<string | null>(null);
+    const [applyingRunId, setApplyingRunId] = useState<string | null>(null);
     const [outputsLoading, setOutputsLoading] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -254,6 +255,19 @@ export default function StrategyBotsPage() {
             await loadRunReconciliation(selectedBotId, runId);
             setNotice('Forward test refreshed');
         } catch (error) { setActionError(err(error)); } finally { setRefreshingRunId(null); }
+    }
+
+    async function applyReconciliation(runId: string) {
+        if (!selectedBotId) return;
+        setApplyingRunId(runId); setActionError(null); setNotice(null);
+        try {
+            const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${runId}/apply-reconciliation`, { method: 'POST' });
+            if (!response.ok) throw new Error(await response.text() || `Reconciliation apply failed (${response.status})`);
+            setSelectedRunReconciliation(await response.json() as StrategyBotRunReconciliationPlan);
+            await loadRuns(selectedBotId);
+            setSelectedRunId(runId);
+            setNotice('Linked portfolio synced to run snapshot');
+        } catch (error) { setActionError(err(error)); } finally { setApplyingRunId(null); }
     }
 
     return (
@@ -691,6 +705,23 @@ export default function StrategyBotsPage() {
                                                             </div>
                                                         </div>
                                                     )}
+                                                    {selectedRunReconciliation ? (
+                                                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void applyReconciliation(selectedRun.id)}
+                                                                disabled={applyingRunId === selectedRun.id || selectedRunReconciliation.portfolioAligned || selectedRunReconciliation.warnings.length > 0}
+                                                                className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            >
+                                                                {applyingRunId === selectedRun.id ? 'Applying...' : selectedRunReconciliation.portfolioAligned ? 'Portfolio Synced' : 'Apply Snapshot To Portfolio'}
+                                                            </button>
+                                                            <span className="text-[11px] text-zinc-500">
+                                                                {selectedRunReconciliation.warnings.length > 0
+                                                                    ? 'Manual cleanup required before sync'
+                                                                    : 'State sync is audited and updates linked cash/position only'}
+                                                            </span>
+                                                        </div>
+                                                    ) : null}
                                                     {selectedRunReconciliation?.warnings?.length ? (
                                                         <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
                                                             {selectedRunReconciliation.warnings.join(' | ')}

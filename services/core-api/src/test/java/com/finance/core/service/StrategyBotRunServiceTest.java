@@ -2,6 +2,7 @@ package com.finance.core.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
@@ -34,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -209,6 +211,83 @@ class StrategyBotRunServiceTest {
         assertThat(response.getCurrentCashBalance()).isEqualByComparingTo("100000.00");
         assertThat(response.getCashDelta()).isEqualByComparingTo("1176.47");
         assertThat(response.isPortfolioAligned()).isFalse();
+    }
+
+    @Test
+    void applyRunReconciliation_shouldSyncLinkedPortfolioState() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        UUID linkedPortfolioId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
+                .name("BTC Sync")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{\"all\":[\"price_above_ma_3\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .takeProfitPercent(new BigDecimal("2"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(runId)
+                .strategyBotId(botId)
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .compiledEntryRules(bot.getEntryRules())
+                .compiledExitRules(bot.getExitRules())
+                .summary("{\"endingEquity\":104500.00,\"positionOpen\":true,\"openQuantity\":12.50000000,\"openEntryPrice\":3200.00}")
+                .build();
+
+        Portfolio linkedPortfolio = Portfolio.builder()
+                .id(linkedPortfolioId)
+                .name("Linked Paper")
+                .ownerId(userId.toString())
+                .balance(new BigDecimal("100000"))
+                .build();
+        PortfolioItem syncedItem = PortfolioItem.builder()
+                .portfolio(linkedPortfolio)
+                .symbol("BTCUSDT")
+                .quantity(new BigDecimal("12.50000000"))
+                .averagePrice(new BigDecimal("3200.00"))
+                .side("LONG")
+                .leverage(1)
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+        when(portfolioRepository.findById(linkedPortfolioId)).thenReturn(Optional.of(linkedPortfolio));
+        when(portfolioRepository.save(any(Portfolio.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(portfolioItemRepository.findByPortfolioId(linkedPortfolioId)).thenReturn(List.of(), List.of(syncedItem));
+        when(portfolioItemRepository.save(any(PortfolioItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(strategyBotRunEquityPointRepository.findFirstByStrategyBotRunIdOrderBySequenceNoDesc(runId))
+                .thenReturn(Optional.of(StrategyBotRunEquityPoint.builder()
+                        .strategyBotRunId(runId)
+                        .sequenceNo(10)
+                        .openTime(System.currentTimeMillis())
+                        .closePrice(new BigDecimal("3400.00"))
+                        .equity(new BigDecimal("104500.00"))
+                        .build()));
+
+        StrategyBotRunReconciliationResponse response = strategyBotRunService.applyRunReconciliation(botId, runId, userId);
+
+        assertThat(response.isPortfolioAligned()).isTrue();
+        assertThat(response.getCurrentCashBalance()).isEqualByComparingTo("62000.00");
+        assertThat(response.getCurrentQuantity()).isEqualByComparingTo("12.50000000");
+        verify(portfolioRepository).save(any(Portfolio.class));
+        verify(portfolioItemRepository).save(any(PortfolioItem.class));
+        verify(portfolioItemRepository, never()).delete(any(PortfolioItem.class));
+        verify(auditLogService).record(eq(userId), eq(com.finance.core.domain.AuditActionType.STRATEGY_BOT_RUN_RECONCILED), eq(com.finance.core.domain.AuditResourceType.STRATEGY_BOT_RUN), eq(runId), any());
     }
 
     @Test
