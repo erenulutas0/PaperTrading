@@ -34,7 +34,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
 | Trust/Credibility Scores | 🔨 Building | Bayesian multi-signal scoring now blends resolved analysis accuracy, realized trade quality, profitable portfolio ratio, and average portfolio return; experience lift is now evidence-aligned instead of volume-only, profile breakdown/docs are live, and local rollout verification passed |
-| Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; read/export tooling still pending |
+| Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; JDBC-backed inspection/export endpoints plus `/dashboard/audit` are live, with staging/runtime verification still pending |
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log

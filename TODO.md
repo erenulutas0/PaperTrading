@@ -490,7 +490,15 @@ Last updated: 2026-03-21
 - [ ] Monitor runtime for one sprint and tune pool/cache TTL values using real traffic metrics
 
 ## Next
-- [ ] Add audit-log read tooling (admin/report/export or actuator-style inspection path) once write-path capture is stable in staging
+- [x] Add audit-log read tooling (admin/report/export or actuator-style inspection path) once write-path capture is stable in staging
+  - backend:
+    - `/api/v1/ops/auditlog`
+    - `/api/v1/ops/auditlog/export`
+    - `/api/v1/ops/auditlog/export/json`
+    - `/actuator/auditlog`
+  - frontend:
+    - `/dashboard/audit` filtered inspection workspace
+  - remaining work is staging/runtime verification, not missing read tooling
 - [x] Add test/log hardening for canary failure-path tests (reduce expected-failure warning noise in CI logs)
   - `WebSocketCanaryService` now emits a single-line `warn` plus `debug` stacktrace for expected probe exceptions instead of full warning-stacktrace noise
   - `WebSocketCanaryServiceTest` captures output and locks the reduced-noise failure-path logging contract
