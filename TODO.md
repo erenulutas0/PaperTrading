@@ -451,12 +451,26 @@ Last updated: 2026-03-21
   - Validation:
     - `WebSocketCanaryServiceTest`
     - `WebSocketCanaryEndpointIntegrationTest`
+- [x] Added websocket staging resilience suite wrapper:
+  - Added:
+    - `infra/load-test/run_websocket_staging_resilience_suite.ps1`
+  - Behavior:
+    - runs browser-origin validation
+    - runs websocket relay continuity/restart validation
+    - runs websocket canary latest-snapshot transition validation
+    - emits one summary markdown report linking child reports
+  - Note:
+    - SSE fallback is still a separate UX/runtime concern; this suite does not claim it
 - [ ] Run websocket canary staging checklist from a separate node/network path and attach report (`infra/load-test/run_websocket_canary_staging_checklist.ps1`) to confirm initial `not-run-yet` -> healthy snapshot transition
 - [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
 - [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
 - [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
 - [ ] Run websocket relay smoke/failover script in staging with real broker restart command and attach report (`infra/load-test/validate_websocket_relay_smoke.ps1`)
-- [ ] Run end-to-end websocket resilience check in staging (forced WS disconnect/reconnect, SSE fallback path, notification/tournament stream continuity)
+- [ ] Run websocket staging resilience suite in staging and attach report (`infra/load-test/run_websocket_staging_resilience_suite.ps1`) to confirm:
+  - browser origin acceptance
+  - relay continuity across forced broker restart
+  - canary latest-snapshot transition
+  - then separately validate browser-side SSE fallback path
 - [ ] Validate leaderboard period metrics with live user flows (`1D/1W/1M/ALL`) and confirm expected ranking semantics (portfolio ROI vs position ROE) with product decision
 - [ ] Monitor runtime for one sprint and tune pool/cache TTL values using real traffic metrics
 

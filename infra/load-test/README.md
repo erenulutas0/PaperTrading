@@ -49,6 +49,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_auth_strict_post_cutover_checklist.ps1`
 - `run_browser_origin_staging_checklist.ps1`
 - `run_websocket_canary_staging_checklist.ps1`
+- `run_websocket_staging_resilience_suite.ps1`
 
 ## Prerequisites
 
@@ -498,6 +499,24 @@ Checklist behavior:
 - verifies the post-run latest snapshot is no longer `not-run-yet`
 - verifies the post-run latest snapshot is successful and not `CRITICAL`
 
+Run the higher-level websocket staging resilience suite:
+
+```powershell
+./infra/load-test/run_websocket_staging_resilience_suite.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -FrontendOrigin "https://frontend.up.railway.app" `
+  -RelayBrokerRestartCommand "docker restart finance-rabbitmq" `
+  -CanaryIterations 12 `
+  -CanaryIntervalSec 20
+```
+
+Suite behavior:
+- runs browser-origin validation
+- runs websocket relay continuity / restart validation
+- runs websocket canary transition validation
+- writes one summary report linking child reports
+- note: browser-side SSE fallback still needs separate UX/runtime validation; this suite does not claim that path
+
 Check auth legacy-header usage readiness before disabling legacy mode:
 
 ```powershell
@@ -580,6 +599,7 @@ Report file:
 - `infra/load-test/reports/websocket-relay-smoke-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/websocket-canary-external-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/websocket-canary-staging-checklist-YYYYMMDD-HHMMSS.md`
+- `infra/load-test/reports/websocket-staging-resilience-suite-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-legacy-usage-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-observability-calibration-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-strict-readiness-YYYYMMDD-HHMMSS.md`

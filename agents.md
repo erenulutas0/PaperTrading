@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **WebSocket Staging Verification Now Has A Single Resilience Suite Entry Point**
+  - **Problem observed**:
+    - By this point websocket rollout verification had been improved, but it was still split across separate operator entrypoints:
+      - browser-origin validation
+      - relay continuity/restart validation
+      - canary latest-snapshot transition validation
+    - That made the staging runbook better than before, but still dependent on remembering which scripts belonged together.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_websocket_staging_resilience_suite.ps1`
+    - The suite orchestrates:
+      - `run_browser_origin_staging_checklist.ps1`
+      - `validate_websocket_relay_smoke.ps1`
+      - `run_websocket_canary_staging_checklist.ps1`
+    - It emits one markdown summary that links the child reports.
+    - The suite explicitly documents that browser-side SSE fallback is still outside its scope.
+  - **Operational impact**:
+    - staging websocket validation is now closer to a single operator command instead of a remembered sequence of three wrappers
+    - the remaining websocket TODOs are narrower because origin, relay continuity, and canary transition are now grouped into one repeatable flow
 - **2026-03-21**: **WebSocket Canary Latest Snapshot Is Now Readable Without Forcing A Probe**
   - **Problem observed**:
     - The synthetic canary tooling had two practical operator gaps:
