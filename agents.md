@@ -994,6 +994,12 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Follow-up adjustment (2026-03-21)**:
     - local backend starter now leaves auth observability enabled
     - reason: strict rollout tooling depends on `/actuator/authsessions`, so disabling it locally made readiness wrappers fail for the wrong reason
+    - when alerting stays disabled locally, backend boot now still succeeds because a no-op `OpsAlertPublisher` bean is provided
+    - auth observability calibration tooling was also hardened for PowerShell strict mode:
+      - percentile calculation now handles single-sample runs safely
+      - calibration no longer collides with the built-in `$Error` variable
+    - net result:
+      - local strict pre-cutover readiness checks can run end-to-end instead of failing on bootstrap/tooling issues unrelated to real rollout risk
 - **2026-03-19**: **Notification WebSocket Handshake Rejection No Longer Pollutes Local Dev Overlay**
   - **Problem observed**:
     - In local dev, STOMP handshake rejection could surface as a red client-side issue even though the notification layer already had SSE fallback logic.

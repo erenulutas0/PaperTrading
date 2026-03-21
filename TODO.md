@@ -470,6 +470,10 @@ Last updated: 2026-03-21
     - emits a single summary report pointing at the underlying readiness assessment
   - Local orchestration validation:
     - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_pre_cutover_checklist.ps1 -BaseUrl http://localhost:8080 -CalibrationIterations 1 -CalibrationIntervalSec 0 -NoFail`
+  - Local follow-up hardening:
+    - kept `/actuator/authsessions` available in the local backend starter
+    - ensured disabled alerting still provides a no-op `OpsAlertPublisher`
+    - fixed single-sample auth observability calibration under PowerShell strict mode
 - [ ] Run websocket canary staging checklist from a separate node/network path and attach report (`infra/load-test/run_websocket_canary_staging_checklist.ps1`) to confirm initial `not-run-yet` -> healthy snapshot transition
 - [ ] Run auth strict pre-cutover checklist in staging and attach report (`infra/load-test/run_auth_strict_pre_cutover_checklist.ps1`) to confirm:
   - legacy accepted traffic is below threshold

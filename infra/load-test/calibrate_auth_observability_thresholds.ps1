@@ -77,7 +77,7 @@ function Get-Percentile {
     return 0.0
   }
 
-  $sorted = $Values | Sort-Object
+  $sorted = @($Values | Sort-Object)
   $rank = [Math]::Ceiling(($Percentile / 100.0) * $sorted.Count) - 1
   if ($rank -lt 0) { $rank = 0 }
   if ($rank -ge $sorted.Count) { $rank = $sorted.Count - 1 }
@@ -123,13 +123,13 @@ for ($i = 1; $i -le $Iterations; $i++) {
   $invalidRefreshCount = 0
   $totalRefreshAttempts = 0
   $invalidRefreshRatio = 0.0
-  $error = ""
+  $iterationError = ""
 
   try {
     $snapshot = Invoke-JsonGet -Url $endpoint -TimeoutSec $RequestTimeoutSec
     if ($null -eq $snapshot) {
       $status = "empty-response"
-      $error = "empty response from endpoint"
+      $iterationError = "empty response from endpoint"
     } else {
       $successRuns++
       $alertState = [string](Get-PropertyValueOrDefault -Object $snapshot -Name "alertState" -DefaultValue "UNKNOWN")
@@ -164,8 +164,8 @@ for ($i = 1; $i -le $Iterations; $i++) {
     }
   } catch {
     $status = "error"
-    $error = $_.Exception.Message
-    $errors.Add("Iteration $i failed: $error")
+    $iterationError = $_.Exception.Message
+    $errors.Add("Iteration $i failed: $iterationError")
   }
 
   $rows.Add([pscustomobject]@{
@@ -178,7 +178,7 @@ for ($i = 1; $i -le $Iterations; $i++) {
       invalidRefreshCount  = $invalidRefreshCount
       totalRefreshAttempts = $totalRefreshAttempts
       invalidRefreshRatio  = [Math]::Round($invalidRefreshRatio, 4)
-      error                = $error
+      error                = $iterationError
     })
 
   if ($i -lt $Iterations -and $IntervalSec -gt 0) {
