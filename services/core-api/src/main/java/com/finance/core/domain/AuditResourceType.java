@@ -6,5 +6,6 @@ public enum AuditResourceType {
     USER,
     ANALYSIS_POST,
     COMMENT,
-    STRATEGY_BOT
+    STRATEGY_BOT,
+    STRATEGY_BOT_RUN
 }

@@ -5,6 +5,7 @@ import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
+import com.finance.core.repository.StrategyBotRunRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,11 +43,15 @@ class StrategyBotControllerIntegrationTest {
     @Autowired
     private PortfolioRepository portfolioRepository;
 
+    @Autowired
+    private StrategyBotRunRepository strategyBotRunRepository;
+
     private UUID userId;
     private Portfolio linkedPortfolio;
 
     @BeforeEach
     void setUp() {
+        strategyBotRunRepository.deleteAll();
         strategyBotRepository.deleteAll();
         portfolioRepository.deleteAll();
         userId = UUID.randomUUID();

@@ -569,6 +569,17 @@ Last updated: 2026-03-21
   - backtest against historical candles/snapshots
   - paper portfolio binding for live forward-test
   - per-bot equity curve, win/loss, drawdown, and attribution views
+- [x] Added strategy-bot run journal foundation:
+  - migration:
+    - `V23__create_strategy_bot_runs_table.sql`
+  - backend:
+    - queued backtest/forward-test run requests under `/api/v1/strategy-bots/{botId}/runs`
+    - paged run history + single-run read
+    - ready-only run request guard
+    - initial-capital resolution from linked portfolio when omitted
+    - audit log coverage for run requests
+  - tests:
+    - `StrategyBotRunControllerIntegrationTest`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

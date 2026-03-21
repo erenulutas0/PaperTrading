@@ -67,6 +67,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - execution engine
       - backtest runtime
       - frontend bot workspace
+- **2026-03-21**: **Strategy Bot Runs Now Persist As A Separate Journal Before Simulation Exists**
+  - **Problem observed**:
+    - Bot draft CRUD is useful, but the product still needed a stable contract for “request a run” before any real simulator/backtest engine exists.
+    - Without that run journal, execution work and UI history would have no persistent lifecycle anchor.
+  - **Implementation**:
+    - Added:
+      - `strategy_bot_runs` table (`V23__create_strategy_bot_runs_table.sql`)
+      - `StrategyBotRun` entity + repository + DTOs
+      - `StrategyBotRunService`
+    - Extended `/api/v1/strategy-bots/{botId}` with nested run endpoints:
+      - `POST /runs`
+      - `GET /runs`
+      - `GET /runs/{runId}`
+    - Current behavior:
+      - accepts `BACKTEST` or `FORWARD_TEST`
+      - requires bot status `READY`
+      - resolves initial capital from request or linked portfolio
+      - stores compiled rule snapshots and a queued summary payload
+      - audit-logs run requests
+  - **Operational impact**:
+    - the next execution slice can update persisted run rows instead of inventing lifecycle state ad hoc
+    - frontend bot work can target a stable run-history surface even before simulation metrics exist
 - **2026-03-21**: **Future Bot Work Must Stay Paper-Only, Server-Executed, And Fully Auditable**
   - **Problem observed**:
     - The next natural product extension is user-created strategy bots and eventually agentic trading assistants.

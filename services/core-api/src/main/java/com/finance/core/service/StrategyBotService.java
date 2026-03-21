@@ -11,6 +11,7 @@ import com.finance.core.dto.StrategyBotRequest;
 import com.finance.core.dto.StrategyBotResponse;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
+import com.finance.core.repository.StrategyBotRunRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +28,7 @@ import java.util.UUID;
 public class StrategyBotService {
 
     private final StrategyBotRepository strategyBotRepository;
+    private final StrategyBotRunRepository strategyBotRunRepository;
     private final PortfolioRepository portfolioRepository;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
@@ -39,6 +41,11 @@ public class StrategyBotService {
     @Transactional(readOnly = true)
     public StrategyBotResponse getBot(UUID botId, UUID userId) {
         return toResponse(getOwnedBot(botId, userId));
+    }
+
+    @Transactional(readOnly = true)
+    public StrategyBot getOwnedBotEntity(UUID botId, UUID userId) {
+        return getOwnedBot(botId, userId);
     }
 
     @Transactional
@@ -140,6 +147,7 @@ public class StrategyBotService {
     @Transactional
     public void deleteBot(UUID botId, UUID userId) {
         StrategyBot bot = getOwnedBot(botId, userId);
+        strategyBotRunRepository.deleteByStrategyBotId(bot.getId());
         strategyBotRepository.delete(bot);
         auditLogService.record(
                 userId,
