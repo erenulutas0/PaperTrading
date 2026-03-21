@@ -38,6 +38,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Feed Scale Validation Now Has A Single Suite Wrapper**
+  - **Problem observed**:
+    - Feed-scale hardening had reached the point where the remaining work was mostly operational, but still split across two separate wrappers:
+      - follower fanout median ladder
+      - feed latency recalibration
+    - That was better than raw scripts, but still left one step of operator stitching before a real scale-validation run.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_feed_scale_validation_suite.ps1`
+    - The suite orchestrates:
+      - `run_follower_fanout_stress_suite.ps1`
+      - `run_feed_latency_recalibration_checklist.ps1`
+    - It emits one parent markdown report that links the child reports and carries the key scenario parameters.
+  - **Operational impact**:
+    - feed-scale validation is now one command instead of two wrappers plus manual report correlation
+    - the remaining feed TODOs are narrower:
+      - run the real `1k -> 5k -> 10k` ladder
+      - recalibrate from newer telemetry and decide whether to update env defaults
+  - **Validation**:
+    - Local mechanical pass executed with reduced follower stages:
+      - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_feed_scale_validation_suite.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
 - **2026-03-21**: **Feed Latency Threshold Recalibration Now Has A Checklist Wrapper**
   - **Problem observed**:
     - The repo already had the core calibration primitive:

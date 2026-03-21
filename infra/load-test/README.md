@@ -215,6 +215,25 @@ Useful notes:
   - `APP_FEED_OBSERVABILITY_CRITICAL_P99_MS`
 - use it after collecting a meaningful telemetry window or refreshed median reports
 
+Run the combined feed scale validation suite:
+
+```powershell
+./infra/load-test/run_feed_scale_validation_suite.ps1 `
+  -BaseUrl "http://localhost:8080" `
+  -FanoutStages 1000,5000,10000 `
+  -SeedEvents 200 `
+  -Concurrency 8 `
+  -RequestsPerWorker 120 `
+  -Rounds 3
+```
+
+Useful notes:
+- this suite chains:
+  - `run_follower_fanout_stress_suite.ps1`
+  - `run_feed_latency_recalibration_checklist.ps1`
+- it emits one parent report linking the child fanout + recalibration reports
+- use `-SkipFanoutSuite` or `-SkipRecalibration` when you only want one side of the flow
+
 Validate end-to-end ops webhook routing (starts core-api on port `18080` by default):
 
 ```powershell

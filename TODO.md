@@ -524,6 +524,14 @@ Last updated: 2026-03-21
     - emits one summary report with recommended `APP_FEED_OBSERVABILITY_*` overrides
   - Local mechanical validation:
     - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_feed_latency_recalibration_checklist.ps1 -ReportsGlob "infra/load-test/reports/load-baseline-median-*.md" -NoFail`
+- [x] Added feed scale validation suite wrapper:
+  - Added:
+    - `infra/load-test/run_feed_scale_validation_suite.ps1`
+  - Behavior:
+    - chains staged fanout median runs plus feed latency recalibration
+    - emits one parent report linking the child reports
+  - Local mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_feed_scale_validation_suite.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
 - [ ] Re-calibrate feed latency thresholds from one-sprint production telemetry and adjust `APP_FEED_OBSERVABILITY_*` as needed
 - [ ] Configure real ops webhook URL in staging/prod (`APP_ALERTING_WEBHOOK_URL`) and run webhook validation script against live app (`-SkipAppStart`) with real endpoint
 - [ ] Move auth migration to enforcement mode in staging (`APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`) and resolve any failing clients
