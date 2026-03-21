@@ -554,6 +554,16 @@ Last updated: 2026-03-21
   - stop-loss / take-profit / cooldown / sizing controls
   - server-owned deterministic execution on market snapshots/candles
   - full audit trail for every bot decision and fill simulation
+- [x] Added strategy-bot backend foundation:
+  - migration:
+    - `V22__create_strategy_bots_table.sql`
+  - backend:
+    - `StrategyBot` entity/repository/service/controller
+    - paged draft CRUD under `/api/v1/strategy-bots`
+    - linked paper-portfolio ownership validation
+    - audit log coverage for create/update/delete
+  - tests:
+    - `StrategyBotControllerIntegrationTest`
 - [ ] Add bot backtest/forward-test foundation:
   - reusable strategy execution engine
   - backtest against historical candles/snapshots

@@ -5,5 +5,6 @@ public enum AuditResourceType {
     TRADE,
     USER,
     ANALYSIS_POST,
-    COMMENT
+    COMMENT,
+    STRATEGY_BOT
 }

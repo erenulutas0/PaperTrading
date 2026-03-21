@@ -38,6 +38,35 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Strategy Bots Start As Audited Draft CRUD Before Any Execution Engine**
+  - **Problem observed**:
+    - The product direction now includes paper-only strategy bots, but jumping directly into execution/backtest logic would entangle several concerns at once:
+      - bot ownership
+      - portfolio binding
+      - risk controls
+      - auditability
+      - future UI/workspace needs
+    - That would make the first slice too large and harder to verify.
+  - **Implementation**:
+    - Added backend foundation:
+      - `strategy_bots` table (`V22__create_strategy_bots_table.sql`)
+      - `StrategyBot` entity + repository + service + controller
+      - paged CRUD at `/api/v1/strategy-bots`
+    - First-slice fields cover:
+      - linked paper portfolio
+      - market / symbol / timeframe
+      - entry rules / exit rules
+      - max position size
+      - stop loss / take profit
+      - cooldown minutes
+      - draft/ready/archive lifecycle
+    - Linked portfolio validation is owner-aware and create/update/delete are audit-logged.
+  - **Operational impact**:
+    - the bot initiative now has a stable persisted contract before backtest or forward-test execution exists
+    - next slices can focus separately on:
+      - execution engine
+      - backtest runtime
+      - frontend bot workspace
 - **2026-03-21**: **Future Bot Work Must Stay Paper-Only, Server-Executed, And Fully Auditable**
   - **Problem observed**:
     - The next natural product extension is user-created strategy bots and eventually agentic trading assistants.
