@@ -45,6 +45,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_auth_strict_mode_smoke.ps1`
 - `run_auth_strict_mode_validation_suite.ps1`
 - `run_auth_strict_mode_staging_checklist.ps1`
+- `run_auth_strict_pre_cutover_checklist.ps1`
 - `run_auth_strict_transport_validation.ps1`
 - `run_auth_strict_post_cutover_checklist.ps1`
 - `run_browser_origin_staging_checklist.ps1`
@@ -586,6 +587,21 @@ Note:
 - `run_auth_attack_scenarios.ps1` intentionally keeps one `X-User-Id` spoof case to verify `Authorization` + legacy-header mismatch rejection during strict-mode rollout.
 - `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` are now Bearer-token based and are expected to pass with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`.
 
+Run the pre-cutover strict auth readiness checklist before disabling legacy-header acceptance:
+
+```powershell
+./infra/load-test/run_auth_strict_pre_cutover_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Checklist behavior:
+- reuses `assess_auth_strict_mode_readiness.ps1`
+- proves:
+  - legacy header acceptance is below threshold
+  - auth refresh churn calibration is available
+  - readiness is `READY` or `CONDITIONAL_READY`
+- emits a single markdown summary that points at the underlying readiness report
+
 ## Output
 
 Report file:
@@ -603,6 +619,7 @@ Report file:
 - `infra/load-test/reports/auth-legacy-usage-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-observability-calibration-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-strict-readiness-YYYYMMDD-HHMMSS.md`
+- `infra/load-test/reports/auth-strict-pre-cutover-checklist-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-attack-scenarios-YYYYMMDD-HHMMSS.md`
 
 Contains:

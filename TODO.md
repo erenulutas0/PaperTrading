@@ -461,9 +461,20 @@ Last updated: 2026-03-21
     - emits one summary markdown report linking child reports
   - Note:
     - SSE fallback is still a separate UX/runtime concern; this suite does not claim it
+- [x] Added auth strict pre-cutover checklist wrapper:
+  - Added:
+    - `infra/load-test/run_auth_strict_pre_cutover_checklist.ps1`
+  - Behavior:
+    - reuses `assess_auth_strict_mode_readiness.ps1`
+    - turns `legacy usage + churn calibration + readiness decision` into one explicit staging entrypoint
+    - emits a single summary report pointing at the underlying readiness assessment
+  - Local orchestration validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_pre_cutover_checklist.ps1 -BaseUrl http://localhost:8080 -CalibrationIterations 1 -CalibrationIntervalSec 0 -NoFail`
 - [ ] Run websocket canary staging checklist from a separate node/network path and attach report (`infra/load-test/run_websocket_canary_staging_checklist.ps1`) to confirm initial `not-run-yet` -> healthy snapshot transition
-- [ ] Stage strict-mode auth rollout: run `infra/load-test/check_auth_legacy_usage.ps1` against staging, confirm `legacy accepted <= threshold`, then disable `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER` and verify zero breakage
-- [ ] Run staging telemetry review for auth refresh churn and tune `APP_AUTH_OBSERVABILITY_*` thresholds with real traffic baseline
+- [ ] Run auth strict pre-cutover checklist in staging and attach report (`infra/load-test/run_auth_strict_pre_cutover_checklist.ps1`) to confirm:
+  - legacy accepted traffic is below threshold
+  - auth refresh churn calibration is available
+  - readiness is `READY` or acceptable `CONDITIONAL_READY` before disabling legacy-header acceptance
 - [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
 - [ ] Run websocket relay smoke/failover script in staging with real broker restart command and attach report (`infra/load-test/validate_websocket_relay_smoke.ps1`)
 - [ ] Run websocket staging resilience suite in staging and attach report (`infra/load-test/run_websocket_staging_resilience_suite.ps1`) to confirm:

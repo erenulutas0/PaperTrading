@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Strict Auth Pre-Cutover Readiness Now Has A Single Staging Entry Point**
+  - **Problem observed**:
+    - The strict-auth rollout already had the underlying building blocks for pre-cutover judgement:
+      - legacy-header usage check
+      - auth refresh churn calibration
+      - readiness assessment
+    - But the staging TODO still described these as separate operator thoughts rather than one explicit checklist command.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_auth_strict_pre_cutover_checklist.ps1`
+    - The wrapper reuses `assess_auth_strict_mode_readiness.ps1` and emits one summary report for:
+      - legacy acceptance threshold
+      - auth churn calibration availability/state
+      - readiness decision before disabling legacy-header acceptance
+  - **Operational impact**:
+    - strict auth pre-cutover staging validation is now closer to one remembered command instead of three remembered concepts
+    - the remaining auth rollout TODO is narrower because the operator no longer has to stitch readiness inputs together manually
+  - **Validation**:
+    - Orchestration smoke executed with shortened sampling window:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_pre_cutover_checklist.ps1 -BaseUrl http://localhost:8080 -CalibrationIterations 1 -CalibrationIntervalSec 0 -NoFail`
 - **2026-03-21**: **WebSocket Staging Verification Now Has A Single Resilience Suite Entry Point**
   - **Problem observed**:
     - By this point websocket rollout verification had been improved, but it was still split across separate operator entrypoints:
