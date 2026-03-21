@@ -202,6 +202,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - bot execution output is now queryable without scraping summary blobs
     - later charting and detailed execution UIs can evolve against stable row-based storage
+- **2026-03-22**: **Strategy Bot Workspace Now Reads Persisted Execution Outputs Directly**
+  - **Problem observed**:
+    - The backend now persisted:
+      - fill rows
+      - equity points
+    - But `/dashboard/bots` was still rendering run detail mainly from the summary JSON snapshot.
+    - That would leave the UI coupled to the legacy summary shape instead of the new row-based contract.
+  - **Implementation**:
+    - The run detail surface now fetches:
+      - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/fills`
+      - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/equity-curve`
+    - Added selected-run inspection mode with:
+      - persisted fill cards
+      - persisted equity sparkline
+      - raw output panel fed from the dedicated endpoints
+  - **Operational impact**:
+    - frontend run inspection now tracks the stable persisted output contract
+    - later chart upgrades can build on the same row-based read path without another UI contract migration
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

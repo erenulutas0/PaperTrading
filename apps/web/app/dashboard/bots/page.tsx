@@ -21,6 +21,13 @@ type StrategyBotRun = {
     fromDate?: string; toDate?: string; errorMessage?: string | null;
     summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number } | null;
 };
+type StrategyBotRunFill = {
+    id: string; sequenceNo: number; side: 'ENTRY' | 'EXIT'; openTime: number;
+    price: number; quantity: number; realizedPnl: number; matchedRules: string[];
+};
+type StrategyBotRunEquityPoint = {
+    id: string; sequenceNo: number; openTime: number; closePrice: number; equity: number;
+};
 
 const defaultEntryRules = JSON.stringify({ all: ['price_above_ma_20', 'rsi_below_35'] }, null, 2);
 const defaultExitRules = JSON.stringify({ any: ['take_profit_hit', 'stop_loss_hit'] }, null, 2);
@@ -33,10 +40,29 @@ function numberOrUndefined(value: string) {
 }
 
 function fmtDate(value?: string | null) { return value ? new Date(value).toLocaleString() : 'N/A'; }
+function fmtEpoch(value?: number | null) { return value === undefined || value === null ? 'N/A' : new Date(value).toLocaleString(); }
 function fmtCurrency(value?: number | null) { return value === undefined || value === null || Number.isNaN(value) ? 'N/A' : `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`; }
 function fmtPercent(value?: number | null) { return value === undefined || value === null || Number.isNaN(value) ? 'N/A' : `${value.toFixed(2)}%`; }
 function pretty(value: unknown) { try { return JSON.stringify(value ?? {}, null, 2); } catch { return '{}'; } }
 function err(error: unknown) { return error instanceof Error ? error.message : 'Unexpected request failure'; }
+
+function buildSparkline(points: StrategyBotRunEquityPoint[]) {
+    if (points.length < 2) return '';
+    const width = 320;
+    const height = 96;
+    const padding = 8;
+    const values = points.map((point) => point.equity);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    return points
+        .map((point, index) => {
+            const x = padding + (index * (width - padding * 2)) / (points.length - 1);
+            const y = height - padding - ((point.equity - min) / range) * (height - padding * 2);
+            return `${x},${y}`;
+        })
+        .join(' ');
+}
 
 export default function StrategyBotsPage() {
     const router = useRouter();
@@ -46,6 +72,7 @@ export default function StrategyBotsPage() {
     const [saving, setSaving] = useState(false);
     const [requestingRun, setRequestingRun] = useState(false);
     const [executingRunId, setExecutingRunId] = useState<string | null>(null);
+    const [outputsLoading, setOutputsLoading] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -53,12 +80,16 @@ export default function StrategyBotsPage() {
     const [bots, setBots] = useState<StrategyBot[]>([]);
     const [runs, setRuns] = useState<StrategyBotRun[]>([]);
     const [selectedBotId, setSelectedBotId] = useState('');
+    const [selectedRunId, setSelectedRunId] = useState('');
+    const [selectedRunFills, setSelectedRunFills] = useState<StrategyBotRunFill[]>([]);
+    const [selectedRunEquityCurve, setSelectedRunEquityCurve] = useState<StrategyBotRunEquityPoint[]>([]);
     const [editingBotId, setEditingBotId] = useState<string | null>(null);
     const [botForm, setBotForm] = useState({ name: '', description: '', linkedPortfolioId: '', market: 'CRYPTO', symbol: 'BTCUSDT', timeframe: '1h', status: 'DRAFT' as BotStatus, maxPositionSizePercent: '20', stopLossPercent: '3', takeProfitPercent: '8', cooldownMinutes: '60', entryRulesText: defaultEntryRules, exitRulesText: defaultExitRules });
     const [runForm, setRunForm] = useState({ runMode: 'BACKTEST' as RunMode, initialCapital: '', fromDate: '', toDate: '' });
 
     const selectedBot = useMemo(() => bots.find((bot) => bot.id === selectedBotId) ?? null, [bots, selectedBotId]);
     const latestRun = runs[0] ?? null;
+    const selectedRun = useMemo(() => runs.find((run) => run.id === selectedRunId) ?? latestRun ?? null, [runs, selectedRunId, latestRun]);
 
     useEffect(() => {
         const currentUserId = localStorage.getItem('userId');
@@ -67,7 +98,25 @@ export default function StrategyBotsPage() {
         void bootstrap(currentUserId);
     }, [router]);
 
-    useEffect(() => { if (selectedBotId) void loadRuns(selectedBotId); else setRuns([]); }, [selectedBotId]);
+    useEffect(() => {
+        if (selectedBotId) {
+            void loadRuns(selectedBotId);
+        } else {
+            setRuns([]);
+            setSelectedRunId('');
+            setSelectedRunFills([]);
+            setSelectedRunEquityCurve([]);
+        }
+    }, [selectedBotId]);
+
+    useEffect(() => {
+        if (selectedBotId && selectedRunId) {
+            void loadRunOutputs(selectedBotId, selectedRunId);
+        } else {
+            setSelectedRunFills([]);
+            setSelectedRunEquityCurve([]);
+        }
+    }, [selectedBotId, selectedRunId]);
 
     async function bootstrap(currentUserId: string) {
         setLoading(true); setPageError(null);
@@ -91,8 +140,28 @@ export default function StrategyBotsPage() {
         try {
             const response = await apiFetch(`/api/v1/strategy-bots/${botId}/runs?size=20`, { cache: 'no-store' });
             if (!response.ok) throw new Error(`Failed to load bot runs (${response.status})`);
-            setRuns(extractContent<StrategyBotRun>(await response.json()));
+            const nextRuns = extractContent<StrategyBotRun>(await response.json());
+            setRuns(nextRuns);
+            setSelectedRunId((current) => current && nextRuns.some((run) => run.id === current) ? current : nextRuns[0]?.id ?? '');
         } catch (error) { setActionError(err(error)); }
+    }
+
+    async function loadRunOutputs(botId: string, runId: string) {
+        setOutputsLoading(true);
+        try {
+            const [fillsRes, curveRes] = await Promise.all([
+                apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/fills?size=200`, { cache: 'no-store' }),
+                apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/equity-curve?size=1000`, { cache: 'no-store' }),
+            ]);
+            if (!fillsRes.ok) throw new Error(`Failed to load run fills (${fillsRes.status})`);
+            if (!curveRes.ok) throw new Error(`Failed to load run equity curve (${curveRes.status})`);
+            setSelectedRunFills(extractContent<StrategyBotRunFill>(await fillsRes.json()));
+            setSelectedRunEquityCurve(extractContent<StrategyBotRunEquityPoint>(await curveRes.json()));
+        } catch (error) {
+            setActionError(err(error));
+        } finally {
+            setOutputsLoading(false);
+        }
     }
 
     function resetBotForm() {
@@ -133,8 +202,11 @@ export default function StrategyBotsPage() {
         try {
             const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runMode: runForm.runMode, initialCapital: numberOrUndefined(runForm.initialCapital), fromDate: runForm.fromDate || null, toDate: runForm.toDate || null }) });
             if (!response.ok) throw new Error(await response.text() || `Run request failed (${response.status})`);
+            const createdRun = await response.json() as StrategyBotRun;
             setRunForm({ runMode: 'BACKTEST', initialCapital: '', fromDate: '', toDate: '' });
-            await loadRuns(selectedBotId); setNotice('Run queued');
+            await loadRuns(selectedBotId);
+            setSelectedRunId(createdRun.id);
+            setNotice('Run queued');
         } catch (error) { setActionError(err(error)); } finally { setRequestingRun(false); }
     }
 
@@ -144,7 +216,9 @@ export default function StrategyBotsPage() {
         try {
             const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${runId}/execute`, { method: 'POST' });
             if (!response.ok) throw new Error(await response.text() || `Run execute failed (${response.status})`);
-            await loadRuns(selectedBotId); setNotice('Run executed');
+            await loadRuns(selectedBotId);
+            setSelectedRunId(runId);
+            setNotice('Run executed');
         } catch (error) { setActionError(err(error)); } finally { setExecutingRunId(null); }
     }
 
@@ -395,7 +469,7 @@ export default function StrategyBotsPage() {
                             ) : runs.length === 0 ? (
                                 <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-5 py-8 text-sm text-zinc-400">No runs yet for this bot.</div>
                             ) : runs.map((run) => (
-                                <div key={run.id} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                                <div key={run.id} className={`rounded-2xl border p-5 ${selectedRunId === run.id ? 'border-cyan-500/35 bg-cyan-500/10' : 'border-white/10 bg-black/20'}`}>
                                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                         <div>
                                             <div className="flex flex-wrap items-center gap-2">
@@ -410,6 +484,9 @@ export default function StrategyBotsPage() {
                                                 {executingRunId === run.id ? 'Executing...' : 'Execute Backtest'}
                                             </button>
                                         )}
+                                        <button type="button" onClick={() => setSelectedRunId(run.id)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200">
+                                            {selectedRunId === run.id ? 'Selected' : 'Inspect'}
+                                        </button>
                                     </div>
                                     {run.errorMessage && <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{run.errorMessage}</div>}
                                     <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -418,21 +495,92 @@ export default function StrategyBotsPage() {
                                         <div className="rounded-xl border border-white/5 bg-black/20 p-3"><p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Trades</p><p className="mt-2 text-sm font-bold text-white">{run.summary?.tradeCount ?? 0}</p></div>
                                         <div className="rounded-xl border border-white/5 bg-black/20 p-3"><p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">Drawdown</p><p className="mt-2 text-sm font-bold text-amber-300">{fmtPercent(run.summary?.maxDrawdownPercent)}</p></div>
                                     </div>
-                                    <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compiler</p>
-                                            <p className="mt-3 text-sm text-zinc-300">Ready: {run.summary?.executionEngineReady ? 'Yes' : 'No'}</p>
-                                            <p className="mt-2 text-sm text-zinc-300">Features: {(run.summary?.supportedFeatures ?? []).join(', ') || 'None'}</p>
-                                            <p className="mt-2 text-sm text-zinc-300">Unsupported: {(run.summary?.unsupportedRules ?? []).join(', ') || 'None'}</p>
-                                            <p className="mt-2 text-sm text-zinc-300">Warnings: {(run.summary?.warnings ?? []).join(' | ') || 'None'}</p>
-                                        </div>
-                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Outputs</p>
-                                            <div className="mt-3 max-h-56 overflow-auto rounded-xl border border-white/5 bg-black/25 p-3">
-                                                <pre className="whitespace-pre-wrap text-xs leading-6 text-zinc-300">{pretty({ fills: run.summary?.fills ?? [], equityCurve: run.summary?.equityCurve ?? [] })}</pre>
+                                    {selectedRunId === run.id && (
+                                        <div className="mt-4 grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+                                            <div className="space-y-4">
+                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Compiler</p>
+                                                    <p className="mt-3 text-sm text-zinc-300">Ready: {selectedRun?.summary?.executionEngineReady ? 'Yes' : 'No'}</p>
+                                                    <p className="mt-2 text-sm text-zinc-300">Features: {(selectedRun?.summary?.supportedFeatures ?? []).join(', ') || 'None'}</p>
+                                                    <p className="mt-2 text-sm text-zinc-300">Unsupported: {(selectedRun?.summary?.unsupportedRules ?? []).join(', ') || 'None'}</p>
+                                                    <p className="mt-2 text-sm text-zinc-300">Warnings: {(selectedRun?.summary?.warnings ?? []).join(' | ') || 'None'}</p>
+                                                </div>
+                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Persisted Fills</p>
+                                                    {outputsLoading ? (
+                                                        <div className="mt-3 h-24 animate-pulse rounded-xl bg-white/5" />
+                                                    ) : selectedRunFills.length === 0 ? (
+                                                        <p className="mt-3 text-sm text-zinc-500">No persisted fills yet for this run.</p>
+                                                    ) : (
+                                                        <div className="mt-3 space-y-2">
+                                                            {selectedRunFills.slice(0, 6).map((fill) => (
+                                                                <div key={fill.id} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2 text-xs text-zinc-300">
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <span className={`font-bold ${fill.side === 'ENTRY' ? 'text-cyan-200' : 'text-emerald-200'}`}>{fill.side}</span>
+                                                                        <span>{fmtEpoch(fill.openTime)}</span>
+                                                                    </div>
+                                                                    <div className="mt-2 flex flex-wrap gap-3 text-zinc-400">
+                                                                        <span>Price {fmtCurrency(fill.price)}</span>
+                                                                        <span>Qty {fill.quantity.toFixed(4)}</span>
+                                                                        <span>PnL {fmtCurrency(fill.realizedPnl)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Persisted Equity Curve</p>
+                                                    {outputsLoading ? (
+                                                        <div className="mt-3 h-32 animate-pulse rounded-xl bg-white/5" />
+                                                    ) : selectedRunEquityCurve.length < 2 ? (
+                                                        <p className="mt-3 text-sm text-zinc-500">No persisted equity points yet for this run.</p>
+                                                    ) : (
+                                                        <>
+                                                            <div className="mt-3 overflow-hidden rounded-xl border border-white/5 bg-black/25 p-3">
+                                                                <svg viewBox="0 0 320 96" className="h-32 w-full">
+                                                                    <defs>
+                                                                        <linearGradient id="bot-equity-fill" x1="0" x2="0" y1="0" y2="1">
+                                                                            <stop offset="0%" stopColor="rgba(34,211,238,0.35)" />
+                                                                            <stop offset="100%" stopColor="rgba(34,211,238,0.02)" />
+                                                                        </linearGradient>
+                                                                    </defs>
+                                                                    <polyline
+                                                                        fill="none"
+                                                                        stroke="#67e8f9"
+                                                                        strokeWidth="2.5"
+                                                                        points={buildSparkline(selectedRunEquityCurve)}
+                                                                    />
+                                                                </svg>
+                                                            </div>
+                                                            <div className="mt-3 grid gap-3 md:grid-cols-3">
+                                                                <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                    <p className="text-zinc-500">Start</p>
+                                                                    <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRunEquityCurve[0]?.equity)}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                    <p className="text-zinc-500">End</p>
+                                                                    <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRunEquityCurve[selectedRunEquityCurve.length - 1]?.equity)}</p>
+                                                                </div>
+                                                                <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                    <p className="text-zinc-500">Points</p>
+                                                                    <p className="mt-1 font-bold text-white">{selectedRunEquityCurve.length}</p>
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Raw Outputs</p>
+                                                    <div className="mt-3 max-h-56 overflow-auto rounded-xl border border-white/5 bg-black/25 p-3">
+                                                        <pre className="whitespace-pre-wrap text-xs leading-6 text-zinc-300">{pretty({ fills: selectedRunFills, equityCurve: selectedRunEquityCurve })}</pre>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

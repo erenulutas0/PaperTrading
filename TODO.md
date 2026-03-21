@@ -632,6 +632,15 @@ Last updated: 2026-03-21
   - tests:
     - `StrategyBotRunServiceTest`
     - `StrategyBotRunControllerIntegrationTest`
+- [x] Rewired strategy-bot workspace to dedicated output reads:
+  - frontend:
+    - `/dashboard/bots` run detail now loads
+      - `/fills`
+      - `/equity-curve`
+      instead of relying only on summary JSON blobs
+    - selected-run detail now shows persisted fill rows and an equity sparkline
+  - validation:
+    - `apps/web` `npx tsc --noEmit`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox
