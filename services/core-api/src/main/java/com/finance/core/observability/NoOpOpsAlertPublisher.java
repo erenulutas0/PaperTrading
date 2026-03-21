@@ -1,12 +1,12 @@
 package com.finance.core.observability;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
 @Component
-@ConditionalOnMissingBean(OpsAlertPublisher.class)
+@ConditionalOnProperty(name = "app.alerting.enabled", havingValue = "false")
 public class NoOpOpsAlertPublisher implements OpsAlertPublisher {
 
     @Override
