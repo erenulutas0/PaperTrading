@@ -1,6 +1,8 @@
 package com.finance.core.controller;
 
 import com.finance.core.dto.StrategyBotRequest;
+import com.finance.core.dto.StrategyBotRunEquityPointResponse;
+import com.finance.core.dto.StrategyBotRunFillResponse;
 import com.finance.core.dto.StrategyBotResponse;
 import com.finance.core.dto.StrategyBotRunRequest;
 import com.finance.core.dto.StrategyBotRunResponse;
@@ -108,6 +110,36 @@ public class StrategyBotController {
             return ResponseEntity.ok(strategyBotRunService.getRun(botId, runId, userId));
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_run_read_failed", "Failed to load strategy bot run", request);
+        }
+    }
+
+    @GetMapping("/{botId}/runs/{runId}/fills")
+    public ResponseEntity<?> listRunFills(
+            @PathVariable UUID botId,
+            @PathVariable UUID runId,
+            @CurrentUserId UUID userId,
+            @PageableDefault(size = 50) Pageable pageable,
+            HttpServletRequest request) {
+        try {
+            Page<StrategyBotRunFillResponse> fills = strategyBotRunService.getRunFills(botId, runId, userId, pageable);
+            return ResponseEntity.ok(fills);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_run_fills_failed", "Failed to load strategy bot run fills", request);
+        }
+    }
+
+    @GetMapping("/{botId}/runs/{runId}/equity-curve")
+    public ResponseEntity<?> listRunEquityCurve(
+            @PathVariable UUID botId,
+            @PathVariable UUID runId,
+            @CurrentUserId UUID userId,
+            @PageableDefault(size = 100) Pageable pageable,
+            HttpServletRequest request) {
+        try {
+            Page<StrategyBotRunEquityPointResponse> points = strategyBotRunService.getRunEquityCurve(botId, runId, userId, pageable);
+            return ResponseEntity.ok(points);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_run_equity_curve_failed", "Failed to load strategy bot run equity curve", request);
         }
     }
 

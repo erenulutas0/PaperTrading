@@ -619,6 +619,19 @@ Last updated: 2026-03-21
     - summary-first inspection for compiler readiness, fills, equity curve, return, pnl, and drawdown
   - validation:
     - `apps/web` `npx tsc --noEmit`
+- [x] Persisted strategy-bot execution outputs in dedicated run tables:
+  - migration:
+    - `V24__create_strategy_bot_run_outputs_tables.sql`
+  - backend:
+    - `strategy_bot_run_fills`
+    - `strategy_bot_run_equity_points`
+    - execution now saves dedicated fill/equity rows alongside summary JSON
+    - nested paged reads:
+      - `/api/v1/strategy-bots/{botId}/runs/{runId}/fills`
+      - `/api/v1/strategy-bots/{botId}/runs/{runId}/equity-curve`
+  - tests:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotRunControllerIntegrationTest`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

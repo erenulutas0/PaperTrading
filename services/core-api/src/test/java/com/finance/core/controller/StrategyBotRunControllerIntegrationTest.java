@@ -1,24 +1,32 @@
 package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.dto.MarketCandleResponse;
+import com.finance.core.dto.MarketType;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
+import com.finance.core.service.MarketDataFacadeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -42,6 +50,8 @@ class StrategyBotRunControllerIntegrationTest {
 
     @Autowired
     private StrategyBotRunRepository strategyBotRunRepository;
+    @MockitoBean
+    private MarketDataFacadeService marketDataFacadeService;
 
     private UUID userId;
     private Portfolio linkedPortfolio;
@@ -175,5 +185,96 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(jsonPath("$.summary.executionEngineReady").value(false))
                 .andExpect(jsonPath("$.summary.unsupportedRules", hasSize(2)))
                 .andExpect(jsonPath("$.summary.unsupportedRules[0]").value("macd_cross"));
+    }
+
+    @Test
+    void executeRun_shouldPersistAndExposeFillAndEquityRows() throws Exception {
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Execution Ready")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{\"all\":[\"price_above_ma_3\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .takeProfitPercent(new BigDecimal("2"))
+                .cooldownMinutes(1000000)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        when(marketDataFacadeService.getCandles(MarketType.CRYPTO, "BTCUSDT", "ALL", "1h", null, 500))
+                .thenReturn(risingCandles());
+
+        String runResponse = mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("runMode", "BACKTEST"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String runId = objectMapper.readTree(runResponse).get("id").asText();
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/execute")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.summary.fillCount").value(2));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/fills")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].side").value("ENTRY"))
+                .andExpect(jsonPath("$.content[1].side").value("EXIT"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/equity-curve")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(risingCandles().size())))
+                .andExpect(jsonPath("$.content[0].equity").exists());
+    }
+
+    private List<MarketCandleResponse> risingCandles() {
+        return List.of(
+                candle(1, 100, 101, 99, 100, 1000),
+                candle(2, 100, 102, 99, 101, 1100),
+                candle(3, 101, 103, 100, 102, 1200),
+                candle(4, 102, 104, 101, 103, 1300),
+                candle(5, 103, 105, 102, 104, 1400),
+                candle(6, 104, 106, 103, 105, 1500),
+                candle(7, 105, 107, 104, 106, 1600),
+                candle(8, 106, 108, 105, 107, 1700),
+                candle(9, 107, 109, 106, 108, 1800),
+                candle(10, 108, 110, 107, 109, 1900),
+                candle(11, 109, 111, 108, 110, 2000),
+                candle(12, 110, 112, 109, 111, 2100),
+                candle(13, 111, 113, 110, 112, 2200),
+                candle(14, 112, 114, 111, 113, 2300),
+                candle(15, 113, 115, 112, 114, 2400),
+                candle(16, 114, 116, 113, 115, 2500),
+                candle(17, 115, 117, 114, 116, 2600),
+                candle(18, 116, 118, 115, 117, 2700),
+                candle(19, 117, 119, 116, 118, 2800),
+                candle(20, 118, 120, 117, 119, 2900),
+                candle(21, 119, 121, 118, 120, 3000),
+                candle(22, 120, 123, 119, 122.5, 3200));
+    }
+
+    private MarketCandleResponse candle(long openTime, double open, double high, double low, double close, double volume) {
+        long baseEpochMillis = LocalDateTime.of(2026, 1, 1, 0, 0)
+                .toInstant(ZoneOffset.UTC)
+                .toEpochMilli();
+        return MarketCandleResponse.builder()
+                .openTime(baseEpochMillis + (openTime * 86_400_000L))
+                .open(open)
+                .high(high)
+                .low(low)
+                .close(close)
+                .volume(volume)
+                .build();
     }
 }

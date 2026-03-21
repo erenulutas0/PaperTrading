@@ -180,6 +180,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the initial bot feature is now usable without scripts
     - later execution-table expansion can happen behind an already-stable product workflow
+- **2026-03-22**: **Strategy Bot Backtests Now Persist Dedicated Fill And Equity Rows**
+  - **Problem observed**:
+    - Backtest execution already produced:
+      - fills
+      - equity curve
+      - return / pnl / drawdown
+    - But those outputs only lived inside the run summary JSON.
+    - That was acceptable for the first execution slice, but weak for:
+      - paged inspection
+      - richer charts
+      - stable execution-history queries
+  - **Implementation**:
+    - Added dedicated tables:
+      - `strategy_bot_run_fills`
+      - `strategy_bot_run_equity_points`
+    - Backtest execution now persists those rows alongside the existing summary JSON.
+    - Added nested paged reads:
+      - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/fills`
+      - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/equity-curve`
+  - **Operational impact**:
+    - bot execution output is now queryable without scraping summary blobs
+    - later charting and detailed execution UIs can evolve against stable row-based storage
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

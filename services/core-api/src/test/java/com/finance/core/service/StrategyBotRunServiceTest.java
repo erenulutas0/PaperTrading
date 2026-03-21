@@ -7,6 +7,8 @@ import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.dto.StrategyBotRunResponse;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +42,10 @@ class StrategyBotRunServiceTest {
     private StrategyBotService strategyBotService;
     @Mock
     private PortfolioRepository portfolioRepository;
+    @Mock
+    private StrategyBotRunFillRepository strategyBotRunFillRepository;
+    @Mock
+    private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
     @Mock
     private MarketDataFacadeService marketDataFacadeService;
     @Mock
@@ -104,6 +110,8 @@ class StrategyBotRunServiceTest {
         assertThat(response.getSummary().get("endingEquity").asDouble()).isGreaterThan(100000.0);
         assertThat(response.getSummary().get("fills")).hasSize(2);
         assertThat(response.getSummary().get("equityCurve")).hasSize(risingCandles().size());
+        verify(strategyBotRunFillRepository).saveAll(any());
+        verify(strategyBotRunEquityPointRepository).saveAll(any());
 
         ArgumentCaptor<StrategyBotRun> captor = ArgumentCaptor.forClass(StrategyBotRun.class);
         verify(strategyBotRunRepository).save(captor.capture());

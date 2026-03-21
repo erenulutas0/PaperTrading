@@ -8,11 +8,17 @@ import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
+import com.finance.core.domain.StrategyBotRunEquityPoint;
+import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
+import com.finance.core.dto.StrategyBotRunEquityPointResponse;
+import com.finance.core.dto.StrategyBotRunFillResponse;
 import com.finance.core.dto.StrategyBotRunRequest;
 import com.finance.core.dto.StrategyBotRunResponse;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -41,6 +47,8 @@ public class StrategyBotRunService {
     private final StrategyBotService strategyBotService;
     private final StrategyBotRuleEngineService strategyBotRuleEngineService;
     private final PortfolioRepository portfolioRepository;
+    private final StrategyBotRunFillRepository strategyBotRunFillRepository;
+    private final StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
     private final MarketDataFacadeService marketDataFacadeService;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
@@ -57,6 +65,20 @@ public class StrategyBotRunService {
         strategyBotService.getOwnedBotEntity(botId, userId);
         return toResponse(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found")));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StrategyBotRunFillResponse> getRunFills(UUID botId, UUID runId, UUID userId, Pageable pageable) {
+        StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
+        return strategyBotRunFillRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), pageable)
+                .map(this::toFillResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StrategyBotRunEquityPointResponse> getRunEquityCurve(UUID botId, UUID runId, UUID userId, Pageable pageable) {
+        StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
+        return strategyBotRunEquityPointRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), pageable)
+                .map(this::toEquityPointResponse);
     }
 
     @Transactional
@@ -128,6 +150,11 @@ public class StrategyBotRunService {
 
         List<MarketCandleResponse> candles = loadBacktestCandles(bot, run);
         BacktestSummary summary = simulateBacktest(bot, run, candles);
+
+        strategyBotRunFillRepository.deleteByStrategyBotRunId(run.getId());
+        strategyBotRunEquityPointRepository.deleteByStrategyBotRunId(run.getId());
+        strategyBotRunFillRepository.saveAll(summary.fillRows());
+        strategyBotRunEquityPointRepository.saveAll(summary.equityPoints());
 
         run.setStatus(StrategyBotRun.Status.COMPLETED);
         run.setCompletedAt(LocalDateTime.now());
@@ -270,10 +297,14 @@ public class StrategyBotRunService {
         int lossCount = 0;
         List<Map<String, Object>> fills = new ArrayList<>();
         List<Map<String, Object>> equityCurve = new ArrayList<>();
+        List<StrategyBotRunFill> fillRows = new ArrayList<>();
+        List<StrategyBotRunEquityPoint> equityPointRows = new ArrayList<>();
         double peakEquity = cash;
         double maxDrawdownPercent = 0.0;
         long lastEntryOpenTime = Long.MIN_VALUE;
         long cooldownMillis = Math.max(bot.getCooldownMinutes(), 0L) * 60_000L;
+        int fillSequence = 0;
+        int equitySequence = 0;
 
         for (int i = 0; i < candles.size(); i++) {
             List<MarketCandleResponse> window = candles.subList(0, i + 1);
@@ -295,6 +326,7 @@ public class StrategyBotRunService {
                     double pnl = proceeds - (quantity * entryPrice);
                     cash += proceeds;
                     fills.add(fill("EXIT", candle, exitPrice, quantity, pnl, exit.matchedRules()));
+                    fillRows.add(fillRow(run.getId(), ++fillSequence, "EXIT", candle, exitPrice, quantity, pnl, exit.matchedRules()));
                     if (pnl >= 0) {
                         winCount++;
                     } else {
@@ -318,6 +350,7 @@ public class StrategyBotRunService {
                         positionOpen = true;
                         lastEntryOpenTime = candle.getOpenTime();
                         fills.add(fill("ENTRY", candle, entryPrice, quantity, 0.0, entry.matchedRules()));
+                        fillRows.add(fillRow(run.getId(), ++fillSequence, "ENTRY", candle, entryPrice, quantity, 0.0, entry.matchedRules()));
                     }
                 }
             }
@@ -328,6 +361,7 @@ public class StrategyBotRunService {
                 maxDrawdownPercent = Math.max(maxDrawdownPercent, ((peakEquity - equity) / peakEquity) * 100.0);
             }
             equityCurve.add(equityPoint(candle, equity));
+            equityPointRows.add(equityPointRow(run.getId(), ++equitySequence, candle, equity));
         }
 
         double startingCapital = run.getEffectiveInitialCapital().doubleValue();
@@ -360,6 +394,8 @@ public class StrategyBotRunService {
 
         return new BacktestSummary(
                 payload,
+                fillRows,
+                equityPointRows,
                 tradeCount,
                 winCount,
                 lossCount,
@@ -383,6 +419,12 @@ public class StrategyBotRunService {
         }
     }
 
+    private StrategyBotRun getOwnedRunEntity(UUID botId, UUID runId, UUID userId) {
+        strategyBotService.getOwnedBotEntity(botId, userId);
+        return strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+    }
+
     private Map<String, Object> fill(String side,
                                      MarketCandleResponse candle,
                                      double price,
@@ -399,6 +441,26 @@ public class StrategyBotRunService {
         return row;
     }
 
+    private StrategyBotRunFill fillRow(UUID runId,
+                                       int sequenceNo,
+                                       String side,
+                                       MarketCandleResponse candle,
+                                       double price,
+                                       double quantity,
+                                       double realizedPnl,
+                                       List<String> matchedRules) {
+        return StrategyBotRunFill.builder()
+                .strategyBotRunId(runId)
+                .sequenceNo(sequenceNo)
+                .side(side)
+                .openTime(candle.getOpenTime())
+                .price(BigDecimal.valueOf(price).setScale(8, RoundingMode.HALF_UP))
+                .quantity(BigDecimal.valueOf(quantity).setScale(8, RoundingMode.HALF_UP))
+                .realizedPnl(BigDecimal.valueOf(round(realizedPnl)).setScale(2, RoundingMode.HALF_UP))
+                .matchedRules(writeJsonArray(matchedRules))
+                .build();
+    }
+
     private Map<String, Object> equityPoint(MarketCandleResponse candle, double equity) {
         LinkedHashMap<String, Object> row = new LinkedHashMap<>();
         row.put("openTime", candle.getOpenTime());
@@ -407,8 +469,29 @@ public class StrategyBotRunService {
         return row;
     }
 
+    private StrategyBotRunEquityPoint equityPointRow(UUID runId,
+                                                     int sequenceNo,
+                                                     MarketCandleResponse candle,
+                                                     double equity) {
+        return StrategyBotRunEquityPoint.builder()
+                .strategyBotRunId(runId)
+                .sequenceNo(sequenceNo)
+                .openTime(candle.getOpenTime())
+                .closePrice(BigDecimal.valueOf(candle.getClose()).setScale(8, RoundingMode.HALF_UP))
+                .equity(BigDecimal.valueOf(round(equity)).setScale(2, RoundingMode.HALF_UP))
+                .build();
+    }
+
     private double round(double value) {
         return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
+    }
+
+    private String writeJsonArray(List<String> values) {
+        try {
+            return objectMapper.writeValueAsString(values);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Failed to serialize strategy bot run matched rules", ex);
+        }
     }
 
     private String writeSummary(Map<String, Object> payload) {
@@ -449,8 +532,35 @@ public class StrategyBotRunService {
                 .build();
     }
 
+    private StrategyBotRunFillResponse toFillResponse(StrategyBotRunFill row) {
+        return StrategyBotRunFillResponse.builder()
+                .id(row.getId())
+                .strategyBotRunId(row.getStrategyBotRunId())
+                .sequenceNo(row.getSequenceNo())
+                .side(row.getSide())
+                .openTime(row.getOpenTime())
+                .price(row.getPrice())
+                .quantity(row.getQuantity())
+                .realizedPnl(row.getRealizedPnl())
+                .matchedRules(parseJson(row.getMatchedRules()))
+                .build();
+    }
+
+    private StrategyBotRunEquityPointResponse toEquityPointResponse(StrategyBotRunEquityPoint row) {
+        return StrategyBotRunEquityPointResponse.builder()
+                .id(row.getId())
+                .strategyBotRunId(row.getStrategyBotRunId())
+                .sequenceNo(row.getSequenceNo())
+                .openTime(row.getOpenTime())
+                .closePrice(row.getClosePrice())
+                .equity(row.getEquity())
+                .build();
+    }
+
     private record BacktestSummary(
             Map<String, Object> payload,
+            List<StrategyBotRunFill> fillRows,
+            List<StrategyBotRunEquityPoint> equityPoints,
             int tradeCount,
             int winCount,
             int lossCount,
