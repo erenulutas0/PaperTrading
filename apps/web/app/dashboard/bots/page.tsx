@@ -19,7 +19,7 @@ type StrategyBot = {
 type StrategyBotRun = {
     id: string; runMode: RunMode; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'; requestedAt: string;
     fromDate?: string; toDate?: string; errorMessage?: string | null;
-    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null; lastEvaluatedOpenTime?: number | null; positionOpen?: boolean; openQuantity?: number | null; openEntryPrice?: number | null } | null;
+    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null; avgHoldHours?: number | null; maxHoldHours?: number | null; timeInMarketPercent?: number | null; avgExposurePercent?: number | null; entryReasonCounts?: Record<string, number>; exitReasonCounts?: Record<string, number>; lastEvaluatedOpenTime?: number | null; positionOpen?: boolean; openQuantity?: number | null; openEntryPrice?: number | null } | null;
 };
 type StrategyBotRunFill = {
     id: string; sequenceNo: number; side: 'ENTRY' | 'EXIT'; openTime: number;
@@ -582,6 +582,49 @@ export default function StrategyBotsPage() {
                                                         <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                             <p className="text-zinc-500">Worst Trade</p>
                                                             <p className="mt-1 font-bold text-red-200">{fmtCurrency(selectedRun?.summary?.worstTradePnl)}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Execution Attribution</p>
+                                                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Avg Hold</p>
+                                                            <p className="mt-1 font-bold text-white">{selectedRun?.summary?.avgHoldHours != null ? `${selectedRun.summary.avgHoldHours.toFixed(2)}h` : 'N/A'}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Max Hold</p>
+                                                            <p className="mt-1 font-bold text-white">{selectedRun?.summary?.maxHoldHours != null ? `${selectedRun.summary.maxHoldHours.toFixed(2)}h` : 'N/A'}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Time In Market</p>
+                                                            <p className="mt-1 font-bold text-cyan-100">{fmtPercent(selectedRun?.summary?.timeInMarketPercent)}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Avg Exposure</p>
+                                                            <p className="mt-1 font-bold text-cyan-100">{fmtPercent(selectedRun?.summary?.avgExposurePercent)}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Entry Drivers</p>
+                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                {Object.entries(selectedRun?.summary?.entryReasonCounts ?? {}).length === 0 ? (
+                                                                    <span className="text-zinc-500">None</span>
+                                                                ) : Object.entries(selectedRun?.summary?.entryReasonCounts ?? {}).map(([rule, count]) => (
+                                                                    <span key={rule} className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-100">{rule} x{count}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Exit Drivers</p>
+                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                {Object.entries(selectedRun?.summary?.exitReasonCounts ?? {}).length === 0 ? (
+                                                                    <span className="text-zinc-500">None</span>
+                                                                ) : Object.entries(selectedRun?.summary?.exitReasonCounts ?? {}).map(([rule, count]) => (
+                                                                    <span key={rule} className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100">{rule} x{count}</span>
+                                                                ))}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>

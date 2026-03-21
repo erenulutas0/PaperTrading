@@ -671,6 +671,20 @@ Last updated: 2026-03-21
     - `StrategyBotRunServiceTest`
     - `StrategyBotRunControllerIntegrationTest`
     - `apps/web` `npx tsc --noEmit`
+- [x] Added strategy-bot execution attribution metrics:
+  - backend run summary now also surfaces:
+    - `avgHoldHours`
+    - `maxHoldHours`
+    - `timeInMarketPercent`
+    - `avgExposurePercent`
+    - `entryReasonCounts`
+    - `exitReasonCounts`
+  - frontend:
+    - `/dashboard/bots` selected-run detail now shows execution-attribution cards and rule-driver chips
+  - validation:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotRunControllerIntegrationTest`
+    - `apps/web` `npx tsc --noEmit`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

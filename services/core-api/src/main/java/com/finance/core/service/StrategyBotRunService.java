@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -435,6 +436,13 @@ public class StrategyBotRunService {
         double grossLoss = 0.0;
         Double bestTradePnl = null;
         Double worstTradePnl = null;
+        long currentEntryOpenTime = Long.MIN_VALUE;
+        long totalHoldMillis = 0L;
+        long maxHoldMillis = 0L;
+        int inMarketSamples = 0;
+        double exposurePercentSum = 0.0;
+        Map<String, Integer> entryReasonCounts = new HashMap<>();
+        Map<String, Integer> exitReasonCounts = new HashMap<>();
         List<Map<String, Object>> fills = new ArrayList<>();
         List<Map<String, Object>> equityCurve = new ArrayList<>();
         List<StrategyBotRunFill> fillRows = new ArrayList<>();
@@ -464,6 +472,7 @@ public class StrategyBotRunService {
                     double exitPrice = candle.getClose();
                     double proceeds = quantity * exitPrice;
                     double pnl = proceeds - (quantity * entryPrice);
+                    long holdMillis = currentEntryOpenTime == Long.MIN_VALUE ? 0L : Math.max(0L, candle.getOpenTime() - currentEntryOpenTime);
                     cash += proceeds;
                     fills.add(fill("EXIT", candle, exitPrice, quantity, pnl, exit.matchedRules()));
                     fillRows.add(fillRow(run.getId(), ++fillSequence, "EXIT", candle, exitPrice, quantity, pnl, exit.matchedRules()));
@@ -476,9 +485,13 @@ public class StrategyBotRunService {
                     }
                     bestTradePnl = bestTradePnl == null ? pnl : Math.max(bestTradePnl, pnl);
                     worstTradePnl = worstTradePnl == null ? pnl : Math.min(worstTradePnl, pnl);
+                    totalHoldMillis += holdMillis;
+                    maxHoldMillis = Math.max(maxHoldMillis, holdMillis);
+                    incrementReasonCounts(exitReasonCounts, exit.matchedRules(), closePositionAtEnd && i == candles.size() - 1 ? "end_of_window" : "manual_exit");
                     positionOpen = false;
                     quantity = 0.0;
                     entryPrice = 0.0;
+                    currentEntryOpenTime = Long.MIN_VALUE;
                 }
             } else if (i > 0 && (lastEntryOpenTime == Long.MIN_VALUE || candle.getOpenTime() - lastEntryOpenTime >= cooldownMillis)) {
                 StrategyBotRuleEngineService.SignalEvaluation entry = evaluateRulesSafely(
@@ -493,6 +506,8 @@ public class StrategyBotRunService {
                         cash -= entryCash;
                         positionOpen = true;
                         lastEntryOpenTime = candle.getOpenTime();
+                        currentEntryOpenTime = candle.getOpenTime();
+                        incrementReasonCounts(entryReasonCounts, entry.matchedRules(), "entry_signal");
                         fills.add(fill("ENTRY", candle, entryPrice, quantity, 0.0, entry.matchedRules()));
                         fillRows.add(fillRow(run.getId(), ++fillSequence, "ENTRY", candle, entryPrice, quantity, 0.0, entry.matchedRules()));
                     }
@@ -500,6 +515,13 @@ public class StrategyBotRunService {
             }
 
             double equity = cash + (positionOpen ? quantity * candle.getClose() : 0.0);
+            if (positionOpen) {
+                inMarketSamples++;
+                double marketValue = quantity * candle.getClose();
+                if (equity > 0.0) {
+                    exposurePercentSum += (marketValue / equity) * 100.0;
+                }
+            }
             peakEquity = Math.max(peakEquity, equity);
             if (peakEquity > 0.0) {
                 maxDrawdownPercent = Math.max(maxDrawdownPercent, ((peakEquity - equity) / peakEquity) * 100.0);
@@ -518,6 +540,10 @@ public class StrategyBotRunService {
         Double avgLossPnl = lossCount == 0 ? null : round((-grossLoss) / lossCount);
         Double profitFactor = grossLoss == 0.0 ? null : round(grossProfit / grossLoss);
         Double expectancyPerTrade = tradeCount == 0 ? null : round(netPnl / tradeCount);
+        Double avgHoldHours = tradeCount == 0 ? null : round(totalHoldMillis / 3_600_000.0 / tradeCount);
+        Double maxHoldHours = tradeCount == 0 ? null : round(maxHoldMillis / 3_600_000.0);
+        Double timeInMarketPercent = candles.isEmpty() ? null : round((inMarketSamples * 100.0) / candles.size());
+        Double avgExposurePercent = inMarketSamples == 0 ? null : round(exposurePercentSum / inMarketSamples);
         Long lastEvaluatedOpenTime = candles.isEmpty() ? null : candles.get(candles.size() - 1).getOpenTime();
 
         LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
@@ -543,6 +569,12 @@ public class StrategyBotRunService {
         payload.put("expectancyPerTrade", expectancyPerTrade);
         payload.put("bestTradePnl", bestTradePnl == null ? null : round(bestTradePnl));
         payload.put("worstTradePnl", worstTradePnl == null ? null : round(worstTradePnl));
+        payload.put("avgHoldHours", avgHoldHours);
+        payload.put("maxHoldHours", maxHoldHours);
+        payload.put("timeInMarketPercent", timeInMarketPercent);
+        payload.put("avgExposurePercent", avgExposurePercent);
+        payload.put("entryReasonCounts", entryReasonCounts);
+        payload.put("exitReasonCounts", exitReasonCounts);
         payload.put("positionOpen", positionOpen);
         payload.put("openQuantity", positionOpen ? round(quantity) : null);
         payload.put("openEntryPrice", positionOpen ? round(entryPrice) : null);
@@ -579,6 +611,14 @@ public class StrategyBotRunService {
             }
             throw ex;
         }
+    }
+
+    private void incrementReasonCounts(Map<String, Integer> bucket, List<String> matchedRules, String fallback) {
+        if (matchedRules == null || matchedRules.isEmpty()) {
+            bucket.merge(fallback, 1, Integer::sum);
+            return;
+        }
+        matchedRules.forEach(rule -> bucket.merge(rule, 1, Integer::sum));
     }
 
     private StrategyBotRun getOwnedRunEntity(UUID botId, UUID runId, UUID userId) {

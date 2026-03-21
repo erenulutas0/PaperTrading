@@ -222,7 +222,9 @@ class StrategyBotRunControllerIntegrationTest {
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.summary.fillCount").value(2));
+                .andExpect(jsonPath("$.summary.fillCount").value(2))
+                .andExpect(jsonPath("$.summary.avgHoldHours").exists())
+                .andExpect(jsonPath("$.summary.exitReasonCounts.take_profit_hit").value(1));
 
         mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/fills")
                         .header("X-User-Id", userId.toString()))

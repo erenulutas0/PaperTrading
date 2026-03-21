@@ -255,6 +255,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the product now has a real live-paper monitoring loop without introducing brokerage semantics or a second hidden execution model
     - later evolution can optimize refresh/incremental state handling behind a stable API and UI contract
+- **2026-03-22**: **Strategy Bot Runs Now Expose Attribution Metrics, Not Just Outcome Totals**
+  - **Problem observed**:
+    - Run summaries already exposed result quality:
+      - return
+      - drawdown
+      - expectancy
+    - But they still did not explain *how* a run spent time and risk:
+      - holding duration
+      - time in market
+      - average exposure
+      - which entry/exit drivers actually fired
+  - **Implementation**:
+    - Extended run summaries with:
+      - `avgHoldHours`
+      - `maxHoldHours`
+      - `timeInMarketPercent`
+      - `avgExposurePercent`
+      - `entryReasonCounts`
+      - `exitReasonCounts`
+    - `/dashboard/bots` now renders a dedicated execution-attribution block with those metrics and rule-driver chips.
+  - **Operational impact**:
+    - strategy evaluation is now less dependent on terminal PnL alone
+    - later attribution tables can build on an already-exposed semantics layer instead of inventing first-generation labels in the UI
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:
