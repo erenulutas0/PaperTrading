@@ -516,6 +516,14 @@ Last updated: 2026-03-21
   - Local mechanical validation:
     - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_follower_fanout_stress_suite.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
 - [ ] Run follower-fanout stress profile with staged high follower counts (`1k -> 5k -> 10k`) and persist median reports (`repeat_baseline_median.ps1`)
+- [x] Added feed latency recalibration checklist wrapper:
+  - Added:
+    - `infra/load-test/run_feed_latency_recalibration_checklist.ps1`
+  - Behavior:
+    - reuses `calibrate_feed_thresholds.ps1`
+    - emits one summary report with recommended `APP_FEED_OBSERVABILITY_*` overrides
+  - Local mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_feed_latency_recalibration_checklist.ps1 -ReportsGlob "infra/load-test/reports/load-baseline-median-*.md" -NoFail`
 - [ ] Re-calibrate feed latency thresholds from one-sprint production telemetry and adjust `APP_FEED_OBSERVABILITY_*` as needed
 - [ ] Configure real ops webhook URL in staging/prod (`APP_ALERTING_WEBHOOK_URL`) and run webhook validation script against live app (`-SkipAppStart`) with real endpoint
 - [ ] Move auth migration to enforcement mode in staging (`APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`) and resolve any failing clients

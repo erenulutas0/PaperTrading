@@ -200,6 +200,21 @@ Calibrate feed alert thresholds from historical median reports:
   -Percentile 0.90
 ```
 
+Run a single-command feed latency recalibration checklist:
+
+```powershell
+./infra/load-test/run_feed_latency_recalibration_checklist.ps1 `
+  -ReportsGlob "infra/load-test/reports/load-baseline-median-*.md"
+```
+
+Useful notes:
+- this wrapper delegates to `calibrate_feed_thresholds.ps1`
+- it emits one summary report with the recommended:
+  - `APP_FEED_OBSERVABILITY_WARNING_P95_MS`
+  - `APP_FEED_OBSERVABILITY_WARNING_P99_MS`
+  - `APP_FEED_OBSERVABILITY_CRITICAL_P99_MS`
+- use it after collecting a meaningful telemetry window or refreshed median reports
+
 Validate end-to-end ops webhook routing (starts core-api on port `18080` by default):
 
 ```powershell

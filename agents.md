@@ -38,6 +38,32 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Feed Latency Threshold Recalibration Now Has A Checklist Wrapper**
+  - **Problem observed**:
+    - The repo already had the core calibration primitive:
+      - `calibrate_feed_thresholds.ps1`
+    - But the still-open TODO was operational:
+      - after one sprint of telemetry, rerun calibration and decide what to change in `APP_FEED_OBSERVABILITY_*`
+    - That still required operators to remember the raw calibration script and manually read its output.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_feed_latency_recalibration_checklist.ps1`
+    - The wrapper:
+      - reuses `calibrate_feed_thresholds.ps1`
+      - captures the fresh calibration report
+      - emits one summary markdown report with:
+        - status
+        - parsed report count
+        - recommended:
+          - `APP_FEED_OBSERVABILITY_WARNING_P95_MS`
+          - `APP_FEED_OBSERVABILITY_WARNING_P99_MS`
+          - `APP_FEED_OBSERVABILITY_CRITICAL_P99_MS`
+  - **Operational impact**:
+    - feed-threshold recalibration is now a one-command checklist instead of a remembered raw calibration step
+    - the remaining TODO is narrower: collect real telemetry, then rerun the checklist and decide whether to update runtime env defaults
+  - **Validation**:
+    - Local mechanical pass executed against existing median reports:
+      - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_feed_latency_recalibration_checklist.ps1 -ReportsGlob "infra/load-test/reports/load-baseline-median-*.md" -NoFail`
 - **2026-03-21**: **Follower Personalized Feed Invalidations Can Now Use Versioned Cache Keys**
   - **Problem observed**:
     - The feed publish path had already been hardened by defaulting eager follower invalidation off.
