@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **WebSocket Canary Failure-Path Logging Was Reduced To Single-Line Warns**
+  - **Problem observed**:
+    - Canary failure-path tests intentionally drive probe exceptions.
+    - The service was logging those expected test failures as `warn` with full stacktraces, which polluted CI/test logs without adding much operational signal because:
+      - the failure snapshot already captures the normalized error
+      - alert publication already preserves the failure event
+  - **Implementation**:
+    - `WebSocketCanaryService` now logs:
+      - single-line `warn` with the normalized exception message
+      - stacktrace only at `debug`
+    - `WebSocketCanaryServiceTest` now captures console output and locks this reduced-noise contract for the throwing-client path.
+  - **Operational impact**:
+    - expected canary failure-path tests remain observable without dumping warning stacktraces into CI logs
+    - real runtime failures still surface at warning level with the normalized error reason
 - **2026-03-21**: **Strict Auth Pre-Cutover Readiness Now Has A Single Staging Entry Point**
   - **Problem observed**:
     - The strict-auth rollout already had the underlying building blocks for pre-cutover judgement:

@@ -6,6 +6,9 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,6 +18,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(OutputCaptureExtension.class)
 class WebSocketCanaryServiceTest {
 
     private WebSocketCanaryProperties properties;
@@ -141,7 +145,7 @@ class WebSocketCanaryServiceTest {
     }
 
     @Test
-    void runCanaryProbe_whenClientThrows_shouldReturnFailedSnapshotInsteadOfThrowing() {
+    void runCanaryProbe_whenClientThrows_shouldReturnFailedSnapshotInsteadOfThrowing(CapturedOutput output) {
         properties.setWarningConsecutiveFailureThreshold(1);
         when(canaryClient.probe(any())).thenThrow(new IllegalStateException("broker unavailable"));
 
@@ -163,5 +167,7 @@ class WebSocketCanaryServiceTest {
                 anyString(),
                 anyMap()
         );
+        assertTrue(output.getOut().contains("WebSocket canary probe raised exception: broker unavailable"));
+        assertTrue(!output.getOut().contains("java.lang.IllegalStateException: broker unavailable"));
     }
 }

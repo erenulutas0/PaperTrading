@@ -491,7 +491,9 @@ Last updated: 2026-03-21
 
 ## Next
 - [ ] Add audit-log read tooling (admin/report/export or actuator-style inspection path) once write-path capture is stable in staging
-- [ ] Add test/log hardening for canary failure-path tests (reduce expected-failure warning noise in CI logs)
+- [x] Add test/log hardening for canary failure-path tests (reduce expected-failure warning noise in CI logs)
+  - `WebSocketCanaryService` now emits a single-line `warn` plus `debug` stacktrace for expected probe exceptions instead of full warning-stacktrace noise
+  - `WebSocketCanaryServiceTest` captures output and locks the reduced-noise failure-path logging contract
 - [ ] If strict real-time follower fanout is required again, introduce versioned feed cache keys to avoid pattern-scan invalidation costs in eager mode
 - [ ] Run follower-fanout stress profile with staged high follower counts (`1k -> 5k -> 10k`) and persist median reports (`repeat_baseline_median.ps1`)
 - [ ] Re-calibrate feed latency thresholds from one-sprint production telemetry and adjust `APP_FEED_OBSERVABILITY_*` as needed

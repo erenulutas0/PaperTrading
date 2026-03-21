@@ -227,7 +227,8 @@ public class WebSocketCanaryService {
             }
             return result;
         } catch (Exception ex) {
-            log.warn("WebSocket canary probe raised exception: {}", ex.getMessage(), ex);
+            log.warn("WebSocket canary probe raised exception: {}", ex.getMessage());
+            log.debug("WebSocket canary probe stacktrace", ex);
             return new WebSocketCanaryProbeResult(
                     false,
                     false,
