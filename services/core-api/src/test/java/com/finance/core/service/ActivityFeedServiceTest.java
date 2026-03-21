@@ -15,12 +15,14 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.*;
 
@@ -45,8 +47,10 @@ class ActivityFeedServiceTest {
         UUID targetId = UUID.randomUUID();
         UUID followerId = UUID.randomUUID();
         feedService.setInvalidateFollowerCachesOnPublish(true);
+        feedService.setFollowerFeedVersionTtl(Duration.ofMinutes(5));
         when(followRepository.findByFollowingId(eq(actorId), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(Follow.builder().followerId(followerId).followingId(actorId).build())));
+        when(cacheService.incrementWithTtl("feed:user-version:" + followerId, Duration.ofMinutes(5))).thenReturn(1L);
 
         when(eventRepository.save(any())).thenAnswer(inv -> {
             ActivityEvent e = inv.getArgument(0);
@@ -67,7 +71,8 @@ class ActivityFeedServiceTest {
         assertEquals("BTC Analysis", event.getTargetLabel());
         verify(eventRepository).save(any(ActivityEvent.class));
         verify(cacheService).deletePattern("feed:global:*");
-        verify(cacheService).deletePattern("feed:user:" + followerId + ":*");
+        verify(cacheService).incrementWithTtl("feed:user-version:" + followerId, Duration.ofMinutes(5));
+        verify(cacheService, never()).deletePattern("feed:user:" + followerId + ":*");
     }
 
     @Test
@@ -77,6 +82,7 @@ class ActivityFeedServiceTest {
         UUID followerA = UUID.randomUUID();
         UUID followerB = UUID.randomUUID();
         feedService.setInvalidateFollowerCachesOnPublish(true);
+        when(cacheService.incrementWithTtl(startsWith("feed:user-version:"), any(Duration.class))).thenReturn(1L);
 
         Page<Follow> first = new PageImpl<>(
                 List.of(Follow.builder().followerId(followerA).followingId(actorId).build()),
@@ -99,8 +105,8 @@ class ActivityFeedServiceTest {
 
         verify(followRepository).findByFollowingId(eq(actorId), eq(PageRequest.of(0, 500)));
         verify(followRepository).findByFollowingId(eq(actorId), eq(PageRequest.of(1, 500)));
-        verify(cacheService).deletePattern("feed:user:" + followerA + ":*");
-        verify(cacheService).deletePattern("feed:user:" + followerB + ":*");
+        verify(cacheService).incrementWithTtl(eq("feed:user-version:" + followerA), any(Duration.class));
+        verify(cacheService).incrementWithTtl(eq("feed:user-version:" + followerB), any(Duration.class));
     }
 
     @Test
@@ -134,6 +140,7 @@ class ActivityFeedServiceTest {
                 .targetType(ActivityEvent.TargetType.POST)
                 .targetId(UUID.randomUUID())
                 .build();
+        when(cacheService.get("feed:user-version:" + userId, Long.class)).thenReturn(Optional.of(3L));
         when(eventRepository.findPersonalizedFeedByFollowerId(userId, pageable))
                 .thenReturn(new PageImpl<>(List.of(event)));
 
@@ -141,6 +148,7 @@ class ActivityFeedServiceTest {
 
         assertEquals(1, feed.getTotalElements());
         assertEquals(followedId, feed.getContent().get(0).getActorId());
+        verify(cacheService).get(startsWith("feed:user:" + userId + ":v3:"), any(com.fasterxml.jackson.core.type.TypeReference.class));
         verify(eventRepository).findPersonalizedFeedByFollowerId(userId, pageable);
         verify(followRepository, never()).findByFollowerId(any(UUID.class));
     }
@@ -150,6 +158,7 @@ class ActivityFeedServiceTest {
         UUID userId = UUID.randomUUID();
         Pageable pageable = PageRequest.of(0, 20);
 
+        when(cacheService.get("feed:user-version:" + userId, Long.class)).thenReturn(Optional.empty());
         when(eventRepository.findPersonalizedFeedByFollowerId(userId, pageable))
                 .thenReturn(Page.empty(pageable));
 
@@ -158,6 +167,28 @@ class ActivityFeedServiceTest {
         assertTrue(feed.isEmpty());
         verify(eventRepository).findPersonalizedFeedByFollowerId(userId, pageable);
         verify(followRepository, never()).findByFollowerId(any(UUID.class));
+    }
+
+    @Test
+    void publish_shouldFallbackToPatternDelete_whenVersionedFollowerKeysDisabled() {
+        UUID actorId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        UUID followerId = UUID.randomUUID();
+        feedService.setInvalidateFollowerCachesOnPublish(true);
+        feedService.setVersionFollowerFeedKeysOnPublish(false);
+
+        when(followRepository.findByFollowingId(eq(actorId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(Follow.builder().followerId(followerId).followingId(actorId).build())));
+        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        feedService.publish(
+                actorId, "trader1",
+                ActivityEvent.EventType.POST_CREATED,
+                ActivityEvent.TargetType.POST,
+                targetId, "BTC Analysis");
+
+        verify(cacheService).deletePattern("feed:user:" + followerId + ":*");
+        verify(cacheService, never()).incrementWithTtl(eq("feed:user-version:" + followerId), any(Duration.class));
     }
 
     @Test

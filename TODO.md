@@ -502,7 +502,10 @@ Last updated: 2026-03-21
 - [x] Add test/log hardening for canary failure-path tests (reduce expected-failure warning noise in CI logs)
   - `WebSocketCanaryService` now emits a single-line `warn` plus `debug` stacktrace for expected probe exceptions instead of full warning-stacktrace noise
   - `WebSocketCanaryServiceTest` captures output and locks the reduced-noise failure-path logging contract
-- [ ] If strict real-time follower fanout is required again, introduce versioned feed cache keys to avoid pattern-scan invalidation costs in eager mode
+- [x] If strict real-time follower fanout is required again, introduce versioned feed cache keys to avoid pattern-scan invalidation costs in eager mode
+  - personalized follower feed cache keys now include a version suffix
+  - eager follower invalidation can bump `feed:user-version:{userId}` instead of pattern-scanning `feed:user:{userId}:*`
+  - pattern-delete fallback remains available when versioned follower keys are disabled or Redis increment fails
 - [x] Added staged follower-fanout median suite wrapper:
   - Added:
     - `infra/load-test/run_follower_fanout_stress_suite.ps1`

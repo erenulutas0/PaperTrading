@@ -38,6 +38,32 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Follower Personalized Feed Invalidations Can Now Use Versioned Cache Keys**
+  - **Problem observed**:
+    - The feed publish path had already been hardened by defaulting eager follower invalidation off.
+    - But the open fallback TODO was valid: if strict follower-level cache invalidation is re-enabled for realtime fanout, the old path would return to:
+      - per-follower pattern scans over `feed:user:{id}:*`
+    - That is exactly the expensive invalidation shape the earlier fanout stress work tried to move away from.
+  - **Implementation**:
+    - `ActivityFeedService` now supports versioned personalized feed keys:
+      - `feed:user:{userId}:v{version}:...`
+    - When eager follower invalidation is enabled, the service now prefers:
+      - bump `feed:user-version:{userId}` with TTL
+    - Fallback behavior is preserved:
+      - if versioned follower keys are disabled
+      - or the Redis increment fails
+      - the old `deletePattern("feed:user:{id}:*")` path is still used
+    - Added runtime config:
+      - `app.feed.cache.version-followers-on-publish`
+      - `app.feed.cache.follower-version-ttl`
+    - Added service coverage to lock:
+      - versioned invalidation on publish
+      - version-aware personalized read keys
+      - legacy pattern-delete fallback
+  - **Operational impact**:
+    - re-enabling strict follower cache invalidation no longer immediately implies per-follower key-pattern scans
+    - stale personalized feed pages can age out via TTL while fresh reads move to the next versioned namespace
+    - the remaining feed-scale TODO is now the actual staged `1k -> 5k -> 10k` run, not missing invalidation mechanics
 - **2026-03-21**: **Follower-Fanout Median Stress Now Has A Staged Suite Wrapper**
   - **Problem observed**:
     - The feed load tooling already supported:

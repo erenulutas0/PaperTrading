@@ -35,6 +35,7 @@ public class ActivityFeedService {
 
     private static final String GLOBAL_FEED_KEY = "feed:global";
     private static final String USER_FEED_KEY_PREFIX = "feed:user:";
+    private static final String USER_FEED_VERSION_KEY_PREFIX = "feed:user-version:";
     private static final int MIN_LOCAL_CACHE_ENTRIES = 16;
     private static final int MIN_LOCAL_LOCK_STRIPES = 1;
     private static final int MIN_FOLLOWER_INVALIDATION_BATCH_SIZE = 50;
@@ -49,7 +50,9 @@ public class ActivityFeedService {
     private int followerInvalidationBatchSize = DEFAULT_FOLLOWER_INVALIDATION_BATCH_SIZE;
     private boolean invalidateGlobalCacheOnPublish = true;
     private boolean invalidateFollowerCachesOnPublish = false;
+    private boolean versionFollowerFeedKeysOnPublish = true;
     private boolean broadcastToFollowersOnPublish = false;
+    private Duration followerFeedVersionTtl = Duration.ofHours(1);
 
     @Value("${app.feed.cache.redis-ttl:PT15S}")
     public void setRedisFeedTtl(Duration redisFeedTtl) {
@@ -84,6 +87,16 @@ public class ActivityFeedService {
     @Value("${app.feed.cache.invalidate-followers-on-publish:false}")
     public void setInvalidateFollowerCachesOnPublish(boolean invalidateFollowerCachesOnPublish) {
         this.invalidateFollowerCachesOnPublish = invalidateFollowerCachesOnPublish;
+    }
+
+    @Value("${app.feed.cache.version-followers-on-publish:true}")
+    public void setVersionFollowerFeedKeysOnPublish(boolean versionFollowerFeedKeysOnPublish) {
+        this.versionFollowerFeedKeysOnPublish = versionFollowerFeedKeysOnPublish;
+    }
+
+    @Value("${app.feed.cache.follower-version-ttl:PT1H}")
+    public void setFollowerFeedVersionTtl(Duration followerFeedVersionTtl) {
+        this.followerFeedVersionTtl = followerFeedVersionTtl == null ? Duration.ofHours(1) : followerFeedVersionTtl;
     }
 
     @Value("${app.feed.realtime.broadcast-followers-on-publish:false}")
@@ -129,7 +142,7 @@ public class ActivityFeedService {
                             PageRequest.of(page, followerInvalidationBatchSize));
                     for (Follow f : followerPage.getContent()) {
                         if (invalidateFollowerCachesOnPublish) {
-                            cacheService.deletePattern(USER_FEED_KEY_PREFIX + f.getFollowerId() + ":*");
+                            invalidateFollowerFeedCache(f.getFollowerId());
                         }
                         if (broadcastToFollowersOnPublish) {
                             messagingTemplate.convertAndSend("/topic/feed/" + f.getFollowerId(), event);
@@ -252,7 +265,31 @@ public class ActivityFeedService {
     }
 
     private String buildUserFeedCacheKey(UUID userId, Pageable pageable) {
-        return USER_FEED_KEY_PREFIX + userId + ":" + buildPageCacheSuffix(pageable);
+        long version = resolveFollowerFeedVersion(userId);
+        return USER_FEED_KEY_PREFIX + userId + ":v" + version + ":" + buildPageCacheSuffix(pageable);
+    }
+
+    private long resolveFollowerFeedVersion(UUID userId) {
+        if (!versionFollowerFeedKeysOnPublish) {
+            return 0L;
+        }
+        return cacheService.get(buildUserFeedVersionKey(userId), Long.class).orElse(0L);
+    }
+
+    private void invalidateFollowerFeedCache(UUID followerId) {
+        if (!versionFollowerFeedKeysOnPublish) {
+            cacheService.deletePattern(USER_FEED_KEY_PREFIX + followerId + ":*");
+            return;
+        }
+
+        Long nextVersion = cacheService.incrementWithTtl(buildUserFeedVersionKey(followerId), followerFeedVersionTtl);
+        if (nextVersion == null) {
+            cacheService.deletePattern(USER_FEED_KEY_PREFIX + followerId + ":*");
+        }
+    }
+
+    private String buildUserFeedVersionKey(UUID userId) {
+        return USER_FEED_VERSION_KEY_PREFIX + userId;
     }
 
     private String buildPageCacheSuffix(Pageable pageable) {

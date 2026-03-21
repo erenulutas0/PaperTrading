@@ -138,6 +138,8 @@ app:
       follower-invalidation-batch-size: ${APP_FEED_CACHE_FOLLOWER_INVALIDATION_BATCH_SIZE:500}
       invalidate-global-on-publish: ${APP_FEED_CACHE_INVALIDATE_GLOBAL_ON_PUBLISH:true}
       invalidate-followers-on-publish: ${APP_FEED_CACHE_INVALIDATE_FOLLOWERS_ON_PUBLISH:false}
+      version-followers-on-publish: ${APP_FEED_CACHE_VERSION_FOLLOWERS_ON_PUBLISH:true}
+      follower-version-ttl: ${APP_FEED_CACHE_FOLLOWER_VERSION_TTL:PT1H}
     realtime:
       broadcast-followers-on-publish: ${APP_FEED_REALTIME_BROADCAST_FOLLOWERS_ON_PUBLISH:false}
     observability:
