@@ -589,6 +589,24 @@ Last updated: 2026-03-21
   - tests:
     - `StrategyBotRuleEngineServiceTest`
     - `StrategyBotRunControllerIntegrationTest`
+- [x] Added strategy-bot backtest execution foundation:
+  - backend:
+    - `POST /api/v1/strategy-bots/{botId}/runs/{runId}/execute`
+    - queued backtest runs now execute against candle history
+    - current execution scope is intentionally narrow:
+      - backtest only
+      - long-only
+      - single open position
+      - summary-based fills/equity output
+    - completed summary now persists:
+      - fills
+      - equity curve
+      - ending equity
+      - return percent
+      - trade count / win count / loss count
+      - max drawdown
+  - tests:
+    - `StrategyBotRunServiceTest`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

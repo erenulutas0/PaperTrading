@@ -124,6 +124,19 @@ public class StrategyBotController {
         }
     }
 
+    @PostMapping("/{botId}/runs/{runId}/execute")
+    public ResponseEntity<?> executeRun(
+            @PathVariable UUID botId,
+            @PathVariable UUID runId,
+            @CurrentUserId UUID userId,
+            HttpServletRequest request) {
+        try {
+            return ResponseEntity.ok(strategyBotRunService.executeRun(botId, runId, userId));
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_run_execute_failed", "Failed to execute strategy bot run", request);
+        }
+    }
+
     private ResponseEntity<?> buildBotError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
         String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
         String normalized = message.toLowerCase();
@@ -145,6 +158,18 @@ public class StrategyBotController {
         }
         if (normalized.contains("must be ready before requesting a run")) {
             return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_not_ready", "Strategy bot must be READY before requesting a run", null, request);
+        }
+        if (normalized.contains("run is not executable by current engine")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_not_executable", "Strategy bot run is not executable by current engine", null, request);
+        }
+        if (normalized.contains("only backtest execution is currently supported")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_mode_not_supported", "Only backtest execution is currently supported", null, request);
+        }
+        if (normalized.contains("must be queued before execution")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_not_queued", "Strategy bot run must be QUEUED before execution", null, request);
+        }
+        if (normalized.contains("not enough candles")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_market_data_unavailable", "Not enough candles to execute strategy bot run", null, request);
         }
 
         return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);

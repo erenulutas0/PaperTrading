@@ -113,6 +113,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the product can now distinguish “bot saved” from “bot executable by the current deterministic engine”
     - the later backtest/simulator slice can target a narrower supported-rule surface instead of handling every speculative rule at once
+- **2026-03-21**: **Initial Strategy Bot Execution Is Intentionally Narrow And Summary-Based**
+  - **Problem observed**:
+    - Run journaling and rule compilation created a stable pre-execution contract, but users still had no way to actually finish a queued backtest and inspect outcome metrics.
+    - Jumping directly to a broad multi-position engine with dedicated fill tables would add too much surface area too early.
+  - **Implementation**:
+    - Added `POST /api/v1/strategy-bots/{botId}/runs/{runId}/execute`.
+    - Current execution scope is deliberately constrained:
+      - `BACKTEST` only
+      - long-only
+      - one open position at a time
+      - max-position-size sizing from current cash
+    - Completed run summaries now persist:
+      - fills
+      - equity curve
+      - ending equity
+      - net PnL / return percent
+      - trade / win / loss counts
+      - max drawdown
+  - **Operational impact**:
+    - the product now has a real end-to-end deterministic backtest slice instead of only queued run metadata
+    - later evolution toward richer simulation can replace summary-only persistence with dedicated execution tables without rewriting the initial contract
 - **2026-03-21**: **Future Bot Work Must Stay Paper-Only, Server-Executed, And Fully Auditable**
   - **Problem observed**:
     - The next natural product extension is user-created strategy bots and eventually agentic trading assistants.
