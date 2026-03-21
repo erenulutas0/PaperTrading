@@ -28,6 +28,12 @@ type StrategyBotRunFill = {
 type StrategyBotRunEquityPoint = {
     id: string; sequenceNo: number; openTime: number; closePrice: number; equity: number;
 };
+type StrategyBotRunReconciliationPlan = {
+    runId: string; strategyBotId: string; linkedPortfolioId: string; linkedPortfolioName: string; symbol: string; runStatus: string;
+    targetPositionOpen: boolean; targetQuantity: number; targetAveragePrice: number; targetLastPrice: number; targetCashBalance: number; targetEquity: number;
+    currentCashBalance: number; currentQuantity: number; currentAveragePrice: number; quantityDelta: number; cashDelta: number;
+    cashAligned: boolean; quantityAligned: boolean; portfolioAligned: boolean; extraSymbolCount: number; warnings: string[];
+};
 
 const defaultEntryRules = JSON.stringify({ all: ['price_above_ma_20', 'rsi_below_35'] }, null, 2);
 const defaultExitRules = JSON.stringify({ any: ['take_profit_hit', 'stop_loss_hit'] }, null, 2);
@@ -84,6 +90,7 @@ export default function StrategyBotsPage() {
     const [selectedRunId, setSelectedRunId] = useState('');
     const [selectedRunFills, setSelectedRunFills] = useState<StrategyBotRunFill[]>([]);
     const [selectedRunEquityCurve, setSelectedRunEquityCurve] = useState<StrategyBotRunEquityPoint[]>([]);
+    const [selectedRunReconciliation, setSelectedRunReconciliation] = useState<StrategyBotRunReconciliationPlan | null>(null);
     const [editingBotId, setEditingBotId] = useState<string | null>(null);
     const [botForm, setBotForm] = useState({ name: '', description: '', linkedPortfolioId: '', market: 'CRYPTO', symbol: 'BTCUSDT', timeframe: '1h', status: 'DRAFT' as BotStatus, maxPositionSizePercent: '20', stopLossPercent: '3', takeProfitPercent: '8', cooldownMinutes: '60', entryRulesText: defaultEntryRules, exitRulesText: defaultExitRules });
     const [runForm, setRunForm] = useState({ runMode: 'BACKTEST' as RunMode, initialCapital: '', fromDate: '', toDate: '' });
@@ -113,9 +120,11 @@ export default function StrategyBotsPage() {
     useEffect(() => {
         if (selectedBotId && selectedRunId) {
             void loadRunOutputs(selectedBotId, selectedRunId);
+            void loadRunReconciliation(selectedBotId, selectedRunId);
         } else {
             setSelectedRunFills([]);
             setSelectedRunEquityCurve([]);
+            setSelectedRunReconciliation(null);
         }
     }, [selectedBotId, selectedRunId]);
 
@@ -162,6 +171,16 @@ export default function StrategyBotsPage() {
             setActionError(err(error));
         } finally {
             setOutputsLoading(false);
+        }
+    }
+
+    async function loadRunReconciliation(botId: string, runId: string) {
+        try {
+            const response = await apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/reconciliation-plan`, { cache: 'no-store' });
+            if (!response.ok) { setSelectedRunReconciliation(null); return; }
+            setSelectedRunReconciliation(await response.json() as StrategyBotRunReconciliationPlan);
+        } catch {
+            setSelectedRunReconciliation(null);
         }
     }
 
@@ -232,6 +251,7 @@ export default function StrategyBotsPage() {
             await loadRuns(selectedBotId);
             setSelectedRunId(runId);
             await loadRunOutputs(selectedBotId, runId);
+            await loadRunReconciliation(selectedBotId, runId);
             setNotice('Forward test refreshed');
         } catch (error) { setActionError(err(error)); } finally { setRefreshingRunId(null); }
     }
@@ -633,32 +653,49 @@ export default function StrategyBotsPage() {
                                                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                                         <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                             <p className="text-zinc-500">Linked Portfolio</p>
-                                                            <p className="mt-1 font-bold text-white">{selectedRun?.summary?.linkedPortfolioName ?? 'None'}</p>
+                                                            <p className="mt-1 font-bold text-white">{selectedRunReconciliation?.linkedPortfolioName ?? selectedRun?.summary?.linkedPortfolioName ?? 'None'}</p>
                                                             <p className="mt-1 text-zinc-500">{selectedRun?.summary?.linkedPortfolioReconciliationBaseline ?? 'N/A'}</p>
                                                         </div>
                                                         <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                             <p className="text-zinc-500">Alignment</p>
-                                                            <p className={`mt-1 font-bold ${selectedRun?.summary?.linkedPortfolioAligned ? 'text-emerald-200' : 'text-amber-200'}`}>
-                                                                {selectedRun?.summary?.linkedPortfolioAligned == null ? 'N/A' : selectedRun.summary.linkedPortfolioAligned ? 'Aligned' : 'Drifted'}
+                                                            <p className={`mt-1 font-bold ${(selectedRunReconciliation?.portfolioAligned ?? selectedRun?.summary?.linkedPortfolioAligned) ? 'text-emerald-200' : 'text-amber-200'}`}>
+                                                                {(selectedRunReconciliation?.portfolioAligned ?? selectedRun?.summary?.linkedPortfolioAligned) == null ? 'N/A' : (selectedRunReconciliation?.portfolioAligned ?? selectedRun?.summary?.linkedPortfolioAligned) ? 'Aligned' : 'Drifted'}
                                                             </p>
                                                         </div>
                                                         <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                             <p className="text-zinc-500">Portfolio Balance</p>
-                                                            <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRun?.summary?.linkedPortfolioBalance)}</p>
+                                                            <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRunReconciliation?.currentCashBalance ?? selectedRun?.summary?.linkedPortfolioBalance)}</p>
                                                         </div>
                                                         <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                             <p className="text-zinc-500">Reference Equity</p>
-                                                            <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRun?.summary?.linkedPortfolioReferenceEquity)}</p>
+                                                            <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRunReconciliation?.targetEquity ?? selectedRun?.summary?.linkedPortfolioReferenceEquity)}</p>
                                                         </div>
                                                         <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                             <p className="text-zinc-500">Drift</p>
-                                                            <p className={`mt-1 font-bold ${(selectedRun?.summary?.linkedPortfolioDrift ?? 0) >= 0 ? 'text-emerald-200' : 'text-red-200'}`}>{fmtCurrency(selectedRun?.summary?.linkedPortfolioDrift)}</p>
+                                                            <p className={`mt-1 font-bold ${(selectedRunReconciliation?.cashDelta ?? selectedRun?.summary?.linkedPortfolioDrift ?? 0) >= 0 ? 'text-emerald-200' : 'text-red-200'}`}>{fmtCurrency(selectedRunReconciliation?.cashDelta ?? selectedRun?.summary?.linkedPortfolioDrift)}</p>
                                                         </div>
                                                         <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                             <p className="text-zinc-500">Drift %</p>
                                                             <p className={`mt-1 font-bold ${(selectedRun?.summary?.linkedPortfolioDriftPercent ?? 0) >= 0 ? 'text-emerald-200' : 'text-red-200'}`}>{fmtPercent(selectedRun?.summary?.linkedPortfolioDriftPercent)}</p>
                                                         </div>
                                                     </div>
+                                                    {selectedRunReconciliation && (
+                                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                            <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                <p className="text-zinc-500">Target Position</p>
+                                                                <p className="mt-1 font-bold text-white">{selectedRunReconciliation.targetPositionOpen ? `${selectedRunReconciliation.targetQuantity.toFixed(4)} @ ${fmtCurrency(selectedRunReconciliation.targetAveragePrice)}` : 'Flat'}</p>
+                                                            </div>
+                                                            <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                <p className="text-zinc-500">Current Position</p>
+                                                                <p className="mt-1 font-bold text-white">{selectedRunReconciliation.currentQuantity > 0 ? `${selectedRunReconciliation.currentQuantity.toFixed(4)} @ ${fmtCurrency(selectedRunReconciliation.currentAveragePrice)}` : 'Flat'}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {selectedRunReconciliation?.warnings?.length ? (
+                                                        <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
+                                                            {selectedRunReconciliation.warnings.join(' | ')}
+                                                        </div>
+                                                    ) : null}
                                                 </div>
                                             </div>
                                             <div className="space-y-4">

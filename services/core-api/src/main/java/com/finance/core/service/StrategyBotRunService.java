@@ -12,10 +12,12 @@ import com.finance.core.domain.StrategyBotRunEquityPoint;
 import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
+import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.StrategyBotRunEquityPointResponse;
 import com.finance.core.dto.StrategyBotRunFillResponse;
 import com.finance.core.dto.StrategyBotRunRequest;
 import com.finance.core.dto.StrategyBotRunResponse;
+import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
@@ -48,6 +50,7 @@ public class StrategyBotRunService {
     private final StrategyBotService strategyBotService;
     private final StrategyBotRuleEngineService strategyBotRuleEngineService;
     private final PortfolioRepository portfolioRepository;
+    private final PortfolioItemRepository portfolioItemRepository;
     private final StrategyBotRunFillRepository strategyBotRunFillRepository;
     private final StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
     private final MarketDataFacadeService marketDataFacadeService;
@@ -80,6 +83,89 @@ public class StrategyBotRunService {
         StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
         return strategyBotRunEquityPointRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), pageable)
                 .map(this::toEquityPointResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public StrategyBotRunReconciliationResponse getRunReconciliation(UUID botId, UUID runId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
+        if (bot.getLinkedPortfolioId() == null) {
+            throw new IllegalStateException("Strategy bot has no linked portfolio");
+        }
+
+        Portfolio linkedPortfolio = portfolioRepository.findById(bot.getLinkedPortfolioId())
+                .orElseThrow(() -> new IllegalArgumentException("Linked portfolio not found"));
+        JsonNode summary = parseJson(run.getSummary());
+
+        boolean targetPositionOpen = summary.path("positionOpen").asBoolean(false);
+        BigDecimal targetQuantity = decimalOrZero(summary.get("openQuantity"), 8);
+        BigDecimal targetAveragePrice = decimalOrZero(summary.get("openEntryPrice"), 2);
+        BigDecimal targetEquity = decimalOrZero(summary.get("endingEquity"), 2);
+        BigDecimal targetLastPrice = strategyBotRunEquityPointRepository
+                .findFirstByStrategyBotRunIdOrderBySequenceNoDesc(run.getId())
+                .map(StrategyBotRunEquityPoint::getClosePrice)
+                .orElse(BigDecimal.ZERO);
+        BigDecimal targetMarketValue = targetPositionOpen
+                ? targetQuantity.multiply(targetLastPrice).setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal targetCashBalance = targetEquity.subtract(targetMarketValue).setScale(2, RoundingMode.HALF_UP);
+
+        var items = portfolioItemRepository.findByPortfolioId(linkedPortfolio.getId());
+        var matchingItems = items.stream()
+                .filter(item -> item.getSymbol().equalsIgnoreCase(bot.getSymbol()))
+                .toList();
+        BigDecimal currentQuantity = matchingItems.stream()
+                .map(item -> item.getQuantity() == null ? BigDecimal.ZERO : item.getQuantity())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal currentAveragePrice = matchingItems.isEmpty()
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : matchingItems.get(0).getAveragePrice().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal currentCashBalance = linkedPortfolio.getBalance().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal quantityDelta = targetQuantity.subtract(currentQuantity).setScale(8, RoundingMode.HALF_UP);
+        BigDecimal cashDelta = targetCashBalance.subtract(currentCashBalance).setScale(2, RoundingMode.HALF_UP);
+        int extraSymbolCount = (int) items.stream()
+                .filter(item -> !item.getSymbol().equalsIgnoreCase(bot.getSymbol()))
+                .count();
+
+        List<String> warnings = new ArrayList<>();
+        if (extraSymbolCount > 0) {
+            warnings.add("Linked portfolio contains symbols outside the bot symbol");
+        }
+        if (matchingItems.size() > 1) {
+            warnings.add("Linked portfolio contains multiple rows for the bot symbol");
+        }
+        if (!targetPositionOpen && currentQuantity.compareTo(BigDecimal.ZERO) > 0) {
+            warnings.add("Linked portfolio is still holding the bot symbol while run target is flat");
+        }
+
+        boolean cashAligned = cashDelta.abs().compareTo(new BigDecimal("0.01")) < 0;
+        boolean quantityAligned = quantityDelta.abs().compareTo(new BigDecimal("0.00000001")) < 0;
+        boolean portfolioAligned = cashAligned && quantityAligned && warnings.isEmpty();
+
+        return StrategyBotRunReconciliationResponse.builder()
+                .runId(run.getId())
+                .strategyBotId(bot.getId())
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .linkedPortfolioName(linkedPortfolio.getName())
+                .symbol(bot.getSymbol())
+                .runStatus(run.getStatus().name())
+                .targetPositionOpen(targetPositionOpen)
+                .targetQuantity(targetQuantity.setScale(8, RoundingMode.HALF_UP))
+                .targetAveragePrice(targetAveragePrice.setScale(2, RoundingMode.HALF_UP))
+                .targetLastPrice(targetLastPrice.setScale(2, RoundingMode.HALF_UP))
+                .targetCashBalance(targetCashBalance)
+                .targetEquity(targetEquity.setScale(2, RoundingMode.HALF_UP))
+                .currentCashBalance(currentCashBalance)
+                .currentQuantity(currentQuantity.setScale(8, RoundingMode.HALF_UP))
+                .currentAveragePrice(currentAveragePrice)
+                .quantityDelta(quantityDelta)
+                .cashDelta(cashDelta)
+                .cashAligned(cashAligned)
+                .quantityAligned(quantityAligned)
+                .portfolioAligned(portfolioAligned)
+                .extraSymbolCount(extraSymbolCount)
+                .warnings(warnings)
+                .build();
     }
 
     @Transactional
@@ -646,6 +732,13 @@ public class StrategyBotRunService {
         payload.put("linkedPortfolioDriftPercent", driftPercent);
         payload.put("linkedPortfolioReconciliationBaseline", baseline);
         payload.put("linkedPortfolioAligned", Math.abs(drift) < 0.01d);
+    }
+
+    private BigDecimal decimalOrZero(JsonNode value, int scale) {
+        if (value == null || value.isNull() || value.asText().isBlank()) {
+            return BigDecimal.ZERO.setScale(scale, RoundingMode.HALF_UP);
+        }
+        return BigDecimal.valueOf(value.asDouble()).setScale(scale, RoundingMode.HALF_UP);
     }
 
     private StrategyBotRun getOwnedRunEntity(UUID botId, UUID runId, UUID userId) {

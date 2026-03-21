@@ -299,6 +299,30 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the product now makes portfolio/run drift visible before true state reconciliation exists
     - the next step can focus on mutating or reconciling linked paper state with much clearer telemetry already in place
+- **2026-03-22**: **Strategy Bot Reconciliation Moved To A Safe Preview Contract Before Any Portfolio Mutation**
+  - **Problem observed**:
+    - Drift telemetry in run summaries made mismatch visible, but it still left a critical ambiguity:
+      - what exact cash/position state is the bot trying to align to
+      - how far is the linked portfolio from that target
+      - are there extra holdings or duplicate symbol rows that would make direct mutation unsafe
+    - Jumping straight to portfolio mutation without an explicit preview surface would blur auditability and make corrective actions harder to reason about.
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/{botId}/runs/{runId}/reconciliation-plan`.
+    - The endpoint computes a read-only plan using:
+      - latest persisted run equity point
+      - run summary open-position state
+      - current linked portfolio cash balance and symbol holdings
+    - The response now surfaces:
+      - target cash/equity/position
+      - current cash/quantity/average price
+      - quantity delta
+      - cash delta
+      - alignment booleans
+      - warning list for extra symbols, duplicate rows, and flat-vs-held mismatch
+    - `/dashboard/bots` now reads that dedicated plan and shows target/current position plus warnings in the reconciliation block.
+  - **Operational impact**:
+    - reconciliation is now inspectable before any linked-portfolio write path exists
+    - the eventual mutation flow can be built on a narrower, safer contract instead of hidden inferred state
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

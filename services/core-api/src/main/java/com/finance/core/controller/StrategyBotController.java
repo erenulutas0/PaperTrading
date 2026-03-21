@@ -1,6 +1,7 @@
 package com.finance.core.controller;
 
 import com.finance.core.dto.StrategyBotRequest;
+import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.StrategyBotRunEquityPointResponse;
 import com.finance.core.dto.StrategyBotRunFillResponse;
 import com.finance.core.dto.StrategyBotResponse;
@@ -143,6 +144,20 @@ public class StrategyBotController {
         }
     }
 
+    @GetMapping("/{botId}/runs/{runId}/reconciliation-plan")
+    public ResponseEntity<?> getRunReconciliation(
+            @PathVariable UUID botId,
+            @PathVariable UUID runId,
+            @CurrentUserId UUID userId,
+            HttpServletRequest request) {
+        try {
+            StrategyBotRunReconciliationResponse plan = strategyBotRunService.getRunReconciliation(botId, runId, userId);
+            return ResponseEntity.ok(plan);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_run_reconciliation_failed", "Failed to load strategy bot reconciliation plan", request);
+        }
+    }
+
     @PostMapping("/{botId}/runs")
     public ResponseEntity<?> requestRun(
             @PathVariable UUID botId,
@@ -191,6 +206,9 @@ public class StrategyBotController {
         }
         if (normalized.contains("linked portfolio not found")) {
             return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "linked_portfolio_not_found", "Linked portfolio not found", null, request);
+        }
+        if (normalized.contains("has no linked portfolio")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_linked_portfolio_required", "Strategy bot has no linked portfolio", null, request);
         }
         if (normalized.contains("invalid strategy bot status")) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_status", "Invalid strategy bot status", null, request);

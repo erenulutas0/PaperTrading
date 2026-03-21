@@ -700,6 +700,17 @@ Last updated: 2026-03-21
     - `StrategyBotRunServiceTest`
     - `StrategyBotRunControllerIntegrationTest`
     - `apps/web` `npx tsc --noEmit`
+- [x] Added strategy-bot reconciliation-plan read surface:
+  - backend:
+    - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/reconciliation-plan`
+    - compares run target state against the linked paper portfolio
+    - reports target/current cash and quantity deltas plus warning reasons before any mutation path exists
+  - frontend:
+    - `/dashboard/bots` selected-run detail now prefers persisted reconciliation-plan data and shows target/current position plus warning chips
+  - validation:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotRunControllerIntegrationTest`
+    - `apps/web` `npx tsc --noEmit`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

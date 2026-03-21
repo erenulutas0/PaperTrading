@@ -241,6 +241,14 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(risingCandles().size())))
                 .andExpect(jsonPath("$.content[0].equity").exists());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/reconciliation-plan")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.linkedPortfolioId").value(linkedPortfolio.getId().toString()))
+                .andExpect(jsonPath("$.targetCashBalance").exists())
+                .andExpect(jsonPath("$.cashAligned").value(false))
+                .andExpect(jsonPath("$.portfolioAligned").value(false));
     }
 
     @Test
