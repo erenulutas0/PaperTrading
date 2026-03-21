@@ -46,6 +46,7 @@ Local backend defaults used by the script:
 - Port: `8080`
 - CORS / WS origins: `http://localhost:3005`
 - Alerting disabled
+- Auth observability enabled
 - WebSocket canary disabled
 
 Strict-mode backend variant:

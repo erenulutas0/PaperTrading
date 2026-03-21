@@ -991,6 +991,9 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the platform can now move off Railway for day-to-day development without re-deriving env wiring each time
     - local stack startup is now repeatable instead of tribal knowledge
+  - **Follow-up adjustment (2026-03-21)**:
+    - local backend starter now leaves auth observability enabled
+    - reason: strict rollout tooling depends on `/actuator/authsessions`, so disabling it locally made readiness wrappers fail for the wrong reason
 - **2026-03-19**: **Notification WebSocket Handshake Rejection No Longer Pollutes Local Dev Overlay**
   - **Problem observed**:
     - In local dev, STOMP handshake rejection could surface as a red client-side issue even though the notification layer already had SSE fallback logic.
