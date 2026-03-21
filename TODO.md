@@ -532,8 +532,22 @@ Last updated: 2026-03-21
     - emits one parent report linking the child reports
   - Local mechanical validation:
     - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_feed_scale_validation_suite.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
+- [x] Added live/staging ops webhook checklist wrapper:
+  - Added:
+    - `infra/load-test/run_ops_alert_webhook_staging_checklist.ps1`
+  - Behavior:
+    - calls `POST /actuator/opsalerts` with a unique manual validation key
+    - samples `app.ops.alerts.total` deltas for:
+      - `channel=log,result=sent`
+      - `channel=webhook,result=sent`
+      - `channel=webhook,result=failed`
+      - `channel=webhook,result=suppressed`
+    - turns live webhook validation into a single report instead of raw metric inspection
+  - Verification:
+    - targeted backend integration coverage added for `/actuator/opsalerts`
+    - isolated one-off runtime pass completed with alerting enabled and a temporary local webhook receiver
 - [ ] Re-calibrate feed latency thresholds from one-sprint production telemetry and adjust `APP_FEED_OBSERVABILITY_*` as needed
-- [ ] Configure real ops webhook URL in staging/prod (`APP_ALERTING_WEBHOOK_URL`) and run webhook validation script against live app (`-SkipAppStart`) with real endpoint
+- [ ] Configure real ops webhook URL in staging/prod (`APP_ALERTING_WEBHOOK_URL`) and run `run_ops_alert_webhook_staging_checklist.ps1` against the live app
 - [ ] Move auth migration to enforcement mode in staging (`APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`) and resolve any failing clients
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 

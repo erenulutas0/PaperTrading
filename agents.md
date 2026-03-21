@@ -38,6 +38,46 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
+  - **Problem observed**:
+    - The repo already had payload-capture validation scripts for isolated/local runs:
+      - `validate_ops_alert_webhook.ps1`
+      - `validate_ops_alert_webhook_skipapp_flow.ps1`
+    - But the remaining real staging/prod TODO was different:
+      - validate a live app that already has its own webhook URL configured
+    - Local capture scripts do not map cleanly onto that scenario because they assume control over the webhook receiver.
+  - **Implementation**:
+    - Added actuator endpoint:
+      - `GET/POST /actuator/opsalerts`
+    - `GET /actuator/opsalerts` exposes:
+      - alerting enabled
+      - webhook configured
+      - cooldown seconds
+    - `POST /actuator/opsalerts` publishes a deterministic manual validation alert with:
+      - configurable `component`
+      - configurable `severity`
+      - unique `alertKey`
+    - Added staging/live wrapper:
+      - `infra/load-test/run_ops_alert_webhook_staging_checklist.ps1`
+    - The wrapper:
+      - reads runtime alert status
+      - triggers one manual alert
+      - verifies `app.ops.alerts.total` deltas for:
+        - log sent
+        - webhook sent
+        - webhook failed
+        - webhook suppressed
+  - **Operational impact**:
+    - live webhook validation no longer depends on a temporary local receiver when the target environment already owns the real webhook URL
+    - the remaining webhook TODO is now purely operational:
+      - configure the real URL
+      - run the checklist against the live runtime
+  - **Validation**:
+    - Targeted backend verification:
+      - `OpsAlertEndpointIntegrationTest`
+      - `OpsAlertServiceTest`
+    - Local mechanical pass completed against an isolated one-off app runtime with alerting enabled and a temporary webhook receiver:
+      - `run_ops_alert_webhook_staging_checklist.ps1` -> `PASSED`
 - **2026-03-21**: **Feed Scale Validation Now Has A Single Suite Wrapper**
   - **Problem observed**:
     - Feed-scale hardening had reached the point where the remaining work was mostly operational, but still split across two separate wrappers:

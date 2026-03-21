@@ -29,6 +29,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `calibrate_feed_thresholds.ps1`
 - `validate_ops_alert_webhook.ps1`
 - `validate_ops_alert_webhook_skipapp_flow.ps1`
+- `run_ops_alert_webhook_staging_checklist.ps1`
 - `validate_websocket_relay_smoke.ps1`
 - `run_websocket_canary_external.ps1`
 - `check_auth_legacy_usage.ps1`
@@ -247,6 +248,13 @@ Validate against an already running app:
   -SkipAppStart `
   -ServerPort 8080 `
   -WebhookPort 19099
+```
+
+Validate a live/staging app with its real configured ops webhook by triggering a deterministic manual alert and checking actuator metrics:
+
+```powershell
+./infra/load-test/run_ops_alert_webhook_staging_checklist.ps1 `
+  -BaseUrl "http://localhost:8080"
 ```
 
 Run backend contract smoke against a local backend:
@@ -663,6 +671,7 @@ Report file:
 - `infra/load-test/reports/feed-threshold-calibration-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/ops-alert-webhook-validation-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/ops-alert-webhook-skipapp-flow-YYYYMMDD-HHMMSS.md`
+- `infra/load-test/reports/ops-alert-webhook-staging-checklist-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/websocket-relay-smoke-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/websocket-canary-external-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/websocket-canary-staging-checklist-YYYYMMDD-HHMMSS.md`
