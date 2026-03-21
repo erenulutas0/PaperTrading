@@ -220,6 +220,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - frontend run inspection now tracks the stable persisted output contract
     - later chart upgrades can build on the same row-based read path without another UI contract migration
+- **2026-03-22**: **Strategy Bot Run Summaries Now Expose Outcome-Quality Metrics, Not Just Directional PnL**
+  - **Problem observed**:
+    - The initial backtest slice already exposed:
+      - ending equity
+      - net PnL / return
+      - win/loss counts
+      - max drawdown
+    - That was enough to prove deterministic execution worked, but still too thin for users trying to judge whether a strategy wins cleanly or only through one noisy outlier.
+  - **Implementation**:
+    - Extended completed run summaries with:
+      - `avgWinPnl`
+      - `avgLossPnl`
+      - `profitFactor`
+      - `expectancyPerTrade`
+      - `bestTradePnl`
+      - `worstTradePnl`
+    - `/dashboard/bots` now renders those values as dedicated outcome-quality cards in the selected-run detail.
+  - **Operational impact**:
+    - bot runs now communicate payoff shape, not just terminal result
+    - the product gets a more defensible inspection surface before richer attribution tables or forward-test scheduling exist
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

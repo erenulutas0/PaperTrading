@@ -108,6 +108,12 @@ class StrategyBotRunServiceTest {
         assertThat(response.getSummary().get("winCount").asInt()).isEqualTo(1);
         assertThat(response.getSummary().get("fillCount").asInt()).isEqualTo(2);
         assertThat(response.getSummary().get("endingEquity").asDouble()).isGreaterThan(100000.0);
+        assertThat(response.getSummary().get("avgWinPnl").asDouble()).isGreaterThan(0.0);
+        assertThat(response.getSummary().get("avgLossPnl").isNull()).isTrue();
+        assertThat(response.getSummary().get("profitFactor").isNull()).isTrue();
+        assertThat(response.getSummary().get("expectancyPerTrade").asDouble()).isGreaterThan(0.0);
+        assertThat(response.getSummary().get("bestTradePnl").asDouble()).isGreaterThan(0.0);
+        assertThat(response.getSummary().get("worstTradePnl").asDouble()).isGreaterThan(0.0);
         assertThat(response.getSummary().get("fills")).hasSize(2);
         assertThat(response.getSummary().get("equityCurve")).hasSize(risingCandles().size());
         verify(strategyBotRunFillRepository).saveAll(any());

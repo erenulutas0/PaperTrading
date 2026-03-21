@@ -19,7 +19,7 @@ type StrategyBot = {
 type StrategyBotRun = {
     id: string; runMode: RunMode; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'; requestedAt: string;
     fromDate?: string; toDate?: string; errorMessage?: string | null;
-    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number } | null;
+    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null } | null;
 };
 type StrategyBotRunFill = {
     id: string; sequenceNo: number; side: 'ENTRY' | 'EXIT'; openTime: number;
@@ -528,6 +528,35 @@ export default function StrategyBotsPage() {
                                                             ))}
                                                         </div>
                                                     )}
+                                                </div>
+                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Outcome Quality</p>
+                                                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Avg Win</p>
+                                                            <p className="mt-1 font-bold text-emerald-200">{fmtCurrency(selectedRun?.summary?.avgWinPnl)}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Avg Loss</p>
+                                                            <p className="mt-1 font-bold text-red-200">{fmtCurrency(selectedRun?.summary?.avgLossPnl)}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Profit Factor</p>
+                                                            <p className="mt-1 font-bold text-white">{selectedRun?.summary?.profitFactor?.toFixed(2) ?? 'N/A'}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Expectancy / Trade</p>
+                                                            <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRun?.summary?.expectancyPerTrade)}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Best Trade</p>
+                                                            <p className="mt-1 font-bold text-emerald-200">{fmtCurrency(selectedRun?.summary?.bestTradePnl)}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Worst Trade</p>
+                                                            <p className="mt-1 font-bold text-red-200">{fmtCurrency(selectedRun?.summary?.worstTradePnl)}</p>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="space-y-4">

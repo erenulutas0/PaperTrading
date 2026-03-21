@@ -295,6 +295,10 @@ public class StrategyBotRunService {
         boolean positionOpen = false;
         int winCount = 0;
         int lossCount = 0;
+        double grossProfit = 0.0;
+        double grossLoss = 0.0;
+        Double bestTradePnl = null;
+        Double worstTradePnl = null;
         List<Map<String, Object>> fills = new ArrayList<>();
         List<Map<String, Object>> equityCurve = new ArrayList<>();
         List<StrategyBotRunFill> fillRows = new ArrayList<>();
@@ -329,9 +333,13 @@ public class StrategyBotRunService {
                     fillRows.add(fillRow(run.getId(), ++fillSequence, "EXIT", candle, exitPrice, quantity, pnl, exit.matchedRules()));
                     if (pnl >= 0) {
                         winCount++;
+                        grossProfit += pnl;
                     } else {
                         lossCount++;
+                        grossLoss += Math.abs(pnl);
                     }
+                    bestTradePnl = bestTradePnl == null ? pnl : Math.max(bestTradePnl, pnl);
+                    worstTradePnl = worstTradePnl == null ? pnl : Math.min(worstTradePnl, pnl);
                     positionOpen = false;
                     quantity = 0.0;
                     entryPrice = 0.0;
@@ -370,6 +378,10 @@ public class StrategyBotRunService {
         int tradeCount = winCount + lossCount;
         double returnPercent = startingCapital == 0.0 ? 0.0 : (netPnl / startingCapital) * 100.0;
         double winRate = tradeCount == 0 ? 0.0 : (winCount * 100.0) / tradeCount;
+        Double avgWinPnl = winCount == 0 ? null : round(grossProfit / winCount);
+        Double avgLossPnl = lossCount == 0 ? null : round((-grossLoss) / lossCount);
+        Double profitFactor = grossLoss == 0.0 ? null : round(grossProfit / grossLoss);
+        Double expectancyPerTrade = tradeCount == 0 ? null : round(netPnl / tradeCount);
 
         LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
         payload.put("phase", "completed");
@@ -386,6 +398,14 @@ public class StrategyBotRunService {
         payload.put("winCount", winCount);
         payload.put("lossCount", lossCount);
         payload.put("winRate", round(winRate));
+        payload.put("grossProfit", round(grossProfit));
+        payload.put("grossLoss", round(grossLoss));
+        payload.put("avgWinPnl", avgWinPnl);
+        payload.put("avgLossPnl", avgLossPnl);
+        payload.put("profitFactor", profitFactor);
+        payload.put("expectancyPerTrade", expectancyPerTrade);
+        payload.put("bestTradePnl", bestTradePnl == null ? null : round(bestTradePnl));
+        payload.put("worstTradePnl", worstTradePnl == null ? null : round(worstTradePnl));
         payload.put("fillCount", fills.size());
         payload.put("maxDrawdownPercent", round(maxDrawdownPercent));
         payload.put("candleCount", candles.size());

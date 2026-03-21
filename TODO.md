@@ -564,11 +564,10 @@ Last updated: 2026-03-21
     - audit log coverage for create/update/delete
   - tests:
     - `StrategyBotControllerIntegrationTest`
-- [ ] Add bot backtest/forward-test foundation:
-  - reusable strategy execution engine
-  - backtest against historical candles/snapshots
+- [ ] Extend strategy-bot execution beyond the current deterministic backtest slice:
   - paper portfolio binding for live forward-test
-  - per-bot equity curve, win/loss, drawdown, and attribution views
+  - richer attribution views beyond run-level summary metrics
+  - execution scheduling / recurring paper runs
 - [x] Added strategy-bot run journal foundation:
   - migration:
     - `V23__create_strategy_bot_runs_table.sql`
@@ -640,6 +639,20 @@ Last updated: 2026-03-21
       instead of relying only on summary JSON blobs
     - selected-run detail now shows persisted fill rows and an equity sparkline
   - validation:
+    - `apps/web` `npx tsc --noEmit`
+- [x] Enriched strategy-bot backtest outcome metrics:
+  - backend:
+    - completed run summary now also persists:
+      - `avgWinPnl`
+      - `avgLossPnl`
+      - `profitFactor`
+      - `expectancyPerTrade`
+      - `bestTradePnl`
+      - `worstTradePnl`
+  - frontend:
+    - `/dashboard/bots` run detail now surfaces outcome-quality cards for those metrics
+  - validation:
+    - `StrategyBotRunServiceTest`
     - `apps/web` `npx tsc --noEmit`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
