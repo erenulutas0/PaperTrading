@@ -8,6 +8,7 @@ import LogoutButton from '../../components/LogoutButton';
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard' },
+    { name: 'Bots', href: '/dashboard/bots' },
     { name: 'Analysis', href: '/dashboard/analysis' },
     { name: 'Discover', href: '/discover' },
     { name: 'Leaderboard', href: '/dashboard/leaderboard' },

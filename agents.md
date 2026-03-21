@@ -152,6 +152,34 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - bot performance can be measured with the same trust/accountability model as manual portfolios
     - model-provider integration stays replaceable instead of coupling the product to one vendor or one prompt format
+- **2026-03-21**: **Strategy Bots Now Have A Dedicated Dashboard Workspace**
+  - **Problem observed**:
+    - The backend bot surface already supported:
+      - CRUD
+      - run requests
+      - compile summaries
+      - summary-based backtest execution
+    - But that capability was still API-only and difficult to validate as a normal product workflow.
+  - **Implementation**:
+    - Added `/dashboard/bots`.
+    - Split the page into:
+      - `Overview`
+      - `Bots`
+      - `Runs`
+    - The workspace now drives:
+      - bot CRUD under `/api/v1/strategy-bots`
+      - run request under `/api/v1/strategy-bots/{botId}/runs`
+      - queued backtest execution under `/api/v1/strategy-bots/{botId}/runs/{runId}/execute`
+      - summary-first inspection of:
+        - compiler readiness
+        - unsupported rules / warnings
+        - fills
+        - equity curve
+        - return / pnl / drawdown
+    - Added dashboard shell entrypoints so the workspace is discoverable from the main operating surface.
+  - **Operational impact**:
+    - the initial bot feature is now usable without scripts
+    - later execution-table expansion can happen behind an already-stable product workflow
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

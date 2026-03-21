@@ -607,6 +607,18 @@ Last updated: 2026-03-21
       - max drawdown
   - tests:
     - `StrategyBotRunServiceTest`
+- [x] Added strategy-bot frontend workspace foundation:
+  - frontend:
+    - `/dashboard/bots`
+    - workspace split:
+      - `Overview`
+      - `Bots`
+      - `Runs`
+    - bot CRUD against `/api/v1/strategy-bots`
+    - run request and queued backtest execution against nested run endpoints
+    - summary-first inspection for compiler readiness, fills, equity curve, return, pnl, and drawdown
+  - validation:
+    - `apps/web` `npx tsc --noEmit`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

@@ -322,6 +322,9 @@ export default function Dashboard() {
                     )}
                 </div>
                 <div className="flex gap-3 items-center flex-wrap justify-end">
+                    <Link href="/dashboard/bots" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-300 transition hover:border-emerald-500/30 hover:text-white">
+                        Bots
+                    </Link>
                     <Link href="/watchlist" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-300 transition hover:border-emerald-500/30 hover:text-white">
                         Markets
                     </Link>
@@ -411,7 +414,12 @@ export default function Dashboard() {
                 <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
                     {portfolioCreateCard}
                     <div className="grid gap-4">
-                        <section className="grid gap-4 md:grid-cols-3">
+                        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                            <Link href="/dashboard/bots" className="rounded-2xl border border-white/10 bg-black/35 p-5 transition hover:border-emerald-500/30">
+                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Automation</p>
+                                <h3 className="mt-3 text-lg font-bold text-white">Open Bots</h3>
+                                <p className="mt-2 text-sm leading-6 text-zinc-400">Build deterministic paper bots, queue runs, and inspect summary-first backtests.</p>
+                            </Link>
                             <Link href="/watchlist" className="rounded-2xl border border-white/10 bg-black/35 p-5 transition hover:border-emerald-500/30">
                                 <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Markets</p>
                                 <h3 className="mt-3 text-lg font-bold text-white">Open Terminal</h3>
