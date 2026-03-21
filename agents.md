@@ -278,6 +278,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - strategy evaluation is now less dependent on terminal PnL alone
     - later attribution tables can build on an already-exposed semantics layer instead of inventing first-generation labels in the UI
+- **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
+  - **Problem observed**:
+    - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.
+    - Without explicit drift telemetry, users cannot tell when:
+      - the linked portfolio balance
+      - the bot run reference equity
+      - and the simulated result
+      have diverged.
+  - **Implementation**:
+    - Extended run summaries with linked-portfolio reconciliation fields:
+      - `linkedPortfolioName`
+      - `linkedPortfolioBalance`
+      - `linkedPortfolioReferenceEquity`
+      - `linkedPortfolioDrift`
+      - `linkedPortfolioDriftPercent`
+      - `linkedPortfolioReconciliationBaseline`
+      - `linkedPortfolioAligned`
+    - `/dashboard/bots` now renders those values as a dedicated reconciliation block in selected-run detail.
+  - **Operational impact**:
+    - the product now makes portfolio/run drift visible before true state reconciliation exists
+    - the next step can focus on mutating or reconciling linked paper state with much clearer telemetry already in place
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

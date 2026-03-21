@@ -685,6 +685,21 @@ Last updated: 2026-03-21
     - `StrategyBotRunServiceTest`
     - `StrategyBotRunControllerIntegrationTest`
     - `apps/web` `npx tsc --noEmit`
+- [x] Added linked paper-portfolio reconciliation telemetry for strategy-bot runs:
+  - backend run summary now also surfaces:
+    - `linkedPortfolioName`
+    - `linkedPortfolioBalance`
+    - `linkedPortfolioReferenceEquity`
+    - `linkedPortfolioDrift`
+    - `linkedPortfolioDriftPercent`
+    - `linkedPortfolioReconciliationBaseline`
+    - `linkedPortfolioAligned`
+  - frontend:
+    - `/dashboard/bots` selected-run detail now shows a portfolio reconciliation block
+  - validation:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotRunControllerIntegrationTest`
+    - `apps/web` `npx tsc --noEmit`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

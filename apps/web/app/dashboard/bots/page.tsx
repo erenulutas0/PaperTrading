@@ -19,7 +19,7 @@ type StrategyBot = {
 type StrategyBotRun = {
     id: string; runMode: RunMode; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'; requestedAt: string;
     fromDate?: string; toDate?: string; errorMessage?: string | null;
-    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null; avgHoldHours?: number | null; maxHoldHours?: number | null; timeInMarketPercent?: number | null; avgExposurePercent?: number | null; entryReasonCounts?: Record<string, number>; exitReasonCounts?: Record<string, number>; lastEvaluatedOpenTime?: number | null; positionOpen?: boolean; openQuantity?: number | null; openEntryPrice?: number | null } | null;
+    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null; avgHoldHours?: number | null; maxHoldHours?: number | null; timeInMarketPercent?: number | null; avgExposurePercent?: number | null; entryReasonCounts?: Record<string, number>; exitReasonCounts?: Record<string, number>; linkedPortfolioId?: string; linkedPortfolioName?: string; linkedPortfolioBalance?: number | null; linkedPortfolioReferenceEquity?: number | null; linkedPortfolioDrift?: number | null; linkedPortfolioDriftPercent?: number | null; linkedPortfolioReconciliationBaseline?: string; linkedPortfolioAligned?: boolean; lastEvaluatedOpenTime?: number | null; positionOpen?: boolean; openQuantity?: number | null; openEntryPrice?: number | null } | null;
 };
 type StrategyBotRunFill = {
     id: string; sequenceNo: number; side: 'ENTRY' | 'EXIT'; openTime: number;
@@ -625,6 +625,38 @@ export default function StrategyBotsPage() {
                                                                     <span key={rule} className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100">{rule} x{count}</span>
                                                                 ))}
                                                             </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Portfolio Reconciliation</p>
+                                                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Linked Portfolio</p>
+                                                            <p className="mt-1 font-bold text-white">{selectedRun?.summary?.linkedPortfolioName ?? 'None'}</p>
+                                                            <p className="mt-1 text-zinc-500">{selectedRun?.summary?.linkedPortfolioReconciliationBaseline ?? 'N/A'}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Alignment</p>
+                                                            <p className={`mt-1 font-bold ${selectedRun?.summary?.linkedPortfolioAligned ? 'text-emerald-200' : 'text-amber-200'}`}>
+                                                                {selectedRun?.summary?.linkedPortfolioAligned == null ? 'N/A' : selectedRun.summary.linkedPortfolioAligned ? 'Aligned' : 'Drifted'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Portfolio Balance</p>
+                                                            <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRun?.summary?.linkedPortfolioBalance)}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Reference Equity</p>
+                                                            <p className="mt-1 font-bold text-white">{fmtCurrency(selectedRun?.summary?.linkedPortfolioReferenceEquity)}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Drift</p>
+                                                            <p className={`mt-1 font-bold ${(selectedRun?.summary?.linkedPortfolioDrift ?? 0) >= 0 ? 'text-emerald-200' : 'text-red-200'}`}>{fmtCurrency(selectedRun?.summary?.linkedPortfolioDrift)}</p>
+                                                        </div>
+                                                        <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                            <p className="text-zinc-500">Drift %</p>
+                                                            <p className={`mt-1 font-bold ${(selectedRun?.summary?.linkedPortfolioDriftPercent ?? 0) >= 0 ? 'text-emerald-200' : 'text-red-200'}`}>{fmtPercent(selectedRun?.summary?.linkedPortfolioDriftPercent)}</p>
                                                         </div>
                                                     </div>
                                                 </div>

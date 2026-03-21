@@ -224,7 +224,10 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.summary.fillCount").value(2))
                 .andExpect(jsonPath("$.summary.avgHoldHours").exists())
-                .andExpect(jsonPath("$.summary.exitReasonCounts.take_profit_hit").value(1));
+                .andExpect(jsonPath("$.summary.exitReasonCounts.take_profit_hit").value(1))
+                .andExpect(jsonPath("$.summary.linkedPortfolioId").value(linkedPortfolio.getId().toString()))
+                .andExpect(jsonPath("$.summary.linkedPortfolioBalance").value(120000))
+                .andExpect(jsonPath("$.summary.linkedPortfolioAligned").value(false));
 
         mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/fills")
                         .header("X-User-Id", userId.toString()))

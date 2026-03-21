@@ -1,6 +1,7 @@
 package com.finance.core.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.dto.MarketCandleResponse;
@@ -63,10 +64,12 @@ class StrategyBotRunServiceTest {
         UUID userId = UUID.randomUUID();
         UUID botId = UUID.randomUUID();
         UUID runId = UUID.randomUUID();
+        UUID linkedPortfolioId = UUID.randomUUID();
 
         StrategyBot bot = StrategyBot.builder()
                 .id(botId)
                 .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
                 .name("BTC Backtest")
                 .market("CRYPTO")
                 .symbol("BTCUSDT")
@@ -95,6 +98,12 @@ class StrategyBotRunServiceTest {
 
         when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
         when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+        when(portfolioRepository.findById(any())).thenReturn(Optional.of(Portfolio.builder()
+                .id(UUID.randomUUID())
+                .name("Linked Paper")
+                .ownerId(userId.toString())
+                .balance(new BigDecimal("100000"))
+                .build()));
         when(marketDataFacadeService.getCandles(eq(MarketType.CRYPTO), eq("BTCUSDT"), eq("ALL"), eq("1h"), eq(null), eq(500)))
                 .thenReturn(risingCandles());
         when(strategyBotRunRepository.save(any(StrategyBotRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -119,6 +128,9 @@ class StrategyBotRunServiceTest {
         assertThat(response.getSummary().get("avgExposurePercent").asDouble()).isGreaterThan(0.0);
         assertThat(response.getSummary().get("entryReasonCounts").get("price_above_ma_3").asInt()).isEqualTo(1);
         assertThat(response.getSummary().get("exitReasonCounts").get("take_profit_hit").asInt()).isEqualTo(1);
+        assertThat(response.getSummary().get("linkedPortfolioBalance").asDouble()).isEqualTo(100000.0);
+        assertThat(response.getSummary().get("linkedPortfolioReferenceEquity").asDouble()).isGreaterThan(100000.0);
+        assertThat(response.getSummary().get("linkedPortfolioAligned").asBoolean()).isFalse();
         assertThat(response.getSummary().get("fills")).hasSize(2);
         assertThat(response.getSummary().get("equityCurve")).hasSize(risingCandles().size());
         verify(strategyBotRunFillRepository).saveAll(any());
@@ -175,10 +187,12 @@ class StrategyBotRunServiceTest {
         UUID userId = UUID.randomUUID();
         UUID botId = UUID.randomUUID();
         UUID runId = UUID.randomUUID();
+        UUID linkedPortfolioId = UUID.randomUUID();
 
         StrategyBot bot = StrategyBot.builder()
                 .id(botId)
                 .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
                 .name("BTC Forward")
                 .market("CRYPTO")
                 .symbol("BTCUSDT")
@@ -205,6 +219,12 @@ class StrategyBotRunServiceTest {
 
         when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
         when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+        when(portfolioRepository.findById(any())).thenReturn(Optional.of(Portfolio.builder()
+                .id(UUID.randomUUID())
+                .name("Linked Paper")
+                .ownerId(userId.toString())
+                .balance(new BigDecimal("100000"))
+                .build()));
         when(marketDataFacadeService.getCandles(eq(MarketType.CRYPTO), eq("BTCUSDT"), eq("ALL"), eq("1h"), eq(null), eq(500)))
                 .thenReturn(risingCandles());
         when(strategyBotRunRepository.save(any(StrategyBotRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -224,10 +244,12 @@ class StrategyBotRunServiceTest {
         UUID userId = UUID.randomUUID();
         UUID botId = UUID.randomUUID();
         UUID runId = UUID.randomUUID();
+        UUID linkedPortfolioId = UUID.randomUUID();
 
         StrategyBot bot = StrategyBot.builder()
                 .id(botId)
                 .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
                 .name("BTC Forward End")
                 .market("CRYPTO")
                 .symbol("BTCUSDT")
@@ -256,6 +278,12 @@ class StrategyBotRunServiceTest {
 
         when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
         when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+        when(portfolioRepository.findById(any())).thenReturn(Optional.of(Portfolio.builder()
+                .id(UUID.randomUUID())
+                .name("Linked Paper")
+                .ownerId(userId.toString())
+                .balance(new BigDecimal("100000"))
+                .build()));
         when(marketDataFacadeService.getCandles(eq(MarketType.CRYPTO), eq("BTCUSDT"), eq("ALL"), eq("1h"), eq(null), eq(500)))
                 .thenReturn(risingCandles());
         when(strategyBotRunRepository.save(any(StrategyBotRun.class))).thenAnswer(invocation -> invocation.getArgument(0));

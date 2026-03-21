@@ -111,7 +111,7 @@ public class StrategyBotRunService {
                 .toDate(toDate)
                 .compiledEntryRules(bot.getEntryRules())
                 .compiledExitRules(bot.getExitRules())
-                .summary(buildQueuedSummary(runMode, bot))
+                .summary(buildQueuedSummary(runMode, bot, effectiveInitialCapital))
                 .build();
 
         StrategyBotRun saved = strategyBotRunRepository.save(run);
@@ -297,7 +297,7 @@ public class StrategyBotRunService {
         }
     }
 
-    private String buildQueuedSummary(StrategyBotRun.RunMode runMode, StrategyBot bot) {
+    private String buildQueuedSummary(StrategyBotRun.RunMode runMode, StrategyBot bot, BigDecimal effectiveInitialCapital) {
         StrategyBotRuleEngineService.RuleCompilation compilation = strategyBotRuleEngineService.compile(
                 parseJson(bot.getEntryRules()),
                 parseJson(bot.getExitRules()),
@@ -318,6 +318,7 @@ public class StrategyBotRunService {
         summary.put("unsupportedRules", compilation.unsupportedRules());
         summary.put("warnings", compilation.warnings());
         summary.put("supportedFeatures", compilation.supportedFeatures());
+        appendLinkedPortfolioReconciliation(summary, bot.getLinkedPortfolioId(), effectiveInitialCapital.doubleValue(), "initial_capital");
         return writeSummary(summary);
     }
 
@@ -584,6 +585,7 @@ public class StrategyBotRunService {
         payload.put("candleCount", candles.size());
         payload.put("fills", fills);
         payload.put("equityCurve", equityCurve);
+        appendLinkedPortfolioReconciliation(payload, bot.getLinkedPortfolioId(), endingEquity, "ending_equity");
 
         return new RunSimulationSummary(
                 payload,
@@ -619,6 +621,31 @@ public class StrategyBotRunService {
             return;
         }
         matchedRules.forEach(rule -> bucket.merge(rule, 1, Integer::sum));
+    }
+
+    private void appendLinkedPortfolioReconciliation(Map<String, Object> payload,
+                                                     UUID linkedPortfolioId,
+                                                     double referenceEquity,
+                                                     String baseline) {
+        if (linkedPortfolioId == null) {
+            return;
+        }
+        Portfolio linkedPortfolio = portfolioRepository.findById(linkedPortfolioId).orElse(null);
+        if (linkedPortfolio == null) {
+            payload.put("linkedPortfolioMissing", true);
+            return;
+        }
+        double linkedPortfolioBalance = linkedPortfolio.getBalance().doubleValue();
+        double drift = linkedPortfolioBalance - referenceEquity;
+        Double driftPercent = referenceEquity == 0.0 ? null : round((drift / referenceEquity) * 100.0);
+        payload.put("linkedPortfolioId", linkedPortfolioId);
+        payload.put("linkedPortfolioName", linkedPortfolio.getName());
+        payload.put("linkedPortfolioBalance", round(linkedPortfolioBalance));
+        payload.put("linkedPortfolioReferenceEquity", round(referenceEquity));
+        payload.put("linkedPortfolioDrift", round(drift));
+        payload.put("linkedPortfolioDriftPercent", driftPercent);
+        payload.put("linkedPortfolioReconciliationBaseline", baseline);
+        payload.put("linkedPortfolioAligned", Math.abs(drift) < 0.01d);
     }
 
     private StrategyBotRun getOwnedRunEntity(UUID botId, UUID runId, UUID userId) {
