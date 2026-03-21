@@ -11,6 +11,7 @@ import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
 import com.finance.core.domain.StrategyBotRunFill;
+import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
@@ -23,6 +24,7 @@ import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
+import com.finance.core.repository.TradeActivityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -54,6 +56,7 @@ public class StrategyBotRunService {
     private final PortfolioItemRepository portfolioItemRepository;
     private final StrategyBotRunFillRepository strategyBotRunFillRepository;
     private final StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+    private final TradeActivityRepository tradeActivityRepository;
     private final MarketDataFacadeService marketDataFacadeService;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
@@ -141,6 +144,8 @@ public class StrategyBotRunService {
             state.matchingItems().forEach(portfolioItemRepository::delete);
         }
 
+        recordSyntheticReconciliationTrades(linkedPortfolio.getId(), plan);
+
         LinkedHashMap<String, Object> details = new LinkedHashMap<>();
         details.put("strategyBotId", bot.getId());
         details.put("runId", run.getId());
@@ -153,6 +158,7 @@ public class StrategyBotRunService {
         details.put("targetPositionOpen", plan.isTargetPositionOpen());
         details.put("cashDelta", plan.getCashDelta());
         details.put("quantityDelta", plan.getQuantityDelta());
+        details.put("journalParityEnabled", true);
         auditLogService.record(
                 userId,
                 AuditActionType.STRATEGY_BOT_RUN_RECONCILED,
@@ -161,6 +167,74 @@ public class StrategyBotRunService {
                 details);
 
         return buildRunReconciliationState(bot, run).response();
+    }
+
+    private void recordSyntheticReconciliationTrades(UUID portfolioId, StrategyBotRunReconciliationResponse plan) {
+        BigDecimal quantityTolerance = new BigDecimal("0.00000001");
+        BigDecimal priceTolerance = new BigDecimal("0.01");
+        BigDecimal currentQuantity = plan.getCurrentQuantity().setScale(8, RoundingMode.HALF_UP);
+        BigDecimal targetQuantity = plan.getTargetQuantity().setScale(8, RoundingMode.HALF_UP);
+        BigDecimal quantityDelta = targetQuantity.subtract(currentQuantity).setScale(8, RoundingMode.HALF_UP);
+
+        if (quantityDelta.compareTo(quantityTolerance) > 0) {
+            tradeActivityRepository.save(TradeActivity.builder()
+                    .portfolioId(portfolioId)
+                    .symbol(plan.getSymbol().toUpperCase())
+                    .type("BUY (BOT SYNC)")
+                    .side("LONG")
+                    .quantity(quantityDelta)
+                    .price(plan.getTargetAveragePrice())
+                    .realizedPnl(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                    .timestamp(LocalDateTime.now())
+                    .build());
+            return;
+        }
+
+        if (quantityDelta.compareTo(quantityTolerance.negate()) < 0) {
+            BigDecimal sellQuantity = quantityDelta.abs().setScale(8, RoundingMode.HALF_UP);
+            BigDecimal exitPrice = plan.getTargetLastPrice().compareTo(BigDecimal.ZERO) > 0
+                    ? plan.getTargetLastPrice()
+                    : plan.getTargetAveragePrice();
+            tradeActivityRepository.save(TradeActivity.builder()
+                    .portfolioId(portfolioId)
+                    .symbol(plan.getSymbol().toUpperCase())
+                    .type("SELL (BOT SYNC)")
+                    .side("LONG")
+                    .quantity(sellQuantity)
+                    .price(exitPrice)
+                    .realizedPnl(null)
+                    .timestamp(LocalDateTime.now())
+                    .build());
+            return;
+        }
+
+        if (targetQuantity.compareTo(BigDecimal.ZERO) > 0
+                && plan.getTargetAveragePrice().subtract(plan.getCurrentAveragePrice()).abs().compareTo(priceTolerance) >= 0) {
+            tradeActivityRepository.save(TradeActivity.builder()
+                    .portfolioId(portfolioId)
+                    .symbol(plan.getSymbol().toUpperCase())
+                    .type("REPRICE (BOT SYNC)")
+                    .side("LONG")
+                    .quantity(targetQuantity)
+                    .price(plan.getTargetAveragePrice())
+                    .realizedPnl(null)
+                    .timestamp(LocalDateTime.now())
+                    .build());
+            return;
+        }
+
+        if (plan.getCashDelta().abs().compareTo(priceTolerance) >= 0) {
+            tradeActivityRepository.save(TradeActivity.builder()
+                    .portfolioId(portfolioId)
+                    .symbol(plan.getSymbol().toUpperCase())
+                    .type("CASH SYNC (BOT)")
+                    .side("LONG")
+                    .quantity(BigDecimal.ZERO.setScale(8, RoundingMode.HALF_UP))
+                    .price(plan.getTargetCashBalance())
+                    .realizedPnl(null)
+                    .timestamp(LocalDateTime.now())
+                    .build());
+        }
     }
 
     private RunReconciliationState buildRunReconciliationState(StrategyBot bot, StrategyBotRun run) {

@@ -266,6 +266,12 @@ class StrategyBotRunControllerIntegrationTest {
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.portfolioAligned").value(true));
+
+        mockMvc.perform(get("/api/v1/portfolios/" + linkedPortfolio.getId() + "/history")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].type").value("CASH SYNC (BOT)"))
+                .andExpect(jsonPath("$.content[0].symbol").value("BTCUSDT"));
     }
 
     @Test

@@ -565,7 +565,6 @@ Last updated: 2026-03-21
   - tests:
     - `StrategyBotControllerIntegrationTest`
 - [ ] Extend strategy-bot live paper execution beyond the current refresh-based forward-test slice:
-  - synthetic trade journal parity for linked-portfolio syncs
   - richer attribution views beyond run-level summary metrics
   - staging/runtime verification for recurring scheduled forward-test refresh
 - [x] Added strategy-bot run journal foundation:
@@ -723,6 +722,17 @@ Last updated: 2026-03-21
     - `StrategyBotRunServiceTest`
     - `StrategyBotRunControllerIntegrationTest`
     - `apps/web` `npx tsc --noEmit`
+- [x] Added synthetic trade journal parity for strategy-bot portfolio syncs:
+  - backend:
+    - linked-portfolio apply now writes synthetic history rows:
+      - `BUY (BOT SYNC)`
+      - `SELL (BOT SYNC)`
+      - `REPRICE (BOT SYNC)`
+      - `CASH SYNC (BOT)`
+    - realized PnL stays conservative so sync actions do not fabricate profitability
+  - validation:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotRunControllerIntegrationTest`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

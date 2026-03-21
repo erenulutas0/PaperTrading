@@ -323,10 +323,10 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - reconciliation is now inspectable before any linked-portfolio write path exists
     - the eventual mutation flow can be built on a narrower, safer contract instead of hidden inferred state
-- **2026-03-22**: **Strategy Bot Linked-Portfolio Sync Added As Audited State Reconciliation, Not Synthetic Trade Replay**
+- **2026-03-22**: **Strategy Bot Linked-Portfolio Sync Added As Audited State Reconciliation With Conservative Synthetic Journal Entries**
   - **Problem observed**:
     - The new reconciliation-plan endpoint made drift explicit, but users still had no way to bring a linked paper portfolio back to the bot snapshot.
-    - Replaying synthetic trades immediately would have been misleading because a run snapshot can encode:
+    - Replaying synthetic trades naively would have been misleading because a run snapshot can encode:
       - open position state
       - marked-to-market equity
       - prior closed-PnL effects
@@ -338,10 +338,16 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - blocks when reconciliation warnings indicate unsafe shape
       - updates linked portfolio cash balance and the bot-symbol row to the persisted target snapshot
       - records `STRATEGY_BOT_RUN_RECONCILED` audit entries with before/after deltas
+    - Added conservative synthetic journal rows for portfolio history parity:
+      - `BUY (BOT SYNC)`
+      - `SELL (BOT SYNC)`
+      - `REPRICE (BOT SYNC)`
+      - `CASH SYNC (BOT)`
+    - Synthetic journal rows intentionally avoid inventing realized PnL for sync-only adjustments.
     - `/dashboard/bots` now exposes an `Apply Snapshot To Portfolio` action directly inside the reconciliation block.
   - **Operational impact**:
-    - linked paper portfolios can now be brought back in line with bot state without inventing fake trade history
-    - trade-journal parity remains a separate follow-up instead of being silently approximated
+    - linked paper portfolios can now be brought back in line with bot state while still leaving an explicit history trail
+    - sync actions remain distinguishable from user trades and avoid distorting realized-performance metrics
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

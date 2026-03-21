@@ -15,6 +15,7 @@ import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
+import com.finance.core.repository.TradeActivityRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +55,8 @@ class StrategyBotRunServiceTest {
     private StrategyBotRunFillRepository strategyBotRunFillRepository;
     @Mock
     private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+    @Mock
+    private TradeActivityRepository tradeActivityRepository;
     @Mock
     private MarketDataFacadeService marketDataFacadeService;
     @Mock
@@ -287,6 +290,7 @@ class StrategyBotRunServiceTest {
         verify(portfolioRepository).save(any(Portfolio.class));
         verify(portfolioItemRepository).save(any(PortfolioItem.class));
         verify(portfolioItemRepository, never()).delete(any(PortfolioItem.class));
+        verify(tradeActivityRepository).save(any(com.finance.core.domain.TradeActivity.class));
         verify(auditLogService).record(eq(userId), eq(com.finance.core.domain.AuditActionType.STRATEGY_BOT_RUN_RECONCILED), eq(com.finance.core.domain.AuditResourceType.STRATEGY_BOT_RUN), eq(runId), any());
     }
 
