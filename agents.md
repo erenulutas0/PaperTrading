@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Future Bot Work Must Stay Paper-Only, Server-Executed, And Fully Auditable**
+  - **Problem observed**:
+    - The next natural product extension is user-created strategy bots and eventually agentic trading assistants.
+    - But this platform is explicitly not a brokerage and already derives trust from immutable, server-timestamped accountability.
+    - Letting bots execute purely client-side or via opaque model calls would undercut that constraint.
+  - **Decision**:
+    - Any bot feature must remain:
+      - paper-only
+      - server-executed
+      - fully audit-logged
+    - Rule-based bots should be the first step:
+      - deterministic entry/exit conditions
+      - bounded sizing
+      - stop-loss / take-profit / cooldown controls
+    - Agentic/LLM-driven bots, if added later, must sit behind the same server-owned action schema and audit trail rather than direct free-form trading autonomy.
+  - **Operational impact**:
+    - bot performance can be measured with the same trust/accountability model as manual portfolios
+    - model-provider integration stays replaceable instead of coupling the product to one vendor or one prompt format
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

@@ -4588,8 +4588,10 @@ export default function WatchlistPage() {
                                                         {sectorPulseGroups.map((group) => {
                                                             const positive = group.averageMove >= 0;
                                                             return (
-                                                                <button
+                                                                <div
                                                                     key={`sector-pulse-${group.sector}`}
+                                                                    role="button"
+                                                                    tabIndex={0}
                                                                     onClick={() => {
                                                                         setScannerWorkspaceTab('UNIVERSE');
                                                                         setSelectedSymbol(group.leader.symbol);
@@ -4597,9 +4599,19 @@ export default function WatchlistPage() {
                                                                         setUniverseSortMode('MOVE_DESC');
                                                                         setInstrumentQuery('');
                                                                     }}
+                                                                    onKeyDown={(event) => {
+                                                                        if (event.key === 'Enter' || event.key === ' ') {
+                                                                            event.preventDefault();
+                                                                            setScannerWorkspaceTab('UNIVERSE');
+                                                                            setSelectedSymbol(group.leader.symbol);
+                                                                            setUniverseQuickFilter('SECTOR');
+                                                                            setUniverseSortMode('MOVE_DESC');
+                                                                            setInstrumentQuery('');
+                                                                        }
+                                                                    }}
                                                                     className={`min-w-0 rounded-2xl border px-4 py-3 text-left transition ${positive
                                                                         ? 'border-emerald-400/20 bg-emerald-400/5 hover:bg-emerald-400/10'
-                                                                        : 'border-red-400/20 bg-red-400/5 hover:bg-red-400/10'}`}
+                                                                        : 'border-red-400/20 bg-red-400/5 hover:bg-red-400/10'} focus:outline-none focus:ring-2 focus:ring-sky-400/60`}
                                                                 >
                                                                     <div className="flex min-w-0 items-center justify-between gap-3">
                                                                         <div className="min-w-0">
@@ -4629,7 +4641,7 @@ export default function WatchlistPage() {
                                                                             {group.leader.symbol} {formatPercent(group.leader.changePercent24h)}
                                                                         </span>
                                                                     </div>
-                                                                </button>
+                                                                </div>
                                                             );
                                                         })}
                                                     </div>

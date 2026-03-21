@@ -549,6 +549,21 @@ Last updated: 2026-03-21
 - [ ] Re-calibrate feed latency thresholds from one-sprint production telemetry and adjust `APP_FEED_OBSERVABILITY_*` as needed
 - [ ] Configure real ops webhook URL in staging/prod (`APP_ALERTING_WEBHOOK_URL`) and run `run_ops_alert_webhook_staging_checklist.ps1` against the live app
 - [ ] Move auth migration to enforcement mode in staging (`APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`) and resolve any failing clients
+- [ ] Design paper-only strategy bot workflow:
+  - rule-based entry/exit builder
+  - stop-loss / take-profit / cooldown / sizing controls
+  - server-owned deterministic execution on market snapshots/candles
+  - full audit trail for every bot decision and fill simulation
+- [ ] Add bot backtest/forward-test foundation:
+  - reusable strategy execution engine
+  - backtest against historical candles/snapshots
+  - paper portfolio binding for live forward-test
+  - per-bot equity curve, win/loss, drawdown, and attribution views
+- [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
+  - prompt/action audit logging
+  - tool/market-data sandbox
+  - bounded action schema (`buy/sell/hold`, size caps, stop updates)
+  - model-provider abstraction instead of hard-coding a single vendor/model
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
