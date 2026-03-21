@@ -165,6 +165,23 @@ Repeat in follower fanout profile:
   -Rounds 3
 ```
 
+Run staged follower-fanout median stress in one suite report:
+
+```powershell
+./infra/load-test/run_follower_fanout_stress_suite.ps1 `
+  -BaseUrl "http://localhost:8080" `
+  -FanoutStages 1000,5000,10000 `
+  -SeedEvents 200 `
+  -Concurrency 8 `
+  -RequestsPerWorker 120 `
+  -Rounds 3
+```
+
+Useful notes:
+- this wrapper chains `repeat_baseline_median.ps1` once per follower stage
+- it emits one markdown summary linking each generated median report
+- the summary also computes `p95/p99` deltas between adjacent follower stages
+
 Compare two median summary reports:
 
 ```powershell

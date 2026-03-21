@@ -396,7 +396,7 @@ function Initialize-FanoutFollowers {
         }
     }
 
-    return @($followerIds)
+    return @($followerIds.ToArray())
 }
 
 function Seed-FeedEvents {

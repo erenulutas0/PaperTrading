@@ -503,6 +503,15 @@ Last updated: 2026-03-21
   - `WebSocketCanaryService` now emits a single-line `warn` plus `debug` stacktrace for expected probe exceptions instead of full warning-stacktrace noise
   - `WebSocketCanaryServiceTest` captures output and locks the reduced-noise failure-path logging contract
 - [ ] If strict real-time follower fanout is required again, introduce versioned feed cache keys to avoid pattern-scan invalidation costs in eager mode
+- [x] Added staged follower-fanout median suite wrapper:
+  - Added:
+    - `infra/load-test/run_follower_fanout_stress_suite.ps1`
+  - Behavior:
+    - runs `repeat_baseline_median.ps1` across follower stages
+    - persists one summary report linking the per-stage median reports
+    - computes `p95/p99` deltas between follower-count stages
+  - Local mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_follower_fanout_stress_suite.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
 - [ ] Run follower-fanout stress profile with staged high follower counts (`1k -> 5k -> 10k`) and persist median reports (`repeat_baseline_median.ps1`)
 - [ ] Re-calibrate feed latency thresholds from one-sprint production telemetry and adjust `APP_FEED_OBSERVABILITY_*` as needed
 - [ ] Configure real ops webhook URL in staging/prod (`APP_ALERTING_WEBHOOK_URL`) and run webhook validation script against live app (`-SkipAppStart`) with real endpoint

@@ -38,6 +38,31 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-21**: **Follower-Fanout Median Stress Now Has A Staged Suite Wrapper**
+  - **Problem observed**:
+    - The feed load tooling already supported:
+      - `lightweight_baseline.ps1` fanout profile
+      - `repeat_baseline_median.ps1` repeated median summaries
+    - But the still-open TODO was not about inventing a new primitive; it was about running a staged follower ladder:
+      - `1k -> 5k -> 10k`
+    - Without a wrapper, that remained operator memory and ad hoc report stitching.
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_follower_fanout_stress_suite.ps1`
+    - The suite:
+      - runs `repeat_baseline_median.ps1` once per follower stage
+      - captures the fresh median report for each stage
+      - emits one summary markdown report with:
+        - per-stage median success/latency values
+        - `p95/p99` deltas between adjacent follower stages
+    - While validating the suite, the underlying fanout profile was also hardened:
+      - `lightweight_baseline.ps1` now returns fanout follower arrays safely under PowerShell strict mode
+  - **Operational impact**:
+    - the open fanout scaling TODO is now a concrete one-command run instead of a remembered sequence of repeated median invocations
+    - future follower-ladder runs are easier to archive and compare because the suite persists one parent report over the child median reports
+  - **Validation**:
+    - Local mechanical pass executed with a reduced follower ladder:
+      - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_follower_fanout_stress_suite.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
 - **2026-03-21**: **WebSocket Canary Failure-Path Logging Was Reduced To Single-Line Warns**
   - **Problem observed**:
     - Canary failure-path tests intentionally drive probe exceptions.
