@@ -165,6 +165,103 @@ class StrategyBotRunServiceTest {
                 .hasMessageContaining("not executable by current engine");
     }
 
+    @Test
+    void executeRun_shouldStartForwardTestAndPersistRunningSnapshot() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("BTC Forward")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{\"all\":[\"price_above_ma_3\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .takeProfitPercent(new BigDecimal("2"))
+                .cooldownMinutes(1_000_000)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(runId)
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.QUEUED)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .compiledEntryRules(bot.getEntryRules())
+                .compiledExitRules(bot.getExitRules())
+                .summary("{}")
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+        when(marketDataFacadeService.getCandles(eq(MarketType.CRYPTO), eq("BTCUSDT"), eq("ALL"), eq("1h"), eq(null), eq(500)))
+                .thenReturn(risingCandles());
+        when(strategyBotRunRepository.save(any(StrategyBotRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        StrategyBotRunResponse response = strategyBotRunService.executeRun(botId, runId, userId);
+
+        assertThat(response.getStatus()).isEqualTo("RUNNING");
+        assertThat(response.getSummary().get("phase").asText()).isEqualTo("running");
+        assertThat(response.getSummary().get("lastEvaluatedOpenTime").asLong()).isGreaterThan(0L);
+        assertThat(response.getSummary().get("endingEquity").asDouble()).isGreaterThan(100000.0);
+        verify(strategyBotRunFillRepository).saveAll(any());
+        verify(strategyBotRunEquityPointRepository).saveAll(any());
+    }
+
+    @Test
+    void refreshForwardTestRun_shouldCompleteWhenForwardWindowEnds() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("BTC Forward End")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{\"all\":[\"price_above_ma_3\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .takeProfitPercent(new BigDecimal("2"))
+                .cooldownMinutes(1_000_000)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(runId)
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .compiledEntryRules(bot.getEntryRules())
+                .compiledExitRules(bot.getExitRules())
+                .fromDate(LocalDate.of(2026, 1, 1))
+                .toDate(LocalDate.of(2026, 1, 23))
+                .summary("{}")
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+        when(marketDataFacadeService.getCandles(eq(MarketType.CRYPTO), eq("BTCUSDT"), eq("ALL"), eq("1h"), eq(null), eq(500)))
+                .thenReturn(risingCandles());
+        when(strategyBotRunRepository.save(any(StrategyBotRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        StrategyBotRunResponse response = strategyBotRunService.refreshForwardTestRun(botId, runId, userId);
+
+        assertThat(response.getStatus()).isEqualTo("COMPLETED");
+        assertThat(response.getSummary().get("phase").asText()).isEqualTo("completed");
+        assertThat(response.getCompletedAt()).isNotNull();
+    }
+
     private List<MarketCandleResponse> risingCandles() {
         return List.of(
                 candle(1, 100, 101, 99, 100, 1000),

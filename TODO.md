@@ -564,10 +564,10 @@ Last updated: 2026-03-21
     - audit log coverage for create/update/delete
   - tests:
     - `StrategyBotControllerIntegrationTest`
-- [ ] Extend strategy-bot execution beyond the current deterministic backtest slice:
-  - paper portfolio binding for live forward-test
+- [ ] Extend strategy-bot live paper execution beyond the current refresh-based forward-test slice:
+  - paper portfolio reconciliation instead of run-local capital only
   - richer attribution views beyond run-level summary metrics
-  - execution scheduling / recurring paper runs
+  - staging/runtime verification for recurring scheduled forward-test refresh
 - [x] Added strategy-bot run journal foundation:
   - migration:
     - `V23__create_strategy_bot_runs_table.sql`
@@ -653,6 +653,23 @@ Last updated: 2026-03-21
     - `/dashboard/bots` run detail now surfaces outcome-quality cards for those metrics
   - validation:
     - `StrategyBotRunServiceTest`
+    - `apps/web` `npx tsc --noEmit`
+- [x] Added strategy-bot forward-test refresh foundation:
+  - backend:
+    - `POST /api/v1/strategy-bots/{botId}/runs/{runId}/execute` now starts `FORWARD_TEST` runs
+    - `POST /api/v1/strategy-bots/{botId}/runs/{runId}/refresh` now recomputes the latest live paper snapshot
+    - scheduled forward-test refresher now reuses the same run-refresh path
+    - running summaries now surface:
+      - `lastEvaluatedOpenTime`
+      - `positionOpen`
+      - `openQuantity`
+      - `openEntryPrice`
+  - frontend:
+    - `/dashboard/bots` now exposes `Start Forward Test` and `Refresh Snapshot`
+    - selected-run detail now shows live forward-test evaluation state
+  - validation:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotRunControllerIntegrationTest`
     - `apps/web` `npx tsc --noEmit`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging

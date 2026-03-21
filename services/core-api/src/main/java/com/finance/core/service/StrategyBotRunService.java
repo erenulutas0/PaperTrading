@@ -129,9 +129,6 @@ public class StrategyBotRunService {
         StrategyBotRun run = strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
 
-        if (run.getRunMode() != StrategyBotRun.RunMode.BACKTEST) {
-            throw new IllegalStateException("Only backtest execution is currently supported");
-        }
         if (run.getStatus() != StrategyBotRun.Status.QUEUED) {
             throw new IllegalStateException("Strategy bot run must be QUEUED before execution");
         }
@@ -145,16 +142,69 @@ public class StrategyBotRunService {
             throw new IllegalStateException("Strategy bot run is not executable by current engine");
         }
 
+        if (run.getRunMode() == StrategyBotRun.RunMode.FORWARD_TEST) {
+            return startForwardTestRun(bot, run, userId);
+        }
+        if (run.getRunMode() != StrategyBotRun.RunMode.BACKTEST) {
+            throw new IllegalStateException("Only backtest execution is currently supported");
+        }
+
+        return executeBacktestRun(bot, run, userId);
+    }
+
+    @Transactional
+    public StrategyBotRunResponse refreshForwardTestRun(UUID botId, UUID runId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        StrategyBotRun run = strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+        StrategyBotRun.Status previousStatus = run.getStatus();
+        RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, false);
+        StrategyBotRun saved = strategyBotRunRepository.save(run);
+        if (previousStatus == StrategyBotRun.Status.RUNNING && saved.getStatus() == StrategyBotRun.Status.COMPLETED) {
+            auditLogService.record(
+                    userId,
+                    AuditActionType.STRATEGY_BOT_RUN_EXECUTED,
+                    AuditResourceType.STRATEGY_BOT_RUN,
+                    saved.getId(),
+                    buildExecutionAuditDetails(saved, bot, summary));
+        }
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public void refreshForwardTestRunSystem(UUID runId) {
+        StrategyBotRun run = strategyBotRunRepository.findById(runId).orElse(null);
+        if (run == null || run.getRunMode() != StrategyBotRun.RunMode.FORWARD_TEST || run.getStatus() != StrategyBotRun.Status.RUNNING) {
+            return;
+        }
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(run.getStrategyBotId(), run.getUserId());
+        try {
+            RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, false);
+            StrategyBotRun saved = strategyBotRunRepository.save(run);
+            if (saved.getStatus() == StrategyBotRun.Status.COMPLETED) {
+                auditLogService.record(
+                        saved.getUserId(),
+                        AuditActionType.STRATEGY_BOT_RUN_EXECUTED,
+                        AuditResourceType.STRATEGY_BOT_RUN,
+                        saved.getId(),
+                        buildExecutionAuditDetails(saved, bot, summary));
+            }
+        } catch (Exception ex) {
+            run.setStatus(StrategyBotRun.Status.FAILED);
+            run.setCompletedAt(LocalDateTime.now());
+            run.setErrorMessage(ex.getMessage());
+            strategyBotRunRepository.save(run);
+        }
+    }
+
+    private StrategyBotRunResponse executeBacktestRun(StrategyBot bot, StrategyBotRun run, UUID userId) {
         run.setStatus(StrategyBotRun.Status.RUNNING);
         run.setStartedAt(LocalDateTime.now());
 
         List<MarketCandleResponse> candles = loadBacktestCandles(bot, run);
-        BacktestSummary summary = simulateBacktest(bot, run, candles);
+        RunSimulationSummary summary = simulateRun(bot, run, candles, true, "completed");
 
-        strategyBotRunFillRepository.deleteByStrategyBotRunId(run.getId());
-        strategyBotRunEquityPointRepository.deleteByStrategyBotRunId(run.getId());
-        strategyBotRunFillRepository.saveAll(summary.fillRows());
-        strategyBotRunEquityPointRepository.saveAll(summary.equityPoints());
+        persistRunOutputs(run, summary);
 
         run.setStatus(StrategyBotRun.Status.COMPLETED);
         run.setCompletedAt(LocalDateTime.now());
@@ -169,6 +219,55 @@ public class StrategyBotRunService {
                 saved.getId(),
                 buildExecutionAuditDetails(saved, bot, summary));
         return toResponse(saved);
+    }
+
+    private StrategyBotRunResponse startForwardTestRun(StrategyBot bot, StrategyBotRun run, UUID userId) {
+        RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, true);
+        StrategyBotRun saved = strategyBotRunRepository.save(run);
+        auditLogService.record(
+                userId,
+                saved.getStatus() == StrategyBotRun.Status.COMPLETED
+                        ? AuditActionType.STRATEGY_BOT_RUN_EXECUTED
+                        : AuditActionType.STRATEGY_BOT_RUN_STARTED,
+                AuditResourceType.STRATEGY_BOT_RUN,
+                saved.getId(),
+                saved.getStatus() == StrategyBotRun.Status.COMPLETED
+                        ? buildExecutionAuditDetails(saved, bot, summary)
+                        : buildForwardTestAuditDetails(saved, bot, summary));
+        return toResponse(saved);
+    }
+
+    private RunSimulationSummary refreshForwardTestRunInternal(StrategyBot bot,
+                                                               StrategyBotRun run,
+                                                               boolean allowQueuedStart) {
+        if (run.getRunMode() != StrategyBotRun.RunMode.FORWARD_TEST) {
+            throw new IllegalStateException("Only forward-test refresh is currently supported");
+        }
+        if (run.getStatus() == StrategyBotRun.Status.QUEUED) {
+            if (!allowQueuedStart) {
+                throw new IllegalStateException("Strategy bot forward-test run must be RUNNING before refresh");
+            }
+            run.setStatus(StrategyBotRun.Status.RUNNING);
+            run.setStartedAt(LocalDateTime.now());
+        } else if (run.getStatus() != StrategyBotRun.Status.RUNNING) {
+            throw new IllegalStateException("Strategy bot forward-test run must be RUNNING before refresh");
+        }
+
+        List<MarketCandleResponse> candles = loadBacktestCandles(bot, run);
+        boolean completeNow = forwardTestWindowReachedEnd(candles, run.getToDate());
+        RunSimulationSummary summary = simulateRun(bot, run, candles, completeNow, completeNow ? "completed" : "running");
+
+        persistRunOutputs(run, summary);
+        run.setSummary(writeSummary(summary.payload()));
+        run.setErrorMessage(null);
+        if (completeNow) {
+            run.setStatus(StrategyBotRun.Status.COMPLETED);
+            run.setCompletedAt(LocalDateTime.now());
+        } else {
+            run.setStatus(StrategyBotRun.Status.RUNNING);
+            run.setCompletedAt(null);
+        }
+        return summary;
     }
 
     private BigDecimal resolveInitialCapital(StrategyBot bot, BigDecimal requestedInitialCapital) {
@@ -237,7 +336,7 @@ public class StrategyBotRunService {
         return details;
     }
 
-    private Map<String, Object> buildExecutionAuditDetails(StrategyBotRun run, StrategyBot bot, BacktestSummary summary) {
+    private Map<String, Object> buildExecutionAuditDetails(StrategyBotRun run, StrategyBot bot, RunSimulationSummary summary) {
         LinkedHashMap<String, Object> details = new LinkedHashMap<>(buildAuditDetails(run, bot));
         details.put("phase", "completed");
         details.put("tradeCount", summary.tradeCount());
@@ -248,6 +347,29 @@ public class StrategyBotRunService {
         details.put("returnPercent", summary.returnPercent());
         details.put("maxDrawdownPercent", summary.maxDrawdownPercent());
         return details;
+    }
+
+    private Map<String, Object> buildForwardTestAuditDetails(StrategyBotRun run, StrategyBot bot, RunSimulationSummary summary) {
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>(buildAuditDetails(run, bot));
+        details.put("phase", "running");
+        details.put("tradeCount", summary.tradeCount());
+        details.put("winCount", summary.winCount());
+        details.put("lossCount", summary.lossCount());
+        details.put("endingEquity", summary.endingEquity());
+        details.put("netPnl", summary.netPnl());
+        details.put("returnPercent", summary.returnPercent());
+        details.put("maxDrawdownPercent", summary.maxDrawdownPercent());
+        details.put("lastEvaluatedOpenTime", summary.lastEvaluatedOpenTime());
+        return details;
+    }
+
+    private void persistRunOutputs(StrategyBotRun run, RunSimulationSummary summary) {
+        strategyBotRunFillRepository.deleteByStrategyBotRunId(run.getId());
+        strategyBotRunEquityPointRepository.deleteByStrategyBotRunId(run.getId());
+        strategyBotRunFillRepository.flush();
+        strategyBotRunEquityPointRepository.flush();
+        strategyBotRunFillRepository.saveAll(summary.fillRows());
+        strategyBotRunEquityPointRepository.saveAll(summary.equityPoints());
     }
 
     private List<MarketCandleResponse> loadBacktestCandles(StrategyBot bot, StrategyBotRun run) {
@@ -288,7 +410,21 @@ public class StrategyBotRunService {
         }
     }
 
-    private BacktestSummary simulateBacktest(StrategyBot bot, StrategyBotRun run, List<MarketCandleResponse> candles) {
+    private boolean forwardTestWindowReachedEnd(List<MarketCandleResponse> candles, LocalDate toDate) {
+        if (toDate == null || candles.isEmpty()) {
+            return false;
+        }
+        LocalDate latestCandleDate = Instant.ofEpochMilli(candles.get(candles.size() - 1).getOpenTime())
+                .atZone(ZoneOffset.UTC)
+                .toLocalDate();
+        return !latestCandleDate.isBefore(toDate);
+    }
+
+    private RunSimulationSummary simulateRun(StrategyBot bot,
+                                             StrategyBotRun run,
+                                             List<MarketCandleResponse> candles,
+                                             boolean closePositionAtEnd,
+                                             String phase) {
         double cash = run.getEffectiveInitialCapital().doubleValue();
         double quantity = 0.0;
         double entryPrice = 0.0;
@@ -323,7 +459,7 @@ public class StrategyBotRunService {
                                 false,
                                 bot.getStopLossPercent(),
                                 bot.getTakeProfitPercent()));
-                boolean shouldExit = exit.matched() || i == candles.size() - 1;
+                boolean shouldExit = exit.matched() || (closePositionAtEnd && i == candles.size() - 1);
                 if (shouldExit) {
                     double exitPrice = candle.getClose();
                     double proceeds = quantity * exitPrice;
@@ -382,9 +518,10 @@ public class StrategyBotRunService {
         Double avgLossPnl = lossCount == 0 ? null : round((-grossLoss) / lossCount);
         Double profitFactor = grossLoss == 0.0 ? null : round(grossProfit / grossLoss);
         Double expectancyPerTrade = tradeCount == 0 ? null : round(netPnl / tradeCount);
+        Long lastEvaluatedOpenTime = candles.isEmpty() ? null : candles.get(candles.size() - 1).getOpenTime();
 
         LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
-        payload.put("phase", "completed");
+        payload.put("phase", phase);
         payload.put("runMode", run.getRunMode().name());
         payload.put("executionEngineReady", true);
         payload.put("market", bot.getMarket());
@@ -406,13 +543,17 @@ public class StrategyBotRunService {
         payload.put("expectancyPerTrade", expectancyPerTrade);
         payload.put("bestTradePnl", bestTradePnl == null ? null : round(bestTradePnl));
         payload.put("worstTradePnl", worstTradePnl == null ? null : round(worstTradePnl));
+        payload.put("positionOpen", positionOpen);
+        payload.put("openQuantity", positionOpen ? round(quantity) : null);
+        payload.put("openEntryPrice", positionOpen ? round(entryPrice) : null);
+        payload.put("lastEvaluatedOpenTime", lastEvaluatedOpenTime);
         payload.put("fillCount", fills.size());
         payload.put("maxDrawdownPercent", round(maxDrawdownPercent));
         payload.put("candleCount", candles.size());
         payload.put("fills", fills);
         payload.put("equityCurve", equityCurve);
 
-        return new BacktestSummary(
+        return new RunSimulationSummary(
                 payload,
                 fillRows,
                 equityPointRows,
@@ -422,7 +563,8 @@ public class StrategyBotRunService {
                 round(endingEquity),
                 round(netPnl),
                 round(returnPercent),
-                round(maxDrawdownPercent));
+                round(maxDrawdownPercent),
+                lastEvaluatedOpenTime);
     }
 
     private StrategyBotRuleEngineService.SignalEvaluation evaluateRulesSafely(
@@ -577,7 +719,7 @@ public class StrategyBotRunService {
                 .build();
     }
 
-    private record BacktestSummary(
+    private record RunSimulationSummary(
             Map<String, Object> payload,
             List<StrategyBotRunFill> fillRows,
             List<StrategyBotRunEquityPoint> equityPoints,
@@ -587,6 +729,7 @@ public class StrategyBotRunService {
             double endingEquity,
             double netPnl,
             double returnPercent,
-            double maxDrawdownPercent) {
+            double maxDrawdownPercent,
+            Long lastEvaluatedOpenTime) {
     }
 }

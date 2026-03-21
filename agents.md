@@ -240,6 +240,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - bot runs now communicate payoff shape, not just terminal result
     - the product gets a more defensible inspection surface before richer attribution tables or forward-test scheduling exist
+- **2026-03-22**: **Forward Tests Start As Refresh-Based Live Paper Snapshots, Not A Separate Stateful Engine**
+  - **Problem observed**:
+    - Backtests were now usable end-to-end, but the next product gap was live paper monitoring.
+    - Building a separate incremental forward-test engine immediately would duplicate the existing deterministic simulation logic and enlarge the fault surface too early.
+  - **Implementation**:
+    - `POST /api/v1/strategy-bots/{botId}/runs/{runId}/execute` now starts `FORWARD_TEST` runs.
+    - Added `POST /api/v1/strategy-bots/{botId}/runs/{runId}/refresh`.
+    - Added a scheduled forward-test refresher that reuses the same refresh path for running forward tests.
+    - Forward-test refresh currently works by recomputing the latest deterministic paper snapshot from the available candle window, then replacing persisted:
+      - fill rows
+      - equity points
+      - live summary fields such as `lastEvaluatedOpenTime` and open-position state
+  - **Operational impact**:
+    - the product now has a real live-paper monitoring loop without introducing brokerage semantics or a second hidden execution model
+    - later evolution can optimize refresh/incremental state handling behind a stable API and UI contract
 - **2026-03-21**: **Live Ops Webhook Validation Moved To Actuator-Triggered Metric Checks**
   - **Problem observed**:
     - The repo already had payload-capture validation scripts for isolated/local runs:

@@ -19,7 +19,7 @@ type StrategyBot = {
 type StrategyBotRun = {
     id: string; runMode: RunMode; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'; requestedAt: string;
     fromDate?: string; toDate?: string; errorMessage?: string | null;
-    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null } | null;
+    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null; lastEvaluatedOpenTime?: number | null; positionOpen?: boolean; openQuantity?: number | null; openEntryPrice?: number | null } | null;
 };
 type StrategyBotRunFill = {
     id: string; sequenceNo: number; side: 'ENTRY' | 'EXIT'; openTime: number;
@@ -72,6 +72,7 @@ export default function StrategyBotsPage() {
     const [saving, setSaving] = useState(false);
     const [requestingRun, setRequestingRun] = useState(false);
     const [executingRunId, setExecutingRunId] = useState<string | null>(null);
+    const [refreshingRunId, setRefreshingRunId] = useState<string | null>(null);
     const [outputsLoading, setOutputsLoading] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -220,6 +221,19 @@ export default function StrategyBotsPage() {
             setSelectedRunId(runId);
             setNotice('Run executed');
         } catch (error) { setActionError(err(error)); } finally { setExecutingRunId(null); }
+    }
+
+    async function refreshRun(runId: string) {
+        if (!selectedBotId) return;
+        setRefreshingRunId(runId); setActionError(null); setNotice(null);
+        try {
+            const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${runId}/refresh`, { method: 'POST' });
+            if (!response.ok) throw new Error(await response.text() || `Run refresh failed (${response.status})`);
+            await loadRuns(selectedBotId);
+            setSelectedRunId(runId);
+            await loadRunOutputs(selectedBotId, runId);
+            setNotice('Forward test refreshed');
+        } catch (error) { setActionError(err(error)); } finally { setRefreshingRunId(null); }
     }
 
     return (
@@ -479,14 +493,21 @@ export default function StrategyBotsPage() {
                                             <p className="mt-1 text-xs text-zinc-500">Requested {fmtDate(run.requestedAt)}</p>
                                             <p className="mt-2 text-sm text-zinc-400">Window {run.fromDate ?? 'auto'} to {run.toDate ?? 'auto'} | Equity {fmtCurrency(run.summary?.endingEquity)}</p>
                                         </div>
-                                        {run.status === 'QUEUED' && (
-                                            <button type="button" onClick={() => void executeRun(run.id)} disabled={executingRunId === run.id} className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 disabled:opacity-60">
-                                                {executingRunId === run.id ? 'Executing...' : 'Execute Backtest'}
+                                        <div className="flex flex-wrap gap-2">
+                                            {run.status === 'QUEUED' && (
+                                                <button type="button" onClick={() => void executeRun(run.id)} disabled={executingRunId === run.id} className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 disabled:opacity-60">
+                                                    {executingRunId === run.id ? 'Executing...' : run.runMode === 'FORWARD_TEST' ? 'Start Forward Test' : 'Execute Backtest'}
+                                                </button>
+                                            )}
+                                            {run.runMode === 'FORWARD_TEST' && run.status === 'RUNNING' && (
+                                                <button type="button" onClick={() => void refreshRun(run.id)} disabled={refreshingRunId === run.id} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 disabled:opacity-60">
+                                                    {refreshingRunId === run.id ? 'Refreshing...' : 'Refresh Snapshot'}
+                                                </button>
+                                            )}
+                                            <button type="button" onClick={() => setSelectedRunId(run.id)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200">
+                                                {selectedRunId === run.id ? 'Selected' : 'Inspect'}
                                             </button>
-                                        )}
-                                        <button type="button" onClick={() => setSelectedRunId(run.id)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200">
-                                            {selectedRunId === run.id ? 'Selected' : 'Inspect'}
-                                        </button>
+                                        </div>
                                     </div>
                                     {run.errorMessage && <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">{run.errorMessage}</div>}
                                     <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -504,6 +525,12 @@ export default function StrategyBotsPage() {
                                                     <p className="mt-2 text-sm text-zinc-300">Features: {(selectedRun?.summary?.supportedFeatures ?? []).join(', ') || 'None'}</p>
                                                     <p className="mt-2 text-sm text-zinc-300">Unsupported: {(selectedRun?.summary?.unsupportedRules ?? []).join(', ') || 'None'}</p>
                                                     <p className="mt-2 text-sm text-zinc-300">Warnings: {(selectedRun?.summary?.warnings ?? []).join(' | ') || 'None'}</p>
+                                                    {selectedRun?.runMode === 'FORWARD_TEST' && (
+                                                        <>
+                                                            <p className="mt-2 text-sm text-zinc-300">Last Evaluated: {selectedRun?.summary?.lastEvaluatedOpenTime ? fmtEpoch(selectedRun.summary.lastEvaluatedOpenTime) : 'N/A'}</p>
+                                                            <p className="mt-2 text-sm text-zinc-300">Live Position: {selectedRun?.summary?.positionOpen ? `Open @ ${fmtCurrency(selectedRun?.summary?.openEntryPrice)} / ${selectedRun?.summary?.openQuantity?.toFixed(4)}` : 'Flat'}</p>
+                                                        </>
+                                                    )}
                                                 </div>
                                                 <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                                                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Persisted Fills</p>

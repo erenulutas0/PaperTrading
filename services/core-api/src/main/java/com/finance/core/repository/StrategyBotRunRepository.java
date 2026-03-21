@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -14,6 +15,8 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
     Page<StrategyBotRun> findByStrategyBotIdAndUserId(UUID strategyBotId, UUID userId, Pageable pageable);
 
     Optional<StrategyBotRun> findByIdAndStrategyBotIdAndUserId(UUID id, UUID strategyBotId, UUID userId);
+
+    List<StrategyBotRun> findByRunModeAndStatusOrderByRequestedAtAsc(StrategyBotRun.RunMode runMode, StrategyBotRun.Status status);
 
     void deleteByStrategyBotId(UUID strategyBotId);
 }
