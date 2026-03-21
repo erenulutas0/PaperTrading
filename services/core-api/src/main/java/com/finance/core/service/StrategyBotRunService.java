@@ -30,6 +30,7 @@ public class StrategyBotRunService {
 
     private final StrategyBotRunRepository strategyBotRunRepository;
     private final StrategyBotService strategyBotService;
+    private final StrategyBotRuleEngineService strategyBotRuleEngineService;
     private final PortfolioRepository portfolioRepository;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
@@ -117,6 +118,11 @@ public class StrategyBotRunService {
     }
 
     private String buildQueuedSummary(StrategyBotRun.RunMode runMode, StrategyBot bot) {
+        StrategyBotRuleEngineService.RuleCompilation compilation = strategyBotRuleEngineService.compile(
+                parseJson(bot.getEntryRules()),
+                parseJson(bot.getExitRules()),
+                bot.getStopLossPercent(),
+                bot.getTakeProfitPercent());
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("phase", "queued");
         summary.put("runMode", runMode.name());
@@ -124,7 +130,14 @@ public class StrategyBotRunService {
         summary.put("market", bot.getMarket());
         summary.put("symbol", bot.getSymbol());
         summary.put("timeframe", bot.getTimeframe());
-        summary.put("executionEngineReady", false);
+        summary.put("executionEngineReady", compilation.executionEngineReady());
+        summary.put("entryRuleCount", compilation.entryRuleCount());
+        summary.put("exitRuleCount", compilation.exitRuleCount());
+        summary.put("supportedEntryRuleCount", compilation.supportedEntryRuleCount());
+        summary.put("supportedExitRuleCount", compilation.supportedExitRuleCount());
+        summary.put("unsupportedRules", compilation.unsupportedRules());
+        summary.put("warnings", compilation.warnings());
+        summary.put("supportedFeatures", compilation.supportedFeatures());
         try {
             return objectMapper.writeValueAsString(summary);
         } catch (JsonProcessingException ex) {

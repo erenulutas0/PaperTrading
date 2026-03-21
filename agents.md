@@ -89,6 +89,30 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the next execution slice can update persisted run rows instead of inventing lifecycle state ad hoc
     - frontend bot work can target a stable run-history surface even before simulation metrics exist
+- **2026-03-21**: **Strategy Bot Rule Support Is Now Explicitly Compiled Before Backtests Exist**
+  - **Problem observed**:
+    - Persisting bot runs was necessary, but run requests still had no deterministic answer to a more basic question:
+      - “is this bot actually executable by the current engine?”
+    - Leaving that implicit would blur the boundary between:
+      - supported deterministic rule bots
+      - future/unsupported strategy ideas
+  - **Implementation**:
+    - Added `StrategyBotRuleEngineService`.
+    - Current supported rule families:
+      - moving-average price checks
+      - RSI threshold checks
+      - breakout/breakdown checks
+      - volume SMA checks
+      - stop-loss / take-profit exits
+    - Queued run summaries now persist:
+      - `executionEngineReady`
+      - supported entry/exit rule counts
+      - unsupported rule tokens
+      - compiler warnings
+      - supported feature families
+  - **Operational impact**:
+    - the product can now distinguish “bot saved” from “bot executable by the current deterministic engine”
+    - the later backtest/simulator slice can target a narrower supported-rule surface instead of handling every speculative rule at once
 - **2026-03-21**: **Future Bot Work Must Stay Paper-Only, Server-Executed, And Fully Auditable**
   - **Problem observed**:
     - The next natural product extension is user-created strategy bots and eventually agentic trading assistants.

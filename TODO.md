@@ -580,6 +580,15 @@ Last updated: 2026-03-21
     - audit log coverage for run requests
   - tests:
     - `StrategyBotRunControllerIntegrationTest`
+- [x] Added strategy-bot rule engine foundation:
+  - backend:
+    - deterministic rule compiler for supported strategy tokens
+    - candle-based signal evaluator for MA / RSI / breakout / volume conditions
+    - risk-exit support for `stop_loss_hit` and `take_profit_hit`
+    - queued run summary now surfaces `executionEngineReady`, supported counts, unsupported rules, and warnings
+  - tests:
+    - `StrategyBotRuleEngineServiceTest`
+    - `StrategyBotRunControllerIntegrationTest`
 - [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
   - prompt/action audit logging
   - tool/market-data sandbox

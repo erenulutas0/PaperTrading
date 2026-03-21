@@ -72,6 +72,7 @@ class StrategyBotRunControllerIntegrationTest {
                 .entryRules("{\"all\":[\"rsi_above_55\"]}")
                 .exitRules("{\"any\":[\"stop_loss_hit\"]}")
                 .maxPositionSizePercent(new BigDecimal("25"))
+                .stopLossPercent(new BigDecimal("3.5"))
                 .cooldownMinutes(30)
                 .status(StrategyBot.Status.READY)
                 .build());
@@ -91,7 +92,9 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andExpect(jsonPath("$.effectiveInitialCapital").value(50000))
                 .andExpect(jsonPath("$.summary.phase").value("queued"))
-                .andExpect(jsonPath("$.summary.executionEngineReady").value(false));
+                .andExpect(jsonPath("$.summary.executionEngineReady").value(true))
+                .andExpect(jsonPath("$.summary.supportedEntryRuleCount").value(1))
+                .andExpect(jsonPath("$.summary.supportedExitRuleCount").value(1));
 
         mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs")
                         .header("X-User-Id", userId.toString()))
@@ -147,5 +150,30 @@ class StrategyBotRunControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(Map.of("runMode", "BACKTEST"))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("strategy_bot_not_ready"));
+    }
+
+    @Test
+    void requestRun_shouldSurfaceUnsupportedRulesInQueuedSummary() throws Exception {
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .name("Unsupported Rule Bot")
+                .market("CRYPTO")
+                .symbol("ADAUSDT")
+                .timeframe("30M")
+                .entryRules("{\"all\":[\"macd_cross\"]}")
+                .exitRules("{\"any\":[\"stop_loss_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("12"))
+                .cooldownMinutes(10)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("runMode", "BACKTEST"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.executionEngineReady").value(false))
+                .andExpect(jsonPath("$.summary.unsupportedRules", hasSize(2)))
+                .andExpect(jsonPath("$.summary.unsupportedRules[0]").value("macd_cross"));
     }
 }
