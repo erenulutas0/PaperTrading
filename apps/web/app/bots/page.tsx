@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../lib/api-client';
 import { extractContent } from '../../lib/page';
@@ -91,18 +92,67 @@ function lookbackLabel(value: LookbackOption): string {
   return value === 'ALL' ? 'All Time' : `${value}D`;
 }
 
+function parseBoardSort(value: string | null): BoardSort {
+  return value === 'AVG_WIN_RATE'
+    || value === 'AVG_PROFIT_FACTOR'
+    || value === 'TOTAL_RUNS'
+    || value === 'LATEST_REQUESTED_AT'
+    ? value
+    : 'AVG_RETURN';
+}
+
+function parseDirection(value: string | null): Direction {
+  return value === 'ASC' ? 'ASC' : 'DESC';
+}
+
+function parseRunMode(value: string | null): RunMode {
+  return value === 'BACKTEST' || value === 'FORWARD_TEST' ? value : 'ALL';
+}
+
+function parseLookback(value: string | null): LookbackOption {
+  return value === '7' || value === '30' || value === '90' ? value : 'ALL';
+}
+
+function parsePageIndex(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 export default function PublicStrategyBotsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [bots, setBots] = useState<PublicStrategyBotBoardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [sortBy, setSortBy] = useState<BoardSort>('AVG_RETURN');
-  const [direction, setDirection] = useState<Direction>('DESC');
-  const [runMode, setRunMode] = useState<RunMode>('ALL');
-  const [lookback, setLookback] = useState<LookbackOption>('ALL');
-  const [pageIndex, setPageIndex] = useState(0);
+  const [query, setQuery] = useState(() => searchParams.get('q')?.trim() ?? '');
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('q') ?? '');
+  const [sortBy, setSortBy] = useState<BoardSort>(() => parseBoardSort(searchParams.get('sortBy')));
+  const [direction, setDirection] = useState<Direction>(() => parseDirection(searchParams.get('direction')));
+  const [runMode, setRunMode] = useState<RunMode>(() => parseRunMode(searchParams.get('runMode')));
+  const [lookback, setLookback] = useState<LookbackOption>(() => parseLookback(searchParams.get('lookbackDays')));
+  const [pageIndex, setPageIndex] = useState(() => parsePageIndex(searchParams.get('page')));
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
+  const [exportingBoardFormat, setExportingBoardFormat] = useState<'csv' | 'json' | null>(null);
+  const [copyingLens, setCopyingLens] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set('sortBy', sortBy);
+    params.set('direction', direction);
+    params.set('runMode', runMode);
+    if (lookback !== 'ALL') {
+      params.set('lookbackDays', lookback);
+    }
+    if (query) {
+      params.set('q', query);
+    }
+    if (pageIndex > 0) {
+      params.set('page', String(pageIndex));
+    }
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+  }, [direction, lookback, pageIndex, pathname, query, router, runMode, sortBy]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -155,6 +205,58 @@ export default function PublicStrategyBotsPage() {
   }, [bots]);
 
   const visibleTrades = useMemo(() => bots.reduce((sum, bot) => sum + bot.totalSimulatedTrades, 0), [bots]);
+
+  function buildLensSearchParams(includePage = true): URLSearchParams {
+    const params = new URLSearchParams();
+    params.set('sortBy', sortBy);
+    params.set('direction', direction);
+    params.set('runMode', runMode);
+    if (lookback !== 'ALL') {
+      params.set('lookbackDays', lookback);
+    }
+    if (query) {
+      params.set('q', query);
+    }
+    if (includePage && pageIndex > 0) {
+      params.set('page', String(pageIndex));
+    }
+    return params;
+  }
+
+  async function exportBoard(format: 'csv' | 'json') {
+    setExportingBoardFormat(format);
+    try {
+      const params = buildLensSearchParams(false);
+      params.set('format', format);
+      const res = await apiFetch(`/api/v1/strategy-bots/discover/export?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Failed to export public strategy bots: ${res.status}`);
+      }
+      const blob = await res.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = format === 'csv' ? 'public-strategy-bot-board.csv' : 'public-strategy-bot-board.json';
+      anchor.click();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setExportingBoardFormat(null);
+    }
+  }
+
+  async function copyLensLink() {
+    setCopyingLens(true);
+    try {
+      const href = `${window.location.origin}${pathname}?${buildLensSearchParams(true).toString()}`;
+      await navigator.clipboard.writeText(href);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setCopyingLens(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -210,6 +312,33 @@ export default function PublicStrategyBotsPage() {
                 {preset.label}
               </button>
             ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void exportBoard('csv')}
+              disabled={exportingBoardFormat !== null}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportingBoardFormat === 'csv' ? 'Exporting CSV...' : 'Export Board CSV'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportBoard('json')}
+              disabled={exportingBoardFormat !== null}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exportingBoardFormat === 'json' ? 'Exporting JSON...' : 'Export Board JSON'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyLensLink()}
+              disabled={copyingLens}
+              className="rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-300 transition hover:bg-green-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {copyingLens ? 'Copying Link...' : 'Copy Lens Link'}
+            </button>
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-3">
@@ -362,7 +491,7 @@ export default function PublicStrategyBotsPage() {
 
                   <div className="mt-5 flex flex-wrap gap-3">
                     <Link
-                      href={`/bots/${bot.strategyBotId}?runMode=${runMode}&lookbackDays=${lookback}`}
+                      href={`/bots/${bot.strategyBotId}?${buildLensSearchParams(true).toString()}`}
                       className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/15"
                     >
                       View Bot

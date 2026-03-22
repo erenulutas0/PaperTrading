@@ -609,6 +609,8 @@ Last updated: 2026-03-22
   - backend:
     - `GET /api/v1/strategy-bots/discover`
     - `GET /api/v1/strategy-bots/discover/{botId}`
+    - `GET /api/v1/strategy-bots/discover/export?format=csv|json`
+    - `GET /api/v1/strategy-bots/discover/{botId}/export?format=csv|json`
     - public eligibility now means:
       - linked portfolio is `PUBLIC`
       - bot status is not `DRAFT`
@@ -627,6 +629,16 @@ Last updated: 2026-03-22
       - preset comparison lenses
       - scope filters
       - backend-backed search
+      - query-backed public lens state for:
+        - `q`
+        - `sortBy`
+        - `direction`
+        - `runMode`
+        - `lookbackDays`
+        - `page`
+      - `Export Board CSV`
+      - `Export Board JSON`
+      - `Copy Lens Link`
       - owner trust/profile context
       - linked public portfolio jump
       - public bot detail inspection for:
@@ -634,6 +646,9 @@ Last updated: 2026-03-22
         - rule JSON
         - scoped analytics
         - recent scorecards
+        - `Export CSV`
+        - `Export JSON`
+        - `Copy Link`
     - public nav entry added from:
       - landing page
       - `/discover`

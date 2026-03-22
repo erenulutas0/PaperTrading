@@ -80,6 +80,62 @@ public class StrategyBotController {
         }
     }
 
+    @GetMapping("/discover/export")
+    public ResponseEntity<?> exportPublicBotBoard(
+            @RequestParam(defaultValue = "json") String format,
+            @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
+            @RequestParam(defaultValue = "DESC") String direction,
+            @RequestParam(defaultValue = "ALL") String runMode,
+            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(defaultValue = "") String q,
+            HttpServletRequest request) {
+        try {
+            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            if ("csv".equals(normalizedFormat)) {
+                byte[] content = strategyBotRunService.buildPublicBotBoardExportCsv(sortBy, direction, runMode, lookbackDays, q);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"public-strategy-bot-board.csv\"")
+                        .contentType(new MediaType("text", "csv"))
+                        .body(content);
+            }
+
+            String content = strategyBotRunService.buildPublicBotBoardExportJson(sortBy, direction, runMode, lookbackDays, q);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"public-strategy-bot-board.json\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(content);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_public_board_export_failed", "Failed to export public strategy bots", request);
+        }
+    }
+
+    @GetMapping("/discover/{botId}/export")
+    public ResponseEntity<?> exportPublicBotDetail(
+            @PathVariable UUID botId,
+            @RequestParam(defaultValue = "json") String format,
+            @RequestParam(defaultValue = "ALL") String runMode,
+            @RequestParam(required = false) Integer lookbackDays,
+            HttpServletRequest request) {
+        try {
+            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            if ("csv".equals(normalizedFormat)) {
+                byte[] content = strategyBotRunService.buildPublicBotDetailExportCsv(botId, runMode, lookbackDays);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"public-strategy-bot-" + botId + ".csv\"")
+                        .contentType(new MediaType("text", "csv"))
+                        .body(content);
+            }
+
+            String content = strategyBotRunService.buildPublicBotDetailExportJson(botId, runMode, lookbackDays);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"public-strategy-bot-" + botId + ".json\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(content);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_public_detail_export_failed", "Failed to export public strategy bot", request);
+        }
+    }
+
     @GetMapping("/board")
     public ResponseEntity<?> getBotBoard(
             @CurrentUserId UUID userId,

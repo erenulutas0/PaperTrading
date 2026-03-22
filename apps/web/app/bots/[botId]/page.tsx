@@ -128,6 +128,8 @@ export default function PublicStrategyBotDetailPage() {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<PublicStrategyBotDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<'csv' | 'json' | null>(null);
+  const [copyingLink, setCopyingLink] = useState(false);
 
   useEffect(() => {
     setRunMode(parseRunMode(searchParams.get('runMode')));
@@ -165,6 +167,23 @@ export default function PublicStrategyBotDetailPage() {
   }, [botId, runMode, lookback]);
 
   const scopeSummary = useMemo(() => `${runModeLabel(runMode)} / ${lookbackLabel(lookback)}`, [runMode, lookback]);
+  const backToBoardHref = useMemo(() => {
+    const params = new URLSearchParams();
+    const q = searchParams.get('q');
+    const sortBy = searchParams.get('sortBy');
+    const direction = searchParams.get('direction');
+    const page = searchParams.get('page');
+    if (q) params.set('q', q);
+    if (sortBy) params.set('sortBy', sortBy);
+    if (direction) params.set('direction', direction);
+    params.set('runMode', runMode);
+    if (lookback !== 'ALL') {
+      params.set('lookbackDays', lookback);
+    }
+    if (page) params.set('page', page);
+    const queryString = params.toString();
+    return queryString ? `/bots?${queryString}` : '/bots';
+  }, [lookback, runMode, searchParams]);
 
   function updateScope(nextRunMode: RunMode, nextLookback: LookbackOption) {
     const params = new URLSearchParams(searchParams.toString());
@@ -175,6 +194,44 @@ export default function PublicStrategyBotDetailPage() {
       params.set('lookbackDays', nextLookback);
     }
     router.replace(`/bots/${botId}?${params.toString()}`);
+  }
+
+  async function exportDetail(format: 'csv' | 'json') {
+    setExportingFormat(format);
+    try {
+      const params = new URLSearchParams();
+      params.set('format', format);
+      params.set('runMode', runMode);
+      if (lookback !== 'ALL') {
+        params.set('lookbackDays', lookback);
+      }
+      const res = await apiFetch(`/api/v1/strategy-bots/discover/${botId}/export?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Failed to export public strategy bot: ${res.status}`);
+      }
+      const blob = await res.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = format === 'csv' ? `public-strategy-bot-${botId}.csv` : `public-strategy-bot-${botId}.json`;
+      anchor.click();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (exportError) {
+      console.error(exportError);
+    } finally {
+      setExportingFormat(null);
+    }
+  }
+
+  async function copyDetailLink() {
+    setCopyingLink(true);
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+    } catch (copyError) {
+      console.error(copyError);
+    } finally {
+      setCopyingLink(false);
+    }
   }
 
   return (
@@ -192,8 +249,32 @@ export default function PublicStrategyBotDetailPage() {
 
       <div className="mx-auto max-w-6xl px-6 py-10">
         <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-zinc-400">
-          <Link href="/bots" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold text-zinc-300 transition hover:text-white">Back To Bots</Link>
+          <Link href={backToBoardHref} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold text-zinc-300 transition hover:text-white">Back To Bots</Link>
           <div className="rounded-full border border-white/10 bg-black/30 px-4 py-2 font-semibold text-zinc-400">Scope {scopeSummary}</div>
+          <button
+            type="button"
+            onClick={() => void exportDetail('csv')}
+            disabled={exportingFormat !== null}
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exportingFormat === 'csv' ? 'Exporting CSV...' : 'Export CSV'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportDetail('json')}
+            disabled={exportingFormat !== null}
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exportingFormat === 'json' ? 'Exporting JSON...' : 'Export JSON'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void copyDetailLink()}
+            disabled={copyingLink}
+            className="rounded-full border border-green-500/20 bg-green-500/10 px-4 py-2 font-semibold text-green-300 transition hover:bg-green-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {copyingLink ? 'Copying Link...' : 'Copy Link'}
+          </button>
         </div>
 
         {loading ? (

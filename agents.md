@@ -579,6 +579,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the public bot layer now supports both comparison and inspection
     - public readers can evaluate bot configuration and scoped evidence without crossing into operator-facing dashboard tooling
+- **2026-03-22**: **Public Strategy Bot Reading Now Exports And Shares The Same Scoped Lens Instead Of Relying On Screen-Only Inspection**
+  - **Problem observed**:
+    - Public comparison and detail surfaces were now readable, but they were still ephemeral:
+      - no downloadable board lens
+      - no downloadable public detail packet
+      - no guaranteed way to hand off the exact public comparison state
+    - That would force screenshots or manual recreation for external review.
+  - **Implementation**:
+    - Added public export endpoints:
+      - `GET /api/v1/strategy-bots/discover/export?format=csv|json`
+      - `GET /api/v1/strategy-bots/discover/{botId}/export?format=csv|json`
+    - Reused the existing board/detail aggregate contracts instead of building a separate public reporting model.
+    - `/bots` now keeps the public comparison lens in query state and exposes:
+      - board CSV/JSON export
+      - deep-link copy for the current public lens
+    - `/bots/[botId]` now exposes:
+      - scoped detail CSV/JSON export
+      - deep-link copy
+      - back-to-board navigation that preserves the originating public lens
+  - **Operational impact**:
+    - public bot review is now portable instead of trapped in one browser session
+    - comparison, detail reading, and exports all stay aligned to the same scoped evidence lens
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

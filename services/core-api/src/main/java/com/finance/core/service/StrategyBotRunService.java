@@ -217,6 +217,190 @@ public class StrategyBotRunService {
     }
 
     @Transactional(readOnly = true)
+    public String buildPublicBotBoardExportJson(String sortBy,
+                                                String direction,
+                                                String runMode,
+                                                Integer lookbackDays,
+                                                String query) {
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        String normalizedSort = normalizeBoardSort(sortBy);
+        String normalizedDirection = normalizeBoardDirection(direction);
+        String normalizedQuery = normalizeSearchQuery(query);
+        List<StrategyBotBoardEntryResponse> entries = buildPublicBotBoardEntries(
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays,
+                normalizedQuery);
+
+        LinkedHashMap<String, Object> payload = buildBoardExportPayload(
+                entries,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays,
+                normalizedQuery,
+                "PUBLIC");
+        return writePrettyJsonExport(payload, "Failed to serialize public strategy bot board export");
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] buildPublicBotBoardExportCsv(String sortBy,
+                                               String direction,
+                                               String runMode,
+                                               Integer lookbackDays,
+                                               String query) {
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        String normalizedSort = normalizeBoardSort(sortBy);
+        String normalizedDirection = normalizeBoardDirection(direction);
+        String normalizedQuery = normalizeSearchQuery(query);
+        List<StrategyBotBoardEntryResponse> entries = buildPublicBotBoardEntries(
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays,
+                normalizedQuery);
+        return buildBoardExportCsvBytes(
+                entries,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays,
+                normalizedQuery,
+                "PUBLIC");
+    }
+
+    @Transactional(readOnly = true)
+    public String buildPublicBotDetailExportJson(UUID botId, String runMode, Integer lookbackDays) {
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        PublicStrategyBotDetailResponse detail = getPublicBotDetail(botId, runMode, lookbackDays);
+
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("strategyBotId", detail.getStrategyBotId());
+        payload.put("name", detail.getName());
+        payload.put("description", detail.getDescription());
+        payload.put("botKind", detail.getBotKind());
+        payload.put("status", detail.getStatus());
+        payload.put("market", detail.getMarket());
+        payload.put("symbol", detail.getSymbol());
+        payload.put("timeframe", detail.getTimeframe());
+        payload.put("linkedPortfolioId", detail.getLinkedPortfolioId());
+        payload.put("linkedPortfolioName", detail.getLinkedPortfolioName());
+        payload.put("ownerId", detail.getOwnerId());
+        payload.put("ownerUsername", detail.getOwnerUsername());
+        payload.put("ownerDisplayName", detail.getOwnerDisplayName());
+        payload.put("ownerAvatarUrl", detail.getOwnerAvatarUrl());
+        payload.put("ownerTrustScore", detail.getOwnerTrustScore());
+        payload.put("maxPositionSizePercent", detail.getMaxPositionSizePercent());
+        payload.put("stopLossPercent", detail.getStopLossPercent());
+        payload.put("takeProfitPercent", detail.getTakeProfitPercent());
+        payload.put("cooldownMinutes", detail.getCooldownMinutes());
+        payload.put("runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
+        payload.put("lookbackDays", normalizedLookbackDays);
+        payload.put("exportedAt", LocalDateTime.now().toString());
+        payload.put("entryRules", detail.getEntryRules());
+        payload.put("exitRules", detail.getExitRules());
+        payload.put("analytics", detail.getAnalytics());
+        return writePrettyJsonExport(payload, "Failed to serialize public strategy bot detail export");
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] buildPublicBotDetailExportCsv(UUID botId, String runMode, Integer lookbackDays) {
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        PublicStrategyBotDetailResponse detail = getPublicBotDetail(botId, runMode, lookbackDays);
+        StrategyBotAnalyticsResponse analytics = detail.getAnalytics();
+
+        List<List<Object>> rows = new ArrayList<>();
+        rows.add(List.of(
+                "section",
+                "key",
+                "value",
+                "runId",
+                "runMode",
+                "status",
+                "requestedAt",
+                "completedAt",
+                "returnPercent",
+                "netPnl",
+                "maxDrawdownPercent",
+                "winRate",
+                "tradeCount",
+                "profitFactor",
+                "expectancyPerTrade",
+                "timeInMarketPercent",
+                "linkedPortfolioAligned",
+                "executionEngineReady",
+                "lastEvaluatedOpenTime",
+                "errorMessage"));
+
+        addMetricRow(rows, "context", "strategyBotId", detail.getStrategyBotId());
+        addMetricRow(rows, "context", "name", detail.getName());
+        addMetricRow(rows, "context", "description", detail.getDescription());
+        addMetricRow(rows, "context", "botKind", detail.getBotKind());
+        addMetricRow(rows, "context", "status", detail.getStatus());
+        addMetricRow(rows, "context", "market", detail.getMarket());
+        addMetricRow(rows, "context", "symbol", detail.getSymbol());
+        addMetricRow(rows, "context", "timeframe", detail.getTimeframe());
+        addMetricRow(rows, "context", "linkedPortfolioId", detail.getLinkedPortfolioId());
+        addMetricRow(rows, "context", "linkedPortfolioName", detail.getLinkedPortfolioName());
+        addMetricRow(rows, "context", "ownerId", detail.getOwnerId());
+        addMetricRow(rows, "context", "ownerUsername", detail.getOwnerUsername());
+        addMetricRow(rows, "context", "ownerDisplayName", detail.getOwnerDisplayName());
+        addMetricRow(rows, "context", "ownerTrustScore", detail.getOwnerTrustScore());
+        addMetricRow(rows, "context", "maxPositionSizePercent", detail.getMaxPositionSizePercent());
+        addMetricRow(rows, "context", "stopLossPercent", detail.getStopLossPercent());
+        addMetricRow(rows, "context", "takeProfitPercent", detail.getTakeProfitPercent());
+        addMetricRow(rows, "context", "cooldownMinutes", detail.getCooldownMinutes());
+        addMetricRow(rows, "context", "runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
+        addMetricRow(rows, "context", "lookbackDays", normalizedLookbackDays);
+        addMetricRow(rows, "context", "exportedAt", LocalDateTime.now());
+        addMetricRow(rows, "rules", "entryRules", stringifyJson(detail.getEntryRules()));
+        addMetricRow(rows, "rules", "exitRules", stringifyJson(detail.getExitRules()));
+
+        addMetricRow(rows, "summary", "totalRuns", analytics.getTotalRuns());
+        addMetricRow(rows, "summary", "backtestRuns", analytics.getBacktestRuns());
+        addMetricRow(rows, "summary", "forwardTestRuns", analytics.getForwardTestRuns());
+        addMetricRow(rows, "summary", "completedRuns", analytics.getCompletedRuns());
+        addMetricRow(rows, "summary", "runningRuns", analytics.getRunningRuns());
+        addMetricRow(rows, "summary", "failedRuns", analytics.getFailedRuns());
+        addMetricRow(rows, "summary", "compilerReadyRuns", analytics.getCompilerReadyRuns());
+        addMetricRow(rows, "summary", "positiveCompletedRuns", analytics.getPositiveCompletedRuns());
+        addMetricRow(rows, "summary", "negativeCompletedRuns", analytics.getNegativeCompletedRuns());
+        addMetricRow(rows, "summary", "totalSimulatedTrades", analytics.getTotalSimulatedTrades());
+        addMetricRow(rows, "summary", "avgReturnPercent", analytics.getAvgReturnPercent());
+        addMetricRow(rows, "summary", "avgNetPnl", analytics.getAvgNetPnl());
+        addMetricRow(rows, "summary", "avgMaxDrawdownPercent", analytics.getAvgMaxDrawdownPercent());
+        addMetricRow(rows, "summary", "avgWinRate", analytics.getAvgWinRate());
+        addMetricRow(rows, "summary", "avgTradeCount", analytics.getAvgTradeCount());
+        addMetricRow(rows, "summary", "avgProfitFactor", analytics.getAvgProfitFactor());
+        addMetricRow(rows, "summary", "avgExpectancyPerTrade", analytics.getAvgExpectancyPerTrade());
+
+        addScorecardRow(rows, "highlightRun", "bestRun", analytics.getBestRun());
+        addScorecardRow(rows, "highlightRun", "worstRun", analytics.getWorstRun());
+        addScorecardRow(rows, "highlightRun", "latestCompletedRun", analytics.getLatestCompletedRun());
+        addScorecardRow(rows, "highlightRun", "activeForwardRun", analytics.getActiveForwardRun());
+
+        addReasonRows(rows, "entryDriver", analytics.getEntryDriverTotals());
+        addReasonRows(rows, "exitDriver", analytics.getExitDriverTotals());
+
+        if (analytics.getRecentScorecards() != null) {
+            for (StrategyBotRunScorecardResponse scorecard : analytics.getRecentScorecards()) {
+                addScorecardRow(rows, "recentScorecard", "recent", scorecard);
+            }
+        }
+
+        String content = rows.stream()
+                .map(row -> row.stream().map(this::escapeCsv).reduce((left, right) -> left + "," + right).orElse(""))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+        return content.getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Transactional(readOnly = true)
     public String buildBotBoardExportJson(UUID userId,
                                           String sortBy,
                                           String direction,
@@ -232,23 +416,15 @@ public class StrategyBotRunService {
                 normalizedDirection,
                 scopedRunMode,
                 normalizedLookbackDays);
-
-        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
-        payload.put("sortBy", normalizedSort);
-        payload.put("direction", normalizedDirection);
-        payload.put("runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
-        payload.put("lookbackDays", normalizedLookbackDays);
-        payload.put("entryCount", entries.size());
-        payload.put("exportedAt", LocalDateTime.now().toString());
-        payload.put("entries", entries);
-        try {
-            return objectMapper.copy()
-                    .findAndRegisterModules()
-                    .writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(payload);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to serialize strategy bot board export", ex);
-        }
+        LinkedHashMap<String, Object> payload = buildBoardExportPayload(
+                entries,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays,
+                null,
+                "PRIVATE");
+        return writePrettyJsonExport(payload, "Failed to serialize strategy bot board export");
     }
 
     @Transactional(readOnly = true)
@@ -267,48 +443,14 @@ public class StrategyBotRunService {
                 normalizedDirection,
                 scopedRunMode,
                 normalizedLookbackDays);
-
-        List<List<Object>> rows = new ArrayList<>();
-        rows.add(List.of(
-                "section",
-                "key",
-                "value",
-                "strategyBotId",
-                "name",
-                "status",
-                "market",
-                "symbol",
-                "timeframe",
-                "totalRuns",
-                "completedRuns",
-                "runningRuns",
-                "failedRuns",
-                "totalSimulatedTrades",
-                "avgReturnPercent",
-                "avgNetPnl",
-                "avgMaxDrawdownPercent",
-                "avgWinRate",
-                "avgProfitFactor",
-                "avgExpectancyPerTrade",
-                "latestRequestedAt",
-                "bestRunId",
-                "latestCompletedRunId",
-                "activeForwardRunId"));
-
-        addBoardMetricRow(rows, "context", "sortBy", normalizedSort);
-        addBoardMetricRow(rows, "context", "direction", normalizedDirection);
-        addBoardMetricRow(rows, "context", "runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
-        addBoardMetricRow(rows, "context", "lookbackDays", normalizedLookbackDays);
-        addBoardMetricRow(rows, "context", "entryCount", entries.size());
-        addBoardMetricRow(rows, "context", "exportedAt", LocalDateTime.now());
-
-        entries.forEach(entry -> addBoardEntryRow(rows, entry));
-
-        String content = rows.stream()
-                .map(row -> row.stream().map(this::escapeCsv).reduce((left, right) -> left + "," + right).orElse(""))
-                .reduce((left, right) -> left + "\n" + right)
-                .orElse("");
-        return content.getBytes(StandardCharsets.UTF_8);
+        return buildBoardExportCsvBytes(
+                entries,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays,
+                null,
+                "PRIVATE");
     }
 
     @Transactional(readOnly = true)
@@ -808,6 +950,103 @@ public class StrategyBotRunService {
             return "";
         }
         return query.trim();
+    }
+
+    private LinkedHashMap<String, Object> buildBoardExportPayload(List<StrategyBotBoardEntryResponse> entries,
+                                                                  String normalizedSort,
+                                                                  String normalizedDirection,
+                                                                  StrategyBotRun.RunMode scopedRunMode,
+                                                                  Integer normalizedLookbackDays,
+                                                                  String normalizedQuery,
+                                                                  String visibilityScope) {
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("visibilityScope", visibilityScope);
+        payload.put("sortBy", normalizedSort);
+        payload.put("direction", normalizedDirection);
+        payload.put("runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
+        payload.put("lookbackDays", normalizedLookbackDays);
+        payload.put("q", normalizedQuery == null || normalizedQuery.isBlank() ? null : normalizedQuery);
+        payload.put("entryCount", entries.size());
+        payload.put("exportedAt", LocalDateTime.now().toString());
+        payload.put("entries", entries);
+        return payload;
+    }
+
+    private byte[] buildBoardExportCsvBytes(List<StrategyBotBoardEntryResponse> entries,
+                                            String normalizedSort,
+                                            String normalizedDirection,
+                                            StrategyBotRun.RunMode scopedRunMode,
+                                            Integer normalizedLookbackDays,
+                                            String normalizedQuery,
+                                            String visibilityScope) {
+        List<List<Object>> rows = new ArrayList<>();
+        rows.add(List.of(
+                "section",
+                "key",
+                "value",
+                "strategyBotId",
+                "name",
+                "status",
+                "market",
+                "symbol",
+                "timeframe",
+                "totalRuns",
+                "completedRuns",
+                "runningRuns",
+                "failedRuns",
+                "totalSimulatedTrades",
+                "avgReturnPercent",
+                "avgNetPnl",
+                "avgMaxDrawdownPercent",
+                "avgWinRate",
+                "avgProfitFactor",
+                "avgExpectancyPerTrade",
+                "latestRequestedAt",
+                "bestRunId",
+                "latestCompletedRunId",
+                "activeForwardRunId"));
+
+        addBoardMetricRow(rows, "context", "visibilityScope", visibilityScope);
+        addBoardMetricRow(rows, "context", "sortBy", normalizedSort);
+        addBoardMetricRow(rows, "context", "direction", normalizedDirection);
+        addBoardMetricRow(rows, "context", "runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
+        addBoardMetricRow(rows, "context", "lookbackDays", normalizedLookbackDays);
+        addBoardMetricRow(rows, "context", "q", normalizedQuery == null || normalizedQuery.isBlank() ? "" : normalizedQuery);
+        addBoardMetricRow(rows, "context", "entryCount", entries.size());
+        addBoardMetricRow(rows, "context", "exportedAt", LocalDateTime.now());
+
+        entries.forEach(entry -> addBoardEntryRow(rows, entry));
+
+        String content = rows.stream()
+                .map(row -> row.stream().map(this::escapeCsv).reduce((left, right) -> left + "," + right).orElse(""))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+        return content.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String writePrettyJsonExport(Object payload, String errorMessage) {
+        try {
+            return objectMapper.copy()
+                    .findAndRegisterModules()
+                    .writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException(errorMessage, ex);
+        }
+    }
+
+    private String stringifyJson(Object value) {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof JsonNode jsonNode) {
+            return jsonNode.toString();
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            return String.valueOf(value);
+        }
     }
 
     private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot, StrategyBotAnalyticsResponse analytics) {

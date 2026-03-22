@@ -923,4 +923,184 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("strategy_bot_not_found"));
     }
+
+    @Test
+    void exportPublicStrategyBotBoard_shouldReturnScopedCsvAndJson() throws Exception {
+        AppUser publicOwner = userRepository.save(AppUser.builder()
+                .username("board-owner")
+                .email("board-owner@example.com")
+                .password("hashed")
+                .displayName("Board Owner")
+                .trustScore(70.0)
+                .build());
+        UUID publicOwnerId = publicOwner.getId();
+
+        Portfolio publicPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Board Public Basket")
+                .ownerId(publicOwnerId.toString())
+                .balance(new BigDecimal("125000"))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build());
+
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .name("Board Export Bot")
+                .description("Exportable public board row")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("18"))
+                .cooldownMinutes(30)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 6.5,
+                          "netPnl": 6500.0,
+                          "maxDrawdownPercent": 2.4,
+                          "winRate": 61.0,
+                          "tradeCount": 3,
+                          "profitFactor": 1.6
+                        }
+                        """)
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/export")
+                        .param("format", "csv")
+                        .param("q", "board")
+                        .param("runMode", "BACKTEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("public-strategy-bot-board.csv")))
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(content().string(containsString("context,visibilityScope,PUBLIC")))
+                .andExpect(content().string(containsString("context,q,board")))
+                .andExpect(content().string(containsString("boardEntry,Board Export Bot")));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/export")
+                        .param("format", "json")
+                        .param("sortBy", "AVG_RETURN")
+                        .param("direction", "DESC")
+                        .param("runMode", "BACKTEST")
+                        .param("lookbackDays", "30")
+                        .param("q", "board"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("public-strategy-bot-board.json")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.visibilityScope").value("PUBLIC"))
+                .andExpect(jsonPath("$.sortBy").value("AVG_RETURN"))
+                .andExpect(jsonPath("$.runModeScope").value("BACKTEST"))
+                .andExpect(jsonPath("$.lookbackDays").value(30))
+                .andExpect(jsonPath("$.q").value("board"))
+                .andExpect(jsonPath("$.entryCount").value(1))
+                .andExpect(jsonPath("$.entries[0].strategyBotId").value(bot.getId().toString()));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/export")
+                        .param("sortBy", "BOGUS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
+    }
+
+    @Test
+    void exportPublicStrategyBotDetail_shouldReturnScopedCsvAndJson() throws Exception {
+        AppUser publicOwner = userRepository.save(AppUser.builder()
+                .username("detail-export-owner")
+                .email("detail-export-owner@example.com")
+                .password("hashed")
+                .displayName("Detail Export Owner")
+                .trustScore(74.5)
+                .build());
+        UUID publicOwnerId = publicOwner.getId();
+
+        Portfolio publicPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Detail Export Basket")
+                .ownerId(publicOwnerId.toString())
+                .balance(new BigDecimal("210000"))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build());
+
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .name("Detail Export Bot")
+                .description("Public detail export profile")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4H")
+                .entryRules("{\"all\":[\"price_above_ma_20\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("24"))
+                .stopLossPercent(new BigDecimal("3.5"))
+                .takeProfitPercent(new BigDecimal("11.0"))
+                .cooldownMinutes(50)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 5.0,
+                          "netPnl": 5000.0,
+                          "maxDrawdownPercent": 2.1,
+                          "winRate": 58.0,
+                          "tradeCount": 2,
+                          "profitFactor": 1.4,
+                          "entryReasonCounts": {"price_above_ma_20": 1},
+                          "exitReasonCounts": {"take_profit_hit": 1}
+                        }
+                        """)
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + bot.getId() + "/export")
+                        .param("format", "csv")
+                        .param("runMode", "BACKTEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("public-strategy-bot-" + bot.getId() + ".csv")))
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(content().string(containsString("context,name,Detail Export Bot")))
+                .andExpect(content().string(containsString("rules,entryRules")))
+                .andExpect(content().string(containsString("recentScorecard,recent")));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + bot.getId() + "/export")
+                        .param("format", "json")
+                        .param("runMode", "BACKTEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("public-strategy-bot-" + bot.getId() + ".json")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.name").value("Detail Export Bot"))
+                .andExpect(jsonPath("$.ownerDisplayName").value("Detail Export Owner"))
+                .andExpect(jsonPath("$.runModeScope").value("BACKTEST"))
+                .andExpect(jsonPath("$.lookbackDays").value(30))
+                .andExpect(jsonPath("$.analytics.totalRuns").value(1))
+                .andExpect(jsonPath("$.entryRules.all", hasSize(1)));
+    }
 }
