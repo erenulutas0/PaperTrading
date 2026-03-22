@@ -608,6 +608,7 @@ Last updated: 2026-03-22
 - [x] Added public strategy-bot comparison surface:
   - backend:
     - `GET /api/v1/strategy-bots/discover`
+    - `GET /api/v1/strategy-bots/discover/{botId}`
     - public eligibility now means:
       - linked portfolio is `PUBLIC`
       - bot status is not `DRAFT`
@@ -621,12 +622,18 @@ Last updated: 2026-03-22
   - frontend:
     - new public route:
       - `/bots`
+      - `/bots/{botId}`
     - includes:
       - preset comparison lenses
       - scope filters
       - backend-backed search
       - owner trust/profile context
       - linked public portfolio jump
+      - public bot detail inspection for:
+        - risk envelope
+        - rule JSON
+        - scoped analytics
+        - recent scorecards
     - public nav entry added from:
       - landing page
       - `/discover`

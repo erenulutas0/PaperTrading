@@ -810,4 +810,117 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
     }
+
+    @Test
+    void getPublicStrategyBotDetail_shouldReturnScopedPublicAnalyticsAndMetadata() throws Exception {
+        AppUser publicOwner = userRepository.save(AppUser.builder()
+                .username("detail-owner")
+                .email("detail-owner@example.com")
+                .password("hashed")
+                .displayName("Detail Owner")
+                .trustScore(68.4)
+                .build());
+        UUID publicOwnerId = publicOwner.getId();
+
+        Portfolio publicPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Detail Public Basket")
+                .ownerId(publicOwnerId.toString())
+                .balance(new BigDecimal("175000"))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build());
+
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .name("Detail Breakout Bot")
+                .description("Public detail profile")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{\"all\":[\"price_above_ma_50\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("22.5"))
+                .stopLossPercent(new BigDecimal("4.5"))
+                .takeProfitPercent(new BigDecimal("12.0"))
+                .cooldownMinutes(45)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(3))
+                .completedAt(LocalDateTime.now().minusDays(2))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 7.0,
+                          "netPnl": 7000.0,
+                          "maxDrawdownPercent": 3.2,
+                          "winRate": 65.0,
+                          "tradeCount": 4,
+                          "profitFactor": 1.7,
+                          "entryReasonCounts": {"price_above_ma_50": 2},
+                          "exitReasonCounts": {"take_profit_hit": 1}
+                        }
+                        """)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusHours(3))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 2.0,
+                          "netPnl": 2000.0,
+                          "tradeCount": 1,
+                          "lastEvaluatedOpenTime": 1711111111
+                        }
+                        """)
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + bot.getId())
+                        .param("runMode", "BACKTEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.strategyBotId").value(bot.getId().toString()))
+                .andExpect(jsonPath("$.name").value("Detail Breakout Bot"))
+                .andExpect(jsonPath("$.description").value("Public detail profile"))
+                .andExpect(jsonPath("$.botKind").value("RULE_BASED"))
+                .andExpect(jsonPath("$.linkedPortfolioId").value(publicPortfolio.getId().toString()))
+                .andExpect(jsonPath("$.linkedPortfolioName").value("Detail Public Basket"))
+                .andExpect(jsonPath("$.ownerId").value(publicOwnerId.toString()))
+                .andExpect(jsonPath("$.ownerUsername").value("detail-owner"))
+                .andExpect(jsonPath("$.ownerDisplayName").value("Detail Owner"))
+                .andExpect(jsonPath("$.ownerTrustScore").value(68.4))
+                .andExpect(jsonPath("$.maxPositionSizePercent").value(22.5))
+                .andExpect(jsonPath("$.stopLossPercent").value(4.5))
+                .andExpect(jsonPath("$.takeProfitPercent").value(12.0))
+                .andExpect(jsonPath("$.cooldownMinutes").value(45))
+                .andExpect(jsonPath("$.entryRules.all", hasSize(1)))
+                .andExpect(jsonPath("$.analytics.totalRuns").value(1))
+                .andExpect(jsonPath("$.analytics.backtestRuns").value(1))
+                .andExpect(jsonPath("$.analytics.forwardTestRuns").value(0))
+                .andExpect(jsonPath("$.analytics.avgReturnPercent").value(7.0))
+                .andExpect(jsonPath("$.analytics.recentScorecards", hasSize(1)))
+                .andExpect(jsonPath("$.analytics.bestRun.returnPercent").value(7.0));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + UUID.randomUUID()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("strategy_bot_not_found"));
+    }
 }

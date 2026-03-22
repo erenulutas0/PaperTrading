@@ -15,6 +15,7 @@ import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
+import com.finance.core.dto.PublicStrategyBotDetailResponse;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
@@ -164,6 +165,55 @@ public class StrategyBotRunService {
         }
         int end = Math.min(start + pageable.getPageSize(), entries.size());
         return new PageImpl<>(entries.subList(start, end), pageable, entries.size());
+    }
+
+    @Transactional(readOnly = true)
+    public PublicStrategyBotDetailResponse getPublicBotDetail(UUID botId,
+                                                              String runMode,
+                                                              Integer lookbackDays) {
+        StrategyBot bot = strategyBotRepository.findPublicDiscoverableBotById(
+                        botId,
+                        Portfolio.Visibility.PUBLIC,
+                        StrategyBot.Status.DRAFT)
+                .orElseThrow(() -> new IllegalArgumentException("Strategy bot not found"));
+        AppUser owner = userRepository.findById(bot.getUserId()).orElse(null);
+        Portfolio linkedPortfolio = bot.getLinkedPortfolioId() == null
+                ? null
+                : portfolioRepository.findById(bot.getLinkedPortfolioId())
+                        .filter(portfolio -> portfolio.getVisibility() == Portfolio.Visibility.PUBLIC)
+                        .orElse(null);
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(
+                bot,
+                strategyBotRunRepository.findByStrategyBotIdOrderByRequestedAtDesc(bot.getId()),
+                scopedRunMode,
+                normalizedLookbackDays);
+
+        return PublicStrategyBotDetailResponse.builder()
+                .strategyBotId(bot.getId())
+                .name(bot.getName())
+                .description(bot.getDescription())
+                .botKind(bot.getBotKind().name())
+                .status(bot.getStatus().name())
+                .market(bot.getMarket())
+                .symbol(bot.getSymbol())
+                .timeframe(bot.getTimeframe())
+                .linkedPortfolioId(bot.getLinkedPortfolioId())
+                .linkedPortfolioName(linkedPortfolio == null ? null : linkedPortfolio.getName())
+                .ownerId(owner == null ? bot.getUserId() : owner.getId())
+                .ownerUsername(owner == null ? null : owner.getUsername())
+                .ownerDisplayName(owner == null ? null : owner.getDisplayName())
+                .ownerAvatarUrl(owner == null ? null : owner.getAvatarUrl())
+                .ownerTrustScore(owner == null ? null : round(owner.getTrustScore()))
+                .maxPositionSizePercent(bot.getMaxPositionSizePercent())
+                .stopLossPercent(bot.getStopLossPercent())
+                .takeProfitPercent(bot.getTakeProfitPercent())
+                .cooldownMinutes(bot.getCooldownMinutes())
+                .entryRules(parseJson(bot.getEntryRules()))
+                .exitRules(parseJson(bot.getExitRules()))
+                .analytics(analytics)
+                .build();
     }
 
     @Transactional(readOnly = true)

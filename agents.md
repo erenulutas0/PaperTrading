@@ -560,6 +560,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - public bot comparison now behaves consistently with the private dashboard board instead of drifting into a different scoring language
     - the product now has an explicit public strategy-bot layer without adding a premature bot-visibility flag yet
+- **2026-03-22**: **Public Strategy Bot Reading Now Has A Dedicated Detail Contract Instead Of Stopping At Aggregate Cards**
+  - **Problem observed**:
+    - The new public `/bots` board made comparison possible, but it still stopped at card-level aggregates.
+    - That left no stable public surface for reading:
+      - risk envelope
+      - compiled rule JSON
+      - scoped run analytics
+      - recent scorecards
+    - without sending users back into private dashboard routes.
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/discover/{botId}` as a public detail endpoint.
+    - Kept it aligned with the public board policy:
+      - linked portfolio must stay `PUBLIC`
+      - bot status must stay non-`DRAFT`
+    - Reused the same scoped analytics lens (`runMode`, `lookbackDays`) instead of inventing a second detail-specific metric model.
+    - Added `/bots/[botId]` in the web app and linked the public board into that detail page.
+  - **Operational impact**:
+    - the public bot layer now supports both comparison and inspection
+    - public readers can evaluate bot configuration and scoped evidence without crossing into operator-facing dashboard tooling
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

@@ -1,6 +1,7 @@
 package com.finance.core.controller;
 
 import com.finance.core.dto.StrategyBotRequest;
+import com.finance.core.dto.PublicStrategyBotDetailResponse;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
@@ -62,6 +63,20 @@ public class StrategyBotController {
             return ResponseEntity.ok(board);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_discover_failed", "Failed to load public strategy bots", request);
+        }
+    }
+
+    @GetMapping("/discover/{botId}")
+    public ResponseEntity<?> getPublicBotDetail(
+            @PathVariable UUID botId,
+            @RequestParam(defaultValue = "ALL") String runMode,
+            @RequestParam(required = false) Integer lookbackDays,
+            HttpServletRequest request) {
+        try {
+            PublicStrategyBotDetailResponse detail = strategyBotRunService.getPublicBotDetail(botId, runMode, lookbackDays);
+            return ResponseEntity.ok(detail);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_public_detail_failed", "Failed to load public strategy bot", request);
         }
     }
 

@@ -40,4 +40,16 @@ public interface StrategyBotRepository extends JpaRepository<StrategyBot, UUID> 
             @Param("visibility") Portfolio.Visibility visibility,
             @Param("excludedStatus") StrategyBot.Status excludedStatus,
             @Param("query") String query);
+
+    @Query("""
+            SELECT b FROM StrategyBot b
+            JOIN Portfolio p ON p.id = b.linkedPortfolioId
+            WHERE b.id = :botId
+              AND p.visibility = :visibility
+              AND b.status <> :excludedStatus
+            """)
+    Optional<StrategyBot> findPublicDiscoverableBotById(
+            @Param("botId") UUID botId,
+            @Param("visibility") Portfolio.Visibility visibility,
+            @Param("excludedStatus") StrategyBot.Status excludedStatus);
 }
