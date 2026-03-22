@@ -572,6 +572,7 @@ Last updated: 2026-03-22
     - `GET /api/v1/strategy-bots/{botId}/analytics/export?format=csv|json`
     - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/export?format=csv|json`
     - `GET /api/v1/strategy-bots/board`
+    - bot analytics and exports now accept board-aligned `runMode` and `lookbackDays` scopes
     - bot-level aggregates for:
       - run counts by mode/status
       - average return / pnl / drawdown / win-rate / profit-factor / expectancy

@@ -81,9 +81,11 @@ public class StrategyBotController {
     public ResponseEntity<?> getBotAnalytics(
             @PathVariable UUID botId,
             @CurrentUserId UUID userId,
+            @RequestParam(defaultValue = "ALL") String runMode,
+            @RequestParam(required = false) Integer lookbackDays,
             HttpServletRequest request) {
         try {
-            StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId);
+            StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId, runMode, lookbackDays);
             return ResponseEntity.ok(analytics);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_analytics_failed", "Failed to load strategy bot analytics", request);
@@ -95,18 +97,20 @@ public class StrategyBotController {
             @PathVariable UUID botId,
             @CurrentUserId UUID userId,
             @RequestParam(defaultValue = "json") String format,
+            @RequestParam(defaultValue = "ALL") String runMode,
+            @RequestParam(required = false) Integer lookbackDays,
             HttpServletRequest request) {
         try {
             String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
             if ("csv".equals(normalizedFormat)) {
-                byte[] content = strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId);
+                byte[] content = strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId, runMode, lookbackDays);
                 return ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-analytics-" + botId + ".csv\"")
                         .contentType(new MediaType("text", "csv"))
                         .body(content);
             }
 
-            String content = strategyBotRunService.buildBotAnalyticsExportJson(botId, userId);
+            String content = strategyBotRunService.buildBotAnalyticsExportJson(botId, userId, runMode, lookbackDays);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-analytics-" + botId + ".json\"")
                     .contentType(MediaType.APPLICATION_JSON)

@@ -106,9 +106,13 @@ public class StrategyBotRunService {
     }
 
     @Transactional(readOnly = true)
-    public StrategyBotAnalyticsResponse getBotAnalytics(UUID botId, UUID userId) {
+    public StrategyBotAnalyticsResponse getBotAnalytics(UUID botId, UUID userId, String runMode, Integer lookbackDays) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
-        return buildBotAnalytics(bot, userId);
+        return buildBotAnalytics(
+                bot,
+                userId,
+                normalizeBoardRunMode(runMode),
+                normalizeBoardLookbackDays(lookbackDays));
     }
 
     @Transactional(readOnly = true)
@@ -135,9 +139,11 @@ public class StrategyBotRunService {
     }
 
     @Transactional(readOnly = true)
-    public String buildBotAnalyticsExportJson(UUID botId, UUID userId) {
+    public String buildBotAnalyticsExportJson(UUID botId, UUID userId, String runMode, Integer lookbackDays) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
-        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId);
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId, scopedRunMode, normalizedLookbackDays);
         LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
         payload.put("strategyBotId", bot.getId());
         payload.put("name", bot.getName());
@@ -147,6 +153,8 @@ public class StrategyBotRunService {
         payload.put("timeframe", bot.getTimeframe());
         payload.put("status", bot.getStatus().name());
         payload.put("linkedPortfolioId", bot.getLinkedPortfolioId());
+        payload.put("runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
+        payload.put("lookbackDays", normalizedLookbackDays);
         payload.put("exportedAt", LocalDateTime.now().toString());
         payload.put("analytics", analytics);
         try {
@@ -160,9 +168,11 @@ public class StrategyBotRunService {
     }
 
     @Transactional(readOnly = true)
-    public byte[] buildBotAnalyticsExportCsv(UUID botId, UUID userId) {
+    public byte[] buildBotAnalyticsExportCsv(UUID botId, UUID userId, String runMode, Integer lookbackDays) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
-        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId);
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId, scopedRunMode, normalizedLookbackDays);
 
         List<List<Object>> rows = new ArrayList<>();
         rows.add(List.of(
@@ -195,6 +205,8 @@ public class StrategyBotRunService {
         addMetricRow(rows, "context", "timeframe", bot.getTimeframe());
         addMetricRow(rows, "context", "status", bot.getStatus().name());
         addMetricRow(rows, "context", "linkedPortfolioId", bot.getLinkedPortfolioId());
+        addMetricRow(rows, "context", "runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
+        addMetricRow(rows, "context", "lookbackDays", normalizedLookbackDays);
         addMetricRow(rows, "context", "exportedAt", LocalDateTime.now());
 
         addMetricRow(rows, "summary", "totalRuns", analytics.getTotalRuns());

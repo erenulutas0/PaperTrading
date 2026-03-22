@@ -240,8 +240,8 @@ class StrategyBotControllerIntegrationTest {
                 .runMode(StrategyBotRun.RunMode.BACKTEST)
                 .status(StrategyBotRun.Status.COMPLETED)
                 .effectiveInitialCapital(new BigDecimal("100000"))
-                .requestedAt(LocalDateTime.now().minusHours(3))
-                .completedAt(LocalDateTime.now().minusHours(2))
+                .requestedAt(LocalDateTime.now().minusDays(3))
+                .completedAt(LocalDateTime.now().minusDays(2))
                 .compiledEntryRules("{}")
                 .compiledExitRules("{}")
                 .summary("""
@@ -305,6 +305,18 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.worstRun.returnPercent").value(-6.0))
                 .andExpect(jsonPath("$.activeForwardRun.runMode").value("FORWARD_TEST"))
                 .andExpect(jsonPath("$.recentScorecards", hasSize(3)));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics")
+                        .header("X-User-Id", userId.toString())
+                        .param("runMode", "BACKTEST")
+                        .param("lookbackDays", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRuns").value(1))
+                .andExpect(jsonPath("$.completedRuns").value(1))
+                .andExpect(jsonPath("$.backtestRuns").value(1))
+                .andExpect(jsonPath("$.forwardTestRuns").value(0))
+                .andExpect(jsonPath("$.avgReturnPercent").value(10.0))
+                .andExpect(jsonPath("$.recentScorecards", hasSize(1)));
     }
 
     @Test
@@ -370,6 +382,18 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Analytics Bot"))
                 .andExpect(jsonPath("$.analytics.totalRuns").value(1))
                 .andExpect(jsonPath("$.analytics.recentScorecards", hasSize(1)));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("format", "json")
+                        .param("runMode", "FORWARD_TEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.runModeScope").value("FORWARD_TEST"))
+                .andExpect(jsonPath("$.lookbackDays").value(30))
+                .andExpect(jsonPath("$.analytics.totalRuns").value(0))
+                .andExpect(jsonPath("$.analytics.recentScorecards", hasSize(0)));
     }
 
     @Test

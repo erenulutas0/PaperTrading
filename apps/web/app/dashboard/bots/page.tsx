@@ -146,7 +146,7 @@ export default function StrategyBotsPage() {
     useEffect(() => {
         if (selectedBotId) {
             void loadRuns(selectedBotId);
-            void loadBotAnalytics(selectedBotId);
+            void loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
         } else {
             setRuns([]);
             setSelectedRunId('');
@@ -154,7 +154,7 @@ export default function StrategyBotsPage() {
             setSelectedRunEquityCurve([]);
             setSelectedBotAnalytics(null);
         }
-    }, [selectedBotId]);
+    }, [selectedBotId, boardRunMode, boardLookbackDays]);
 
     useEffect(() => {
         if (selectedBotId && selectedRunId) {
@@ -252,9 +252,15 @@ export default function StrategyBotsPage() {
         }
     }
 
-    async function loadBotAnalytics(botId: string) {
+    async function loadBotAnalytics(
+        botId: string,
+        runMode = boardRunMode,
+        lookbackDays = boardLookbackDays,
+    ) {
         try {
-            const response = await apiFetch(`/api/v1/strategy-bots/${botId}/analytics`, { cache: 'no-store' });
+            const query = new URLSearchParams({ runMode });
+            if (lookbackDays !== 'ALL') query.set('lookbackDays', lookbackDays);
+            const response = await apiFetch(`/api/v1/strategy-bots/${botId}/analytics?${query.toString()}`, { cache: 'no-store' });
             if (!response.ok) {
                 setSelectedBotAnalytics(null);
                 return;
@@ -274,7 +280,12 @@ export default function StrategyBotsPage() {
         setActionError(null);
         setNotice(null);
         try {
-            const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/analytics/export?format=${format}`, {
+            const query = new URLSearchParams({
+                format,
+                runMode: boardRunMode,
+            });
+            if (boardLookbackDays !== 'ALL') query.set('lookbackDays', boardLookbackDays);
+            const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/analytics/export?${query.toString()}`, {
                 cache: 'no-store',
             });
             if (!response.ok) throw new Error(await response.text() || `Strategy bot analytics export failed (${response.status})`);
@@ -368,7 +379,7 @@ export default function StrategyBotsPage() {
             const createdRun = await response.json() as StrategyBotRun;
             setRunForm({ runMode: 'BACKTEST', initialCapital: '', fromDate: '', toDate: '' });
             await loadRuns(selectedBotId);
-            await loadBotAnalytics(selectedBotId);
+            await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
             setSelectedRunId(createdRun.id);
             setNotice('Run queued');
@@ -382,7 +393,7 @@ export default function StrategyBotsPage() {
             const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${runId}/execute`, { method: 'POST' });
             if (!response.ok) throw new Error(await response.text() || `Run execute failed (${response.status})`);
             await loadRuns(selectedBotId);
-            await loadBotAnalytics(selectedBotId);
+            await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
             setSelectedRunId(runId);
             setNotice('Run executed');
@@ -396,7 +407,7 @@ export default function StrategyBotsPage() {
             const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${runId}/refresh`, { method: 'POST' });
             if (!response.ok) throw new Error(await response.text() || `Run refresh failed (${response.status})`);
             await loadRuns(selectedBotId);
-            await loadBotAnalytics(selectedBotId);
+            await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
             setSelectedRunId(runId);
             await loadRunOutputs(selectedBotId, runId);
@@ -413,6 +424,7 @@ export default function StrategyBotsPage() {
             if (!response.ok) throw new Error(await response.text() || `Reconciliation apply failed (${response.status})`);
             setSelectedRunReconciliation(await response.json() as StrategyBotRunReconciliationPlan);
             await loadRuns(selectedBotId);
+            await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
             setSelectedRunId(runId);
             setNotice('Linked portfolio synced to run snapshot');
@@ -538,6 +550,11 @@ export default function StrategyBotsPage() {
                                     <div>
                                         <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Bot Analytics</p>
                                         <h2 className="mt-3 text-xl font-bold text-white">Run-level quality at the bot surface.</h2>
+                                        <p className="mt-2 text-xs text-zinc-500">
+                                            Scope: {boardRunMode === 'ALL' ? 'All runs' : boardRunMode === 'BACKTEST' ? 'Backtests only' : 'Forward tests only'}
+                                            {' · '}
+                                            {boardLookbackDays === 'ALL' ? 'All time' : `${boardLookbackDays} day lookback`}
+                                        </p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         <button

@@ -421,6 +421,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - recent forward tests
       - broad all-time bot behavior
       without inventing a second analytics model
+- **2026-03-22**: **Selected Strategy Bot Analytics Now Uses The Same Scope Lens As The Board**
+  - **Problem observed**:
+    - After scoped board filters landed, the selected bot analytics panel and analytics exports still stayed all-time.
+    - That meant the page could show:
+      - a 30-day forward-test board ranking
+      - but an all-history selected-bot panel
+    - at the same time, which is analytically incoherent.
+  - **Implementation**:
+    - Extended `GET /api/v1/strategy-bots/{botId}/analytics` and `.../analytics/export` with:
+      - `runMode`
+      - `lookbackDays`
+    - Reused the same run filtering logic already introduced for the board.
+    - `/dashboard/bots` now binds selected-bot analytics and analytics export actions to the same scope state used by the board controls.
+    - Added explicit scope labeling in the analytics panel so operators can see which lens is active.
+  - **Operational impact**:
+    - the bot workspace now reads from a single scope-aware analytics lens instead of mixing board-scope and all-time aggregates
+    - exported analytics now match the numbers on screen instead of silently reverting to all-history data
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

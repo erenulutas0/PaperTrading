@@ -502,7 +502,7 @@ class StrategyBotRunServiceTest {
         when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId))
                 .thenReturn(List.of(forwardRun, positiveRun, negativeRun));
 
-        StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId);
+        StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId, "ALL", null);
 
         assertThat(analytics.getTotalRuns()).isEqualTo(3);
         assertThat(analytics.getCompletedRuns()).isEqualTo(2);
@@ -578,8 +578,8 @@ class StrategyBotRunServiceTest {
         when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId))
                 .thenReturn(List.of(completedRun));
 
-        String json = strategyBotRunService.buildBotAnalyticsExportJson(botId, userId);
-        String csv = new String(strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId), StandardCharsets.UTF_8);
+        String json = strategyBotRunService.buildBotAnalyticsExportJson(botId, userId, "ALL", null);
+        String csv = new String(strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId, "ALL", null), StandardCharsets.UTF_8);
 
         assertThat(json).contains("\"name\" : \"Analytics Bot\"");
         assertThat(json).contains("\"analytics\"");
@@ -587,6 +587,80 @@ class StrategyBotRunServiceTest {
         assertThat(csv).contains("summary,totalRuns,1");
         assertThat(csv).contains("entryDriver,price_above_ma_3,2");
         assertThat(csv).contains("recentScorecard,recent");
+    }
+
+    @Test
+    void getBotAnalytics_shouldRespectRunModeAndLookbackFilters() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .linkedPortfolioId(UUID.randomUUID())
+                .name("Scoped Analytics Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun staleBacktest = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(50))
+                .completedAt(LocalDateTime.now().minusDays(49))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .summary("""
+                        {
+                          "returnPercent": 15.0,
+                          "netPnl": 15000.0,
+                          "tradeCount": 5,
+                          "profitFactor": 2.1,
+                          "entryReasonCounts": {"price_above_ma_3": 2}
+                        }
+                        """)
+                .build();
+        StrategyBotRun recentForward = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(3))
+                .completedAt(LocalDateTime.now().minusDays(2))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .summary("""
+                        {
+                          "returnPercent": 3.5,
+                          "netPnl": 3500.0,
+                          "tradeCount": 2,
+                          "profitFactor": 1.3,
+                          "entryReasonCounts": {"price_above_ma_3": 1}
+                        }
+                        """)
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId))
+                .thenReturn(List.of(recentForward, staleBacktest));
+
+        StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId, "FORWARD_TEST", 30);
+
+        assertThat(analytics.getTotalRuns()).isEqualTo(1);
+        assertThat(analytics.getCompletedRuns()).isEqualTo(1);
+        assertThat(analytics.getBacktestRuns()).isEqualTo(0);
+        assertThat(analytics.getForwardTestRuns()).isEqualTo(1);
+        assertThat(analytics.getAvgReturnPercent()).isEqualTo(3.5);
+        assertThat(analytics.getTotalSimulatedTrades()).isEqualTo(2);
+        assertThat(analytics.getRecentScorecards()).hasSize(1);
     }
 
     @Test
