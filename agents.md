@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Watchlist Item Mutations Now Enforce Owner-Scoped Lookup Instead Of Raw Item Id Access**
+  - **Problem observed**:
+    - `WatchlistService.removeItem(...)` and `updateAlerts(...)` were still resolving items with plain `findById(...)`.
+    - That meant a caller who knew another watchlist item's UUID could attempt delete/update operations without the service proving ownership through the parent watchlist.
+    - The repository surface already had `findByIdAndWatchlistUserId(...)`, but the write path was not using it.
+  - **Implementation**:
+    - Changed watchlist item delete/update service methods to require `userId`.
+    - Resolved item ownership with `findByIdAndWatchlistUserId(...)` before:
+      - deleting an item
+      - mutating alert thresholds
+    - Updated controller item delete/update endpoints to pass `@CurrentUserId`.
+    - Added service and controller integration coverage for non-owner mutation attempts.
+  - **Operational impact**:
+    - watchlist item mutation no longer trusts raw item UUID possession as sufficient authority
+    - unauthorized callers now get the same `watchlist_item_not_found` response without leaking cross-account existence
 - **2026-03-22**: **Tournament Join Writes Now Flush Participation Early To Preserve A Stable Conflict Contract**
   - **Problem observed**:
     - `TournamentService.joinTournament(...)` still relied on:

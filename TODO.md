@@ -2656,3 +2656,10 @@ Last updated: 2026-03-22
   - targeted verification passed:
     - `TournamentServiceTest`
     - `TournamentControllerIntegrationTest`
+- [x] Harden watchlist item writes with owner-scoped access checks:
+  - watchlist item remove/update-alerts now resolve items through `findByIdAndWatchlistUserId(...)` instead of raw `findById(...)`
+  - non-owner callers now get the same `watchlist_item_not_found` contract instead of being able to mutate another user's watchlist item
+  - controller endpoints now require current user identity for item delete/update paths as well
+  - targeted verification passed:
+    - `WatchlistServiceTest`
+    - `WatchlistControllerIntegrationTest`

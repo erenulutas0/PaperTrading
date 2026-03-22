@@ -90,9 +90,12 @@ public class WatchlistController {
 
     /** Remove an item from a watchlist */
     @DeleteMapping("/items/{itemId}")
-    public ResponseEntity<?> removeItem(@PathVariable UUID itemId, HttpServletRequest httpRequest) {
+    public ResponseEntity<?> removeItem(
+            @PathVariable UUID itemId,
+            @CurrentUserId UUID userId,
+            HttpServletRequest httpRequest) {
         try {
-            watchlistService.removeItem(itemId);
+            watchlistService.removeItem(itemId, userId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return buildWatchlistError(e, "watchlist_remove_item_failed", "Failed to remove watchlist item", httpRequest);
@@ -103,10 +106,11 @@ public class WatchlistController {
     @PutMapping("/items/{itemId}/alerts")
     public ResponseEntity<?> updateAlerts(
             @PathVariable UUID itemId,
+            @CurrentUserId UUID userId,
             @RequestBody UpdateAlertsRequest request,
             HttpServletRequest httpRequest) {
         try {
-            WatchlistItem updated = watchlistService.updateAlerts(itemId, request.getAlertPriceAbove(),
+            WatchlistItem updated = watchlistService.updateAlerts(itemId, userId, request.getAlertPriceAbove(),
                     request.getAlertPriceBelow());
             return ResponseEntity.ok(updated);
         } catch (Exception e) {

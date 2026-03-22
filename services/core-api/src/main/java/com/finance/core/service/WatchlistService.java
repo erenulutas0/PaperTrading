@@ -78,16 +78,16 @@ public class WatchlistService {
 
     /** Remove an item from a watchlist */
     @Transactional
-    public void removeItem(UUID itemId) {
-        WatchlistItem item = watchlistItemRepository.findById(itemId)
+    public void removeItem(UUID itemId, UUID userId) {
+        WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
         watchlistItemRepository.delete(item);
     }
 
     /** Update alert prices for an item */
     @Transactional
-    public WatchlistItem updateAlerts(UUID itemId, BigDecimal alertAbove, BigDecimal alertBelow) {
-        WatchlistItem item = watchlistItemRepository.findById(itemId)
+    public WatchlistItem updateAlerts(UUID itemId, UUID userId, BigDecimal alertAbove, BigDecimal alertBelow) {
+        WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
 
         item.setAlertPriceAbove(alertAbove);

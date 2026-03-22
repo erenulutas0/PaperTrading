@@ -131,6 +131,7 @@ class WatchlistServiceTest {
 
         @Test
         void updatesAlertsAndResetsTriggeredFlags() {
+            UUID itemOwnerId = userId;
             WatchlistItem item = WatchlistItem.builder()
                     .id(UUID.randomUUID())
                     .symbol("BTCUSDT")
@@ -139,11 +140,12 @@ class WatchlistServiceTest {
                     .alertBelowTriggered(true)
                     .build();
 
-            when(watchlistItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+            when(watchlistItemRepository.findByIdAndWatchlistUserId(item.getId(), itemOwnerId)).thenReturn(Optional.of(item));
             when(watchlistItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             WatchlistItem updated = watchlistService.updateAlerts(
                     item.getId(),
+                    itemOwnerId,
                     new BigDecimal("70000"),
                     new BigDecimal("30000"));
 
@@ -152,6 +154,43 @@ class WatchlistServiceTest {
             // Flags should be reset
             assertFalse(updated.getAlertAboveTriggered());
             assertFalse(updated.getAlertBelowTriggered());
+        }
+
+        @Test
+        void throwsForNonOwnedItem() {
+            UUID otherUserId = UUID.randomUUID();
+            UUID itemId = UUID.randomUUID();
+            when(watchlistItemRepository.findByIdAndWatchlistUserId(itemId, otherUserId)).thenReturn(Optional.empty());
+
+            assertThrows(RuntimeException.class,
+                    () -> watchlistService.updateAlerts(itemId, otherUserId, new BigDecimal("1"), new BigDecimal("2")));
+        }
+    }
+
+    @Nested
+    class RemoveItem {
+
+        @Test
+        void removesOwnedItem() {
+            UUID itemId = UUID.randomUUID();
+            WatchlistItem item = WatchlistItem.builder()
+                    .id(itemId)
+                    .symbol("BTCUSDT")
+                    .build();
+            when(watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)).thenReturn(Optional.of(item));
+
+            watchlistService.removeItem(itemId, userId);
+
+            verify(watchlistItemRepository).delete(item);
+        }
+
+        @Test
+        void throwsForNonOwnedItem() {
+            UUID itemId = UUID.randomUUID();
+            UUID otherUserId = UUID.randomUUID();
+            when(watchlistItemRepository.findByIdAndWatchlistUserId(itemId, otherUserId)).thenReturn(Optional.empty());
+
+            assertThrows(RuntimeException.class, () -> watchlistService.removeItem(itemId, otherUserId));
         }
     }
 

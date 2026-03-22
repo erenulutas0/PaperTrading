@@ -57,6 +57,7 @@ class WatchlistControllerIntegrationTest {
         private JdbcTemplate jdbcTemplate;
 
         private UUID userId = UUID.randomUUID();
+        private UUID otherUserId = UUID.randomUUID();
         private Watchlist testWatchlist;
 
         @BeforeEach
@@ -288,10 +289,11 @@ class WatchlistControllerIntegrationTest {
     }
 
     @Test
-    void testUpdateAlerts_missingItem_shouldReturnUnifiedErrorContract() throws Exception {
+        void testUpdateAlerts_missingItem_shouldReturnUnifiedErrorContract() throws Exception {
         UUID missingItemId = UUID.randomUUID();
 
         mockMvc.perform(put("/api/v1/watchlists/items/" + missingItemId + "/alerts")
+                        .header("X-User-Id", userId.toString())
                         .header("X-Request-Id", "watchlist-err-2")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -304,6 +306,46 @@ class WatchlistControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("watchlist_item_not_found"))
                 .andExpect(jsonPath("$.message").value("Watchlist item not found"))
                 .andExpect(jsonPath("$.requestId").value("watchlist-err-2"));
+    }
+
+    @Test
+    void testUpdateAlerts_nonOwnedItem_shouldReturnUnifiedNotFoundContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(put("/api/v1/watchlists/items/" + item.getId() + "/alerts")
+                        .header("X-User-Id", otherUserId.toString())
+                        .header("X-Request-Id", "watchlist-err-3")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "alertPriceAbove": 62000
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "watchlist-err-3"))
+                .andExpect(jsonPath("$.code").value("watchlist_item_not_found"))
+                .andExpect(jsonPath("$.message").value("Watchlist item not found"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-err-3"));
+    }
+
+    @Test
+    void testRemoveItem_nonOwnedItem_shouldReturnUnifiedNotFoundContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(delete("/api/v1/watchlists/items/" + item.getId())
+                        .header("X-User-Id", otherUserId.toString())
+                        .header("X-Request-Id", "watchlist-err-4"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "watchlist-err-4"))
+                .andExpect(jsonPath("$.code").value("watchlist_item_not_found"))
+                .andExpect(jsonPath("$.message").value("Watchlist item not found"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-err-4"));
     }
 
         @Test
