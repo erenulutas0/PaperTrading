@@ -38,6 +38,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Notification Read And Stream-Token Paths Now Require A Real Persisted User**
+  - **Problem observed**:
+    - Notification endpoints already enforced ownership at the notification-row level, but account-backed reads such as:
+      - list
+      - unread count
+      - mark-all-read
+      - stream-token issuance
+    - still trusted any bridged `X-User-Id` UUID without proving the account existed.
+    - That left the notification surface able to operate against orphan identities and return generic failure buckets.
+  - **Implementation**:
+    - Added `NotificationService.ensureUserExists(...)` and applied it to:
+      - SSE emitter creation
+      - notification list
+      - unread count
+      - mark-all-read
+      - mark-single-read
+    - `NotificationController` now maps missing-account cases to explicit `user_not_found`.
+    - Added service and controller integration coverage for missing-user notification paths.
+  - **Operational impact**:
+    - notification state is now more consistently tied to real accounts rather than arbitrary bridged UUIDs
+    - rollout scripts and clients now get a stable missing-user contract instead of generic failures
 - **2026-03-22**: **Chart Note Writes Now Require A Real User And Return Explicit Note Contracts**
   - **Problem observed**:
     - `MarketChartNoteService` accepted any `userId` coming from auth/bridge resolution without proving the account actually existed.

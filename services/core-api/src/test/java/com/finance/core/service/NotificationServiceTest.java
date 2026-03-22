@@ -4,6 +4,7 @@ import com.finance.core.config.WebSocketRuntimeProperties;
 import com.finance.core.domain.Notification;
 import com.finance.core.domain.event.NotificationEvent;
 import com.finance.core.repository.NotificationRepository;
+import com.finance.core.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,8 @@ class NotificationServiceTest {
 
     @Mock
     private NotificationRepository notificationRepository;
+    @Mock
+    private UserRepository userRepository;
     @Mock
     private SimpMessagingTemplate messagingTemplate;
     @Mock
@@ -105,6 +108,7 @@ class NotificationServiceTest {
     @Test
     void createEmitter_ShouldReturnSseEmitter() {
         // Act
+        when(userRepository.existsById(userId)).thenReturn(true);
         SseEmitter emitter = notificationService.createEmitter(userId);
 
         // Assert
@@ -114,6 +118,7 @@ class NotificationServiceTest {
 
     @Test
     void createEmitter_ShouldReplacePreviousEmitterForSameUser() {
+        when(userRepository.existsById(userId)).thenReturn(true);
         SseEmitter first = notificationService.createEmitter(userId);
         SseEmitter second = notificationService.createEmitter(userId);
 
@@ -125,6 +130,7 @@ class NotificationServiceTest {
     @Test
     void getUnreadCount_ShouldReturnCount() {
         // Arrange
+        when(userRepository.existsById(userId)).thenReturn(true);
         when(notificationRepository.countByUserIdAndReadFalse(userId)).thenReturn(5L);
 
         // Act
@@ -138,6 +144,7 @@ class NotificationServiceTest {
     @Test
     void getUserNotifications_ShouldReturnPage() {
         // Arrange
+        when(userRepository.existsById(userId)).thenReturn(true);
         PageRequest pageRequest = PageRequest.of(0, 10);
         Page<Notification> mockPage = new PageImpl<>(List.of(new Notification()));
         when(notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageRequest))
@@ -153,6 +160,7 @@ class NotificationServiceTest {
 
     @Test
     void markAsRead_WhenNotificationBelongsToUser_ShouldReturnTrue() {
+        when(userRepository.existsById(userId)).thenReturn(true);
         Notification notification = Notification.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
@@ -171,6 +179,7 @@ class NotificationServiceTest {
 
     @Test
     void markAsRead_WhenNotificationDoesNotBelongToUser_ShouldReturnFalse() {
+        when(userRepository.existsById(userId)).thenReturn(true);
         UUID notificationId = UUID.randomUUID();
         when(notificationRepository.findByIdAndUserId(notificationId, userId))
                 .thenReturn(java.util.Optional.empty());
@@ -178,5 +187,16 @@ class NotificationServiceTest {
         boolean marked = notificationService.markAsRead(userId, notificationId);
 
         assertFalse(marked);
+    }
+
+    @Test
+    void getUnreadCount_requiresExistingUser() {
+        UUID missingUserId = UUID.randomUUID();
+        when(userRepository.existsById(missingUserId)).thenReturn(false);
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> notificationService.getUnreadCount(missingUserId));
+
+        assertEquals("User not found", exception.getMessage());
+        verify(notificationRepository, never()).countByUserIdAndReadFalse(missingUserId);
     }
 }

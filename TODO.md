@@ -2691,3 +2691,9 @@ Last updated: 2026-03-22
   - targeted verification passed:
     - `MarketChartNoteServiceTest`
     - `MarketChartNoteControllerIntegrationTest`
+- [x] Harden notification reads and token issuance against orphan bridged users:
+  - notification list, unread-count, mark-all-read, mark-single-read, SSE emitter creation, and stream-token issuance now require a real persisted user
+  - notification controller now returns explicit `user_not_found` instead of generic failure buckets when a bridged UUID does not map to an account
+  - targeted verification passed:
+    - `NotificationServiceTest`
+    - `NotificationControllerIntegrationTest`

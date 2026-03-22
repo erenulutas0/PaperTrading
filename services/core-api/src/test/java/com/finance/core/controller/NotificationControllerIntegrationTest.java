@@ -399,4 +399,28 @@ class NotificationControllerIntegrationTest {
                                 .param("streamToken", "invalid-token"))
                                 .andExpect(status().isBadRequest());
         }
+
+        @Test
+        void unreadCount_WithUnknownUser_ShouldReturnExplicitNotFoundContract() throws Exception {
+                mockMvc.perform(get("/api/v1/notifications/unread-count")
+                                .header("X-Request-Id", "notif-user-missing-1")
+                                .header("X-User-Id", java.util.UUID.randomUUID().toString()))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "notif-user-missing-1"))
+                                .andExpect(jsonPath("$.code").value("user_not_found"))
+                                .andExpect(jsonPath("$.message").value("User not found"))
+                                .andExpect(jsonPath("$.requestId").value("notif-user-missing-1"));
+        }
+
+        @Test
+        void streamToken_WithUnknownUser_ShouldReturnExplicitNotFoundContract() throws Exception {
+                mockMvc.perform(get("/api/v1/notifications/stream-token")
+                                .header("X-Request-Id", "notif-stream-user-missing-1")
+                                .header("X-User-Id", java.util.UUID.randomUUID().toString()))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "notif-stream-user-missing-1"))
+                                .andExpect(jsonPath("$.code").value("user_not_found"))
+                                .andExpect(jsonPath("$.message").value("User not found"))
+                                .andExpect(jsonPath("$.requestId").value("notif-stream-user-missing-1"));
+        }
 }

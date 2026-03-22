@@ -4,6 +4,7 @@ import com.finance.core.config.WebSocketRuntimeProperties;
 import com.finance.core.domain.Notification;
 import com.finance.core.domain.event.NotificationEvent;
 import com.finance.core.repository.NotificationRepository;
+import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketRuntimeProperties webSocketRuntimeProperties;
 
@@ -37,6 +39,7 @@ public class NotificationService {
      * Subscribe a user to their real-time notification stream (SSE fallback).
      */
     public SseEmitter createEmitter(UUID userId) {
+        ensureUserExists(userId);
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
         SseEmitter previous = emitters.put(userId, emitter);
         if (previous != null) {
@@ -136,20 +139,24 @@ public class NotificationService {
     }
 
     public Page<Notification> getUserNotifications(UUID userId, Pageable pageable) {
+        ensureUserExists(userId);
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }
 
     public long getUnreadCount(UUID userId) {
+        ensureUserExists(userId);
         return notificationRepository.countByUserIdAndReadFalse(userId);
     }
 
     @Transactional
     public void markAllAsRead(UUID userId) {
+        ensureUserExists(userId);
         notificationRepository.markAllAsReadForUser(userId);
     }
 
     @Transactional
     public boolean markAsRead(UUID userId, UUID notificationId) {
+        ensureUserExists(userId);
         return notificationRepository.findByIdAndUserId(notificationId, userId)
                 .map(notification -> {
                     if (!notification.isRead()) {
@@ -158,5 +165,11 @@ public class NotificationService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    public void ensureUserExists(UUID userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new RuntimeException("User not found");
+        }
     }
 }

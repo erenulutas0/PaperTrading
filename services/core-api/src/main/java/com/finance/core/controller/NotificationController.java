@@ -40,41 +40,64 @@ public class NotificationController {
     }
 
     @GetMapping("/stream-token")
-    public ResponseEntity<Map<String, Object>> getStreamToken(@CurrentUserId UUID userId) {
-        String streamToken = jwtTokenService.generateNotificationStreamToken(userId);
-        long expiresInSeconds = jwtRuntimeProperties.normalizedNotificationStreamTokenTtl().getSeconds();
-        return ResponseEntity.ok(Map.of(
-                "streamToken", streamToken,
-                "expiresInSeconds", expiresInSeconds));
+    public ResponseEntity<?> getStreamToken(
+            @CurrentUserId UUID userId,
+            HttpServletRequest request) {
+        try {
+            notificationService.ensureUserExists(userId);
+            String streamToken = jwtTokenService.generateNotificationStreamToken(userId);
+            long expiresInSeconds = jwtRuntimeProperties.normalizedNotificationStreamTokenTtl().getSeconds();
+            return ResponseEntity.ok(Map.of(
+                    "streamToken", streamToken,
+                    "expiresInSeconds", expiresInSeconds));
+        } catch (RuntimeException exception) {
+            return buildNotificationError(exception, "notification_stream_token_failed", request);
+        }
     }
 
     /**
      * Get paginated read/unread history.
      */
     @GetMapping
-    public ResponseEntity<Page<Notification>> getNotifications(
+    public ResponseEntity<?> getNotifications(
             @CurrentUserId UUID userId,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(notificationService.getUserNotifications(userId, pageable));
+            @PageableDefault(size = 20) Pageable pageable,
+            HttpServletRequest request) {
+        try {
+            return ResponseEntity.ok(notificationService.getUserNotifications(userId, pageable));
+        } catch (RuntimeException exception) {
+            return buildNotificationError(exception, "notifications_fetch_failed", request);
+        }
     }
 
     /**
      * Fast lookup of unread notification count.
      */
     @GetMapping("/unread-count")
-    public ResponseEntity<Map<String, Long>> getUnreadCount(
-            @CurrentUserId UUID userId) {
-        long count = notificationService.getUnreadCount(userId);
-        return ResponseEntity.ok(Map.of("count", count));
+    public ResponseEntity<?> getUnreadCount(
+            @CurrentUserId UUID userId,
+            HttpServletRequest request) {
+        try {
+            long count = notificationService.getUnreadCount(userId);
+            return ResponseEntity.ok(Map.of("count", count));
+        } catch (RuntimeException exception) {
+            return buildNotificationError(exception, "notification_unread_count_failed", request);
+        }
     }
 
     /**
      * Mark all as read.
      */
     @PostMapping("/mark-read")
-    public ResponseEntity<Void> markAllAsRead(@CurrentUserId UUID userId) {
-        notificationService.markAllAsRead(userId);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> markAllAsRead(
+            @CurrentUserId UUID userId,
+            HttpServletRequest request) {
+        try {
+            notificationService.markAllAsRead(userId);
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException exception) {
+            return buildNotificationError(exception, "notification_mark_all_read_failed", request);
+        }
     }
 
     @PostMapping("/{notificationId}/mark-read")
@@ -104,5 +127,26 @@ public class NotificationController {
                         "Notification not found",
                         null,
                         httpRequest);
+    }
+
+    private ResponseEntity<?> buildNotificationError(
+            RuntimeException exception,
+            String fallbackCode,
+            HttpServletRequest request) {
+        String message = exception.getMessage() != null ? exception.getMessage() : "";
+        if ("User not found".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.NOT_FOUND,
+                    "user_not_found",
+                    message,
+                    null,
+                    request);
+        }
+        return ApiErrorResponses.build(
+                HttpStatus.BAD_REQUEST,
+                fallbackCode,
+                message,
+                null,
+                request);
     }
 }
