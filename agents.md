@@ -382,6 +382,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - one run can now be exported without scraping browser state
     - run-level reporting stays aligned with the persisted execution/reconciliation contract instead of introducing a second client-owned report path
+- **2026-03-22**: **Strategy Bots Now Expose An Account-Wide Board Instead Of Requiring Manual Cross-Bot Comparison**
+  - **Problem observed**:
+    - `/dashboard/bots` could inspect one selected bot deeply, but comparing multiple bots still required mentally hopping between cards and analytics panels.
+    - That made it harder to answer simple operator questions like:
+      - which bot currently has the best average return
+      - which bot has the healthiest payoff shape
+      - which bot has the freshest live activity
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/board`.
+    - The endpoint derives per-bot board rows from the existing analytics aggregate and supports sortable account-local views over:
+      - average return
+      - average PnL
+      - total runs
+      - win rate
+      - profit factor
+      - latest requested activity
+    - `/dashboard/bots` overview now renders a sortable `Bot Board` table and clicking a row reselects that bot for deeper inspection.
+  - **Operational impact**:
+    - users can now triage which bot deserves attention before opening its detailed run journal
+    - bot comparison still reuses the same analytics source of truth rather than inventing another scoring model first
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

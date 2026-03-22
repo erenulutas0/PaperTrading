@@ -571,6 +571,7 @@ Last updated: 2026-03-22
     - `GET /api/v1/strategy-bots/{botId}/analytics`
     - `GET /api/v1/strategy-bots/{botId}/analytics/export?format=csv|json`
     - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/export?format=csv|json`
+    - `GET /api/v1/strategy-bots/board`
     - bot-level aggregates for:
       - run counts by mode/status
       - average return / pnl / drawdown / win-rate / profit-factor / expectancy
@@ -582,6 +583,7 @@ Last updated: 2026-03-22
   - frontend:
     - `/dashboard/bots` overview now renders:
       - bot analytics cards
+      - account-wide bot board with sortable comparison axes
       - aggregated driver totals
       - recent run scorecards table
       - `Export CSV`

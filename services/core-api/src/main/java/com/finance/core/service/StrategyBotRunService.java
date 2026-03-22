@@ -15,6 +15,7 @@ import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
+import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.StrategyBotRunEquityPointResponse;
 import com.finance.core.dto.StrategyBotRunFillResponse;
@@ -23,12 +24,14 @@ import com.finance.core.dto.StrategyBotRunResponse;
 import com.finance.core.dto.StrategyBotRunScorecardResponse;
 import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +58,7 @@ import java.util.function.Function;
 public class StrategyBotRunService {
 
     private final StrategyBotRunRepository strategyBotRunRepository;
+    private final StrategyBotRepository strategyBotRepository;
     private final StrategyBotService strategyBotService;
     private final StrategyBotRuleEngineService strategyBotRuleEngineService;
     private final PortfolioRepository portfolioRepository;
@@ -105,6 +109,22 @@ public class StrategyBotRunService {
     public StrategyBotAnalyticsResponse getBotAnalytics(UUID botId, UUID userId) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         return buildBotAnalytics(bot, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StrategyBotBoardEntryResponse> getBotBoard(UUID userId, Pageable pageable, String sortBy, String direction) {
+        List<StrategyBotBoardEntryResponse> entries = strategyBotRepository.findByUserId(userId, Pageable.unpaged())
+                .stream()
+                .map(bot -> toBoardEntry(bot, buildBotAnalytics(bot, userId)))
+                .sorted(resolveBoardComparator(sortBy, direction))
+                .toList();
+
+        int start = Math.toIntExact(pageable.getOffset());
+        if (start >= entries.size()) {
+            return new PageImpl<>(List.of(), pageable, entries.size());
+        }
+        int end = Math.min(start + pageable.getPageSize(), entries.size());
+        return new PageImpl<>(entries.subList(start, end), pageable, entries.size());
     }
 
     @Transactional(readOnly = true)
@@ -452,6 +472,62 @@ public class StrategyBotRunService {
                 .exitDriverTotals(aggregateReasonCounts(runs, "exitReasonCounts"))
                 .recentScorecards(scorecards.stream().limit(12).toList())
                 .build();
+    }
+
+    private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot, StrategyBotAnalyticsResponse analytics) {
+        LocalDateTime latestRequestedAt = analytics.getRecentScorecards() == null || analytics.getRecentScorecards().isEmpty()
+                ? null
+                : analytics.getRecentScorecards().get(0).getRequestedAt();
+        return StrategyBotBoardEntryResponse.builder()
+                .strategyBotId(bot.getId())
+                .name(bot.getName())
+                .status(bot.getStatus().name())
+                .market(bot.getMarket())
+                .symbol(bot.getSymbol())
+                .timeframe(bot.getTimeframe())
+                .linkedPortfolioId(bot.getLinkedPortfolioId())
+                .totalRuns(analytics.getTotalRuns())
+                .completedRuns(analytics.getCompletedRuns())
+                .runningRuns(analytics.getRunningRuns())
+                .failedRuns(analytics.getFailedRuns())
+                .totalSimulatedTrades(analytics.getTotalSimulatedTrades())
+                .positiveCompletedRuns(analytics.getPositiveCompletedRuns())
+                .negativeCompletedRuns(analytics.getNegativeCompletedRuns())
+                .avgReturnPercent(analytics.getAvgReturnPercent())
+                .avgNetPnl(analytics.getAvgNetPnl())
+                .avgMaxDrawdownPercent(analytics.getAvgMaxDrawdownPercent())
+                .avgWinRate(analytics.getAvgWinRate())
+                .avgProfitFactor(analytics.getAvgProfitFactor())
+                .avgExpectancyPerTrade(analytics.getAvgExpectancyPerTrade())
+                .latestRequestedAt(latestRequestedAt)
+                .bestRun(analytics.getBestRun())
+                .latestCompletedRun(analytics.getLatestCompletedRun())
+                .activeForwardRun(analytics.getActiveForwardRun())
+                .build();
+    }
+
+    private Comparator<StrategyBotBoardEntryResponse> resolveBoardComparator(String sortBy, String direction) {
+        String normalizedSort = sortBy == null ? "AVG_RETURN" : sortBy.trim().toUpperCase();
+        Comparator<StrategyBotBoardEntryResponse> comparator = switch (normalizedSort) {
+            case "AVG_RETURN" -> Comparator.comparing(entry -> nullSafe(entry.getAvgReturnPercent()));
+            case "AVG_NET_PNL" -> Comparator.comparing(entry -> nullSafe(entry.getAvgNetPnl()));
+            case "AVG_WIN_RATE" -> Comparator.comparing(entry -> nullSafe(entry.getAvgWinRate()));
+            case "AVG_PROFIT_FACTOR" -> Comparator.comparing(entry -> nullSafe(entry.getAvgProfitFactor()));
+            case "TOTAL_RUNS" -> Comparator.comparing(StrategyBotBoardEntryResponse::getTotalRuns);
+            case "TOTAL_SIMULATED_TRADES" -> Comparator.comparing(StrategyBotBoardEntryResponse::getTotalSimulatedTrades);
+            case "LATEST_REQUESTED_AT" -> Comparator.comparing(entry -> entry.getLatestRequestedAt() == null ? LocalDateTime.MIN : entry.getLatestRequestedAt());
+            default -> throw new IllegalArgumentException("Invalid strategy bot board sort");
+        };
+
+        boolean ascending = "ASC".equalsIgnoreCase(direction);
+        Comparator<StrategyBotBoardEntryResponse> withTieBreaker = comparator
+                .thenComparing(StrategyBotBoardEntryResponse::getName, Comparator.nullsLast(String::compareToIgnoreCase))
+                .thenComparing(StrategyBotBoardEntryResponse::getStrategyBotId);
+        return ascending ? withTieBreaker : withTieBreaker.reversed();
+    }
+
+    private double nullSafe(Double value) {
+        return value == null ? Double.NEGATIVE_INFINITY : value;
     }
 
     private void addMetricRow(List<List<Object>> rows, String section, String key, Object value) {

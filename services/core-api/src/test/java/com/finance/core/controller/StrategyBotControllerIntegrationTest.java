@@ -370,4 +370,98 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.analytics.totalRuns").value(1))
                 .andExpect(jsonPath("$.analytics.recentScorecards", hasSize(1)));
     }
+
+    @Test
+    void getStrategyBotBoard_shouldReturnSortedPagedEntries() throws Exception {
+        StrategyBot strongerBot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Momentum Prime")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build());
+        StrategyBot weakerBot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Mean Revert")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(strongerBot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusHours(4))
+                .completedAt(LocalDateTime.now().minusHours(3))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 11.0,
+                          "netPnl": 11000.0,
+                          "maxDrawdownPercent": 3.2,
+                          "winRate": 75.0,
+                          "tradeCount": 4,
+                          "profitFactor": 2.3
+                        }
+                        """)
+                .build());
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(weakerBot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": -2.5,
+                          "netPnl": -2500.0,
+                          "maxDrawdownPercent": 6.5,
+                          "winRate": 40.0,
+                          "tradeCount": 5,
+                          "profitFactor": 0.9
+                        }
+                        """)
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
+                        .param("sortBy", "AVG_RETURN")
+                        .param("direction", "DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(strongerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].avgReturnPercent").value(11.0))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(weakerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].avgReturnPercent").value(-2.5));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
+                        .param("sortBy", "BOGUS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
+    }
 }

@@ -2,6 +2,7 @@ package com.finance.core.controller;
 
 import com.finance.core.dto.StrategyBotRequest;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
+import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.StrategyBotRunEquityPointResponse;
 import com.finance.core.dto.StrategyBotRunFillResponse;
@@ -23,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @RestController
@@ -38,6 +40,21 @@ public class StrategyBotController {
             @CurrentUserId UUID userId,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(strategyBotService.getUserBots(userId, pageable));
+    }
+
+    @GetMapping("/board")
+    public ResponseEntity<?> getBotBoard(
+            @CurrentUserId UUID userId,
+            @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
+            @RequestParam(defaultValue = "DESC") String direction,
+            @PageableDefault(size = 12) Pageable pageable,
+            HttpServletRequest request) {
+        try {
+            Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(userId, pageable, sortBy, direction);
+            return ResponseEntity.ok(board);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_board_failed", "Failed to load strategy bot board", request);
+        }
     }
 
     @GetMapping("/{botId}")
@@ -72,7 +89,7 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "json") String format,
             HttpServletRequest request) {
         try {
-            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase();
+            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId);
                 return ResponseEntity.ok()
@@ -164,7 +181,7 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "json") String format,
             HttpServletRequest request) {
         try {
-            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase();
+            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = strategyBotRunService.buildRunExportCsv(botId, runId, userId);
                 return ResponseEntity.ok()
@@ -281,7 +298,7 @@ public class StrategyBotController {
 
     private ResponseEntity<?> buildBotError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
         String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
-        String normalized = message.toLowerCase();
+        String normalized = message.toLowerCase(Locale.ROOT);
 
         if (normalized.contains("strategy bot not found")) {
             return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "strategy_bot_not_found", "Strategy bot not found", null, request);
@@ -306,6 +323,9 @@ public class StrategyBotController {
         }
         if (normalized.contains("invalid strategy bot status")) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_status", "Invalid strategy bot status", null, request);
+        }
+        if (normalized.contains("invalid strategy bot board sort")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_sort", "Invalid strategy bot board sort", null, request);
         }
         if (normalized.contains("strategy bot run not found")) {
             return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "strategy_bot_run_not_found", "Strategy bot run not found", null, request);

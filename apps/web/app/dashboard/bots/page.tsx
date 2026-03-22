@@ -9,6 +9,7 @@ import { extractContent } from '../../../lib/page';
 type Tab = 'OVERVIEW' | 'BOTS' | 'RUNS';
 type BotStatus = 'DRAFT' | 'READY' | 'ARCHIVED';
 type RunMode = 'BACKTEST' | 'FORWARD_TEST';
+type BotBoardSort = 'AVG_RETURN' | 'AVG_NET_PNL' | 'TOTAL_RUNS' | 'AVG_WIN_RATE' | 'AVG_PROFIT_FACTOR' | 'LATEST_REQUESTED_AT';
 
 type PortfolioOption = { id: string; name: string; balance: number; visibility?: 'PUBLIC' | 'PRIVATE' };
 type StrategyBot = {
@@ -42,6 +43,12 @@ type StrategyBotAnalytics = {
     avgProfitFactor?: number | null; avgExpectancyPerTrade?: number | null;
     bestRun?: StrategyBotRunScorecard | null; worstRun?: StrategyBotRunScorecard | null; latestCompletedRun?: StrategyBotRunScorecard | null; activeForwardRun?: StrategyBotRunScorecard | null;
     entryDriverTotals: Record<string, number>; exitDriverTotals: Record<string, number>; recentScorecards: StrategyBotRunScorecard[];
+};
+type StrategyBotBoardEntry = {
+    strategyBotId: string; name: string; status: BotStatus; market: string; symbol: string; timeframe: string; linkedPortfolioId?: string | null;
+    totalRuns: number; completedRuns: number; runningRuns: number; failedRuns: number; totalSimulatedTrades: number; positiveCompletedRuns: number; negativeCompletedRuns: number;
+    avgReturnPercent?: number | null; avgNetPnl?: number | null; avgMaxDrawdownPercent?: number | null; avgWinRate?: number | null; avgProfitFactor?: number | null; avgExpectancyPerTrade?: number | null;
+    latestRequestedAt?: string | null; bestRun?: StrategyBotRunScorecard | null; latestCompletedRun?: StrategyBotRunScorecard | null; activeForwardRun?: StrategyBotRunScorecard | null;
 };
 type StrategyBotRunReconciliationPlan = {
     runId: string; strategyBotId: string; linkedPortfolioId: string; linkedPortfolioName: string; symbol: string; runStatus: string;
@@ -105,6 +112,9 @@ export default function StrategyBotsPage() {
     const [pageError, setPageError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
+    const [botBoard, setBotBoard] = useState<StrategyBotBoardEntry[]>([]);
+    const [boardSortBy, setBoardSortBy] = useState<BotBoardSort>('AVG_RETURN');
+    const [boardDirection, setBoardDirection] = useState<'ASC' | 'DESC'>('DESC');
     const [portfolios, setPortfolios] = useState<PortfolioOption[]>([]);
     const [bots, setBots] = useState<StrategyBot[]>([]);
     const [runs, setRuns] = useState<StrategyBotRun[]>([]);
@@ -153,6 +163,12 @@ export default function StrategyBotsPage() {
         }
     }, [selectedBotId, selectedRunId]);
 
+    useEffect(() => {
+        if (userId) {
+            void loadBotBoard(boardSortBy, boardDirection);
+        }
+    }, [userId, boardSortBy, boardDirection]);
+
     async function bootstrap(currentUserId: string) {
         setLoading(true); setPageError(null);
         try {
@@ -168,7 +184,18 @@ export default function StrategyBotsPage() {
             setBots(nextBots);
             setSelectedBotId((current) => current && nextBots.some((bot) => bot.id === current) ? current : nextBots[0]?.id ?? '');
             setBotForm((current) => current.linkedPortfolioId ? current : { ...current, linkedPortfolioId: nextPortfolios[0]?.id ?? '' });
+            await loadBotBoard(boardSortBy, boardDirection);
         } catch (error) { setPageError(err(error)); } finally { setLoading(false); }
+    }
+
+    async function loadBotBoard(sortBy = boardSortBy, direction = boardDirection) {
+        try {
+            const response = await apiFetch(`/api/v1/strategy-bots/board?size=24&sortBy=${encodeURIComponent(sortBy)}&direction=${encodeURIComponent(direction)}`, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`Failed to load bot board (${response.status})`);
+            setBotBoard(extractContent<StrategyBotBoardEntry>(await response.json()));
+        } catch (error) {
+            setActionError(err(error));
+        }
     }
 
     async function loadRuns(botId: string) {
@@ -326,6 +353,7 @@ export default function StrategyBotsPage() {
             setRunForm({ runMode: 'BACKTEST', initialCapital: '', fromDate: '', toDate: '' });
             await loadRuns(selectedBotId);
             await loadBotAnalytics(selectedBotId);
+            await loadBotBoard();
             setSelectedRunId(createdRun.id);
             setNotice('Run queued');
         } catch (error) { setActionError(err(error)); } finally { setRequestingRun(false); }
@@ -339,6 +367,7 @@ export default function StrategyBotsPage() {
             if (!response.ok) throw new Error(await response.text() || `Run execute failed (${response.status})`);
             await loadRuns(selectedBotId);
             await loadBotAnalytics(selectedBotId);
+            await loadBotBoard();
             setSelectedRunId(runId);
             setNotice('Run executed');
         } catch (error) { setActionError(err(error)); } finally { setExecutingRunId(null); }
@@ -352,6 +381,7 @@ export default function StrategyBotsPage() {
             if (!response.ok) throw new Error(await response.text() || `Run refresh failed (${response.status})`);
             await loadRuns(selectedBotId);
             await loadBotAnalytics(selectedBotId);
+            await loadBotBoard();
             setSelectedRunId(runId);
             await loadRunOutputs(selectedBotId, runId);
             await loadRunReconciliation(selectedBotId, runId);
@@ -367,6 +397,7 @@ export default function StrategyBotsPage() {
             if (!response.ok) throw new Error(await response.text() || `Reconciliation apply failed (${response.status})`);
             setSelectedRunReconciliation(await response.json() as StrategyBotRunReconciliationPlan);
             await loadRuns(selectedBotId);
+            await loadBotBoard();
             setSelectedRunId(runId);
             setNotice('Linked portfolio synced to run snapshot');
         } catch (error) { setActionError(err(error)); } finally { setApplyingRunId(null); }
@@ -625,6 +656,85 @@ export default function StrategyBotsPage() {
                                 <p className="mt-5 text-sm text-zinc-500">No recent scorecards yet for the selected bot.</p>
                             )}
                         </div>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Bot Board</p>
+                                <h2 className="mt-2 text-xl font-bold text-white">Account-wide comparison surface for deterministic bots.</h2>
+                                <p className="mt-2 text-sm text-zinc-500">Sort by one quality axis, then jump directly into the bot you want to inspect.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {([
+                                    ['AVG_RETURN', 'Avg Return'],
+                                    ['AVG_NET_PNL', 'Avg PnL'],
+                                    ['TOTAL_RUNS', 'Runs'],
+                                    ['AVG_WIN_RATE', 'Win Rate'],
+                                    ['AVG_PROFIT_FACTOR', 'Profit Factor'],
+                                    ['LATEST_REQUESTED_AT', 'Latest'],
+                                ] as const).map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setBoardSortBy(value)}
+                                        className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                                            boardSortBy === value
+                                                ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100'
+                                                : 'border-white/10 bg-white/5 text-zinc-300'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() => setBoardDirection((current) => current === 'DESC' ? 'ASC' : 'DESC')}
+                                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-300"
+                                >
+                                    {boardDirection}
+                                </button>
+                            </div>
+                        </div>
+                        {botBoard.length ? (
+                            <div className="mt-5 overflow-hidden rounded-2xl border border-white/5 bg-black/20">
+                                <div className="grid grid-cols-[1.3fr_0.8fr_0.8fr_0.7fr_0.7fr_0.9fr] gap-3 border-b border-white/5 px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+                                    <span>Bot</span>
+                                    <span>Avg Return</span>
+                                    <span>Avg PnL</span>
+                                    <span>Runs</span>
+                                    <span>PF</span>
+                                    <span>Latest</span>
+                                </div>
+                                {botBoard.map((entry) => (
+                                    <button
+                                        key={entry.strategyBotId}
+                                        type="button"
+                                        onClick={() => setSelectedBotId(entry.strategyBotId)}
+                                        className={`grid w-full grid-cols-[1.3fr_0.8fr_0.8fr_0.7fr_0.7fr_0.9fr] gap-3 border-b border-white/5 px-4 py-3 text-left text-xs text-zinc-300 transition last:border-b-0 hover:bg-white/[0.03] ${selectedBotId === entry.strategyBotId ? 'bg-cyan-500/10' : ''}`}
+                                    >
+                                        <div className="min-w-0">
+                                            <p className="truncate font-semibold text-white">{entry.name}</p>
+                                            <p className="mt-1 text-[11px] text-zinc-500">{entry.symbol} · {entry.timeframe} · {entry.status}</p>
+                                        </div>
+                                        <div className={entry.avgReturnPercent != null && entry.avgReturnPercent >= 0 ? 'font-semibold text-emerald-200' : 'font-semibold text-red-200'}>
+                                            {fmtPercent(entry.avgReturnPercent)}
+                                        </div>
+                                        <div>{fmtCurrency(entry.avgNetPnl)}</div>
+                                        <div>
+                                            <p className="font-semibold text-white">{entry.completedRuns} / {entry.totalRuns}</p>
+                                            <p className="mt-1 text-[11px] text-zinc-500">{entry.totalSimulatedTrades} trades</p>
+                                        </div>
+                                        <div>{entry.avgProfitFactor?.toFixed(2) ?? 'N/A'}</div>
+                                        <div>
+                                            <p className="font-semibold text-white">{fmtDate(entry.latestRequestedAt)}</p>
+                                            <p className="mt-1 text-[11px] text-zinc-500">{entry.activeForwardRun ? 'live forward' : entry.bestRun ? `best ${fmtPercent(entry.bestRun.returnPercent)}` : 'no live run'}</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="mt-5 text-sm text-zinc-500">No strategy bots available for board comparison yet.</p>
+                        )}
                     </div>
                 </section>
             )}

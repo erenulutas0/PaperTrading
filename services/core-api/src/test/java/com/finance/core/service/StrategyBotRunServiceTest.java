@@ -8,12 +8,14 @@ import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
 import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
+import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.dto.StrategyBotRunResponse;
 import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
@@ -26,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
@@ -51,6 +54,8 @@ class StrategyBotRunServiceTest {
 
     @Mock
     private StrategyBotRunRepository strategyBotRunRepository;
+    @Mock
+    private StrategyBotRepository strategyBotRepository;
     @Mock
     private StrategyBotService strategyBotService;
     @Mock
@@ -582,6 +587,80 @@ class StrategyBotRunServiceTest {
         assertThat(csv).contains("summary,totalRuns,1");
         assertThat(csv).contains("entryDriver,price_above_ma_3,2");
         assertThat(csv).contains("recentScorecard,recent");
+    }
+
+    @Test
+    void getBotBoard_shouldSortBotsByAverageReturn() {
+        UUID userId = UUID.randomUUID();
+
+        StrategyBot strongerBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Momentum Prime")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBot weakerBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Mean Revert")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun strongerRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(strongerBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(3))
+                .summary("""
+                        {
+                          "returnPercent": 12.5,
+                          "netPnl": 12500.0,
+                          "winRate": 75.0,
+                          "tradeCount": 4,
+                          "profitFactor": 2.4
+                        }
+                        """)
+                .build();
+        StrategyBotRun weakerRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(weakerBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .summary("""
+                        {
+                          "returnPercent": -3.0,
+                          "netPnl": -3000.0,
+                          "winRate": 40.0,
+                          "tradeCount": 5,
+                          "profitFactor": 0.8
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findByUserId(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(weakerBot, strongerBot)));
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(strongerBot.getId(), userId))
+                .thenReturn(List.of(strongerRun));
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(weakerBot.getId(), userId))
+                .thenReturn(List.of(weakerRun));
+
+        var board = strategyBotRunService.getBotBoard(userId, PageRequest.of(0, 10), "AVG_RETURN", "DESC");
+
+        assertThat(board.getContent()).hasSize(2);
+        assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(strongerBot.getId());
+        assertThat(board.getContent().get(0).getAvgReturnPercent()).isEqualTo(12.5);
+        assertThat(board.getContent().get(1).getStrategyBotId()).isEqualTo(weakerBot.getId());
+        assertThat(board.getContent().get(1).getAvgReturnPercent()).isEqualTo(-3.0);
     }
 
     @Test
