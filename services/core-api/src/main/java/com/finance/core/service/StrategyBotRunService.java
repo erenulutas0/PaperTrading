@@ -269,6 +269,150 @@ public class StrategyBotRunService {
     }
 
     @Transactional(readOnly = true)
+    public String buildPublicRunExportJson(UUID botId, UUID runId) {
+        PublicStrategyBotRunDetailResponse detail = getPublicBotRunDetail(botId, runId);
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("strategyBotId", detail.getStrategyBotId());
+        payload.put("runId", detail.getRunId());
+        payload.put("botName", detail.getBotName());
+        payload.put("botDescription", detail.getBotDescription());
+        payload.put("botStatus", detail.getBotStatus());
+        payload.put("market", detail.getMarket());
+        payload.put("symbol", detail.getSymbol());
+        payload.put("timeframe", detail.getTimeframe());
+        payload.put("linkedPortfolioId", detail.getLinkedPortfolioId());
+        payload.put("linkedPortfolioName", detail.getLinkedPortfolioName());
+        payload.put("ownerId", detail.getOwnerId());
+        payload.put("ownerUsername", detail.getOwnerUsername());
+        payload.put("ownerDisplayName", detail.getOwnerDisplayName());
+        payload.put("ownerAvatarUrl", detail.getOwnerAvatarUrl());
+        payload.put("ownerTrustScore", detail.getOwnerTrustScore());
+        payload.put("exportedAt", LocalDateTime.now().toString());
+        payload.put("run", detail);
+        return writePrettyJsonExport(payload, "Failed to serialize public strategy bot run export");
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] buildPublicRunExportCsv(UUID botId, UUID runId) {
+        PublicStrategyBotRunDetailResponse detail = getPublicBotRunDetail(botId, runId);
+
+        List<List<Object>> rows = new ArrayList<>();
+        rows.add(List.of(
+                "section",
+                "key",
+                "value",
+                "runId",
+                "runMode",
+                "status",
+                "requestedAt",
+                "completedAt",
+                "returnPercent",
+                "netPnl",
+                "maxDrawdownPercent",
+                "winRate",
+                "tradeCount",
+                "profitFactor",
+                "expectancyPerTrade",
+                "timeInMarketPercent",
+                "linkedPortfolioAligned",
+                "executionEngineReady",
+                "lastEvaluatedOpenTime",
+                "errorMessage"));
+
+        addMetricRow(rows, "context", "strategyBotId", detail.getStrategyBotId());
+        addMetricRow(rows, "context", "runId", detail.getRunId());
+        addMetricRow(rows, "context", "botName", detail.getBotName());
+        addMetricRow(rows, "context", "botDescription", detail.getBotDescription());
+        addMetricRow(rows, "context", "botStatus", detail.getBotStatus());
+        addMetricRow(rows, "context", "market", detail.getMarket());
+        addMetricRow(rows, "context", "symbol", detail.getSymbol());
+        addMetricRow(rows, "context", "timeframe", detail.getTimeframe());
+        addMetricRow(rows, "context", "linkedPortfolioId", detail.getLinkedPortfolioId());
+        addMetricRow(rows, "context", "linkedPortfolioName", detail.getLinkedPortfolioName());
+        addMetricRow(rows, "context", "ownerId", detail.getOwnerId());
+        addMetricRow(rows, "context", "ownerUsername", detail.getOwnerUsername());
+        addMetricRow(rows, "context", "ownerDisplayName", detail.getOwnerDisplayName());
+        addMetricRow(rows, "context", "ownerTrustScore", detail.getOwnerTrustScore());
+        addMetricRow(rows, "context", "requestedInitialCapital", detail.getRequestedInitialCapital());
+        addMetricRow(rows, "context", "effectiveInitialCapital", detail.getEffectiveInitialCapital());
+        addMetricRow(rows, "context", "fromDate", detail.getFromDate());
+        addMetricRow(rows, "context", "toDate", detail.getToDate());
+        addMetricRow(rows, "context", "exportedAt", LocalDateTime.now());
+        addMetricRow(rows, "rules", "compiledEntryRules", stringifyJson(detail.getCompiledEntryRules()));
+        addMetricRow(rows, "rules", "compiledExitRules", stringifyJson(detail.getCompiledExitRules()));
+
+        JsonNode summary = detail.getSummary() == null ? objectMapper.nullNode() : objectMapper.valueToTree(detail.getSummary());
+        addRunExportSummaryMetric(rows, summary, "executionEngineReady");
+        addRunExportSummaryMetric(rows, summary, "returnPercent");
+        addRunExportSummaryMetric(rows, summary, "netPnl");
+        addRunExportSummaryMetric(rows, summary, "maxDrawdownPercent");
+        addRunExportSummaryMetric(rows, summary, "winRate");
+        addRunExportSummaryMetric(rows, summary, "tradeCount");
+        addRunExportSummaryMetric(rows, summary, "profitFactor");
+        addRunExportSummaryMetric(rows, summary, "expectancyPerTrade");
+        addRunExportSummaryMetric(rows, summary, "timeInMarketPercent");
+        addRunExportSummaryMetric(rows, summary, "lastEvaluatedOpenTime");
+        addReasonMetricRows(rows, "entryReason", summary.get("entryReasonCounts"));
+        addReasonMetricRows(rows, "exitReason", summary.get("exitReasonCounts"));
+
+        detail.getFills().forEach(fill -> {
+            List<Object> row = new ArrayList<>();
+            row.add("fill");
+            row.add(fill.getSequenceNo());
+            row.add("");
+            row.add(detail.getRunId());
+            row.add(fill.getSide());
+            row.add("");
+            row.add(fill.getOpenTime());
+            row.add("");
+            row.add("");
+            row.add(fill.getPrice());
+            row.add("");
+            row.add("");
+            row.add(fill.getQuantity());
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add(joinJsonArray(fill.getMatchedRules()));
+            rows.add(row);
+        });
+
+        detail.getEquityCurve().forEach(point -> {
+            List<Object> row = new ArrayList<>();
+            row.add("equity");
+            row.add(point.getSequenceNo());
+            row.add("");
+            row.add(detail.getRunId());
+            row.add("");
+            row.add("");
+            row.add(point.getOpenTime());
+            row.add("");
+            row.add("");
+            row.add(point.getClosePrice());
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add(point.getEquity());
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add("");
+            rows.add(row);
+        });
+
+        String content = rows.stream()
+                .map(row -> row.stream().map(this::escapeCsv).reduce((left, right) -> left + "," + right).orElse(""))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+        return content.getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Transactional(readOnly = true)
     public String buildPublicBotBoardExportJson(String sortBy,
                                                 String direction,
                                                 String runMode,

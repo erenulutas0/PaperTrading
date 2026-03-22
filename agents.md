@@ -623,6 +623,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the public bot layer now supports compare -> detail -> run inspection as one continuous read path
     - persisted execution evidence is now inspectable without leaking operator-only reconciliation controls
+- **2026-03-22**: **Public Strategy Bot Run Reading Now Exports The Same Persisted Evidence Instead Of Forcing Screen Scrapes**
+  - **Problem observed**:
+    - Public run drilldown made fills and equity inspectable, but it still left no clean handoff artifact for one specific run.
+    - That would push users back toward screenshots or manual copy/paste for external review.
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/discover/{botId}/runs/{runId}/export?format=csv|json`.
+    - Reused the persisted public run-detail contract:
+      - run metadata
+      - summary payload
+      - fills
+      - equity curve
+      - compiled rules
+    - Kept reconciliation/apply data out of the public export.
+    - Added public run-page download actions for:
+      - `Export CSV`
+      - `Export JSON`
+  - **Operational impact**:
+    - one public run can now be handed off as a durable artifact instead of only a live page
+    - public run export remains aligned with the same persisted evidence surface as the on-screen drilldown
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

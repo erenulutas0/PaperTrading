@@ -1221,4 +1221,99 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("strategy_bot_run_not_found"));
     }
+
+    @Test
+    void exportPublicStrategyBotRunDetail_shouldReturnCsvAndJson() throws Exception {
+        AppUser publicOwner = userRepository.save(AppUser.builder()
+                .username("run-export-owner")
+                .email("run-export-owner@example.com")
+                .password("hashed")
+                .displayName("Run Export Owner")
+                .trustScore(71.5)
+                .build());
+        UUID publicOwnerId = publicOwner.getId();
+
+        Portfolio publicPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Run Export Basket")
+                .ownerId(publicOwnerId.toString())
+                .balance(new BigDecimal("160000"))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build());
+
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .name("Run Export Bot")
+                .description("Public run export profile")
+                .market("CRYPTO")
+                .symbol("BNBUSDT")
+                .timeframe("4H")
+                .entryRules("{\"all\":[\"price_above_ma_20\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("14"))
+                .cooldownMinutes(15)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        StrategyBotRun run = strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .compiledEntryRules("{\"all\":[\"price_above_ma_20\"]}")
+                .compiledExitRules("{\"any\":[\"take_profit_hit\"]}")
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": 4.0,
+                          "netPnl": 4000.0,
+                          "tradeCount": 1,
+                          "entryReasonCounts": {"price_above_ma_20": 1}
+                        }
+                        """)
+                .build());
+
+        strategyBotRunFillRepository.save(StrategyBotRunFill.builder()
+                .strategyBotRunId(run.getId())
+                .sequenceNo(1)
+                .side("ENTRY")
+                .openTime(1712000000000L)
+                .price(new BigDecimal("580.00"))
+                .quantity(new BigDecimal("2.00000000"))
+                .realizedPnl(new BigDecimal("0.00"))
+                .matchedRules("[\"price_above_ma_20\"]")
+                .build());
+        strategyBotRunEquityPointRepository.save(StrategyBotRunEquityPoint.builder()
+                .strategyBotRunId(run.getId())
+                .sequenceNo(1)
+                .openTime(1712000000000L)
+                .closePrice(new BigDecimal("580.00"))
+                .equity(new BigDecimal("100000.00"))
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + bot.getId() + "/runs/" + run.getId() + "/export")
+                        .param("format", "csv"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("public-strategy-bot-run-" + run.getId() + ".csv")))
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(content().string(containsString("context,botName,Run Export Bot")))
+                .andExpect(content().string(containsString("rules,compiledEntryRules")))
+                .andExpect(content().string(containsString("fill,1")));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + bot.getId() + "/runs/" + run.getId() + "/export")
+                        .param("format", "json"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("public-strategy-bot-run-" + run.getId() + ".json")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.botName").value("Run Export Bot"))
+                .andExpect(jsonPath("$.run.runId").value(run.getId().toString()))
+                .andExpect(jsonPath("$.run.summary.returnPercent").value(4.0))
+                .andExpect(jsonPath("$.run.fills", hasSize(1)))
+                .andExpect(jsonPath("$.run.equityCurve", hasSize(1)));
+    }
 }

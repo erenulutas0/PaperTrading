@@ -612,6 +612,7 @@ Last updated: 2026-03-22
     - `GET /api/v1/strategy-bots/discover/{botId}/runs/{runId}`
     - `GET /api/v1/strategy-bots/discover/export?format=csv|json`
     - `GET /api/v1/strategy-bots/discover/{botId}/export?format=csv|json`
+    - `GET /api/v1/strategy-bots/discover/{botId}/runs/{runId}/export?format=csv|json`
     - public eligibility now means:
       - linked portfolio is `PUBLIC`
       - bot status is not `DRAFT`
@@ -648,11 +649,13 @@ Last updated: 2026-03-22
         - rule JSON
         - scoped analytics
         - recent scorecards
-        - public run drilldown for:
+      - public run drilldown for:
           - run summary
           - persisted fills
           - persisted equity curve
           - compiled rule snapshot
+          - `Export CSV`
+          - `Export JSON`
         - `Export CSV`
         - `Export JSON`
         - `Copy Link`

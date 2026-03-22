@@ -118,6 +118,7 @@ export default function PublicStrategyBotRunPage() {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<PublicStrategyBotRunDetail | null>(null);
   const [copyingLink, setCopyingLink] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'csv' | 'json' | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -181,6 +182,27 @@ export default function PublicStrategyBotRunPage() {
     }
   }
 
+  async function exportRun(format: 'csv' | 'json') {
+    setExportingFormat(format);
+    try {
+      const res = await apiFetch(`/api/v1/strategy-bots/discover/${botId}/runs/${runId}/export?format=${format}`);
+      if (!res.ok) {
+        throw new Error(`Failed to export public strategy bot run: ${res.status}`);
+      }
+      const blob = await res.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = format === 'csv' ? `public-strategy-bot-run-${runId}.csv` : `public-strategy-bot-run-${runId}.json`;
+      anchor.click();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (exportError) {
+      console.error(exportError);
+    } finally {
+      setExportingFormat(null);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-black text-white">
       <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-white/10 bg-black/50 px-6 py-4 backdrop-blur-md">
@@ -198,6 +220,22 @@ export default function PublicStrategyBotRunPage() {
         <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-zinc-400">
           <Link href={boardHref} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold text-zinc-300 transition hover:text-white">Back To Board</Link>
           <Link href={detailHref} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold text-zinc-300 transition hover:text-white">Back To Bot</Link>
+          <button
+            type="button"
+            onClick={() => void exportRun('csv')}
+            disabled={exportingFormat !== null}
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exportingFormat === 'csv' ? 'Exporting CSV...' : 'Export CSV'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportRun('json')}
+            disabled={exportingFormat !== null}
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold text-zinc-300 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exportingFormat === 'json' ? 'Exporting JSON...' : 'Export JSON'}
+          </button>
           <button
             type="button"
             onClick={() => void copyRunLink()}
