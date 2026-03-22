@@ -1171,6 +1171,18 @@ Last updated: 2026-03-22
     - portfolio leaderboard no longer accepts account-only sort lenses like `TRUST_SCORE` as an implicit fallback to return ranking
   - Coverage:
     - `LeaderboardControllerIntegrationTest`
+- [x] Hardened analytics controller contracts and owner-based summary semantics:
+  - Updated:
+    - `AnalyticsController`
+    - `PerformanceAnalyticsService`
+  - Behavior:
+    - analytics read/export/risk/trade/equity endpoints now return explicit `analytics_portfolio_not_found` for missing portfolios instead of falling through to generic global codes
+    - analytics export no longer silently treats unknown formats as JSON; invalid values now return `invalid_analytics_export_format`
+    - `predictionWinRate` inside portfolio analytics now follows the portfolio owner, not the current viewer or a `portfolioId` fallback masquerading as user identity
+    - risk/trade/equity sub-surfaces now require a real portfolio row instead of returning empty `200` payloads for unknown ids
+  - Coverage:
+    - `PerformanceAnalyticsServiceTest`
+    - `AnalyticsControllerIntegrationTest`
 - [x] Extended unified error contract into audit ops controller paths:
   - Updated:
     - `AuditOpsController`

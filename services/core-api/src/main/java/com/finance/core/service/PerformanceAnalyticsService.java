@@ -154,6 +154,7 @@ public class PerformanceAnalyticsService {
      * Get comprehensive trade statistics for a portfolio.
      */
     public Map<String, Object> getTradeStats(UUID portfolioId) {
+        ensurePortfolioExists(portfolioId);
         List<TradeActivity> trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId);
         return buildTradeStats(trades);
     }
@@ -243,25 +244,9 @@ public class PerformanceAnalyticsService {
      * Get equity curve data points for charting.
      */
     public List<Map<String, Object>> getEquityCurve(UUID portfolioId) {
+        ensurePortfolioExists(portfolioId);
         List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
-        List<Map<String, Object>> curve = new ArrayList<>();
-
-        double peak = 0;
-
-        for (PortfolioSnapshot s : snapshots) {
-            double equity = s.getTotalEquity().doubleValue();
-            if (equity > peak)
-                peak = equity;
-            double drawdown = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
-
-            Map<String, Object> point = new LinkedHashMap<>();
-            point.put("timestamp", s.getTimestamp().toString());
-            point.put("equity", Math.round(equity * 100.0) / 100.0);
-            point.put("drawdown", Math.round(drawdown * 100.0) / 100.0);
-            point.put("peak", Math.round(peak * 100.0) / 100.0);
-            curve.add(point);
-        }
-        return curve;
+        return buildEquityCurve(snapshots);
     }
 
     // ==================== FULL DASHBOARD ====================
@@ -269,10 +254,14 @@ public class PerformanceAnalyticsService {
     /**
      * Aggregate all analytics into a single dashboard response.
      */
-    public Map<String, Object> getFullAnalytics(UUID portfolioId, UUID userId) {
+    public Map<String, Object> getRiskMetrics(UUID portfolioId) {
+        ensurePortfolioExists(portfolioId);
+        return buildRiskMetrics(portfolioId);
+    }
+
+    public Map<String, Object> getFullAnalytics(UUID portfolioId) {
         Map<String, Object> analytics = new LinkedHashMap<>();
-        Portfolio portfolio = portfolioRepository.findWithItemsById(portfolioId)
-                .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+        Portfolio portfolio = loadPortfolioOrThrow(portfolioId);
         List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
         List<TradeActivity> trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId);
         Map<String, Object> positionSummary = buildPositionSummary(portfolio, trades);
@@ -298,16 +287,12 @@ public class PerformanceAnalyticsService {
         analytics.put("pnlTimeline", pnlTimeline);
 
         // Risk Metrics
-        Map<String, Object> risk = new LinkedHashMap<>();
-        risk.put("maxDrawdown", Math.round(calculateMaxDrawdown(portfolioId) * 100.0) / 100.0);
-        risk.put("sharpeRatio", Math.round(calculateSharpeRatio(portfolioId) * 100.0) / 100.0);
-        risk.put("sortinoRatio", Math.round(calculateSortinoRatio(portfolioId) * 100.0) / 100.0);
-        risk.put("volatility", Math.round(calculateVolatility(portfolioId) * 100.0) / 100.0);
-        risk.put("profitFactor", Math.round(calculateProfitFactor(portfolioId) * 100.0) / 100.0);
-        analytics.put("riskMetrics", risk);
+        analytics.put("riskMetrics", buildRiskMetrics(portfolioId));
 
-        // Win Rate (from analysis posts)
-        analytics.put("predictionWinRate", Math.round(calculateWinRate(userId) * 100.0) / 100.0);
+        UUID ownerId = parseOwnerUuid(portfolio.getOwnerId());
+        analytics.put("predictionWinRate", ownerId != null
+                ? Math.round(calculateWinRate(ownerId) * 100.0) / 100.0
+                : 0.0);
 
         // Trade Stats
         analytics.put("tradeStats", buildTradeStats(trades));
@@ -315,13 +300,13 @@ public class PerformanceAnalyticsService {
         analytics.put("symbolMiniTimelines", symbolMiniTimelines);
 
         // Equity Curve
-        analytics.put("equityCurve", getEquityCurve(portfolioId));
+        analytics.put("equityCurve", buildEquityCurve(snapshots));
 
         return analytics;
     }
 
-    public String buildAnalyticsExportJson(UUID portfolioId, UUID userId, String curveWindow, String symbolFilter) {
-        Map<String, Object> analytics = applyExportFilters(getFullAnalytics(portfolioId, userId), curveWindow, symbolFilter);
+    public String buildAnalyticsExportJson(UUID portfolioId, String curveWindow, String symbolFilter) {
+        Map<String, Object> analytics = applyExportFilters(getFullAnalytics(portfolioId), curveWindow, symbolFilter);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("portfolioId", portfolioId);
@@ -332,8 +317,8 @@ public class PerformanceAnalyticsService {
         return toJson(payload);
     }
 
-    public byte[] buildAnalyticsExportCsv(UUID portfolioId, UUID userId, String curveWindow, String symbolFilter) {
-        Map<String, Object> analytics = applyExportFilters(getFullAnalytics(portfolioId, userId), curveWindow, symbolFilter);
+    public byte[] buildAnalyticsExportCsv(UUID portfolioId, String curveWindow, String symbolFilter) {
+        Map<String, Object> analytics = applyExportFilters(getFullAnalytics(portfolioId), curveWindow, symbolFilter);
         Map<String, Object> summary = castMap(analytics.get("summary"));
         Map<String, Object> positionSummary = castMap(analytics.get("positionSummary"));
         Map<String, Object> performanceWindows = castMap(analytics.get("performanceWindows"));
@@ -940,5 +925,57 @@ public class PerformanceAnalyticsService {
                     .orElse("[]");
         }
         return toJson(String.valueOf(value));
+    }
+
+    private Portfolio loadPortfolioOrThrow(UUID portfolioId) {
+        return portfolioRepository.findWithItemsById(portfolioId)
+                .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+    }
+
+    private Map<String, Object> buildRiskMetrics(UUID portfolioId) {
+        Map<String, Object> risk = new LinkedHashMap<>();
+        risk.put("maxDrawdown", Math.round(calculateMaxDrawdown(portfolioId) * 100.0) / 100.0);
+        risk.put("sharpeRatio", Math.round(calculateSharpeRatio(portfolioId) * 100.0) / 100.0);
+        risk.put("sortinoRatio", Math.round(calculateSortinoRatio(portfolioId) * 100.0) / 100.0);
+        risk.put("volatility", Math.round(calculateVolatility(portfolioId) * 100.0) / 100.0);
+        risk.put("profitFactor", Math.round(calculateProfitFactor(portfolioId) * 100.0) / 100.0);
+        return risk;
+    }
+
+    private void ensurePortfolioExists(UUID portfolioId) {
+        if (!portfolioRepository.existsById(portfolioId)) {
+            throw new RuntimeException("Portfolio not found");
+        }
+    }
+
+    private UUID parseOwnerUuid(String ownerId) {
+        if (ownerId == null || ownerId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(ownerId);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private List<Map<String, Object>> buildEquityCurve(List<PortfolioSnapshot> snapshots) {
+        List<Map<String, Object>> curve = new ArrayList<>();
+        double peak = 0;
+
+        for (PortfolioSnapshot s : snapshots) {
+            double equity = s.getTotalEquity().doubleValue();
+            if (equity > peak)
+                peak = equity;
+            double drawdown = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
+
+            Map<String, Object> point = new LinkedHashMap<>();
+            point.put("timestamp", s.getTimestamp().toString());
+            point.put("equity", Math.round(equity * 100.0) / 100.0);
+            point.put("drawdown", Math.round(drawdown * 100.0) / 100.0);
+            point.put("peak", Math.round(peak * 100.0) / 100.0);
+            curve.add(point);
+        }
+        return curve;
     }
 }

@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Portfolio Analytics Now Anchor Author Signals To The Portfolio Owner And Reject Silent Export Fallbacks**
+  - **Problem observed**:
+    - `AnalyticsController` still had two quiet but real contract problems:
+      - export treated any unknown `format` as JSON instead of rejecting bad caller input
+      - full analytics passed the current viewer id, or even the `portfolioId` itself, into `predictionWinRate` calculations
+    - That meant a portfolio analytics page could report author-quality context from the wrong identity while missing-portfolio and invalid-format cases fell back to generic behavior.
+  - **Implementation**:
+    - Removed the controller-side `userId -> portfolioId` fallback and changed analytics assembly/export to derive author signals from the portfolio owner row.
+    - Added explicit controller-local mapping for:
+      - `analytics_portfolio_not_found`
+      - `invalid_analytics_export_format`
+    - Hardened analytics sub-surfaces so:
+      - risk metrics
+      - trade stats
+      - equity curve
+      now also require a real portfolio row.
+    - Updated service and controller integration coverage, including a regression test that proves `predictionWinRate` is sourced from the owner rather than a viewer id.
+  - **Operational impact**:
+    - analytics pages and exports now express portfolio-author quality more truthfully
+    - scripts and clients get stable machine-readable responses instead of hidden export fallback or generic missing-portfolio behavior
 - **2026-03-22**: **Leaderboard Reads No Longer Silently Normalize Invalid Query Lenses**
   - **Problem observed**:
     - `LeaderboardService` intentionally normalizes raw `period/sortBy/direction` strings so internal callers and aliases stay resilient.

@@ -200,7 +200,7 @@ class PerformanceAnalyticsServiceTest {
                         .currentPrice(52000.0)
                         .build()));
 
-        Map<String, Object> result = analyticsService.getFullAnalytics(portfolioId, authorId);
+        Map<String, Object> result = analyticsService.getFullAnalytics(portfolioId);
         Map<String, Object> summary = (Map<String, Object>) result.get("summary");
         Map<String, Object> positionSummary = (Map<String, Object>) result.get("positionSummary");
         Map<String, Object> performanceWindows = (Map<String, Object>) result.get("performanceWindows");
@@ -272,10 +272,41 @@ class PerformanceAnalyticsServiceTest {
                         .currentPrice(52000.0)
                         .build()));
 
-        String csv = new String(analyticsService.buildAnalyticsExportCsv(portfolioId, authorId, "ALL", "BTC"), StandardCharsets.UTF_8);
+        String csv = new String(analyticsService.buildAnalyticsExportCsv(portfolioId, "ALL", "BTC"), StandardCharsets.UTF_8);
 
         org.junit.jupiter.api.Assertions.assertTrue(csv.contains("riskAttribution,BTCUSDT exposure,104000.0"));
         org.junit.jupiter.api.Assertions.assertTrue(csv.contains("context,curveWindow,ALL"));
+    }
+
+    @Test
+    void getFullAnalytics_shouldUsePortfolioOwnerForPredictionWinRate() {
+        UUID viewerId = UUID.randomUUID();
+        Portfolio portfolio = Portfolio.builder()
+                .id(portfolioId)
+                .name("Alpha")
+                .balance(BigDecimal.valueOf(100000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .ownerId(authorId.toString())
+                .items(List.of())
+                .build();
+
+        when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(List.of(
+                createSnapshot(BigDecimal.valueOf(100000)),
+                createSnapshot(BigDecimal.valueOf(101000))));
+        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(List.of());
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(eq(authorId), eq(AnalysisPost.Outcome.HIT)))
+                .thenReturn(8L);
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(eq(authorId), eq(AnalysisPost.Outcome.MISSED)))
+                .thenReturn(2L);
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(eq(authorId), eq(AnalysisPost.Outcome.EXPIRED)))
+                .thenReturn(0L);
+        when(marketDataFacadeService.getInstrumentSnapshots(any())).thenReturn(Map.of());
+
+        Map<String, Object> result = analyticsService.getFullAnalytics(portfolioId);
+
+        assertEquals(80.0, (double) result.get("predictionWinRate"), 0.001);
+        verify(analysisPostRepository, never()).countByAuthorIdAndOutcomeAndDeletedFalse(eq(viewerId), any());
     }
 
     private PortfolioSnapshot createSnapshot(BigDecimal equity) {

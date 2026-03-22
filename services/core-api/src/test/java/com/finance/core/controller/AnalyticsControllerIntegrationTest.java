@@ -3,6 +3,10 @@ package com.finance.core.controller;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.PortfolioSnapshotRepository;
+import com.finance.core.repository.StrategyBotRepository;
+import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunFillRepository;
+import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +36,14 @@ class AnalyticsControllerIntegrationTest {
     private PortfolioSnapshotRepository snapshotRepository;
     @Autowired
     private TradeActivityRepository tradeActivityRepository;
+    @Autowired
+    private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+    @Autowired
+    private StrategyBotRunFillRepository strategyBotRunFillRepository;
+    @Autowired
+    private StrategyBotRunRepository strategyBotRunRepository;
+    @Autowired
+    private StrategyBotRepository strategyBotRepository;
 
     private Portfolio testPortfolio;
     private UUID userId = UUID.randomUUID();
@@ -40,6 +52,10 @@ class AnalyticsControllerIntegrationTest {
     void setUp() {
         snapshotRepository.deleteAll();
         tradeActivityRepository.deleteAll();
+        strategyBotRunEquityPointRepository.deleteAll();
+        strategyBotRunFillRepository.deleteAll();
+        strategyBotRunRepository.deleteAll();
+        strategyBotRepository.deleteAll();
         portfolioRepository.deleteAll();
 
         testPortfolio = Portfolio.builder()
@@ -88,11 +104,45 @@ class AnalyticsControllerIntegrationTest {
     }
 
     @Test
+    void testExportAnalytics_withInvalidFormat_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/" + testPortfolio.getId() + "/export")
+                .header("X-Request-Id", "analytics-export-invalid-format-1")
+                .param("format", "xml"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "analytics-export-invalid-format-1"))
+                .andExpect(jsonPath("$.code").value("invalid_analytics_export_format"))
+                .andExpect(jsonPath("$.message").value("Invalid analytics export format"))
+                .andExpect(jsonPath("$.requestId").value("analytics-export-invalid-format-1"));
+    }
+
+    @Test
+    void testGetFullAnalytics_withUnknownPortfolio_shouldReturnExplicitNotFoundContract() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/" + UUID.randomUUID())
+                .header("X-Request-Id", "analytics-missing-portfolio-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "analytics-missing-portfolio-1"))
+                .andExpect(jsonPath("$.code").value("analytics_portfolio_not_found"))
+                .andExpect(jsonPath("$.message").value("Analytics portfolio not found"))
+                .andExpect(jsonPath("$.requestId").value("analytics-missing-portfolio-1"));
+    }
+
+    @Test
     void testGetRiskMetrics() throws Exception {
         mockMvc.perform(get("/api/v1/analytics/" + testPortfolio.getId() + "/risk"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.maxDrawdown").value(0.0))
                 .andExpect(jsonPath("$.sharpeRatio").value(0.0))
                 .andExpect(jsonPath("$.profitFactor").value(0.0));
+    }
+
+    @Test
+    void testGetEquityCurve_withUnknownPortfolio_shouldReturnExplicitNotFoundContract() throws Exception {
+        mockMvc.perform(get("/api/v1/analytics/" + UUID.randomUUID() + "/equity-curve")
+                .header("X-Request-Id", "analytics-missing-equity-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "analytics-missing-equity-1"))
+                .andExpect(jsonPath("$.code").value("analytics_portfolio_not_found"))
+                .andExpect(jsonPath("$.message").value("Analytics portfolio not found"))
+                .andExpect(jsonPath("$.requestId").value("analytics-missing-equity-1"));
     }
 }
