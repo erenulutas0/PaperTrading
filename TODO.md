@@ -572,6 +572,7 @@ Last updated: 2026-03-22
     - `GET /api/v1/strategy-bots/{botId}/analytics/export?format=csv|json`
     - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/export?format=csv|json`
     - `GET /api/v1/strategy-bots/board`
+    - `GET /api/v1/strategy-bots/board/export?format=csv|json`
     - bot analytics and exports now accept board-aligned `runMode` and `lookbackDays` scopes
     - bot-level aggregates for:
       - run counts by mode/status
@@ -587,6 +588,7 @@ Last updated: 2026-03-22
       - account-wide bot board with sortable comparison axes
       - board scope filters for `ALL/BACKTEST/FORWARD_TEST` and `ALL/7D/30D/90D`
       - query-backed workspace state for selected tab/bot/run plus board filters
+      - board-level `Export Board CSV` / `Export Board JSON` actions bound to the visible sort + scope
       - aggregated driver totals
       - recent run scorecards table
       - `Export CSV`

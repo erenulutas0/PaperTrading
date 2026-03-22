@@ -124,11 +124,12 @@ public class StrategyBotRunService {
                                                            Integer lookbackDays) {
         StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
-        List<StrategyBotBoardEntryResponse> entries = strategyBotRepository.findByUserId(userId, Pageable.unpaged())
-                .stream()
-                .map(bot -> toBoardEntry(bot, buildBotAnalytics(bot, userId, scopedRunMode, normalizedLookbackDays)))
-                .sorted(resolveBoardComparator(sortBy, direction))
-                .toList();
+        List<StrategyBotBoardEntryResponse> entries = buildBotBoardEntries(
+                userId,
+                sortBy,
+                direction,
+                scopedRunMode,
+                normalizedLookbackDays);
 
         int start = Math.toIntExact(pageable.getOffset());
         if (start >= entries.size()) {
@@ -136,6 +137,101 @@ public class StrategyBotRunService {
         }
         int end = Math.min(start + pageable.getPageSize(), entries.size());
         return new PageImpl<>(entries.subList(start, end), pageable, entries.size());
+    }
+
+    @Transactional(readOnly = true)
+    public String buildBotBoardExportJson(UUID userId,
+                                          String sortBy,
+                                          String direction,
+                                          String runMode,
+                                          Integer lookbackDays) {
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        String normalizedSort = normalizeBoardSort(sortBy);
+        String normalizedDirection = normalizeBoardDirection(direction);
+        List<StrategyBotBoardEntryResponse> entries = buildBotBoardEntries(
+                userId,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays);
+
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sortBy", normalizedSort);
+        payload.put("direction", normalizedDirection);
+        payload.put("runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
+        payload.put("lookbackDays", normalizedLookbackDays);
+        payload.put("entryCount", entries.size());
+        payload.put("exportedAt", LocalDateTime.now().toString());
+        payload.put("entries", entries);
+        try {
+            return objectMapper.copy()
+                    .findAndRegisterModules()
+                    .writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Failed to serialize strategy bot board export", ex);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] buildBotBoardExportCsv(UUID userId,
+                                         String sortBy,
+                                         String direction,
+                                         String runMode,
+                                         Integer lookbackDays) {
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        String normalizedSort = normalizeBoardSort(sortBy);
+        String normalizedDirection = normalizeBoardDirection(direction);
+        List<StrategyBotBoardEntryResponse> entries = buildBotBoardEntries(
+                userId,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays);
+
+        List<List<Object>> rows = new ArrayList<>();
+        rows.add(List.of(
+                "section",
+                "key",
+                "value",
+                "strategyBotId",
+                "name",
+                "status",
+                "market",
+                "symbol",
+                "timeframe",
+                "totalRuns",
+                "completedRuns",
+                "runningRuns",
+                "failedRuns",
+                "totalSimulatedTrades",
+                "avgReturnPercent",
+                "avgNetPnl",
+                "avgMaxDrawdownPercent",
+                "avgWinRate",
+                "avgProfitFactor",
+                "avgExpectancyPerTrade",
+                "latestRequestedAt",
+                "bestRunId",
+                "latestCompletedRunId",
+                "activeForwardRunId"));
+
+        addBoardMetricRow(rows, "context", "sortBy", normalizedSort);
+        addBoardMetricRow(rows, "context", "direction", normalizedDirection);
+        addBoardMetricRow(rows, "context", "runModeScope", scopedRunMode == null ? "ALL" : scopedRunMode.name());
+        addBoardMetricRow(rows, "context", "lookbackDays", normalizedLookbackDays);
+        addBoardMetricRow(rows, "context", "entryCount", entries.size());
+        addBoardMetricRow(rows, "context", "exportedAt", LocalDateTime.now());
+
+        entries.forEach(entry -> addBoardEntryRow(rows, entry));
+
+        String content = rows.stream()
+                .map(row -> row.stream().map(this::escapeCsv).reduce((left, right) -> left + "," + right).orElse(""))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+        return content.getBytes(StandardCharsets.UTF_8);
     }
 
     @Transactional(readOnly = true)
@@ -503,6 +599,18 @@ public class StrategyBotRunService {
                 .build();
     }
 
+    private List<StrategyBotBoardEntryResponse> buildBotBoardEntries(UUID userId,
+                                                                     String sortBy,
+                                                                     String direction,
+                                                                     StrategyBotRun.RunMode scopedRunMode,
+                                                                     Integer lookbackDays) {
+        return strategyBotRepository.findByUserId(userId, Pageable.unpaged())
+                .stream()
+                .map(bot -> toBoardEntry(bot, buildBotAnalytics(bot, userId, scopedRunMode, lookbackDays)))
+                .sorted(resolveBoardComparator(sortBy, direction))
+                .toList();
+    }
+
     private List<StrategyBotRun> filterRuns(List<StrategyBotRun> runs,
                                             StrategyBotRun.RunMode scopedRunMode,
                                             Integer lookbackDays) {
@@ -540,6 +648,24 @@ public class StrategyBotRunService {
         return lookbackDays;
     }
 
+    private String normalizeBoardSort(String sortBy) {
+        String normalizedSort = sortBy == null ? "AVG_RETURN" : sortBy.trim().toUpperCase();
+        return switch (normalizedSort) {
+            case "AVG_RETURN",
+                 "AVG_NET_PNL",
+                 "AVG_WIN_RATE",
+                 "AVG_PROFIT_FACTOR",
+                 "TOTAL_RUNS",
+                 "TOTAL_SIMULATED_TRADES",
+                 "LATEST_REQUESTED_AT" -> normalizedSort;
+            default -> throw new IllegalArgumentException("Invalid strategy bot board sort");
+        };
+    }
+
+    private String normalizeBoardDirection(String direction) {
+        return "ASC".equalsIgnoreCase(direction) ? "ASC" : "DESC";
+    }
+
     private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot, StrategyBotAnalyticsResponse analytics) {
         LocalDateTime latestRequestedAt = analytics.getRecentScorecards() == null || analytics.getRecentScorecards().isEmpty()
                 ? null
@@ -573,7 +699,7 @@ public class StrategyBotRunService {
     }
 
     private Comparator<StrategyBotBoardEntryResponse> resolveBoardComparator(String sortBy, String direction) {
-        String normalizedSort = sortBy == null ? "AVG_RETURN" : sortBy.trim().toUpperCase();
+        String normalizedSort = normalizeBoardSort(sortBy);
         boolean ascending = "ASC".equalsIgnoreCase(direction);
         Comparator<StrategyBotBoardEntryResponse> comparator = switch (normalizedSort) {
             case "AVG_RETURN" -> Comparator.comparing(StrategyBotBoardEntryResponse::getAvgReturnPercent, nullableDoubleComparator(ascending));
@@ -601,6 +727,46 @@ public class StrategyBotRunService {
 
     private void addMetricRow(List<List<Object>> rows, String section, String key, Object value) {
         rows.add(List.of(section, key, value == null ? "" : value, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""));
+    }
+
+    private void addBoardMetricRow(List<List<Object>> rows, String section, String key, Object value) {
+        List<Object> row = new ArrayList<>();
+        row.add(section);
+        row.add(key);
+        row.add(value == null ? "" : value);
+        while (row.size() < 24) {
+            row.add("");
+        }
+        rows.add(row);
+    }
+
+    private void addBoardEntryRow(List<List<Object>> rows, StrategyBotBoardEntryResponse entry) {
+        List<Object> row = new ArrayList<>();
+        row.add("boardEntry");
+        row.add(entry.getName());
+        row.add("");
+        row.add(entry.getStrategyBotId());
+        row.add(entry.getName());
+        row.add(entry.getStatus());
+        row.add(entry.getMarket());
+        row.add(entry.getSymbol());
+        row.add(entry.getTimeframe());
+        row.add(entry.getTotalRuns());
+        row.add(entry.getCompletedRuns());
+        row.add(entry.getRunningRuns());
+        row.add(entry.getFailedRuns());
+        row.add(entry.getTotalSimulatedTrades());
+        row.add(entry.getAvgReturnPercent());
+        row.add(entry.getAvgNetPnl());
+        row.add(entry.getAvgMaxDrawdownPercent());
+        row.add(entry.getAvgWinRate());
+        row.add(entry.getAvgProfitFactor());
+        row.add(entry.getAvgExpectancyPerTrade());
+        row.add(entry.getLatestRequestedAt());
+        row.add(entry.getBestRun() == null ? "" : entry.getBestRun().getId());
+        row.add(entry.getLatestCompletedRun() == null ? "" : entry.getLatestCompletedRun().getId());
+        row.add(entry.getActiveForwardRun() == null ? "" : entry.getActiveForwardRun().getId());
+        rows.add(row);
     }
 
     private void addRunExportMetricRow(List<List<Object>> rows, String section, String key, Object value) {

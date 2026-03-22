@@ -460,6 +460,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - bot triage sessions can now be reopened directly from the URL
     - a scoped bot comparison view can be handed to another operator without screen-by-screen reconstruction
+- **2026-03-22**: **Strategy Bot Board Reporting Now Exports The Same Scoped Comparison Lens Instead Of Stopping At The Screen**
+  - **Problem observed**:
+    - The bot workspace could already export:
+      - selected-bot analytics
+      - selected-run detail
+    - But the account-wide `Bot Board` still stopped at the browser table even after it gained:
+      - shared URL state
+      - run-mode scope
+      - lookback scope
+    - That left the main cross-bot comparison surface harder to hand off or archive than the narrower bot/run reports.
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/board/export?format=csv|json`.
+    - Reused the exact board sort + scope logic already used by `/api/v1/strategy-bots/board` so export rows and on-screen ordering stay aligned.
+    - `/dashboard/bots` now exposes:
+      - `Export Board CSV`
+      - `Export Board JSON`
+      actions directly in the board header.
+  - **Operational impact**:
+    - account-wide bot comparison can now be exported from the same scoped lens operators are already using on screen
+    - board handoff/reporting no longer requires rebuilding the comparison state in spreadsheets or screenshots
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

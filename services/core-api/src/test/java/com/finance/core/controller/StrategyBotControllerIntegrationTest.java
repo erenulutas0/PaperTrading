@@ -562,4 +562,121 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_lookback"));
     }
+
+    @Test
+    void exportStrategyBotBoard_shouldReturnScopedCsvAndJson() throws Exception {
+        StrategyBot firstBot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Board Leader")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build());
+        StrategyBot secondBot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Board Challenger")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.DRAFT)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(firstBot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(3))
+                .completedAt(LocalDateTime.now().minusDays(2))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 4.5,
+                          "netPnl": 4500.0,
+                          "maxDrawdownPercent": 2.5,
+                          "winRate": 62.0,
+                          "tradeCount": 3,
+                          "profitFactor": 1.5
+                        }
+                        """)
+                .build());
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(secondBot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(40))
+                .completedAt(LocalDateTime.now().minusDays(39))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 9.0,
+                          "netPnl": 9000.0,
+                          "maxDrawdownPercent": 5.0,
+                          "winRate": 55.0,
+                          "tradeCount": 2,
+                          "profitFactor": 1.2
+                        }
+                        """)
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("format", "csv")
+                        .param("runMode", "FORWARD_TEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("strategy-bot-board.csv")))
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(content().string(containsString("context,runModeScope,FORWARD_TEST")))
+                .andExpect(content().string(containsString("context,lookbackDays,30")))
+                .andExpect(content().string(containsString("boardEntry,Board Leader")))
+                .andExpect(content().string(containsString("boardEntry,Board Challenger")));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("format", "json")
+                        .param("sortBy", "AVG_RETURN")
+                        .param("direction", "DESC")
+                        .param("runMode", "FORWARD_TEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("strategy-bot-board.json")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.sortBy").value("AVG_RETURN"))
+                .andExpect(jsonPath("$.direction").value("DESC"))
+                .andExpect(jsonPath("$.runModeScope").value("FORWARD_TEST"))
+                .andExpect(jsonPath("$.lookbackDays").value(30))
+                .andExpect(jsonPath("$.entryCount").value(2))
+                .andExpect(jsonPath("$.entries", hasSize(2)))
+                .andExpect(jsonPath("$.entries[0].strategyBotId").value(firstBot.getId().toString()))
+                .andExpect(jsonPath("$.entries[0].totalRuns").value(1))
+                .andExpect(jsonPath("$.entries[1].strategyBotId").value(secondBot.getId().toString()))
+                .andExpect(jsonPath("$.entries[1].totalRuns").value(0));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("sortBy", "BOGUS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
+    }
 }

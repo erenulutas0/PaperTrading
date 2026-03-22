@@ -1,5 +1,6 @@
 package com.finance.core.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioItem;
@@ -808,6 +809,96 @@ class StrategyBotRunServiceTest {
         assertThat(board.getContent().get(0).getCompletedRuns()).isEqualTo(1);
         assertThat(board.getContent().get(0).getAvgReturnPercent()).isEqualTo(4.0);
         assertThat(board.getContent().get(0).getTotalSimulatedTrades()).isEqualTo(2);
+    }
+
+    @Test
+    void buildBotBoardExports_shouldReuseScopedSortedBoardEntries() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        StrategyBot leader = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Leader")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBot idle = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Idle")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .status(StrategyBot.Status.DRAFT)
+                .build();
+
+        StrategyBotRun recentForwardRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(leader.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .summary("""
+                        {
+                          "returnPercent": 6.0,
+                          "netPnl": 6000.0,
+                          "winRate": 66.0,
+                          "tradeCount": 3,
+                          "profitFactor": 1.7
+                        }
+                        """)
+                .build();
+        StrategyBotRun staleForwardRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(idle.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(45))
+                .completedAt(LocalDateTime.now().minusDays(44))
+                .summary("""
+                        {
+                          "returnPercent": 9.0,
+                          "netPnl": 9000.0,
+                          "winRate": 70.0,
+                          "tradeCount": 2,
+                          "profitFactor": 1.9
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findByUserId(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(idle, leader)));
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(leader.getId(), userId))
+                .thenReturn(List.of(recentForwardRun));
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(idle.getId(), userId))
+                .thenReturn(List.of(staleForwardRun));
+
+        String json = strategyBotRunService.buildBotBoardExportJson(userId, "AVG_RETURN", "DESC", "FORWARD_TEST", 30);
+        String csv = new String(
+                strategyBotRunService.buildBotBoardExportCsv(userId, "AVG_RETURN", "DESC", "FORWARD_TEST", 30),
+                StandardCharsets.UTF_8);
+
+        JsonNode payload = objectMapper.readTree(json);
+        assertThat(payload.get("sortBy").asText()).isEqualTo("AVG_RETURN");
+        assertThat(payload.get("direction").asText()).isEqualTo("DESC");
+        assertThat(payload.get("runModeScope").asText()).isEqualTo("FORWARD_TEST");
+        assertThat(payload.get("lookbackDays").asInt()).isEqualTo(30);
+        assertThat(payload.get("entryCount").asInt()).isEqualTo(2);
+        assertThat(payload.get("entries").size()).isEqualTo(2);
+        assertThat(payload.get("entries").get(0).get("strategyBotId").asText()).isEqualTo(leader.getId().toString());
+        assertThat(payload.get("entries").get(0).get("totalRuns").asInt()).isEqualTo(1);
+        assertThat(payload.get("entries").get(1).get("strategyBotId").asText()).isEqualTo(idle.getId().toString());
+        assertThat(payload.get("entries").get(1).get("totalRuns").asInt()).isEqualTo(0);
+
+        assertThat(csv).contains("context,runModeScope,FORWARD_TEST");
+        assertThat(csv).contains("context,lookbackDays,30");
+        assertThat(csv).contains("boardEntry,Leader");
+        assertThat(csv).contains("boardEntry,Idle");
     }
 
     @Test

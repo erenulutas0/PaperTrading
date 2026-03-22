@@ -65,6 +65,35 @@ public class StrategyBotController {
         }
     }
 
+    @GetMapping("/board/export")
+    public ResponseEntity<?> exportBotBoard(
+            @CurrentUserId UUID userId,
+            @RequestParam(defaultValue = "json") String format,
+            @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
+            @RequestParam(defaultValue = "DESC") String direction,
+            @RequestParam(defaultValue = "ALL") String runMode,
+            @RequestParam(required = false) Integer lookbackDays,
+            HttpServletRequest request) {
+        try {
+            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            if ("csv".equals(normalizedFormat)) {
+                byte[] content = strategyBotRunService.buildBotBoardExportCsv(userId, sortBy, direction, runMode, lookbackDays);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-board.csv\"")
+                        .contentType(new MediaType("text", "csv"))
+                        .body(content);
+            }
+
+            String content = strategyBotRunService.buildBotBoardExportJson(userId, sortBy, direction, runMode, lookbackDays);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-board.json\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(content);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_board_export_failed", "Failed to export strategy bot board", request);
+        }
+    }
+
     @GetMapping("/{botId}")
     public ResponseEntity<?> getBot(
             @PathVariable UUID botId,

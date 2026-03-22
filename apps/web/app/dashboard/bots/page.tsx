@@ -137,6 +137,7 @@ export default function StrategyBotsPage() {
     const [refreshingRunId, setRefreshingRunId] = useState<string | null>(null);
     const [applyingRunId, setApplyingRunId] = useState<string | null>(null);
     const [exportingFormat, setExportingFormat] = useState<'csv' | 'json' | null>(null);
+    const [exportingBoardFormat, setExportingBoardFormat] = useState<'csv' | 'json' | null>(null);
     const [exportingRunFormat, setExportingRunFormat] = useState<'csv' | 'json' | null>(null);
     const [outputsLoading, setOutputsLoading] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
@@ -346,6 +347,40 @@ export default function StrategyBotsPage() {
             setActionError(err(error));
         } finally {
             setExportingFormat(null);
+        }
+    }
+
+    async function exportBoard(format: 'csv' | 'json') {
+        setExportingBoardFormat(format);
+        setActionError(null);
+        setNotice(null);
+        try {
+            const query = new URLSearchParams({
+                format,
+                sortBy: boardSortBy,
+                direction: boardDirection,
+                runMode: boardRunMode,
+            });
+            if (boardLookbackDays !== 'ALL') query.set('lookbackDays', boardLookbackDays);
+            const response = await apiFetch(`/api/v1/strategy-bots/board/export?${query.toString()}`, {
+                cache: 'no-store',
+            });
+            if (!response.ok) throw new Error(await response.text() || `Strategy bot board export failed (${response.status})`);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = downloadNameFromDisposition(
+                response.headers.get('Content-Disposition'),
+                `strategy-bot-board.${format}`,
+            );
+            anchor.click();
+            window.URL.revokeObjectURL(url);
+            setNotice(format === 'csv' ? 'Board CSV exported' : 'Board JSON exported');
+        } catch (error) {
+            setActionError(err(error));
+        } finally {
+            setExportingBoardFormat(null);
         }
     }
 
@@ -755,6 +790,11 @@ export default function StrategyBotsPage() {
                                 <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Bot Board</p>
                                 <h2 className="mt-2 text-xl font-bold text-white">Account-wide comparison surface for deterministic bots.</h2>
                                 <p className="mt-2 text-sm text-zinc-500">Sort by one quality axis, then jump directly into the bot you want to inspect.</p>
+                                <p className="mt-2 text-xs text-zinc-500">
+                                    Scope: {boardRunMode === 'ALL' ? 'All runs' : boardRunMode === 'BACKTEST' ? 'Backtests only' : 'Forward tests only'}
+                                    {' · '}
+                                    {boardLookbackDays === 'ALL' ? 'All time' : `${boardLookbackDays} day lookback`}
+                                </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 {([
@@ -775,9 +815,25 @@ export default function StrategyBotsPage() {
                                                 : 'border-white/10 bg-white/5 text-zinc-300'
                                         }`}
                                     >
-                                        {label}
-                                    </button>
-                                ))}
+                                    {label}
+                                </button>
+                            ))}
+                                <button
+                                    type="button"
+                                    onClick={() => void exportBoard('csv')}
+                                    disabled={exportingBoardFormat !== null}
+                                    className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {exportingBoardFormat === 'csv' ? 'Exporting Board CSV...' : 'Export Board CSV'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void exportBoard('json')}
+                                    disabled={exportingBoardFormat !== null}
+                                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {exportingBoardFormat === 'json' ? 'Exporting Board JSON...' : 'Export Board JSON'}
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => setBoardDirection((current) => current === 'DESC' ? 'ASC' : 'DESC')}
