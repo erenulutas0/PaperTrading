@@ -654,13 +654,86 @@ class StrategyBotRunServiceTest {
         when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(weakerBot.getId(), userId))
                 .thenReturn(List.of(weakerRun));
 
-        var board = strategyBotRunService.getBotBoard(userId, PageRequest.of(0, 10), "AVG_RETURN", "DESC");
+        var board = strategyBotRunService.getBotBoard(userId, PageRequest.of(0, 10), "AVG_RETURN", "DESC", "ALL", null);
 
         assertThat(board.getContent()).hasSize(2);
         assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(strongerBot.getId());
         assertThat(board.getContent().get(0).getAvgReturnPercent()).isEqualTo(12.5);
         assertThat(board.getContent().get(1).getStrategyBotId()).isEqualTo(weakerBot.getId());
         assertThat(board.getContent().get(1).getAvgReturnPercent()).isEqualTo(-3.0);
+    }
+
+    @Test
+    void getBotBoard_shouldRespectRunModeAndLookbackFilters() {
+        UUID userId = UUID.randomUUID();
+        StrategyBot bot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .linkedPortfolioId(UUID.randomUUID())
+                .name("Scoped Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun oldBacktestRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(bot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(40))
+                .summary("""
+                        {
+                          "returnPercent": 18.0,
+                          "netPnl": 18000.0,
+                          "winRate": 80.0,
+                          "tradeCount": 6,
+                          "profitFactor": 2.6
+                        }
+                        """)
+                .build();
+        StrategyBotRun recentForwardRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(bot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .summary("""
+                        {
+                          "returnPercent": 4.0,
+                          "netPnl": 4000.0,
+                          "winRate": 60.0,
+                          "tradeCount": 2,
+                          "profitFactor": 1.4
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findByUserId(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(bot)));
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId))
+                .thenReturn(List.of(recentForwardRun, oldBacktestRun));
+
+        var board = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "AVG_RETURN",
+                "DESC",
+                "FORWARD_TEST",
+                30);
+
+        assertThat(board.getContent()).hasSize(1);
+        assertThat(board.getContent().get(0).getTotalRuns()).isEqualTo(1);
+        assertThat(board.getContent().get(0).getCompletedRuns()).isEqualTo(1);
+        assertThat(board.getContent().get(0).getAvgReturnPercent()).isEqualTo(4.0);
+        assertThat(board.getContent().get(0).getTotalSimulatedTrades()).isEqualTo(2);
     }
 
     @Test

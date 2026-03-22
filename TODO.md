@@ -584,6 +584,7 @@ Last updated: 2026-03-22
     - `/dashboard/bots` overview now renders:
       - bot analytics cards
       - account-wide bot board with sortable comparison axes
+      - board scope filters for `ALL/BACKTEST/FORWARD_TEST` and `ALL/7D/30D/90D`
       - aggregated driver totals
       - recent run scorecards table
       - `Export CSV`

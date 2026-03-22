@@ -47,10 +47,18 @@ public class StrategyBotController {
             @CurrentUserId UUID userId,
             @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction,
+            @RequestParam(defaultValue = "ALL") String runMode,
+            @RequestParam(required = false) Integer lookbackDays,
             @PageableDefault(size = 12) Pageable pageable,
             HttpServletRequest request) {
         try {
-            Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(userId, pageable, sortBy, direction);
+            Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(
+                    userId,
+                    pageable,
+                    sortBy,
+                    direction,
+                    runMode,
+                    lookbackDays);
             return ResponseEntity.ok(board);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_board_failed", "Failed to load strategy bot board", request);
@@ -326,6 +334,12 @@ public class StrategyBotController {
         }
         if (normalized.contains("invalid strategy bot board sort")) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_sort", "Invalid strategy bot board sort", null, request);
+        }
+        if (normalized.contains("invalid strategy bot board run mode")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_run_mode", "Invalid strategy bot board run mode", null, request);
+        }
+        if (normalized.contains("strategy bot board lookback days must be positive")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_lookback", "Strategy bot board lookback days must be positive", null, request);
         }
         if (normalized.contains("strategy bot run not found")) {
             return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "strategy_bot_run_not_found", "Strategy bot run not found", null, request);

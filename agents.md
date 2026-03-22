@@ -402,6 +402,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - users can now triage which bot deserves attention before opening its detailed run journal
     - bot comparison still reuses the same analytics source of truth rather than inventing another scoring model first
+- **2026-03-22**: **Strategy Bot Board Now Supports Scoped Comparison Instead Of Mixing Every Run Together**
+  - **Problem observed**:
+    - The first bot-board pass compared bots across all recorded runs at once.
+    - That blurred materially different operating questions:
+      - recent vs historical behavior
+      - backtest quality vs live forward-test behavior
+  - **Implementation**:
+    - Extended `GET /api/v1/strategy-bots/board` with optional scope controls:
+      - `runMode=ALL|BACKTEST|FORWARD_TEST`
+      - `lookbackDays`
+    - The board now derives its aggregates from filtered runs before sorting.
+    - `/dashboard/bots` overview now exposes mode and lookback chips directly above the board.
+    - Board sorting was also hardened so bots with no metric in the active scope stay at the end instead of jumping to the top on ascending sorts.
+  - **Operational impact**:
+    - users can compare:
+      - recent backtests
+      - recent forward tests
+      - broad all-time bot behavior
+      without inventing a second analytics model
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

@@ -112,10 +112,17 @@ public class StrategyBotRunService {
     }
 
     @Transactional(readOnly = true)
-    public Page<StrategyBotBoardEntryResponse> getBotBoard(UUID userId, Pageable pageable, String sortBy, String direction) {
+    public Page<StrategyBotBoardEntryResponse> getBotBoard(UUID userId,
+                                                           Pageable pageable,
+                                                           String sortBy,
+                                                           String direction,
+                                                           String runMode,
+                                                           Integer lookbackDays) {
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
         List<StrategyBotBoardEntryResponse> entries = strategyBotRepository.findByUserId(userId, Pageable.unpaged())
                 .stream()
-                .map(bot -> toBoardEntry(bot, buildBotAnalytics(bot, userId)))
+                .map(bot -> toBoardEntry(bot, buildBotAnalytics(bot, userId, scopedRunMode, normalizedLookbackDays)))
                 .sorted(resolveBoardComparator(sortBy, direction))
                 .toList();
 
@@ -430,7 +437,17 @@ public class StrategyBotRunService {
     }
 
     private StrategyBotAnalyticsResponse buildBotAnalytics(StrategyBot bot, UUID userId) {
-        List<StrategyBotRun> runs = strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId);
+        return buildBotAnalytics(bot, userId, null, null);
+    }
+
+    private StrategyBotAnalyticsResponse buildBotAnalytics(StrategyBot bot,
+                                                           UUID userId,
+                                                           StrategyBotRun.RunMode scopedRunMode,
+                                                           Integer lookbackDays) {
+        List<StrategyBotRun> runs = filterRuns(
+                strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId),
+                scopedRunMode,
+                lookbackDays);
         List<StrategyBotRunScorecardResponse> scorecards = runs.stream()
                 .map(this::toScorecard)
                 .toList();
@@ -474,6 +491,43 @@ public class StrategyBotRunService {
                 .build();
     }
 
+    private List<StrategyBotRun> filterRuns(List<StrategyBotRun> runs,
+                                            StrategyBotRun.RunMode scopedRunMode,
+                                            Integer lookbackDays) {
+        LocalDateTime cutoff = lookbackDays == null ? null : LocalDateTime.now().minusDays(lookbackDays.longValue());
+        return runs.stream()
+                .filter(run -> scopedRunMode == null || run.getRunMode() == scopedRunMode)
+                .filter(run -> {
+                    if (cutoff == null) {
+                        return true;
+                    }
+                    LocalDateTime anchor = run.getCompletedAt() != null ? run.getCompletedAt() : run.getRequestedAt();
+                    return anchor != null && !anchor.isBefore(cutoff);
+                })
+                .toList();
+    }
+
+    private StrategyBotRun.RunMode normalizeBoardRunMode(String runMode) {
+        if (runMode == null || runMode.isBlank() || "ALL".equalsIgnoreCase(runMode)) {
+            return null;
+        }
+        try {
+            return StrategyBotRun.RunMode.valueOf(runMode.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Invalid strategy bot board run mode");
+        }
+    }
+
+    private Integer normalizeBoardLookbackDays(Integer lookbackDays) {
+        if (lookbackDays == null) {
+            return null;
+        }
+        if (lookbackDays <= 0) {
+            throw new IllegalArgumentException("Strategy bot board lookback days must be positive");
+        }
+        return lookbackDays;
+    }
+
     private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot, StrategyBotAnalyticsResponse analytics) {
         LocalDateTime latestRequestedAt = analytics.getRecentScorecards() == null || analytics.getRecentScorecards().isEmpty()
                 ? null
@@ -508,26 +562,29 @@ public class StrategyBotRunService {
 
     private Comparator<StrategyBotBoardEntryResponse> resolveBoardComparator(String sortBy, String direction) {
         String normalizedSort = sortBy == null ? "AVG_RETURN" : sortBy.trim().toUpperCase();
+        boolean ascending = "ASC".equalsIgnoreCase(direction);
         Comparator<StrategyBotBoardEntryResponse> comparator = switch (normalizedSort) {
-            case "AVG_RETURN" -> Comparator.comparing(entry -> nullSafe(entry.getAvgReturnPercent()));
-            case "AVG_NET_PNL" -> Comparator.comparing(entry -> nullSafe(entry.getAvgNetPnl()));
-            case "AVG_WIN_RATE" -> Comparator.comparing(entry -> nullSafe(entry.getAvgWinRate()));
-            case "AVG_PROFIT_FACTOR" -> Comparator.comparing(entry -> nullSafe(entry.getAvgProfitFactor()));
-            case "TOTAL_RUNS" -> Comparator.comparing(StrategyBotBoardEntryResponse::getTotalRuns);
-            case "TOTAL_SIMULATED_TRADES" -> Comparator.comparing(StrategyBotBoardEntryResponse::getTotalSimulatedTrades);
-            case "LATEST_REQUESTED_AT" -> Comparator.comparing(entry -> entry.getLatestRequestedAt() == null ? LocalDateTime.MIN : entry.getLatestRequestedAt());
+            case "AVG_RETURN" -> Comparator.comparing(StrategyBotBoardEntryResponse::getAvgReturnPercent, nullableDoubleComparator(ascending));
+            case "AVG_NET_PNL" -> Comparator.comparing(StrategyBotBoardEntryResponse::getAvgNetPnl, nullableDoubleComparator(ascending));
+            case "AVG_WIN_RATE" -> Comparator.comparing(StrategyBotBoardEntryResponse::getAvgWinRate, nullableDoubleComparator(ascending));
+            case "AVG_PROFIT_FACTOR" -> Comparator.comparing(StrategyBotBoardEntryResponse::getAvgProfitFactor, nullableDoubleComparator(ascending));
+            case "TOTAL_RUNS" -> Comparator.comparing(StrategyBotBoardEntryResponse::getTotalRuns, ascending ? Comparator.naturalOrder() : Comparator.reverseOrder());
+            case "TOTAL_SIMULATED_TRADES" -> Comparator.comparing(StrategyBotBoardEntryResponse::getTotalSimulatedTrades, ascending ? Comparator.naturalOrder() : Comparator.reverseOrder());
+            case "LATEST_REQUESTED_AT" -> Comparator.comparing(StrategyBotBoardEntryResponse::getLatestRequestedAt, nullableDateTimeComparator(ascending));
             default -> throw new IllegalArgumentException("Invalid strategy bot board sort");
         };
 
-        boolean ascending = "ASC".equalsIgnoreCase(direction);
-        Comparator<StrategyBotBoardEntryResponse> withTieBreaker = comparator
+        return comparator
                 .thenComparing(StrategyBotBoardEntryResponse::getName, Comparator.nullsLast(String::compareToIgnoreCase))
                 .thenComparing(StrategyBotBoardEntryResponse::getStrategyBotId);
-        return ascending ? withTieBreaker : withTieBreaker.reversed();
     }
 
-    private double nullSafe(Double value) {
-        return value == null ? Double.NEGATIVE_INFINITY : value;
+    private Comparator<Double> nullableDoubleComparator(boolean ascending) {
+        return Comparator.nullsLast(ascending ? Double::compareTo : Comparator.reverseOrder());
+    }
+
+    private Comparator<LocalDateTime> nullableDateTimeComparator(boolean ascending) {
+        return Comparator.nullsLast(ascending ? LocalDateTime::compareTo : Comparator.reverseOrder());
     }
 
     private void addMetricRow(List<List<Object>> rows, String section, String key, Object value) {

@@ -10,6 +10,8 @@ type Tab = 'OVERVIEW' | 'BOTS' | 'RUNS';
 type BotStatus = 'DRAFT' | 'READY' | 'ARCHIVED';
 type RunMode = 'BACKTEST' | 'FORWARD_TEST';
 type BotBoardSort = 'AVG_RETURN' | 'AVG_NET_PNL' | 'TOTAL_RUNS' | 'AVG_WIN_RATE' | 'AVG_PROFIT_FACTOR' | 'LATEST_REQUESTED_AT';
+type BotBoardRunMode = 'ALL' | RunMode;
+type BotBoardLookback = 'ALL' | '7' | '30' | '90';
 
 type PortfolioOption = { id: string; name: string; balance: number; visibility?: 'PUBLIC' | 'PRIVATE' };
 type StrategyBot = {
@@ -115,6 +117,8 @@ export default function StrategyBotsPage() {
     const [botBoard, setBotBoard] = useState<StrategyBotBoardEntry[]>([]);
     const [boardSortBy, setBoardSortBy] = useState<BotBoardSort>('AVG_RETURN');
     const [boardDirection, setBoardDirection] = useState<'ASC' | 'DESC'>('DESC');
+    const [boardRunMode, setBoardRunMode] = useState<BotBoardRunMode>('ALL');
+    const [boardLookbackDays, setBoardLookbackDays] = useState<BotBoardLookback>('ALL');
     const [portfolios, setPortfolios] = useState<PortfolioOption[]>([]);
     const [bots, setBots] = useState<StrategyBot[]>([]);
     const [runs, setRuns] = useState<StrategyBotRun[]>([]);
@@ -165,9 +169,9 @@ export default function StrategyBotsPage() {
 
     useEffect(() => {
         if (userId) {
-            void loadBotBoard(boardSortBy, boardDirection);
+            void loadBotBoard(boardSortBy, boardDirection, boardRunMode, boardLookbackDays);
         }
-    }, [userId, boardSortBy, boardDirection]);
+    }, [userId, boardSortBy, boardDirection, boardRunMode, boardLookbackDays]);
 
     async function bootstrap(currentUserId: string) {
         setLoading(true); setPageError(null);
@@ -184,13 +188,25 @@ export default function StrategyBotsPage() {
             setBots(nextBots);
             setSelectedBotId((current) => current && nextBots.some((bot) => bot.id === current) ? current : nextBots[0]?.id ?? '');
             setBotForm((current) => current.linkedPortfolioId ? current : { ...current, linkedPortfolioId: nextPortfolios[0]?.id ?? '' });
-            await loadBotBoard(boardSortBy, boardDirection);
+            await loadBotBoard(boardSortBy, boardDirection, boardRunMode, boardLookbackDays);
         } catch (error) { setPageError(err(error)); } finally { setLoading(false); }
     }
 
-    async function loadBotBoard(sortBy = boardSortBy, direction = boardDirection) {
+    async function loadBotBoard(
+        sortBy = boardSortBy,
+        direction = boardDirection,
+        runMode = boardRunMode,
+        lookbackDays = boardLookbackDays,
+    ) {
         try {
-            const response = await apiFetch(`/api/v1/strategy-bots/board?size=24&sortBy=${encodeURIComponent(sortBy)}&direction=${encodeURIComponent(direction)}`, { cache: 'no-store' });
+            const query = new URLSearchParams({
+                size: '24',
+                sortBy,
+                direction,
+                runMode,
+            });
+            if (lookbackDays !== 'ALL') query.set('lookbackDays', lookbackDays);
+            const response = await apiFetch(`/api/v1/strategy-bots/board?${query.toString()}`, { cache: 'no-store' });
             if (!response.ok) throw new Error(`Failed to load bot board (${response.status})`);
             setBotBoard(extractContent<StrategyBotBoardEntry>(await response.json()));
         } catch (error) {
@@ -693,6 +709,45 @@ export default function StrategyBotsPage() {
                                 >
                                     {boardDirection}
                                 </button>
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                {[
+                                    ['ALL', 'All Runs'],
+                                    ['BACKTEST', 'Backtests'],
+                                    ['FORWARD_TEST', 'Forward Tests'],
+                                ].map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setBoardRunMode(value as BotBoardRunMode)}
+                                        className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+                                            boardRunMode === value
+                                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+                                                : 'border-white/10 bg-white/5 text-zinc-300'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                                {[
+                                    ['ALL', 'All Time'],
+                                    ['7', '7D'],
+                                    ['30', '30D'],
+                                    ['90', '90D'],
+                                ].map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setBoardLookbackDays(value as BotBoardLookback)}
+                                        className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+                                            boardLookbackDays === value
+                                                ? 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-100'
+                                                : 'border-white/10 bg-white/5 text-zinc-300'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                         {botBoard.length ? (
