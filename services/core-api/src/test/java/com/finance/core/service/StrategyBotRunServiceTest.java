@@ -6,6 +6,7 @@ import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
+import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
@@ -389,6 +390,129 @@ class StrategyBotRunServiceTest {
         assertThat(response.getSummary().get("endingEquity").asDouble()).isGreaterThan(100000.0);
         verify(strategyBotRunFillRepository).saveAll(any());
         verify(strategyBotRunEquityPointRepository).saveAll(any());
+    }
+
+    @Test
+    void getBotAnalytics_shouldAggregateRecentRunScorecards() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .linkedPortfolioId(UUID.randomUUID())
+                .name("Analytics Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun positiveRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": 12.5,
+                          "netPnl": 12500,
+                          "maxDrawdownPercent": 4.2,
+                          "winRate": 66.7,
+                          "tradeCount": 6,
+                          "profitFactor": 1.9,
+                          "expectancyPerTrade": 2083.33,
+                          "timeInMarketPercent": 45.5,
+                          "linkedPortfolioAligned": false,
+                          "entryReasonCounts": {"price_above_ma_3": 2},
+                          "exitReasonCounts": {"take_profit_hit": 2}
+                        }
+                        """)
+                .build();
+
+        StrategyBotRun negativeRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(3))
+                .completedAt(LocalDateTime.now().minusHours(2))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": -4.5,
+                          "netPnl": -4500,
+                          "maxDrawdownPercent": 7.8,
+                          "winRate": 25.0,
+                          "tradeCount": 2,
+                          "profitFactor": 0.6,
+                          "expectancyPerTrade": -2250,
+                          "timeInMarketPercent": 30.0,
+                          "linkedPortfolioAligned": true,
+                          "entryReasonCounts": {"price_above_ma_3": 1},
+                          "exitReasonCounts": {"stop_loss_hit": 1}
+                        }
+                        """)
+                .build();
+
+        StrategyBotRun forwardRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .requestedAt(LocalDateTime.now().minusMinutes(10))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": 2.1,
+                          "netPnl": 2100,
+                          "tradeCount": 1,
+                          "timeInMarketPercent": 18.0,
+                          "lastEvaluatedOpenTime": 1710000000,
+                          "entryReasonCounts": {"price_above_ma_3": 1},
+                          "exitReasonCounts": {}
+                        }
+                        """)
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId))
+                .thenReturn(List.of(forwardRun, positiveRun, negativeRun));
+
+        StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId);
+
+        assertThat(analytics.getTotalRuns()).isEqualTo(3);
+        assertThat(analytics.getCompletedRuns()).isEqualTo(2);
+        assertThat(analytics.getRunningRuns()).isEqualTo(1);
+        assertThat(analytics.getBacktestRuns()).isEqualTo(2);
+        assertThat(analytics.getForwardTestRuns()).isEqualTo(1);
+        assertThat(analytics.getPositiveCompletedRuns()).isEqualTo(1);
+        assertThat(analytics.getNegativeCompletedRuns()).isEqualTo(1);
+        assertThat(analytics.getTotalSimulatedTrades()).isEqualTo(8);
+        assertThat(analytics.getAvgReturnPercent()).isEqualTo(4.0);
+        assertThat(analytics.getAvgTradeCount()).isEqualTo(4.0);
+        assertThat(analytics.getBestRun()).isNotNull();
+        assertThat(analytics.getBestRun().getId()).isEqualTo(positiveRun.getId());
+        assertThat(analytics.getWorstRun()).isNotNull();
+        assertThat(analytics.getWorstRun().getId()).isEqualTo(negativeRun.getId());
+        assertThat(analytics.getActiveForwardRun()).isNotNull();
+        assertThat(analytics.getActiveForwardRun().getId()).isEqualTo(forwardRun.getId());
+        assertThat(analytics.getEntryDriverTotals()).containsEntry("price_above_ma_3", 4);
+        assertThat(analytics.getExitDriverTotals()).containsEntry("take_profit_hit", 2);
+        assertThat(analytics.getRecentScorecards()).hasSize(3);
     }
 
     @Test

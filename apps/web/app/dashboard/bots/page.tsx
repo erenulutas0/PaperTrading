@@ -28,6 +28,21 @@ type StrategyBotRunFill = {
 type StrategyBotRunEquityPoint = {
     id: string; sequenceNo: number; openTime: number; closePrice: number; equity: number;
 };
+type StrategyBotRunScorecard = {
+    id: string; runMode: RunMode; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+    requestedAt: string; completedAt?: string | null; returnPercent?: number | null; netPnl?: number | null;
+    maxDrawdownPercent?: number | null; winRate?: number | null; tradeCount?: number | null; profitFactor?: number | null;
+    expectancyPerTrade?: number | null; timeInMarketPercent?: number | null; linkedPortfolioAligned?: boolean | null;
+    executionEngineReady?: boolean | null; lastEvaluatedOpenTime?: number | null; errorMessage?: string | null;
+};
+type StrategyBotAnalytics = {
+    strategyBotId: string; totalRuns: number; backtestRuns: number; forwardTestRuns: number; completedRuns: number; runningRuns: number; failedRuns: number;
+    compilerReadyRuns: number; positiveCompletedRuns: number; negativeCompletedRuns: number; totalSimulatedTrades: number;
+    avgReturnPercent?: number | null; avgNetPnl?: number | null; avgMaxDrawdownPercent?: number | null; avgWinRate?: number | null; avgTradeCount?: number | null;
+    avgProfitFactor?: number | null; avgExpectancyPerTrade?: number | null;
+    bestRun?: StrategyBotRunScorecard | null; worstRun?: StrategyBotRunScorecard | null; latestCompletedRun?: StrategyBotRunScorecard | null; activeForwardRun?: StrategyBotRunScorecard | null;
+    entryDriverTotals: Record<string, number>; exitDriverTotals: Record<string, number>; recentScorecards: StrategyBotRunScorecard[];
+};
 type StrategyBotRunReconciliationPlan = {
     runId: string; strategyBotId: string; linkedPortfolioId: string; linkedPortfolioName: string; symbol: string; runStatus: string;
     targetPositionOpen: boolean; targetQuantity: number; targetAveragePrice: number; targetLastPrice: number; targetCashBalance: number; targetEquity: number;
@@ -92,6 +107,7 @@ export default function StrategyBotsPage() {
     const [selectedRunFills, setSelectedRunFills] = useState<StrategyBotRunFill[]>([]);
     const [selectedRunEquityCurve, setSelectedRunEquityCurve] = useState<StrategyBotRunEquityPoint[]>([]);
     const [selectedRunReconciliation, setSelectedRunReconciliation] = useState<StrategyBotRunReconciliationPlan | null>(null);
+    const [selectedBotAnalytics, setSelectedBotAnalytics] = useState<StrategyBotAnalytics | null>(null);
     const [editingBotId, setEditingBotId] = useState<string | null>(null);
     const [botForm, setBotForm] = useState({ name: '', description: '', linkedPortfolioId: '', market: 'CRYPTO', symbol: 'BTCUSDT', timeframe: '1h', status: 'DRAFT' as BotStatus, maxPositionSizePercent: '20', stopLossPercent: '3', takeProfitPercent: '8', cooldownMinutes: '60', entryRulesText: defaultEntryRules, exitRulesText: defaultExitRules });
     const [runForm, setRunForm] = useState({ runMode: 'BACKTEST' as RunMode, initialCapital: '', fromDate: '', toDate: '' });
@@ -110,11 +126,13 @@ export default function StrategyBotsPage() {
     useEffect(() => {
         if (selectedBotId) {
             void loadRuns(selectedBotId);
+            void loadBotAnalytics(selectedBotId);
         } else {
             setRuns([]);
             setSelectedRunId('');
             setSelectedRunFills([]);
             setSelectedRunEquityCurve([]);
+            setSelectedBotAnalytics(null);
         }
     }, [selectedBotId]);
 
@@ -185,6 +203,19 @@ export default function StrategyBotsPage() {
         }
     }
 
+    async function loadBotAnalytics(botId: string) {
+        try {
+            const response = await apiFetch(`/api/v1/strategy-bots/${botId}/analytics`, { cache: 'no-store' });
+            if (!response.ok) {
+                setSelectedBotAnalytics(null);
+                return;
+            }
+            setSelectedBotAnalytics(await response.json() as StrategyBotAnalytics);
+        } catch {
+            setSelectedBotAnalytics(null);
+        }
+    }
+
     function resetBotForm() {
         setEditingBotId(null);
         setBotForm({ name: '', description: '', linkedPortfolioId: portfolios[0]?.id ?? '', market: 'CRYPTO', symbol: 'BTCUSDT', timeframe: '1h', status: 'DRAFT', maxPositionSizePercent: '20', stopLossPercent: '3', takeProfitPercent: '8', cooldownMinutes: '60', entryRulesText: defaultEntryRules, exitRulesText: defaultExitRules });
@@ -226,6 +257,7 @@ export default function StrategyBotsPage() {
             const createdRun = await response.json() as StrategyBotRun;
             setRunForm({ runMode: 'BACKTEST', initialCapital: '', fromDate: '', toDate: '' });
             await loadRuns(selectedBotId);
+            await loadBotAnalytics(selectedBotId);
             setSelectedRunId(createdRun.id);
             setNotice('Run queued');
         } catch (error) { setActionError(err(error)); } finally { setRequestingRun(false); }
@@ -238,6 +270,7 @@ export default function StrategyBotsPage() {
             const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${runId}/execute`, { method: 'POST' });
             if (!response.ok) throw new Error(await response.text() || `Run execute failed (${response.status})`);
             await loadRuns(selectedBotId);
+            await loadBotAnalytics(selectedBotId);
             setSelectedRunId(runId);
             setNotice('Run executed');
         } catch (error) { setActionError(err(error)); } finally { setExecutingRunId(null); }
@@ -250,6 +283,7 @@ export default function StrategyBotsPage() {
             const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${runId}/refresh`, { method: 'POST' });
             if (!response.ok) throw new Error(await response.text() || `Run refresh failed (${response.status})`);
             await loadRuns(selectedBotId);
+            await loadBotAnalytics(selectedBotId);
             setSelectedRunId(runId);
             await loadRunOutputs(selectedBotId, runId);
             await loadRunReconciliation(selectedBotId, runId);
@@ -344,40 +378,162 @@ export default function StrategyBotsPage() {
             )}
 
             {!loading && tab === 'OVERVIEW' && (
-                <section className="mt-8 grid gap-6 xl:grid-cols-2">
-                    <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
-                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Workflow</p>
-                        <h2 className="mt-3 text-xl font-bold text-white">Deterministic before autonomous.</h2>
-                        <div className="mt-5 space-y-3 text-sm leading-7 text-zinc-300">
-                            <p>1. Create a bot with supported rule tokens.</p>
-                            <p>2. Link it to an owned paper portfolio and move it to `READY` when the risk profile is sane.</p>
-                            <p>3. Queue a backtest, review compiler warnings, then execute and inspect fills plus equity curve summary.</p>
+                <section className="mt-8 space-y-6">
+                    <div className="grid gap-6 xl:grid-cols-2">
+                        <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Workflow</p>
+                            <h2 className="mt-3 text-xl font-bold text-white">Deterministic before autonomous.</h2>
+                            <div className="mt-5 space-y-3 text-sm leading-7 text-zinc-300">
+                                <p>1. Create a bot with supported rule tokens.</p>
+                                <p>2. Link it to an owned paper portfolio and move it to `READY` when the risk profile is sane.</p>
+                                <p>3. Queue a backtest, review compiler warnings, then execute and inspect fills plus equity curve summary.</p>
+                            </div>
+                        </div>
+                        <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Latest Snapshot</p>
+                            <h2 className="mt-3 text-xl font-bold text-white">{selectedBot?.name ?? 'No bot selected'}</h2>
+                            <div className="mt-5 grid gap-4 md:grid-cols-2">
+                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-zinc-500">Run Status</p>
+                                    <p className="mt-2 text-lg font-bold text-white">{latestRun?.status ?? 'No run yet'}</p>
+                                    <p className="mt-1 text-xs text-zinc-500">{latestRun ? fmtDate(latestRun.requestedAt) : 'Request the first run from Runs tab.'}</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-zinc-500">Return</p>
+                                    <p className="mt-2 text-lg font-bold text-emerald-300">{fmtPercent(latestRun?.summary?.returnPercent)}</p>
+                                    <p className="mt-1 text-xs text-zinc-500">PnL {fmtCurrency(latestRun?.summary?.netPnl)}</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-zinc-500">Compiler</p>
+                                    <p className="mt-2 text-lg font-bold text-white">{latestRun?.summary?.executionEngineReady ? 'Executable' : 'Review warnings'}</p>
+                                    <p className="mt-1 text-xs text-zinc-500">{(latestRun?.summary?.unsupportedRules ?? []).length} unsupported rules</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                    <p className="text-xs uppercase tracking-wide text-zinc-500">Drawdown</p>
+                                    <p className="mt-2 text-lg font-bold text-amber-300">{fmtPercent(latestRun?.summary?.maxDrawdownPercent)}</p>
+                                    <p className="mt-1 text-xs text-zinc-500">{latestRun?.summary?.tradeCount ?? 0} trades</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
-                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Latest Snapshot</p>
-                        <h2 className="mt-3 text-xl font-bold text-white">{selectedBot?.name ?? 'No bot selected'}</h2>
-                        <div className="mt-5 grid gap-4 md:grid-cols-2">
-                            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                                <p className="text-xs uppercase tracking-wide text-zinc-500">Run Status</p>
-                                <p className="mt-2 text-lg font-bold text-white">{latestRun?.status ?? 'No run yet'}</p>
-                                <p className="mt-1 text-xs text-zinc-500">{latestRun ? fmtDate(latestRun.requestedAt) : 'Request the first run from Runs tab.'}</p>
+                    <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+                        <div className="space-y-6">
+                            <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Bot Analytics</p>
+                                <h2 className="mt-3 text-xl font-bold text-white">Run-level quality at the bot surface.</h2>
+                                {selectedBotAnalytics ? (
+                                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-zinc-500">Completed Runs</p>
+                                            <p className="mt-2 text-lg font-bold text-white">{selectedBotAnalytics.completedRuns} / {selectedBotAnalytics.totalRuns}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">{selectedBotAnalytics.runningRuns} running, {selectedBotAnalytics.failedRuns} failed</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-zinc-500">Average Return</p>
+                                            <p className="mt-2 text-lg font-bold text-emerald-300">{fmtPercent(selectedBotAnalytics.avgReturnPercent)}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Avg PnL {fmtCurrency(selectedBotAnalytics.avgNetPnl)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-zinc-500">Average Drawdown</p>
+                                            <p className="mt-2 text-lg font-bold text-amber-300">{fmtPercent(selectedBotAnalytics.avgMaxDrawdownPercent)}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Avg win rate {fmtPercent(selectedBotAnalytics.avgWinRate)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-zinc-500">Payoff Shape</p>
+                                            <p className="mt-2 text-lg font-bold text-cyan-200">{selectedBotAnalytics.avgProfitFactor?.toFixed(2) ?? 'N/A'} PF</p>
+                                            <p className="mt-1 text-xs text-zinc-500">Expectancy {fmtCurrency(selectedBotAnalytics.avgExpectancyPerTrade)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-zinc-500">Completed Bias</p>
+                                            <p className="mt-2 text-lg font-bold text-white">{selectedBotAnalytics.positiveCompletedRuns} up / {selectedBotAnalytics.negativeCompletedRuns} down</p>
+                                            <p className="mt-1 text-xs text-zinc-500">{selectedBotAnalytics.totalSimulatedTrades} simulated trades</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-zinc-500">Live Forward State</p>
+                                            <p className="mt-2 text-lg font-bold text-white">{selectedBotAnalytics.activeForwardRun ? selectedBotAnalytics.activeForwardRun.status : 'Idle'}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">{selectedBotAnalytics.activeForwardRun ? fmtEpoch(selectedBotAnalytics.activeForwardRun.lastEvaluatedOpenTime) : 'No running forward test'}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="mt-4 text-sm text-zinc-500">No bot analytics loaded yet.</p>
+                                )}
                             </div>
-                            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                                <p className="text-xs uppercase tracking-wide text-zinc-500">Return</p>
-                                <p className="mt-2 text-lg font-bold text-emerald-300">{fmtPercent(latestRun?.summary?.returnPercent)}</p>
-                                <p className="mt-1 text-xs text-zinc-500">PnL {fmtCurrency(latestRun?.summary?.netPnl)}</p>
+                            <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Driver Totals</p>
+                                {selectedBotAnalytics ? (
+                                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-zinc-500">Entry Drivers</p>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {Object.entries(selectedBotAnalytics.entryDriverTotals ?? {}).length === 0 ? (
+                                                    <span className="text-sm text-zinc-500">No entry signals aggregated yet.</span>
+                                                ) : Object.entries(selectedBotAnalytics.entryDriverTotals).map(([rule, count]) => (
+                                                    <span key={rule} className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-100">{rule} x{count}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-zinc-500">Exit Drivers</p>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {Object.entries(selectedBotAnalytics.exitDriverTotals ?? {}).length === 0 ? (
+                                                    <span className="text-sm text-zinc-500">No exit signals aggregated yet.</span>
+                                                ) : Object.entries(selectedBotAnalytics.exitDriverTotals).map(([rule, count]) => (
+                                                    <span key={rule} className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100">{rule} x{count}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="mt-4 text-sm text-zinc-500">Select a bot with runs to see aggregated driver totals.</p>
+                                )}
                             </div>
-                            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                                <p className="text-xs uppercase tracking-wide text-zinc-500">Compiler</p>
-                                <p className="mt-2 text-lg font-bold text-white">{latestRun?.summary?.executionEngineReady ? 'Executable' : 'Review warnings'}</p>
-                                <p className="mt-1 text-xs text-zinc-500">{(latestRun?.summary?.unsupportedRules ?? []).length} unsupported rules</p>
+                        </div>
+                        <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Run Scorecards</p>
+                                    <h2 className="mt-2 text-xl font-bold text-white">Recent reporting table for the selected bot.</h2>
+                                </div>
+                                {selectedBotAnalytics?.bestRun ? (
+                                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-right text-xs text-emerald-100">
+                                        <p className="uppercase tracking-[0.2em] text-emerald-200/80">Best Run</p>
+                                        <p className="mt-1 text-sm font-bold">{fmtPercent(selectedBotAnalytics.bestRun.returnPercent)}</p>
+                                        <p className="mt-1 text-[11px]">{selectedBotAnalytics.bestRun.runMode}</p>
+                                    </div>
+                                ) : null}
                             </div>
-                            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                                <p className="text-xs uppercase tracking-wide text-zinc-500">Drawdown</p>
-                                <p className="mt-2 text-lg font-bold text-amber-300">{fmtPercent(latestRun?.summary?.maxDrawdownPercent)}</p>
-                                <p className="mt-1 text-xs text-zinc-500">{latestRun?.summary?.tradeCount ?? 0} trades</p>
-                            </div>
+                            {selectedBotAnalytics?.recentScorecards?.length ? (
+                                <div className="mt-5 overflow-hidden rounded-2xl border border-white/5 bg-black/20">
+                                    <div className="grid grid-cols-[1.1fr_0.9fr_0.9fr_0.9fr_0.9fr_0.8fr] gap-3 border-b border-white/5 px-4 py-3 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+                                        <span>Run</span>
+                                        <span>Return</span>
+                                        <span>PnL</span>
+                                        <span>Drawdown</span>
+                                        <span>Trades</span>
+                                        <span>State</span>
+                                    </div>
+                                    {selectedBotAnalytics.recentScorecards.map((scorecard) => (
+                                        <div key={scorecard.id} className="grid grid-cols-[1.1fr_0.9fr_0.9fr_0.9fr_0.9fr_0.8fr] gap-3 border-b border-white/5 px-4 py-3 text-xs text-zinc-300 last:border-b-0">
+                                            <div className="min-w-0">
+                                                <p className="truncate font-semibold text-white">{scorecard.runMode}</p>
+                                                <p className="mt-1 text-[11px] text-zinc-500">{fmtDate(scorecard.requestedAt)}</p>
+                                            </div>
+                                            <div className={scorecard.returnPercent != null && scorecard.returnPercent >= 0 ? 'font-semibold text-emerald-200' : 'font-semibold text-red-200'}>
+                                                {fmtPercent(scorecard.returnPercent)}
+                                            </div>
+                                            <div>{fmtCurrency(scorecard.netPnl)}</div>
+                                            <div>{fmtPercent(scorecard.maxDrawdownPercent)}</div>
+                                            <div>{scorecard.tradeCount ?? 0}</div>
+                                            <div>
+                                                <p className="font-semibold text-white">{scorecard.status}</p>
+                                                <p className="mt-1 text-[11px] text-zinc-500">{scorecard.executionEngineReady ? 'ready' : 'review'}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="mt-5 text-sm text-zinc-500">No recent scorecards yet for the selected bot.</p>
+                            )}
                         </div>
                     </div>
                 </section>

@@ -1,6 +1,7 @@
 package com.finance.core.controller;
 
 import com.finance.core.dto.StrategyBotRequest;
+import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.StrategyBotRunEquityPointResponse;
 import com.finance.core.dto.StrategyBotRunFillResponse;
@@ -46,6 +47,19 @@ public class StrategyBotController {
             return ResponseEntity.ok(strategyBotService.getBot(botId, userId));
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_read_failed", "Failed to load strategy bot", request);
+        }
+    }
+
+    @GetMapping("/{botId}/analytics")
+    public ResponseEntity<?> getBotAnalytics(
+            @PathVariable UUID botId,
+            @CurrentUserId UUID userId,
+            HttpServletRequest request) {
+        try {
+            StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId);
+            return ResponseEntity.ok(analytics);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_analytics_failed", "Failed to load strategy bot analytics", request);
         }
     }
 

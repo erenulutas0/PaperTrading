@@ -3,6 +3,7 @@ package com.finance.core.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
+import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
@@ -15,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -180,5 +182,124 @@ class StrategyBotControllerIntegrationTest {
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("strategy_bot_not_found"));
+    }
+
+    @Test
+    void getStrategyBotAnalytics_shouldAggregateRunMetricsAndScorecards() throws Exception {
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Analytics Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": 10.0,
+                          "netPnl": 10000.0,
+                          "maxDrawdownPercent": 4.0,
+                          "winRate": 60.0,
+                          "tradeCount": 5,
+                          "profitFactor": 1.8,
+                          "expectancyPerTrade": 2000.0,
+                          "timeInMarketPercent": 40.0,
+                          "linkedPortfolioAligned": false,
+                          "entryReasonCounts": {"price_above_ma_3": 2},
+                          "exitReasonCounts": {"take_profit_hit": 1}
+                        }
+                        """)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusHours(3))
+                .completedAt(LocalDateTime.now().minusHours(2))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": -6.0,
+                          "netPnl": -6000.0,
+                          "maxDrawdownPercent": 9.0,
+                          "winRate": 20.0,
+                          "tradeCount": 3,
+                          "profitFactor": 0.5,
+                          "expectancyPerTrade": -2000.0,
+                          "timeInMarketPercent": 22.0,
+                          "linkedPortfolioAligned": true,
+                          "entryReasonCounts": {"price_above_ma_3": 1},
+                          "exitReasonCounts": {"stop_loss_hit": 2}
+                        }
+                        """)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusMinutes(5))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": 1.5,
+                          "netPnl": 1500.0,
+                          "tradeCount": 1,
+                          "timeInMarketPercent": 12.0,
+                          "lastEvaluatedOpenTime": 1711111111,
+                          "entryReasonCounts": {"price_above_ma_3": 1},
+                          "exitReasonCounts": {}
+                        }
+                        """)
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.strategyBotId").value(bot.getId().toString()))
+                .andExpect(jsonPath("$.totalRuns").value(3))
+                .andExpect(jsonPath("$.completedRuns").value(2))
+                .andExpect(jsonPath("$.runningRuns").value(1))
+                .andExpect(jsonPath("$.backtestRuns").value(2))
+                .andExpect(jsonPath("$.forwardTestRuns").value(1))
+                .andExpect(jsonPath("$.positiveCompletedRuns").value(1))
+                .andExpect(jsonPath("$.negativeCompletedRuns").value(1))
+                .andExpect(jsonPath("$.avgReturnPercent").value(2.0))
+                .andExpect(jsonPath("$.avgTradeCount").value(4.0))
+                .andExpect(jsonPath("$.entryDriverTotals.price_above_ma_3").value(4))
+                .andExpect(jsonPath("$.exitDriverTotals.stop_loss_hit").value(2))
+                .andExpect(jsonPath("$.bestRun.returnPercent").value(10.0))
+                .andExpect(jsonPath("$.worstRun.returnPercent").value(-6.0))
+                .andExpect(jsonPath("$.activeForwardRun.runMode").value("FORWARD_TEST"))
+                .andExpect(jsonPath("$.recentScorecards", hasSize(3)));
     }
 }

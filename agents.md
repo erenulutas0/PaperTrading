@@ -301,6 +301,33 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - strategy evaluation is now less dependent on terminal PnL alone
     - later attribution tables can build on an already-exposed semantics layer instead of inventing first-generation labels in the UI
+- **2026-03-22**: **Strategy Bots Now Expose Bot-Level Analytics Instead Of Leaving Operators To Mentally Aggregate Runs**
+  - **Problem observed**:
+    - The bot workspace already exposed:
+      - per-run outcome quality
+      - per-run attribution
+      - per-run reconciliation state
+    - But there was still no bot-level reporting surface that answered:
+      - how many runs have actually completed
+      - what the average payoff/drawdown profile looks like
+      - which drivers dominate across runs
+      - which recent runs should be compared side by side
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/{botId}/analytics`.
+    - The response now aggregates:
+      - run counts by mode/status
+      - average return, PnL, drawdown, win-rate, profit-factor, expectancy
+      - best/worst/latest completed run
+      - active forward-test run
+      - aggregated entry/exit driver totals
+      - recent run scorecards
+    - `/dashboard/bots` overview now renders:
+      - bot analytics summary cards
+      - aggregated driver chips
+      - a recent run scorecards table
+  - **Operational impact**:
+    - the product now has a bot-level reporting surface, not just isolated run inspection
+    - later export/leaderboard work can reuse an already-normalized analytics contract instead of scraping run cards from the UI
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

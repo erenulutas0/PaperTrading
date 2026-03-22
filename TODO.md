@@ -565,8 +565,25 @@ Last updated: 2026-03-21
   - tests:
     - `StrategyBotControllerIntegrationTest`
 - [ ] Extend strategy-bot live paper execution beyond the current refresh-based forward-test slice:
-  - richer bot-specific analytics/reporting tables beyond the current outcome + attribution blocks
   - run recurring scheduler verification against a freshly restarted local/staging runtime
+- [x] Added strategy-bot analytics/reporting surface:
+  - backend:
+    - `GET /api/v1/strategy-bots/{botId}/analytics`
+    - bot-level aggregates for:
+      - run counts by mode/status
+      - average return / pnl / drawdown / win-rate / profit-factor / expectancy
+      - best/worst/latest completed run
+      - active forward-test run
+      - aggregated entry/exit driver totals
+      - recent run scorecards
+  - frontend:
+    - `/dashboard/bots` overview now renders:
+      - bot analytics cards
+      - aggregated driver totals
+      - recent run scorecards table
+  - tests:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotControllerIntegrationTest`
 - [x] Added strategy-bot forward-test scheduler observability + smoke tooling:
   - backend:
     - `StrategyBotForwardTestObservabilityService`

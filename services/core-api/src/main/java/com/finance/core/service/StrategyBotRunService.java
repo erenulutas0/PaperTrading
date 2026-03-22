@@ -14,11 +14,13 @@ import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
+import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.StrategyBotRunEquityPointResponse;
 import com.finance.core.dto.StrategyBotRunFillResponse;
 import com.finance.core.dto.StrategyBotRunRequest;
 import com.finance.core.dto.StrategyBotRunResponse;
+import com.finance.core.dto.StrategyBotRunScorecardResponse;
 import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
@@ -43,7 +45,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
@@ -94,6 +98,53 @@ public class StrategyBotRunService {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
         return buildRunReconciliationState(bot, run).response();
+    }
+
+    @Transactional(readOnly = true)
+    public StrategyBotAnalyticsResponse getBotAnalytics(UUID botId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        List<StrategyBotRun> runs = strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId);
+        List<StrategyBotRunScorecardResponse> scorecards = runs.stream()
+                .map(this::toScorecard)
+                .toList();
+        List<StrategyBotRunScorecardResponse> completedScorecards = scorecards.stream()
+                .filter(scorecard -> "COMPLETED".equals(scorecard.getStatus()))
+                .toList();
+
+        return StrategyBotAnalyticsResponse.builder()
+                .strategyBotId(bot.getId())
+                .totalRuns(runs.size())
+                .backtestRuns((int) runs.stream().filter(run -> run.getRunMode() == StrategyBotRun.RunMode.BACKTEST).count())
+                .forwardTestRuns((int) runs.stream().filter(run -> run.getRunMode() == StrategyBotRun.RunMode.FORWARD_TEST).count())
+                .completedRuns((int) runs.stream().filter(run -> run.getStatus() == StrategyBotRun.Status.COMPLETED).count())
+                .runningRuns((int) runs.stream().filter(run -> run.getStatus() == StrategyBotRun.Status.RUNNING).count())
+                .failedRuns((int) runs.stream().filter(run -> run.getStatus() == StrategyBotRun.Status.FAILED).count())
+                .compilerReadyRuns((int) scorecards.stream().filter(scorecard -> Boolean.TRUE.equals(scorecard.getExecutionEngineReady())).count())
+                .positiveCompletedRuns((int) completedScorecards.stream().filter(scorecard -> scorecard.getReturnPercent() != null && scorecard.getReturnPercent() > 0.0).count())
+                .negativeCompletedRuns((int) completedScorecards.stream().filter(scorecard -> scorecard.getReturnPercent() != null && scorecard.getReturnPercent() < 0.0).count())
+                .totalSimulatedTrades(completedScorecards.stream()
+                        .map(StrategyBotRunScorecardResponse::getTradeCount)
+                        .filter(Objects::nonNull)
+                        .mapToInt(Integer::intValue)
+                        .sum())
+                .avgReturnPercent(averageDouble(completedScorecards, StrategyBotRunScorecardResponse::getReturnPercent))
+                .avgNetPnl(averageDouble(completedScorecards, StrategyBotRunScorecardResponse::getNetPnl))
+                .avgMaxDrawdownPercent(averageDouble(completedScorecards, StrategyBotRunScorecardResponse::getMaxDrawdownPercent))
+                .avgWinRate(averageDouble(completedScorecards, StrategyBotRunScorecardResponse::getWinRate))
+                .avgTradeCount(averageDouble(completedScorecards, scorecard -> scorecard.getTradeCount() == null ? null : scorecard.getTradeCount().doubleValue()))
+                .avgProfitFactor(averageDouble(completedScorecards, StrategyBotRunScorecardResponse::getProfitFactor))
+                .avgExpectancyPerTrade(averageDouble(completedScorecards, StrategyBotRunScorecardResponse::getExpectancyPerTrade))
+                .bestRun(maxBy(completedScorecards, StrategyBotRunScorecardResponse::getReturnPercent))
+                .worstRun(minBy(completedScorecards, StrategyBotRunScorecardResponse::getReturnPercent))
+                .latestCompletedRun(completedScorecards.isEmpty() ? null : completedScorecards.get(0))
+                .activeForwardRun(scorecards.stream()
+                        .filter(scorecard -> "FORWARD_TEST".equals(scorecard.getRunMode()) && "RUNNING".equals(scorecard.getStatus()))
+                        .findFirst()
+                        .orElse(null))
+                .entryDriverTotals(aggregateReasonCounts(runs, "entryReasonCounts"))
+                .exitDriverTotals(aggregateReasonCounts(runs, "exitReasonCounts"))
+                .recentScorecards(scorecards.stream().limit(12).toList())
+                .build();
     }
 
     @Transactional
@@ -893,6 +944,117 @@ public class StrategyBotRunService {
         payload.put("linkedPortfolioDriftPercent", driftPercent);
         payload.put("linkedPortfolioReconciliationBaseline", baseline);
         payload.put("linkedPortfolioAligned", Math.abs(drift) < 0.01d);
+    }
+
+    private StrategyBotRunScorecardResponse toScorecard(StrategyBotRun run) {
+        JsonNode summary = parseJson(run.getSummary());
+        return StrategyBotRunScorecardResponse.builder()
+                .id(run.getId())
+                .runMode(run.getRunMode().name())
+                .status(run.getStatus().name())
+                .requestedAt(run.getRequestedAt())
+                .completedAt(run.getCompletedAt())
+                .returnPercent(doubleValue(summary, "returnPercent"))
+                .netPnl(doubleValue(summary, "netPnl"))
+                .maxDrawdownPercent(doubleValue(summary, "maxDrawdownPercent"))
+                .winRate(doubleValue(summary, "winRate"))
+                .tradeCount(intValue(summary, "tradeCount"))
+                .profitFactor(doubleValue(summary, "profitFactor"))
+                .expectancyPerTrade(doubleValue(summary, "expectancyPerTrade"))
+                .timeInMarketPercent(doubleValue(summary, "timeInMarketPercent"))
+                .linkedPortfolioAligned(booleanValue(summary, "linkedPortfolioAligned"))
+                .executionEngineReady(booleanValue(summary, "executionEngineReady"))
+                .lastEvaluatedOpenTime(longValue(summary, "lastEvaluatedOpenTime"))
+                .errorMessage(run.getErrorMessage())
+                .build();
+    }
+
+    private Map<String, Integer> aggregateReasonCounts(List<StrategyBotRun> runs, String fieldName) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (StrategyBotRun run : runs) {
+            JsonNode node = parseJson(run.getSummary()).path(fieldName);
+            if (!node.isObject()) {
+                continue;
+            }
+            node.fields().forEachRemaining(entry -> counts.merge(entry.getKey(), entry.getValue().asInt(0), Integer::sum));
+        }
+        return counts.entrySet().stream()
+                .sorted((left, right) -> {
+                    int countCompare = Integer.compare(right.getValue(), left.getValue());
+                    if (countCompare != 0) {
+                        return countCompare;
+                    }
+                    return left.getKey().compareTo(right.getKey());
+                })
+                .collect(LinkedHashMap::new,
+                        (map, entry) -> map.put(entry.getKey(), entry.getValue()),
+                        LinkedHashMap::putAll);
+    }
+
+    private Double averageDouble(List<StrategyBotRunScorecardResponse> scorecards,
+                                 Function<StrategyBotRunScorecardResponse, Double> extractor) {
+        double sum = 0.0;
+        int count = 0;
+        for (StrategyBotRunScorecardResponse scorecard : scorecards) {
+            Double value = extractor.apply(scorecard);
+            if (value == null) {
+                continue;
+            }
+            sum += value;
+            count++;
+        }
+        if (count == 0) {
+            return null;
+        }
+        return round(sum / count);
+    }
+
+    private StrategyBotRunScorecardResponse maxBy(List<StrategyBotRunScorecardResponse> scorecards,
+                                                  Function<StrategyBotRunScorecardResponse, Double> extractor) {
+        return scorecards.stream()
+                .filter(scorecard -> extractor.apply(scorecard) != null)
+                .max(Comparator.comparing(extractor::apply))
+                .orElse(null);
+    }
+
+    private StrategyBotRunScorecardResponse minBy(List<StrategyBotRunScorecardResponse> scorecards,
+                                                  Function<StrategyBotRunScorecardResponse, Double> extractor) {
+        return scorecards.stream()
+                .filter(scorecard -> extractor.apply(scorecard) != null)
+                .min(Comparator.comparing(extractor::apply))
+                .orElse(null);
+    }
+
+    private Double doubleValue(JsonNode summary, String fieldName) {
+        JsonNode node = summary.get(fieldName);
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        return round(node.asDouble());
+    }
+
+    private Integer intValue(JsonNode summary, String fieldName) {
+        JsonNode node = summary.get(fieldName);
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        return node.asInt();
+    }
+
+    private Long longValue(JsonNode summary, String fieldName) {
+        JsonNode node = summary.get(fieldName);
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        return node.asLong();
+    }
+
+    private Boolean booleanValue(JsonNode summary, String fieldName) {
+        JsonNode node = summary.get(fieldName);
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        return node.asBoolean();
     }
 
     private BigDecimal decimalOrZero(JsonNode value, int scale) {
