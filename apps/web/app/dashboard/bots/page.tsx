@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../../../lib/api-client';
 import { extractContent } from '../../../lib/page';
 
@@ -208,6 +208,24 @@ function readPersistedBoardViews(): BotBoardSavedView[] {
     }
 }
 
+function normalizeBoardViewPayloads(payload: unknown): BotBoardSavedView[] {
+    if (!Array.isArray(payload)) {
+        return [];
+    }
+    return payload
+        .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+        .map((entry): BotBoardSavedView => ({
+            id: typeof entry.id === 'string' ? entry.id : crypto.randomUUID(),
+            name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Imported Board View',
+            sortBy: parseBoardSort(typeof entry.sortBy === 'string' ? entry.sortBy : null),
+            direction: parseBoardDirection(typeof entry.direction === 'string' ? entry.direction : null),
+            runMode: parseBoardRunMode(typeof entry.runMode === 'string' ? entry.runMode : null),
+            lookbackDays: parseBoardLookback(typeof entry.lookbackDays === 'string' ? entry.lookbackDays : null),
+            updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
+        }))
+        .slice(0, 12);
+}
+
 function buildSparkline(points: StrategyBotRunEquityPoint[]) {
     if (points.length < 2) return '';
     const width = 320;
@@ -230,6 +248,7 @@ export default function StrategyBotsPage() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const boardViewImportInputRef = useRef<HTMLInputElement | null>(null);
     const [tab, setTab] = useState<Tab>(() => parseTab(searchParams.get('tab')));
     const [userId, setUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -595,6 +614,88 @@ export default function StrategyBotsPage() {
     function deleteSavedBoardView(viewId: string) {
         setSavedBoardViews((current) => current.filter((view) => view.id !== viewId));
         setNotice('Board view removed');
+        setActionError(null);
+    }
+
+    function exportSavedBoardViews() {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        if (savedBoardViews.length === 0) {
+            setActionError('No saved board views available to export');
+            return;
+        }
+        const payload = savedBoardViews.map((view) => ({
+            id: view.id,
+            name: view.name,
+            sortBy: view.sortBy,
+            direction: view.direction,
+            runMode: view.runMode,
+            lookbackDays: view.lookbackDays,
+            updatedAt: view.updatedAt,
+        }));
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'strategy-bot-board-views.json';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(url);
+        setNotice(`Exported ${savedBoardViews.length} board view${savedBoardViews.length === 1 ? '' : 's'}.`);
+        setActionError(null);
+    }
+
+    async function importSavedBoardViews(event: ChangeEvent<HTMLInputElement>) {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+        try {
+            const raw = await file.text();
+            const parsed = JSON.parse(raw);
+            const imported = normalizeBoardViewPayloads(parsed);
+            if (imported.length === 0) {
+                setActionError('Board view import failed: no valid views found');
+                return;
+            }
+            setSavedBoardViews((current) => {
+                const merged = [...imported, ...current].reduce<BotBoardSavedView[]>((acc, view) => {
+                    const existingIndex = acc.findIndex((entry) => entry.name.toLowerCase() === view.name.toLowerCase());
+                    if (existingIndex >= 0) {
+                        acc[existingIndex] = view;
+                        return acc;
+                    }
+                    acc.push(view);
+                    return acc;
+                }, []);
+                return merged.slice(0, 12);
+            });
+            setNotice(`Imported ${imported.length} board view${imported.length === 1 ? '' : 's'}.`);
+            setActionError(null);
+        } catch {
+            setActionError('Board view import failed: invalid JSON');
+        } finally {
+            if (boardViewImportInputRef.current) {
+                boardViewImportInputRef.current.value = '';
+            }
+        }
+    }
+
+    async function shareSavedBoardView(view: BotBoardSavedView) {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const params = new URLSearchParams();
+        params.set('tab', 'OVERVIEW');
+        if (view.sortBy !== 'AVG_RETURN') params.set('boardSort', view.sortBy);
+        if (view.direction !== 'DESC') params.set('boardDirection', view.direction);
+        if (view.runMode !== 'ALL') params.set('boardRunMode', view.runMode);
+        if (view.lookbackDays !== 'ALL') params.set('boardLookback', view.lookbackDays);
+        const shareUrl = `${window.location.origin}${pathname}?${params.toString()}`;
+        await navigator.clipboard.writeText(shareUrl);
+        setNotice(`Copied board view link: ${view.name}`);
         setActionError(null);
     }
 
@@ -1014,7 +1115,29 @@ export default function StrategyBotsPage() {
                                         >
                                             Save View
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={exportSavedBoardViews}
+                                            disabled={savedBoardViews.length === 0}
+                                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            Export Views
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => boardViewImportInputRef.current?.click()}
+                                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200"
+                                        >
+                                            Import Views
+                                        </button>
                                     </div>
+                                    <input
+                                        ref={boardViewImportInputRef}
+                                        type="file"
+                                        accept="application/json"
+                                        className="hidden"
+                                        onChange={importSavedBoardViews}
+                                    />
                                     <div className="mt-4 flex flex-wrap gap-2">
                                         {savedBoardViews.length === 0 ? (
                                             <span className="text-xs text-zinc-500">No saved board views yet.</span>
@@ -1041,6 +1164,13 @@ export default function StrategyBotsPage() {
                                                     className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-400"
                                                 >
                                                     Remove
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void shareSavedBoardView(view)}
+                                                    className="rounded-full border border-cyan-500/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-cyan-300"
+                                                >
+                                                    Share
                                                 </button>
                                             </div>
                                         ))}

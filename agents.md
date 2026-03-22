@@ -524,6 +524,19 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - custom bot comparison lenses can now be restored in one click
     - built-in presets and user-defined views now coexist on the same board state model instead of branching into separate implementations
+- **2026-03-22**: **Strategy Bot Saved Compare Views Are Now Portable Instead Of Browser-Locked**
+  - **Problem observed**:
+    - Local saved board views reduced repetitive control work, but they were still trapped inside one browser profile.
+    - That left two obvious gaps:
+      - no JSON backup / restore path
+      - no direct share link for one saved lens
+  - **Implementation**:
+    - Added saved board-view JSON export/import in `/dashboard/bots`.
+    - Added per-view share actions that emit deep links by reusing the existing query-backed workspace state model.
+    - Kept the feature browser-local and file-based, matching the current maturity level of the bot workspace without creating a premature backend preference contract.
+  - **Operational impact**:
+    - saved bot comparison lenses can now move across devices or accounts with a simple JSON file
+    - one saved lens can now be handed off as a direct deep link instead of being recreated manually
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.
