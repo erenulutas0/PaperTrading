@@ -2648,3 +2648,11 @@ Last updated: 2026-03-22
   - targeted verification passed:
     - `PortfolioParticipationServiceTest`
     - `PortfolioParticipationControllerIntegrationTest`
+- [x] Harden tournament join writes against duplicate-participation races:
+  - tournament join now uses `saveAndFlush` on `TournamentParticipant` so unique `(tournament_id, user_id)` conflicts surface inside the service method
+  - duplicate join constraint races are normalized back to `Already joined this tournament` instead of leaking raw transaction/DB failures
+  - badge side effects are no longer reached when the participation edge loses a duplicate race
+  - controller integration cleanup now deletes strategy-bot run/output rows before portfolios so tournament tests stay schema-safe
+  - targeted verification passed:
+    - `TournamentServiceTest`
+    - `TournamentControllerIntegrationTest`

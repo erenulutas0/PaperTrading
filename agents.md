@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Tournament Join Writes Now Flush Participation Early To Preserve A Stable Conflict Contract**
+  - **Problem observed**:
+    - `TournamentService.joinTournament(...)` still relied on:
+      - pre-`exists` check
+      - portfolio creation
+      - participant save
+    - Under a duplicate join race, the unique `(tournament_id, user_id)` edge could fail only during flush/commit, which risks surfacing a raw transaction/database failure instead of the stable `Already joined this tournament` domain conflict.
+    - The same integration test class also still assumed portfolios could always be deleted before any strategy-bot rows.
+  - **Implementation**:
+    - Switched tournament participation persistence to `saveAndFlush(...)` so duplicate-edge violations surface inside the service method.
+    - Normalized `DataIntegrityViolationException` back into `Already joined this tournament`.
+    - Extended `TournamentServiceTest` to prove duplicate races stop before badge side effects run.
+    - Updated `TournamentControllerIntegrationTest` cleanup order to delete strategy-bot run/output rows before portfolios.
+  - **Operational impact**:
+    - duplicate tournament joins now preserve the expected conflict contract instead of depending on transaction-end exception shape
+    - tournament side effects stay narrower under join contention
+    - tournament integration tests no longer rely on pre-strategy-bot cleanup assumptions
 - **2026-03-22**: **Portfolio Join Writes Now Reserve The Participation Edge Before Cloning**
   - **Problem observed**:
     - `PortfolioParticipationService.joinPortfolio(...)` still followed a risky order:

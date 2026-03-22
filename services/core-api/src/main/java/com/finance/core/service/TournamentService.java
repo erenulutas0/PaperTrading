@@ -5,6 +5,7 @@ import com.finance.core.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -171,7 +172,11 @@ public class TournamentService {
                 .userId(userId)
                 .portfolioId(tournamentPortfolio.getId())
                 .build();
-        participantRepository.save(participant);
+        try {
+            participantRepository.saveAndFlush(participant);
+        } catch (DataIntegrityViolationException ex) {
+            throw new RuntimeException("Already joined this tournament", ex);
+        }
 
         // Award "First Tournament" badge if this is user's first tournament
         long totalParticipations = participantRepository.findByUserId(userId).size();

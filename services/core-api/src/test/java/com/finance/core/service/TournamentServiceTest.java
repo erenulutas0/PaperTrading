@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
@@ -109,6 +110,7 @@ class TournamentServiceTest {
                 p.setId(UUID.randomUUID());
                 return p;
             });
+            when(participantRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
             when(participantRepository.findByUserId(any())).thenReturn(List.of(
                     TournamentParticipant.builder().build())); // first tournament
 
@@ -122,7 +124,7 @@ class TournamentServiceTest {
                     p.getVisibility() == Portfolio.Visibility.PUBLIC));
 
             // Should save participant
-            verify(participantRepository).save(any(TournamentParticipant.class));
+            verify(participantRepository).saveAndFlush(any(TournamentParticipant.class));
 
             // Should award "First Tournament" badge
             verify(badgeRepository).save(argThat(b -> b.getName().equals("First Tournament")));
@@ -136,6 +138,28 @@ class TournamentServiceTest {
 
             assertThrows(RuntimeException.class,
                     () -> tournamentService.joinTournament(activeTournament.getId(), testUser.getId()));
+        }
+
+        @Test
+        void duplicateJoinConstraintRace_normalizesConflictBeforeBadgeSideEffects() {
+            when(tournamentRepository.findById(activeTournament.getId())).thenReturn(Optional.of(activeTournament));
+            when(participantRepository.existsByTournamentIdAndUserId(activeTournament.getId(), testUser.getId()))
+                    .thenReturn(false);
+            when(userRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
+            when(portfolioRepository.save(any())).thenAnswer(inv -> {
+                Portfolio p = inv.getArgument(0);
+                p.setId(UUID.randomUUID());
+                return p;
+            });
+            when(participantRepository.saveAndFlush(any()))
+                    .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> tournamentService.joinTournament(activeTournament.getId(), testUser.getId()));
+
+            assertEquals("Already joined this tournament", ex.getMessage());
+            verify(badgeRepository, never()).save(any());
+            verify(participantRepository, never()).findByUserId(any());
         }
 
         @Test

@@ -50,6 +50,14 @@ class TournamentControllerIntegrationTest {
         @Autowired
         private InteractionRepository interactionRepository;
         @Autowired
+        private StrategyBotRepository strategyBotRepository;
+        @Autowired
+        private StrategyBotRunRepository strategyBotRunRepository;
+        @Autowired
+        private StrategyBotRunFillRepository strategyBotRunFillRepository;
+        @Autowired
+        private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+        @Autowired
         private ObjectMapper objectMapper;
 
         @org.springframework.test.context.bean.override.mockito.MockitoBean
@@ -65,6 +73,10 @@ class TournamentControllerIntegrationTest {
                 activityEventRepository.deleteAll();
                 badgeRepository.deleteAll();
                 participantRepository.deleteAll();
+                strategyBotRunEquityPointRepository.deleteAll();
+                strategyBotRunFillRepository.deleteAll();
+                strategyBotRunRepository.deleteAll();
+                strategyBotRepository.deleteAll();
                 portfolioRepository.deleteAll();
                 tournamentRepository.deleteAll();
                 userRepository.deleteAll();
