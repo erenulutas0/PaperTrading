@@ -12,6 +12,7 @@ type RunMode = 'BACKTEST' | 'FORWARD_TEST';
 type BotBoardSort = 'AVG_RETURN' | 'AVG_NET_PNL' | 'TOTAL_RUNS' | 'AVG_WIN_RATE' | 'AVG_PROFIT_FACTOR' | 'LATEST_REQUESTED_AT';
 type BotBoardRunMode = 'ALL' | RunMode;
 type BotBoardLookback = 'ALL' | '7' | '30' | '90';
+type BotBoardPresetId = 'ALL_TIME_EDGE' | 'BACKTEST_QUALITY' | 'LIVE_FORWARD' | 'RUN_DENSITY';
 
 type PortfolioOption = { id: string; name: string; balance: number; visibility?: 'PUBLIC' | 'PRIVATE' };
 type StrategyBot = {
@@ -61,6 +62,52 @@ type StrategyBotRunReconciliationPlan = {
 
 const defaultEntryRules = JSON.stringify({ all: ['price_above_ma_20', 'rsi_below_35'] }, null, 2);
 const defaultExitRules = JSON.stringify({ any: ['take_profit_hit', 'stop_loss_hit'] }, null, 2);
+const boardComparisonPresets: Array<{
+    id: BotBoardPresetId;
+    label: string;
+    description: string;
+    sortBy: BotBoardSort;
+    direction: 'ASC' | 'DESC';
+    runMode: BotBoardRunMode;
+    lookbackDays: BotBoardLookback;
+}> = [
+    {
+        id: 'ALL_TIME_EDGE',
+        label: 'All-Time Edge',
+        description: 'Global return leaders across all recorded runs.',
+        sortBy: 'AVG_RETURN',
+        direction: 'DESC',
+        runMode: 'ALL',
+        lookbackDays: 'ALL',
+    },
+    {
+        id: 'BACKTEST_QUALITY',
+        label: 'Backtest Quality',
+        description: 'Backtests ranked by payoff quality over the last 90 days.',
+        sortBy: 'AVG_PROFIT_FACTOR',
+        direction: 'DESC',
+        runMode: 'BACKTEST',
+        lookbackDays: '90',
+    },
+    {
+        id: 'LIVE_FORWARD',
+        label: 'Live Forward',
+        description: 'Fresh forward-test activity ordered by latest live evaluation.',
+        sortBy: 'LATEST_REQUESTED_AT',
+        direction: 'DESC',
+        runMode: 'FORWARD_TEST',
+        lookbackDays: '30',
+    },
+    {
+        id: 'RUN_DENSITY',
+        label: 'Run Density',
+        description: 'Most exercised bots over the recent 90-day window.',
+        sortBy: 'TOTAL_RUNS',
+        direction: 'DESC',
+        runMode: 'ALL',
+        lookbackDays: '90',
+    },
+];
 
 function numberOrUndefined(value: string) {
     if (!value.trim()) return undefined;
@@ -104,6 +151,20 @@ function parseBoardRunMode(value: string | null): BotBoardRunMode {
 
 function parseBoardLookback(value: string | null): BotBoardLookback {
     return value === '7' || value === '30' || value === '90' ? value : 'ALL';
+}
+
+function resolveActiveBoardPreset(
+    sortBy: BotBoardSort,
+    direction: 'ASC' | 'DESC',
+    runMode: BotBoardRunMode,
+    lookbackDays: BotBoardLookback,
+): BotBoardPresetId | null {
+    const preset = boardComparisonPresets.find((candidate) =>
+        candidate.sortBy === sortBy
+        && candidate.direction === direction
+        && candidate.runMode === runMode
+        && candidate.lookbackDays === lookbackDays);
+    return preset?.id ?? null;
 }
 
 function buildSparkline(points: StrategyBotRunEquityPoint[]) {
@@ -164,6 +225,14 @@ export default function StrategyBotsPage() {
     const selectedBot = useMemo(() => bots.find((bot) => bot.id === selectedBotId) ?? null, [bots, selectedBotId]);
     const latestRun = runs[0] ?? null;
     const selectedRun = useMemo(() => runs.find((run) => run.id === selectedRunId) ?? latestRun ?? null, [runs, selectedRunId, latestRun]);
+    const activeBoardPreset = useMemo(
+        () => resolveActiveBoardPreset(boardSortBy, boardDirection, boardRunMode, boardLookbackDays),
+        [boardSortBy, boardDirection, boardRunMode, boardLookbackDays],
+    );
+    const activeBoardPresetMeta = useMemo(
+        () => boardComparisonPresets.find((preset) => preset.id === activeBoardPreset) ?? null,
+        [activeBoardPreset],
+    );
 
     useEffect(() => {
         const currentUserId = localStorage.getItem('userId');
@@ -415,6 +484,15 @@ export default function StrategyBotsPage() {
         }
     }
 
+    function applyBoardPreset(presetId: BotBoardPresetId) {
+        const preset = boardComparisonPresets.find((candidate) => candidate.id === presetId);
+        if (!preset) return;
+        setBoardSortBy(preset.sortBy);
+        setBoardDirection(preset.direction);
+        setBoardRunMode(preset.runMode);
+        setBoardLookbackDays(preset.lookbackDays);
+    }
+
     function resetBotForm() {
         setEditingBotId(null);
         setBotForm({ name: '', description: '', linkedPortfolioId: portfolios[0]?.id ?? '', market: 'CRYPTO', symbol: 'BTCUSDT', timeframe: '1h', status: 'DRAFT', maxPositionSizePercent: '20', stopLossPercent: '3', takeProfitPercent: '8', cooldownMinutes: '60', entryRulesText: defaultEntryRules, exitRulesText: defaultExitRules });
@@ -648,6 +726,7 @@ export default function StrategyBotsPage() {
                                             Scope: {boardRunMode === 'ALL' ? 'All runs' : boardRunMode === 'BACKTEST' ? 'Backtests only' : 'Forward tests only'}
                                             {' · '}
                                             {boardLookbackDays === 'ALL' ? 'All time' : `${boardLookbackDays} day lookback`}
+                                            {activeBoardPresetMeta ? ` · Preset ${activeBoardPresetMeta.label}` : ''}
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
@@ -794,7 +873,25 @@ export default function StrategyBotsPage() {
                                     Scope: {boardRunMode === 'ALL' ? 'All runs' : boardRunMode === 'BACKTEST' ? 'Backtests only' : 'Forward tests only'}
                                     {' · '}
                                     {boardLookbackDays === 'ALL' ? 'All time' : `${boardLookbackDays} day lookback`}
+                                    {activeBoardPresetMeta ? ` · Preset ${activeBoardPresetMeta.label}` : ''}
                                 </p>
+                                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                    {boardComparisonPresets.map((preset) => (
+                                        <button
+                                            key={preset.id}
+                                            type="button"
+                                            onClick={() => applyBoardPreset(preset.id)}
+                                            className={`min-w-0 rounded-2xl border px-4 py-3 text-left transition ${
+                                                activeBoardPreset === preset.id
+                                                    ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100'
+                                                    : 'border-white/10 bg-white/[0.03] text-zinc-200 hover:bg-white/[0.06]'
+                                            }`}
+                                        >
+                                            <p className="truncate text-xs font-semibold uppercase tracking-[0.18em]">{preset.label}</p>
+                                            <p className="mt-2 line-clamp-2 text-[11px] text-zinc-400">{preset.description}</p>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 {([

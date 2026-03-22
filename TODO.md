@@ -587,6 +587,7 @@ Last updated: 2026-03-22
       - bot analytics cards
       - account-wide bot board with sortable comparison axes
       - board scope filters for `ALL/BACKTEST/FORWARD_TEST` and `ALL/7D/30D/90D`
+      - preset comparison lenses for `All-Time Edge`, `Backtest Quality`, `Live Forward`, and `Run Density`
       - query-backed workspace state for selected tab/bot/run plus board filters
       - board-level `Export Board CSV` / `Export Board JSON` actions bound to the visible sort + scope
       - aggregated driver totals

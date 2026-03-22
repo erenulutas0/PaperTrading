@@ -480,6 +480,31 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - account-wide bot comparison can now be exported from the same scoped lens operators are already using on screen
     - board handoff/reporting no longer requires rebuilding the comparison state in spreadsheets or screenshots
+- **2026-03-22**: **Strategy Bot Comparison Now Exposes Preset Lenses Instead Of Making Operators Rebuild Common Views By Hand**
+  - **Problem observed**:
+    - Board scope and sort controls were already shareable, but common review modes still required multiple manual clicks:
+      - all-time return leadership
+      - recent backtest quality
+      - live forward-test monitoring
+      - run-density inspection
+    - That made the board powerful, but still slower to use during repeated triage.
+  - **Implementation**:
+    - Added preset comparison lenses directly in `/dashboard/bots`:
+      - `All-Time Edge`
+      - `Backtest Quality`
+      - `Live Forward`
+      - `Run Density`
+    - Presets simply drive the same existing state:
+      - `sortBy`
+      - `direction`
+      - `runMode`
+      - `lookbackDays`
+    - The active preset is surfaced in both:
+      - selected-bot analytics scope copy
+      - board scope copy
+  - **Operational impact**:
+    - repeated bot review modes are now one click instead of a manual control sequence
+    - preset views remain fully shareable because they reuse the same URL-backed workspace state rather than introducing a second comparison model
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.
