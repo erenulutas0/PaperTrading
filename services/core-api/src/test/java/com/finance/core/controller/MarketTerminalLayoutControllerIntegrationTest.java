@@ -41,6 +41,7 @@ class MarketTerminalLayoutControllerIntegrationTest {
     private UserRepository userRepository;
 
     private UUID userId;
+    private UUID otherUserId;
 
     @BeforeEach
     void setUp() {
@@ -52,6 +53,12 @@ class MarketTerminalLayoutControllerIntegrationTest {
                 .password("plaintext")
                 .build());
         userId = user.getId();
+        AppUser otherUser = userRepository.save(AppUser.builder()
+                .username("layout-user-other")
+                .email("layout-user-other@test.com")
+                .password("plaintext")
+                .build());
+        otherUserId = otherUser.getId();
     }
 
     @Test
@@ -142,5 +149,55 @@ class MarketTerminalLayoutControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(2)))
                 .andExpect(jsonPath("$.content[0].name").value("Newer Layout"));
+    }
+
+    @Test
+    void createLayout_whenLimitReached_shouldReturnExplicitConflictContract() throws Exception {
+        for (int index = 0; index < 10; index++) {
+            marketTerminalLayoutRepository.save(MarketTerminalLayout.builder()
+                    .userId(userId)
+                    .name("Layout " + index)
+                    .market("CRYPTO")
+                    .symbol("BTCUSDT")
+                    .range("1D")
+                    .interval("1h")
+                    .build());
+        }
+
+        mockMvc.perform(post("/api/v1/users/me/preferences/terminal-layouts")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "Overflow Layout"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("market_terminal_layout_limit_reached"));
+    }
+
+    @Test
+    void updateLayout_nonOwnedLayout_shouldReturnExplicitNotFoundContract() throws Exception {
+        MarketTerminalLayout layout = marketTerminalLayoutRepository.save(MarketTerminalLayout.builder()
+                .userId(otherUserId)
+                .name("Other Layout")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .range("1D")
+                .interval("1h")
+                .build());
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/terminal-layouts/" + layout.getId())
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "Hijack Attempt"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("market_terminal_layout_not_found"));
+    }
+
+    @Test
+    void createLayout_withBlankName_shouldReturnExplicitValidationContract() throws Exception {
+        mockMvc.perform(post("/api/v1/users/me/preferences/terminal-layouts")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "   "))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("market_terminal_layout_name_required"));
     }
 }

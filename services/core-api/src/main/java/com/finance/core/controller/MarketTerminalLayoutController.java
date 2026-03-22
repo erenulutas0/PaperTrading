@@ -43,12 +43,7 @@ public class MarketTerminalLayoutController {
         try {
             return ResponseEntity.ok(marketTerminalLayoutService.createLayout(userId, request));
         } catch (RuntimeException exception) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_terminal_layout_create_failed",
-                    exception.getMessage(),
-                    null,
-                    httpRequest);
+            return toLayoutError(exception, httpRequest, true);
         }
     }
 
@@ -61,12 +56,7 @@ public class MarketTerminalLayoutController {
         try {
             return ResponseEntity.ok(marketTerminalLayoutService.updateLayout(userId, layoutId, request));
         } catch (RuntimeException exception) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_terminal_layout_update_failed",
-                    exception.getMessage(),
-                    null,
-                    httpRequest);
+            return toLayoutError(exception, httpRequest, false);
         }
     }
 
@@ -79,12 +69,60 @@ public class MarketTerminalLayoutController {
             marketTerminalLayoutService.deleteLayout(userId, layoutId);
             return ResponseEntity.ok().build();
         } catch (RuntimeException exception) {
+            return toLayoutError(exception, httpRequest, false);
+        }
+    }
+
+    private ResponseEntity<?> toLayoutError(
+            RuntimeException exception,
+            HttpServletRequest httpRequest,
+            boolean createPath) {
+        String message = exception.getMessage() != null ? exception.getMessage() : "";
+        if ("Layout limit reached".equals(message)) {
             return ApiErrorResponses.build(
-                    HttpStatus.NOT_FOUND,
-                    "market_terminal_layout_delete_failed",
-                    exception.getMessage(),
+                    HttpStatus.CONFLICT,
+                    "market_terminal_layout_limit_reached",
+                    message,
                     null,
                     httpRequest);
         }
+        if ("Layout name is required".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "market_terminal_layout_name_required",
+                    message,
+                    null,
+                    httpRequest);
+        }
+        if ("Layout name exceeds 80 characters".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "market_terminal_layout_name_too_long",
+                    message,
+                    null,
+                    httpRequest);
+        }
+        if ("Terminal layout not found".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.NOT_FOUND,
+                    "market_terminal_layout_not_found",
+                    message,
+                    null,
+                    httpRequest);
+        }
+        if ("User not found".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.NOT_FOUND,
+                    "user_not_found",
+                    message,
+                    null,
+                    httpRequest);
+        }
+        return ApiErrorResponses.build(
+                HttpStatus.BAD_REQUEST,
+                createPath ? "market_terminal_layout_create_failed" : "market_terminal_layout_update_failed",
+                message,
+                null,
+                httpRequest);
     }
 }

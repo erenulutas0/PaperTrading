@@ -38,6 +38,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Terminal Layout Mutations Now Serialize On The Owning User Row And Return Explicit Contracts**
+  - **Problem observed**:
+    - Saved terminal layouts are account-backed preferences, but the write path still used:
+      - `countByUserId(...)`
+      - then `save(...)`
+    - That left the `MAX_LAYOUTS_PER_USER = 10` rule open to concurrent create races.
+    - The same controller surface still returned generic `market_terminal_layout_*_failed` codes for limit, validation, and ownership/not-found cases, which made client behavior and smoke assertions less deterministic than nearby hardened controllers.
+  - **Implementation**:
+    - Added `UserRepository.findByIdForUpdate(...)` with pessimistic write locking.
+    - `MarketTerminalLayoutService.create/update/delete` now lock the owning user row before mutating layouts.
+    - `MarketTerminalLayoutController` now maps explicit contracts for:
+      - `market_terminal_layout_limit_reached`
+      - `market_terminal_layout_name_required`
+      - `market_terminal_layout_name_too_long`
+      - `market_terminal_layout_not_found`
+    - Added targeted service and controller integration coverage.
+  - **Operational impact**:
+    - concurrent saved-layout writes are less likely to drift past the per-user cap
+    - frontend/save-view tooling can key off stable error codes instead of generic failure buckets
 - **2026-03-22**: **Interaction Controller Fail Paths Now Use Explicit Correlated Contracts Instead Of Global Fallback Codes**
   - **Problem observed**:
     - `InteractionController` still relied on the global exception handler for edge paths such as:

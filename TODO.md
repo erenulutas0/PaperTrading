@@ -2670,3 +2670,13 @@ Last updated: 2026-03-22
   - targeted verification passed:
     - `InteractionServiceTest`
     - `InteractionControllerIntegrationTest`
+- [x] Harden saved terminal layout mutations against racey limits and generic error contracts:
+  - layout create/update/delete now acquire a pessimistic user-row lock before mutating account-owned terminal layouts, so `countByUserId + save` no longer races across concurrent layout writes
+  - terminal layout controller now emits explicit machine-readable contracts for:
+    - `market_terminal_layout_limit_reached`
+    - `market_terminal_layout_name_required`
+    - `market_terminal_layout_name_too_long`
+    - `market_terminal_layout_not_found`
+  - targeted verification passed:
+    - `MarketTerminalLayoutServiceTest`
+    - `MarketTerminalLayoutControllerIntegrationTest`

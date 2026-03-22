@@ -50,7 +50,7 @@ public class MarketTerminalLayoutService {
 
     @Transactional
     public MarketTerminalLayoutResponse createLayout(UUID userId, MarketTerminalLayoutRequest request) {
-        ensureUserExists(userId);
+        lockUserForLayoutMutation(userId);
         if (marketTerminalLayoutRepository.countByUserId(userId) >= MAX_LAYOUTS_PER_USER) {
             throw new RuntimeException("Layout limit reached");
         }
@@ -72,7 +72,7 @@ public class MarketTerminalLayoutService {
 
     @Transactional
     public MarketTerminalLayoutResponse updateLayout(UUID userId, UUID layoutId, MarketTerminalLayoutRequest request) {
-        ensureUserExists(userId);
+        lockUserForLayoutMutation(userId);
         MarketTerminalLayout layout = marketTerminalLayoutRepository.findByIdAndUserId(layoutId, userId)
                 .orElseThrow(() -> new RuntimeException("Terminal layout not found"));
 
@@ -91,7 +91,7 @@ public class MarketTerminalLayoutService {
 
     @Transactional
     public void deleteLayout(UUID userId, UUID layoutId) {
-        ensureUserExists(userId);
+        lockUserForLayoutMutation(userId);
         MarketTerminalLayout layout = marketTerminalLayoutRepository.findByIdAndUserId(layoutId, userId)
                 .orElseThrow(() -> new RuntimeException("Terminal layout not found"));
         marketTerminalLayoutRepository.delete(layout);
@@ -101,6 +101,11 @@ public class MarketTerminalLayoutService {
         if (!userRepository.existsById(userId)) {
             throw new RuntimeException("User not found");
         }
+    }
+
+    private void lockUserForLayoutMutation(UUID userId) {
+        userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
     private String normalizeName(String raw) {

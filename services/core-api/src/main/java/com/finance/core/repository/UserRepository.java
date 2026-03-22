@@ -1,7 +1,9 @@
 package com.finance.core.repository;
 
 import com.finance.core.domain.AppUser;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,6 +23,10 @@ public interface UserRepository extends JpaRepository<AppUser, UUID> {
     boolean existsByUsername(String username);
 
     List<AppUser> findByIdIn(Collection<UUID> ids);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from AppUser u where u.id = :userId")
+    Optional<AppUser> findByIdForUpdate(@Param("userId") UUID userId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
