@@ -196,6 +196,33 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - preferences/save-view writes now behave deterministically under bad caller input instead of quietly mutating to a different persisted lens
     - frontend and rollout tooling can distinguish invalid inputs from successful writes without reverse-engineering normalized output
+- **2026-03-23**: **Audit Ops Filters Now Reject Invalid Inputs Explicitly**
+  - **Problem observed**:
+    - The audit ops surface still mixed three weak behaviors:
+      - silent limit/day clamping in the service layer
+      - framework-generic 400s for bad enum/UUID query parameters
+      - CSV download routes that only produced structured JSON errors for server faults, not invalid filter input
+    - That made audit tooling less deterministic than the surrounding hardened ops surfaces.
+  - **Implementation**:
+    - `AuditOpsController` now parses and validates:
+      - `limit`
+      - `page`
+      - `days`
+      - `actorId`
+      - `actionType`
+      - `resourceType`
+    - Invalid values now map to explicit machine-readable contracts:
+      - `invalid_audit_limit`
+      - `invalid_audit_page`
+      - `invalid_audit_days`
+      - `invalid_audit_actor_id`
+      - `invalid_audit_action_type`
+      - `invalid_audit_resource_type`
+    - CSV export keeps JSON error envelopes on invalid filter failures, so download callers do not need to special-case malformed input separately from server failures.
+    - Added targeted integration coverage for invalid limit, action type, actor id, and day-window paths.
+  - **Operational impact**:
+    - audit read/export callers now get deterministic input contracts instead of a mix of silent coercion and framework-default failures
+    - ops tooling can distinguish malformed filter state from genuine backend export failures without ad hoc parsing
 - **2026-03-22**: **Notification Read And Stream-Token Paths Now Require A Real Persisted User**
   - **Problem observed**:
     - Notification endpoints already enforced ownership at the notification-row level, but account-backed reads such as:

@@ -2786,3 +2786,8 @@ Last updated: 2026-03-23
   - targeted verification passed:
     - `UserPreferencesControllerIntegrationTest`
     - `UserPreferencesServiceTest`
+- [x] Harden audit ops reads and exports with explicit invalid-filter contracts:
+  - `/api/v1/ops/auditlog`, `/export`, and `/export/json` now reject invalid limit/page/days/actorId/actionType/resourceType values instead of silently clamping or falling through to framework-generic 400s
+  - CSV export errors keep JSON error envelopes, so invalid filter failures stay machine-readable even on the download path
+  - targeted verification passed:
+    - `AuditOpsControllerIntegrationTest`

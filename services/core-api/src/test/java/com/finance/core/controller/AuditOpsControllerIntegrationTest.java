@@ -256,6 +256,55 @@ class AuditOpsControllerIntegrationTest {
     }
 
     @Test
+    void auditOpsEndpoint_withInvalidLimit_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/ops/auditlog")
+                        .param("limit", "101")
+                        .header("X-Request-Id", "audit-limit-err-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "audit-limit-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_audit_limit"))
+                .andExpect(jsonPath("$.message").value("Invalid audit limit"))
+                .andExpect(jsonPath("$.requestId").value("audit-limit-err-1"));
+    }
+
+    @Test
+    void auditOpsEndpoint_withInvalidActionType_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/ops/auditlog")
+                        .param("actionType", "not_real")
+                        .header("X-Request-Id", "audit-action-err-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "audit-action-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_audit_action_type"))
+                .andExpect(jsonPath("$.message").value("Invalid audit action type"))
+                .andExpect(jsonPath("$.requestId").value("audit-action-err-1"));
+    }
+
+    @Test
+    void auditOpsExport_withInvalidActorId_shouldReturnExplicitJsonBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/ops/auditlog/export")
+                        .param("actorId", "broken-uuid")
+                        .header("X-Request-Id", "audit-actor-err-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(header().string("X-Request-Id", "audit-actor-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_audit_actor_id"))
+                .andExpect(jsonPath("$.message").value("Invalid audit actor id"))
+                .andExpect(jsonPath("$.requestId").value("audit-actor-err-1"));
+    }
+
+    @Test
+    void auditOpsExportJson_withInvalidDays_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/ops/auditlog/export/json")
+                        .param("days", "0")
+                        .header("X-Request-Id", "audit-days-err-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "audit-days-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_audit_days"))
+                .andExpect(jsonPath("$.message").value("Invalid audit days"))
+                .andExpect(jsonPath("$.requestId").value("audit-days-err-1"));
+    }
+
+    @Test
     void auditOpsExport_whenCsvExportFails_ShouldReturnCorrelatedApiError() throws Exception {
         doThrow(new RuntimeException("csv-boom"))
                 .when(inspectionService)
