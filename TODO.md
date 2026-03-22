@@ -2640,3 +2640,11 @@ Last updated: 2026-03-22
   - targeted verification passed:
     - `UserProfileServiceTest`
     - `UserProfileControllerIntegrationTest`
+- [x] Harden portfolio participation writes against duplicate-join races and orphan clones:
+  - join flow now reserves the `(portfolio_id, user_id)` participation edge with `saveAndFlush` before creating the cloned portfolio
+  - duplicate join constraint races are normalized back to `Already joined this portfolio` instead of leaking raw DB failures or leaving orphan clone rows
+  - leave flow now uses atomic edge delete semantics instead of load-then-delete participation rows
+  - controller integration cleanup now deletes strategy-bot run/output rows before portfolios so participation tests stay schema-safe
+  - targeted verification passed:
+    - `PortfolioParticipationServiceTest`
+    - `PortfolioParticipationControllerIntegrationTest`

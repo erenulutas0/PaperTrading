@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -93,8 +94,14 @@ class PortfolioParticipationServiceTest {
                         when(portfolioRepository.findById(portfolioId)).thenReturn(Optional.of(portfolio));
                         when(participantRepository.existsByPortfolioIdAndUserId(portfolioId, userId)).thenReturn(false);
                         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+                        when(participantRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+                                PortfolioParticipant reserved = invocation.getArgument(0);
+                                reserved.setId(UUID.randomUUID());
+                                return reserved;
+                        });
                         when(portfolioRepository.save(any())).thenReturn(clone);
                         when(portfolioItemRepository.findByPortfolioId(portfolioId)).thenReturn(List.of(item));
+                        when(participantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
                         when(participantRepository.countByPortfolioId(portfolioId)).thenReturn(1L);
 
                         Map<String, Object> result = service.joinPortfolio(portfolioId, userId);
@@ -105,6 +112,7 @@ class PortfolioParticipationServiceTest {
 
                         verify(portfolioRepository).save(any(Portfolio.class));
                         verify(portfolioItemRepository).save(any(PortfolioItem.class));
+                        verify(participantRepository).saveAndFlush(any(PortfolioParticipant.class));
                         verify(participantRepository).save(any(PortfolioParticipant.class));
                         verify(activityFeedService).publish(
                                         eq(userId), eq("joiner"),
@@ -144,6 +152,23 @@ class PortfolioParticipationServiceTest {
                 }
 
                 @Test
+                void join_duplicateConstraintRace_throwsWithoutCloningPortfolio() {
+                        when(portfolioRepository.findById(portfolioId)).thenReturn(Optional.of(portfolio));
+                        when(participantRepository.existsByPortfolioIdAndUserId(portfolioId, userId)).thenReturn(false);
+                        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+                        when(participantRepository.saveAndFlush(any()))
+                                        .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+                        RuntimeException ex = assertThrows(RuntimeException.class,
+                                        () -> service.joinPortfolio(portfolioId, userId));
+
+                        assertTrue(ex.getMessage().contains("Already joined"));
+                        verify(portfolioRepository, never()).save(any(Portfolio.class));
+                        verify(portfolioItemRepository, never()).save(any(PortfolioItem.class));
+                        verify(participantRepository, never()).save(any(PortfolioParticipant.class));
+                }
+
+                @Test
                 void join_portfolioNotFound_throws() {
                         when(portfolioRepository.findById(any())).thenReturn(Optional.empty());
 
@@ -157,20 +182,13 @@ class PortfolioParticipationServiceTest {
 
                 @Test
                 void leave_success() {
-                        PortfolioParticipant participant = PortfolioParticipant.builder()
-                                        .id(UUID.randomUUID())
-                                        .portfolioId(portfolioId)
-                                        .userId(userId)
-                                        .build();
-
-                        when(participantRepository.findByPortfolioIdAndUserId(portfolioId, userId))
-                                        .thenReturn(Optional.of(participant));
                         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
                         when(portfolioRepository.findById(portfolioId)).thenReturn(Optional.of(portfolio));
+                        when(participantRepository.deleteByPortfolioIdAndUserId(portfolioId, userId)).thenReturn(1);
 
                         service.leavePortfolio(portfolioId, userId);
 
-                        verify(participantRepository).delete(participant);
+                        verify(participantRepository).deleteByPortfolioIdAndUserId(portfolioId, userId);
                         verify(activityFeedService).publish(
                                         eq(userId), eq("joiner"),
                                         eq(ActivityEvent.EventType.PORTFOLIO_LEFT),
@@ -180,8 +198,9 @@ class PortfolioParticipationServiceTest {
 
                 @Test
                 void leave_notParticipant_throws() {
-                        when(participantRepository.findByPortfolioIdAndUserId(portfolioId, userId))
-                                        .thenReturn(Optional.empty());
+                        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+                        when(portfolioRepository.findById(portfolioId)).thenReturn(Optional.of(portfolio));
+                        when(participantRepository.deleteByPortfolioIdAndUserId(portfolioId, userId)).thenReturn(0);
 
                         assertThrows(RuntimeException.class,
                                         () -> service.leavePortfolio(portfolioId, userId));

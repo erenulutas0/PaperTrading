@@ -7,6 +7,7 @@ import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,8 +39,7 @@ public class PortfolioParticipationService {
          */
         @Transactional
         public Map<String, Object> joinPortfolio(UUID portfolioId, UUID userId) {
-                Portfolio original = portfolioRepository.findById(portfolioId)
-                                .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+                Portfolio original = loadRequiredPortfolio(portfolioId);
 
                 if (original.getVisibility() != Portfolio.Visibility.PUBLIC) {
                         throw new RuntimeException("Cannot join a private portfolio");
@@ -53,8 +53,9 @@ public class PortfolioParticipationService {
                         throw new RuntimeException("Already joined this portfolio");
                 }
 
-                AppUser user = userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("User not found"));
+                AppUser user = loadRequiredUser(userId);
+
+                PortfolioParticipant participant = reserveParticipation(portfolioId, userId);
 
                 // Create a clone portfolio for the user
                 Portfolio clone = Portfolio.builder()
@@ -79,12 +80,7 @@ public class PortfolioParticipationService {
                         portfolioItemRepository.save(clonedItem);
                 }
 
-                // Record participation
-                PortfolioParticipant participant = PortfolioParticipant.builder()
-                                .portfolioId(portfolioId)
-                                .userId(userId)
-                                .clonedPortfolioId(clone.getId())
-                                .build();
+                participant.setClonedPortfolioId(clone.getId());
                 participantRepository.save(participant);
 
                 // Publish activity event
@@ -119,16 +115,13 @@ public class PortfolioParticipationService {
          */
         @Transactional
         public void leavePortfolio(UUID portfolioId, UUID userId) {
-                PortfolioParticipant participant = participantRepository
-                                .findByPortfolioIdAndUserId(portfolioId, userId)
-                                .orElseThrow(() -> new RuntimeException("Not a participant of this portfolio"));
+                AppUser user = loadRequiredUser(userId);
+                Portfolio original = loadRequiredPortfolio(portfolioId);
 
-                AppUser user = userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("User not found"));
-                Portfolio original = portfolioRepository.findById(portfolioId)
-                                .orElseThrow(() -> new RuntimeException("Portfolio not found"));
-
-                participantRepository.delete(participant);
+                int deleted = participantRepository.deleteByPortfolioIdAndUserId(portfolioId, userId);
+                if (deleted == 0) {
+                        throw new RuntimeException("Not a participant of this portfolio");
+                }
 
                 // Publish activity event
                 activityFeedService.publish(
@@ -153,5 +146,27 @@ public class PortfolioParticipationService {
         /** Check if user has joined a portfolio */
         public boolean hasJoined(UUID portfolioId, UUID userId) {
                 return participantRepository.existsByPortfolioIdAndUserId(portfolioId, userId);
+        }
+
+        private AppUser loadRequiredUser(UUID userId) {
+                return userRepository.findById(userId)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+        }
+
+        private Portfolio loadRequiredPortfolio(UUID portfolioId) {
+                return portfolioRepository.findById(portfolioId)
+                                .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+        }
+
+        private PortfolioParticipant reserveParticipation(UUID portfolioId, UUID userId) {
+                PortfolioParticipant participant = PortfolioParticipant.builder()
+                                .portfolioId(portfolioId)
+                                .userId(userId)
+                                .build();
+                try {
+                        return participantRepository.saveAndFlush(participant);
+                } catch (DataIntegrityViolationException ex) {
+                        throw new RuntimeException("Already joined this portfolio", ex);
+                }
         }
 }

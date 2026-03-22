@@ -5,6 +5,10 @@ import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioParticipant;
 import com.finance.core.repository.PortfolioParticipantRepository;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.StrategyBotRepository;
+import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunFillRepository;
+import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.UserRepository;
 import com.finance.core.service.BinanceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +51,18 @@ class PortfolioParticipationControllerIntegrationTest {
     @Autowired
     private com.finance.core.repository.NotificationRepository notificationRepository;
 
+    @Autowired
+    private StrategyBotRepository strategyBotRepository;
+
+    @Autowired
+    private StrategyBotRunRepository strategyBotRunRepository;
+
+    @Autowired
+    private StrategyBotRunFillRepository strategyBotRunFillRepository;
+
+    @Autowired
+    private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private BinanceService binanceService;
 
@@ -61,6 +77,10 @@ class PortfolioParticipationControllerIntegrationTest {
         notificationRepository.deleteAll();
         activityEventRepository.deleteAll();
         portfolioParticipantRepository.deleteAll();
+        strategyBotRunEquityPointRepository.deleteAll();
+        strategyBotRunFillRepository.deleteAll();
+        strategyBotRunRepository.deleteAll();
+        strategyBotRepository.deleteAll();
         portfolioRepository.deleteAll();
         userRepository.deleteAll();
 

@@ -4,6 +4,7 @@ import com.finance.core.domain.PortfolioParticipant;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -17,6 +18,10 @@ public interface PortfolioParticipantRepository extends JpaRepository<PortfolioP
 
     /** Find a specific participation record */
     Optional<PortfolioParticipant> findByPortfolioIdAndUserId(UUID portfolioId, UUID userId);
+
+    /** Atomically remove a specific participation edge */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    int deleteByPortfolioIdAndUserId(UUID portfolioId, UUID userId);
 
     /** Paginated list of participants for a portfolio */
     Page<PortfolioParticipant> findByPortfolioId(UUID portfolioId, Pageable pageable);

@@ -38,6 +38,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Portfolio Join Writes Now Reserve The Participation Edge Before Cloning**
+  - **Problem observed**:
+    - `PortfolioParticipationService.joinPortfolio(...)` still followed a risky order:
+      - check `exists`
+      - create cloned portfolio
+      - clone items
+      - save `portfolio_participants` edge
+    - Under a duplicate join race, that ordering could let the unique constraint fail only after the clone portfolio and cloned items had already been created, leaving orphan clone state inside the transaction path.
+    - `leavePortfolio(...)` also still used load-then-delete semantics for the participation edge.
+  - **Implementation**:
+    - Added `PortfolioParticipantRepository.deleteByPortfolioIdAndUserId(...)` for atomic leave semantics.
+    - Changed join flow to reserve the `(portfolio_id, user_id)` edge first with `saveAndFlush`, then create the clone only after the edge is secured.
+    - Normalized duplicate join constraint races back into the existing `Already joined this portfolio` domain error.
+    - Updated `PortfolioParticipationControllerIntegrationTest` cleanup order to delete strategy-bot run/output rows before portfolios.
+  - **Operational impact**:
+    - duplicate join races no longer risk creating orphan clone portfolios before the unique edge constraint is enforced
+    - leave operations are less dependent on a stale preloaded participation entity under concurrent requests
+    - participation integration tests no longer assume a pre-strategy-bot schema during cleanup
 - **2026-03-22**: **Follow Graph Writes Now Use Atomic Counter Updates Instead Of Load-Modify-Save User Rows**
   - **Problem observed**:
     - `UserProfileService.follow/unfollow` was still adjusting `followerCount` and `followingCount` by loading both users, mutating counters in memory, and saving them back.
