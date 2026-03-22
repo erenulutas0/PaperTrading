@@ -2621,3 +2621,7 @@ Last updated: 2026-03-22
   - portfolio and account leaderboard reads now fall back to DB-backed metric aggregation when Redis range reads are empty/unavailable
   - keep Redis as the fast path for cached ZSET ranking, not the availability dependency
   - lock fallback behavior with targeted `LeaderboardServiceTest` coverage
+- [x] Harden feed reads and publish invalidation against cache adapter exceptions:
+  - global/personalized feed reads now fall back to repository paths if cache page reads or version lookups throw unexpectedly
+  - publish path now tolerates global cache invalidation and follower-version bump failures
+  - targeted `ActivityFeedServiceTest` coverage locks Redis-degradation behavior without requiring a live outage harness

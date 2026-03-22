@@ -129,7 +129,7 @@ public class ActivityFeedService {
 
         // Invalidate all global feed pages when eager invalidation is enabled.
         if (invalidateGlobalCacheOnPublish) {
-            cacheService.deletePattern(GLOBAL_FEED_KEY + ":*");
+            safeDeletePattern(GLOBAL_FEED_KEY + ":*");
         }
 
         // For scale, personalized follower invalidation/broadcast is optional and disabled by default.
@@ -180,8 +180,7 @@ public class ActivityFeedService {
             }
 
             // Try cache first
-            Optional<CachedFeedPage> cached = cacheService.get(cacheKey, new TypeReference<CachedFeedPage>() {
-            });
+            Optional<CachedFeedPage> cached = safeGetCachedPage(cacheKey);
             if (cached.isPresent()) {
                 try {
                     CachedFeedPage cachedPage = cached.get();
@@ -226,8 +225,7 @@ public class ActivityFeedService {
             }
 
             // Try cache
-            Optional<CachedFeedPage> cached = cacheService.get(cacheKey, new TypeReference<CachedFeedPage>() {
-            });
+            Optional<CachedFeedPage> cached = safeGetCachedPage(cacheKey);
             if (cached.isPresent()) {
                 try {
                     CachedFeedPage cachedPage = cached.get();
@@ -273,18 +271,47 @@ public class ActivityFeedService {
         if (!versionFollowerFeedKeysOnPublish) {
             return 0L;
         }
-        return cacheService.get(buildUserFeedVersionKey(userId), Long.class).orElse(0L);
+        try {
+            return cacheService.get(buildUserFeedVersionKey(userId), Long.class).orElse(0L);
+        } catch (Exception e) {
+            log.debug("Failed to resolve follower feed version for {}: {}", userId, e.getMessage());
+            return 0L;
+        }
     }
 
     private void invalidateFollowerFeedCache(UUID followerId) {
         if (!versionFollowerFeedKeysOnPublish) {
-            cacheService.deletePattern(USER_FEED_KEY_PREFIX + followerId + ":*");
+            safeDeletePattern(USER_FEED_KEY_PREFIX + followerId + ":*");
             return;
         }
 
-        Long nextVersion = cacheService.incrementWithTtl(buildUserFeedVersionKey(followerId), followerFeedVersionTtl);
+        Long nextVersion;
+        try {
+            nextVersion = cacheService.incrementWithTtl(buildUserFeedVersionKey(followerId), followerFeedVersionTtl);
+        } catch (Exception e) {
+            log.debug("Failed to bump follower feed version for {}: {}", followerId, e.getMessage());
+            nextVersion = null;
+        }
         if (nextVersion == null) {
-            cacheService.deletePattern(USER_FEED_KEY_PREFIX + followerId + ":*");
+            safeDeletePattern(USER_FEED_KEY_PREFIX + followerId + ":*");
+        }
+    }
+
+    private Optional<CachedFeedPage> safeGetCachedPage(String cacheKey) {
+        try {
+            return cacheService.get(cacheKey, new TypeReference<CachedFeedPage>() {
+            });
+        } catch (Exception e) {
+            log.debug("Failed to read cached feed page for {}: {}", cacheKey, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private void safeDeletePattern(String pattern) {
+        try {
+            cacheService.deletePattern(pattern);
+        } catch (Exception e) {
+            log.debug("Failed to delete feed cache pattern {}: {}", pattern, e.getMessage());
         }
     }
 

@@ -53,6 +53,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - transient Redis issues no longer imply blank leaderboard pages
     - leaderboard ranking keeps its fast cached path while becoming materially more resilient under cache degradation
+- **2026-03-22**: **Feed Reads Now Treat Cache Adapter Failures As Soft Misses Instead Of Fatal Errors**
+  - **Problem observed**:
+    - `CacheService` already tries to swallow Redis failures, but `ActivityFeedService` still assumed cache reads/version lookups/invalidation calls would not throw unexpectedly.
+    - That left a narrow but real failure mode where an adapter/runtime exception could break feed reads or publish invalidation flow instead of degrading to the repository path.
+  - **Implementation**:
+    - Wrapped feed cache-page reads behind a safe loader that converts adapter exceptions into cache misses.
+    - Wrapped follower-version lookup behind a safe `0` fallback.
+    - Wrapped global cache invalidation and follower invalidation pattern-delete flow so publish continues even if cache operations throw.
+    - Extended `ActivityFeedServiceTest` to cover:
+      - global feed cache-read exception fallback
+      - personalized feed version-lookup exception fallback
+      - publish surviving global invalidation exceptions
+      - publish falling back to pattern delete when version bump throws
+  - **Operational impact**:
+    - feed publish/read paths now degrade more predictably under Redis adapter faults
+    - cache failures stay a performance problem instead of becoming a user-visible feed outage
 - **2026-03-21**: **Strategy Bots Start As Audited Draft CRUD Before Any Execution Engine**
   - **Problem observed**:
     - The product direction now includes paper-only strategy bots, but jumping directly into execution/backtest logic would entangle several concerns at once:

@@ -128,6 +128,25 @@ class ActivityFeedServiceTest {
     }
 
     @Test
+    void publish_shouldContinueWhenGlobalCacheInvalidationThrows() {
+        UUID actorId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+
+        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new RuntimeException("redis-down")).when(cacheService).deletePattern("feed:global:*");
+
+        ActivityEvent event = feedService.publish(
+                actorId, "trader1",
+                ActivityEvent.EventType.POST_CREATED,
+                ActivityEvent.TargetType.POST,
+                targetId, "BTC Analysis");
+
+        assertNotNull(event);
+        verify(eventRepository).save(any(ActivityEvent.class));
+        verify(messagingTemplate).convertAndSend("/topic/feed/global", event);
+    }
+
+    @Test
     void getPersonalizedFeed_returnsEventsFromFollowedUsers() {
         UUID userId = UUID.randomUUID();
         UUID followedId = UUID.randomUUID();
@@ -151,6 +170,31 @@ class ActivityFeedServiceTest {
         verify(cacheService).get(startsWith("feed:user:" + userId + ":v3:"), any(com.fasterxml.jackson.core.type.TypeReference.class));
         verify(eventRepository).findPersonalizedFeedByFollowerId(userId, pageable);
         verify(followRepository, never()).findByFollowerId(any(UUID.class));
+    }
+
+    @Test
+    void getPersonalizedFeed_shouldFallbackWhenVersionLookupThrows() {
+        UUID userId = UUID.randomUUID();
+        UUID followedId = UUID.randomUUID();
+        Pageable pageable = PageRequest.of(0, 20);
+
+        ActivityEvent event = ActivityEvent.builder()
+                .id(UUID.randomUUID())
+                .actorId(followedId)
+                .eventType(ActivityEvent.EventType.POST_CREATED)
+                .targetType(ActivityEvent.TargetType.POST)
+                .targetId(UUID.randomUUID())
+                .build();
+        when(cacheService.get("feed:user-version:" + userId, Long.class)).thenThrow(new RuntimeException("redis-down"));
+        when(cacheService.get(startsWith("feed:user:" + userId + ":v0:"), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenReturn(Optional.empty());
+        when(eventRepository.findPersonalizedFeedByFollowerId(userId, pageable))
+                .thenReturn(new PageImpl<>(List.of(event)));
+
+        Page<ActivityEvent> feed = feedService.getPersonalizedFeed(userId, pageable);
+
+        assertEquals(1, feed.getTotalElements());
+        verify(eventRepository).findPersonalizedFeedByFollowerId(userId, pageable);
     }
 
     @Test
@@ -192,6 +236,28 @@ class ActivityFeedServiceTest {
     }
 
     @Test
+    void publish_shouldFallbackToPatternDelete_whenVersionIncrementThrows() {
+        UUID actorId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        UUID followerId = UUID.randomUUID();
+        feedService.setInvalidateFollowerCachesOnPublish(true);
+
+        when(followRepository.findByFollowingId(eq(actorId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(Follow.builder().followerId(followerId).followingId(actorId).build())));
+        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(cacheService.incrementWithTtl(eq("feed:user-version:" + followerId), any(Duration.class)))
+                .thenThrow(new RuntimeException("redis-down"));
+
+        feedService.publish(
+                actorId, "trader1",
+                ActivityEvent.EventType.POST_CREATED,
+                ActivityEvent.TargetType.POST,
+                targetId, "BTC Analysis");
+
+        verify(cacheService).deletePattern("feed:user:" + followerId + ":*");
+    }
+
+    @Test
     void getGlobalFeed_returnsAllEvents() {
         Pageable pageable = PageRequest.of(0, 20);
         ActivityEvent event = ActivityEvent.builder()
@@ -230,6 +296,28 @@ class ActivityFeedServiceTest {
         assertEquals(42L, result.getTotalElements());
         assertEquals(1, result.getContent().size());
         verify(eventRepository, never()).findAllByOrderByCreatedAtDesc(any());
+    }
+
+    @Test
+    void getGlobalFeed_shouldFallbackToRepositoryWhenCacheReadThrows() {
+        Pageable pageable = PageRequest.of(0, 20);
+        ActivityEvent event = ActivityEvent.builder()
+                .id(UUID.randomUUID())
+                .actorId(UUID.randomUUID())
+                .eventType(ActivityEvent.EventType.FOLLOW)
+                .targetType(ActivityEvent.TargetType.USER)
+                .targetId(UUID.randomUUID())
+                .build();
+
+        when(cacheService.get(anyString(), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenThrow(new RuntimeException("redis-down"));
+        when(eventRepository.findAllByOrderByCreatedAtDesc(pageable))
+                .thenReturn(new PageImpl<>(List.of(event)));
+
+        Page<ActivityEvent> result = feedService.getGlobalFeed(pageable);
+
+        assertEquals(1L, result.getTotalElements());
+        verify(eventRepository).findAllByOrderByCreatedAtDesc(pageable);
     }
 
     @Test
