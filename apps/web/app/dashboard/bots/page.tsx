@@ -100,6 +100,7 @@ export default function StrategyBotsPage() {
     const [refreshingRunId, setRefreshingRunId] = useState<string | null>(null);
     const [applyingRunId, setApplyingRunId] = useState<string | null>(null);
     const [exportingFormat, setExportingFormat] = useState<'csv' | 'json' | null>(null);
+    const [exportingRunFormat, setExportingRunFormat] = useState<'csv' | 'json' | null>(null);
     const [outputsLoading, setOutputsLoading] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -249,6 +250,37 @@ export default function StrategyBotsPage() {
             setActionError(err(error));
         } finally {
             setExportingFormat(null);
+        }
+    }
+
+    async function exportRun(format: 'csv' | 'json') {
+        if (!selectedBotId || !selectedRun) {
+            setActionError('Select a strategy bot run before exporting');
+            return;
+        }
+        setExportingRunFormat(format);
+        setActionError(null);
+        setNotice(null);
+        try {
+            const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${selectedRun.id}/export?format=${format}`, {
+                cache: 'no-store',
+            });
+            if (!response.ok) throw new Error(await response.text() || `Strategy bot run export failed (${response.status})`);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = downloadNameFromDisposition(
+                response.headers.get('Content-Disposition'),
+                `strategy-bot-run.${format}`,
+            );
+            anchor.click();
+            window.URL.revokeObjectURL(url);
+            setNotice(format === 'csv' ? 'Run CSV exported' : 'Run JSON exported');
+        } catch (error) {
+            setActionError(err(error));
+        } finally {
+            setExportingRunFormat(null);
         }
     }
 
@@ -986,9 +1018,29 @@ export default function StrategyBotsPage() {
                                                     )}
                                                 </div>
                                                 <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Raw Outputs</p>
+                                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Raw Outputs</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void exportRun('csv')}
+                                                                disabled={exportingRunFormat !== null}
+                                                                className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            >
+                                                                {exportingRunFormat === 'csv' ? 'Exporting CSV...' : 'Export Run CSV'}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void exportRun('json')}
+                                                                disabled={exportingRunFormat !== null}
+                                                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            >
+                                                                {exportingRunFormat === 'json' ? 'Exporting JSON...' : 'Export Run JSON'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                     <div className="mt-3 max-h-56 overflow-auto rounded-xl border border-white/5 bg-black/25 p-3">
-                                                        <pre className="whitespace-pre-wrap text-xs leading-6 text-zinc-300">{pretty({ fills: selectedRunFills, equityCurve: selectedRunEquityCurve })}</pre>
+                                                        <pre className="whitespace-pre-wrap text-xs leading-6 text-zinc-300">{pretty({ fills: selectedRunFills, equityCurve: selectedRunEquityCurve, reconciliationPlan: selectedRunReconciliation })}</pre>
                                                     </div>
                                                 </div>
                                             </div>

@@ -26,10 +26,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -272,6 +275,64 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].type").value("CASH SYNC (BOT)"))
                 .andExpect(jsonPath("$.content[0].symbol").value("BTCUSDT"));
+    }
+
+    @Test
+    void exportRun_shouldReturnCsvAndJsonDownloads() throws Exception {
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Run Export Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{\"all\":[\"price_above_ma_3\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .takeProfitPercent(new BigDecimal("2"))
+                .cooldownMinutes(1000000)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        when(marketDataFacadeService.getCandles(MarketType.CRYPTO, "BTCUSDT", "ALL", "1h", null, 500))
+                .thenReturn(risingCandles());
+
+        String runResponse = mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("runMode", "BACKTEST"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String runId = objectMapper.readTree(runResponse).get("id").asText();
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/execute")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("format", "csv"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString(".csv")))
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(content().string(containsString("context,name,Run Export Bot")))
+                .andExpect(content().string(containsString("summary,tradeCount,1")))
+                .andExpect(content().string(containsString("reconciliation,targetCashBalance")));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("format", "json"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString(".json")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.name").value("Run Export Bot"))
+                .andExpect(jsonPath("$.run.id").value(runId))
+                .andExpect(jsonPath("$.fills", hasSize(2)))
+                .andExpect(jsonPath("$.equityCurve", hasSize(risingCandles().size())))
+                .andExpect(jsonPath("$.reconciliationPlan.linkedPortfolioId").value(linkedPortfolio.getId().toString()));
     }
 
     @Test

@@ -570,6 +570,7 @@ Last updated: 2026-03-22
   - backend:
     - `GET /api/v1/strategy-bots/{botId}/analytics`
     - `GET /api/v1/strategy-bots/{botId}/analytics/export?format=csv|json`
+    - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/export?format=csv|json`
     - bot-level aggregates for:
       - run counts by mode/status
       - average return / pnl / drawdown / win-rate / profit-factor / expectancy
@@ -585,9 +586,14 @@ Last updated: 2026-03-22
       - recent run scorecards table
       - `Export CSV`
       - `Export JSON`
+    - selected run detail now exposes:
+      - `Export Run CSV`
+      - `Export Run JSON`
+      - portable run reports derived from persisted fills, equity points, and reconciliation preview
   - tests:
     - `StrategyBotRunServiceTest`
     - `StrategyBotControllerIntegrationTest`
+    - `StrategyBotRunControllerIntegrationTest`
     - `apps/web` `npx tsc --noEmit`
 - [x] Added strategy-bot forward-test scheduler observability + smoke tooling:
   - backend:

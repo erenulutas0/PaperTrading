@@ -351,6 +351,37 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - bot reporting is now portable without introducing a second analytics source of truth
     - future admin/reporting surfaces can reuse the same aggregate contract for both screen and download paths
+- **2026-03-22**: **Strategy Bot Run Exports Now Reuse Persisted Run Rows Instead Of Rebuilding Browser-Side Reports**
+  - **Problem observed**:
+    - `/dashboard/bots` could already inspect:
+      - run summary
+      - persisted fills
+      - persisted equity points
+      - reconciliation preview
+    - But selected-run reporting still stopped at the browser.
+    - Without a backend-owned run export:
+      - operators could not archive one specific run cleanly
+      - the frontend would be tempted to serialize ad-hoc raw panels that drift from persisted backend rows
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/{botId}/runs/{runId}/export?format=csv|json`.
+    - JSON export now wraps:
+      - bot context
+      - exported timestamp
+      - normalized run response
+      - persisted fills
+      - persisted equity curve rows
+      - reconciliation-plan snapshot when available
+    - CSV export now flattens:
+      - bot/run context
+      - key run summary metrics
+      - entry/exit driver counts
+      - fill rows
+      - equity rows
+      - reconciliation metrics
+    - `/dashboard/bots` selected-run detail now exposes `Export Run CSV` and `Export Run JSON`.
+  - **Operational impact**:
+    - one run can now be exported without scraping browser state
+    - run-level reporting stays aligned with the persisted execution/reconciliation contract instead of introducing a second client-owned report path
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

@@ -156,6 +156,33 @@ public class StrategyBotController {
         }
     }
 
+    @GetMapping("/{botId}/runs/{runId}/export")
+    public ResponseEntity<?> exportRun(
+            @PathVariable UUID botId,
+            @PathVariable UUID runId,
+            @CurrentUserId UUID userId,
+            @RequestParam(defaultValue = "json") String format,
+            HttpServletRequest request) {
+        try {
+            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase();
+            if ("csv".equals(normalizedFormat)) {
+                byte[] content = strategyBotRunService.buildRunExportCsv(botId, runId, userId);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-run-" + runId + ".csv\"")
+                        .contentType(new MediaType("text", "csv"))
+                        .body(content);
+            }
+
+            String content = strategyBotRunService.buildRunExportJson(botId, runId, userId);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-run-" + runId + ".json\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(content);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_run_export_failed", "Failed to export strategy bot run", request);
+        }
+    }
+
     @GetMapping("/{botId}/runs/{runId}/fills")
     public ResponseEntity<?> listRunFills(
             @PathVariable UUID botId,

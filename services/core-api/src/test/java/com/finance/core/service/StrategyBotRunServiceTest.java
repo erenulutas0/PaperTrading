@@ -6,6 +6,7 @@ import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
+import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.MarketCandleResponse;
@@ -24,12 +25,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -578,6 +582,109 @@ class StrategyBotRunServiceTest {
         assertThat(csv).contains("summary,totalRuns,1");
         assertThat(csv).contains("entryDriver,price_above_ma_3,2");
         assertThat(csv).contains("recentScorecard,recent");
+    }
+
+    @Test
+    void buildRunExports_shouldWrapPersistedOutputsAndReconciliation() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        UUID linkedPortfolioId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
+                .name("Run Export Bot")
+                .description("Persistent run export")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(runId)
+                .strategyBotId(botId)
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .compiledEntryRules(bot.getEntryRules())
+                .compiledExitRules(bot.getExitRules())
+                .summary("""
+                        {
+                          "phase": "completed",
+                          "executionEngineReady": true,
+                          "tradeCount": 1,
+                          "endingEquity": 101176.47,
+                          "returnPercent": 4.5,
+                          "entryReasonCounts": {"price_above_ma_20": 1},
+                          "exitReasonCounts": {"take_profit_hit": 1},
+                          "linkedPortfolioBalance": 100000.0,
+                          "linkedPortfolioReferenceEquity": 101176.47,
+                          "linkedPortfolioDrift": -1176.47,
+                          "linkedPortfolioDriftPercent": -1.16,
+                          "linkedPortfolioAligned": false
+                        }
+                        """)
+                .build();
+
+        StrategyBotRunFill fill = StrategyBotRunFill.builder()
+                .strategyBotRunId(runId)
+                .sequenceNo(1)
+                .side("ENTRY")
+                .openTime(Instant.now().toEpochMilli())
+                .price(new BigDecimal("3200.00"))
+                .quantity(new BigDecimal("12.50000000"))
+                .realizedPnl(BigDecimal.ZERO.setScale(2))
+                .matchedRules("[\"price_above_ma_20\"]")
+                .build();
+
+        StrategyBotRunEquityPoint equityPoint = StrategyBotRunEquityPoint.builder()
+                .strategyBotRunId(runId)
+                .sequenceNo(1)
+                .openTime(Instant.now().toEpochMilli())
+                .closePrice(new BigDecimal("3400.00"))
+                .equity(new BigDecimal("101176.47"))
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+        when(strategyBotRunFillRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(eq(runId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(fill)));
+        when(strategyBotRunEquityPointRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(eq(runId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(equityPoint)));
+        when(portfolioRepository.findById(linkedPortfolioId)).thenReturn(Optional.of(Portfolio.builder()
+                .id(linkedPortfolioId)
+                .name("Linked Paper")
+                .ownerId(userId.toString())
+                .balance(new BigDecimal("100000"))
+                .build()));
+        when(portfolioItemRepository.findByPortfolioId(linkedPortfolioId)).thenReturn(List.of());
+        when(strategyBotRunEquityPointRepository.findFirstByStrategyBotRunIdOrderBySequenceNoDesc(runId))
+                .thenReturn(Optional.of(equityPoint));
+
+        String json = strategyBotRunService.buildRunExportJson(botId, runId, userId);
+        String csv = new String(strategyBotRunService.buildRunExportCsv(botId, runId, userId), StandardCharsets.UTF_8);
+
+        var payload = objectMapper.readTree(json);
+        assertThat(payload.path("name").asText()).isEqualTo("Run Export Bot");
+        assertThat(payload.path("run").path("id").asText()).isEqualTo(runId.toString());
+        assertThat(payload.path("fills").size()).isEqualTo(1);
+        assertThat(payload.path("equityCurve").size()).isEqualTo(1);
+        assertThat(payload.path("reconciliationPlan").path("linkedPortfolioId").asText()).isEqualTo(linkedPortfolioId.toString());
+        assertThat(csv).contains("context,name,Run Export Bot");
+        assertThat(csv).contains("summary,tradeCount,1");
+        assertThat(csv).contains("reconciliation,targetCashBalance,101176.47");
+        assertThat(csv).contains("ENTRY");
     }
 
     @Test

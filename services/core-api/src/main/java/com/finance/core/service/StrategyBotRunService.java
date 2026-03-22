@@ -209,6 +209,206 @@ public class StrategyBotRunService {
         return content.getBytes(StandardCharsets.UTF_8);
     }
 
+    @Transactional(readOnly = true)
+    public String buildRunExportJson(UUID botId, UUID runId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
+
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("strategyBotId", bot.getId());
+        payload.put("name", bot.getName());
+        payload.put("description", bot.getDescription());
+        payload.put("market", bot.getMarket());
+        payload.put("symbol", bot.getSymbol());
+        payload.put("timeframe", bot.getTimeframe());
+        payload.put("status", bot.getStatus().name());
+        payload.put("linkedPortfolioId", bot.getLinkedPortfolioId());
+        payload.put("exportedAt", LocalDateTime.now().toString());
+        payload.put("run", toResponse(run));
+        payload.put("fills", getRunFillRows(run));
+        payload.put("equityCurve", getRunEquityPointRows(run));
+        payload.put("reconciliationPlan", safeBuildRunReconciliation(bot, run));
+        try {
+            return objectMapper.copy()
+                    .findAndRegisterModules()
+                    .writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Failed to serialize strategy bot run export", ex);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] buildRunExportCsv(UUID botId, UUID runId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
+        StrategyBotRunResponse runResponse = toResponse(run);
+        List<StrategyBotRunFillResponse> fills = getRunFillRows(run);
+        List<StrategyBotRunEquityPointResponse> equityPoints = getRunEquityPointRows(run);
+        StrategyBotRunReconciliationResponse reconciliation = safeBuildRunReconciliation(bot, run);
+
+        List<List<Object>> rows = new ArrayList<>();
+        rows.add(List.of(
+                "section",
+                "key",
+                "value",
+                "runId",
+                "runMode",
+                "status",
+                "requestedAt",
+                "startedAt",
+                "completedAt",
+                "openTime",
+                "sequenceNo",
+                "side",
+                "price",
+                "quantity",
+                "realizedPnl",
+                "equity",
+                "closePrice",
+                "portfolioAligned",
+                "warnings",
+                "details"));
+
+        addRunExportMetricRow(rows, "context", "strategyBotId", bot.getId());
+        addRunExportMetricRow(rows, "context", "name", bot.getName());
+        addRunExportMetricRow(rows, "context", "description", bot.getDescription());
+        addRunExportMetricRow(rows, "context", "market", bot.getMarket());
+        addRunExportMetricRow(rows, "context", "symbol", bot.getSymbol());
+        addRunExportMetricRow(rows, "context", "timeframe", bot.getTimeframe());
+        addRunExportMetricRow(rows, "context", "status", bot.getStatus().name());
+        addRunExportMetricRow(rows, "context", "linkedPortfolioId", bot.getLinkedPortfolioId());
+        addRunExportMetricRow(rows, "context", "exportedAt", LocalDateTime.now());
+
+        addRunExportMetricRow(rows, "run", "runId", runResponse.getId());
+        addRunExportMetricRow(rows, "run", "runMode", runResponse.getRunMode());
+        addRunExportMetricRow(rows, "run", "status", runResponse.getStatus());
+        addRunExportMetricRow(rows, "run", "requestedInitialCapital", runResponse.getRequestedInitialCapital());
+        addRunExportMetricRow(rows, "run", "effectiveInitialCapital", runResponse.getEffectiveInitialCapital());
+        addRunExportMetricRow(rows, "run", "fromDate", runResponse.getFromDate());
+        addRunExportMetricRow(rows, "run", "toDate", runResponse.getToDate());
+        addRunExportMetricRow(rows, "run", "requestedAt", runResponse.getRequestedAt());
+        addRunExportMetricRow(rows, "run", "startedAt", runResponse.getStartedAt());
+        addRunExportMetricRow(rows, "run", "completedAt", runResponse.getCompletedAt());
+        addRunExportMetricRow(rows, "run", "errorMessage", runResponse.getErrorMessage());
+
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "phase");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "executionEngineReady");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "fillCount");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "endingEquity");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "netPnl");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "returnPercent");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "tradeCount");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "winCount");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "lossCount");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "maxDrawdownPercent");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "avgWinPnl");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "avgLossPnl");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "profitFactor");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "expectancyPerTrade");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "bestTradePnl");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "worstTradePnl");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "avgHoldHours");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "maxHoldHours");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "timeInMarketPercent");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "avgExposurePercent");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "linkedPortfolioName");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "linkedPortfolioBalance");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "linkedPortfolioReferenceEquity");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "linkedPortfolioDrift");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "linkedPortfolioDriftPercent");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "linkedPortfolioReconciliationBaseline");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "linkedPortfolioAligned");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "positionOpen");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "openQuantity");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "openEntryPrice");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "lastEvaluatedOpenTime");
+        addRunExportMetricRow(rows, "summary", "supportedFeatures", joinJsonArray(runResponse.getSummary().path("supportedFeatures")));
+        addRunExportMetricRow(rows, "summary", "unsupportedRules", joinJsonArray(runResponse.getSummary().path("unsupportedRules")));
+        addRunExportMetricRow(rows, "summary", "warnings", joinJsonArray(runResponse.getSummary().path("warnings")));
+        addReasonMetricRows(rows, "entryDriver", runResponse.getSummary().path("entryReasonCounts"));
+        addReasonMetricRows(rows, "exitDriver", runResponse.getSummary().path("exitReasonCounts"));
+
+        for (StrategyBotRunFillResponse fill : fills) {
+            List<Object> row = new ArrayList<>();
+            row.add("fill");
+            row.add("");
+            row.add("");
+            row.add(runResponse.getId());
+            row.add(runResponse.getRunMode());
+            row.add(runResponse.getStatus());
+            row.add(runResponse.getRequestedAt());
+            row.add(runResponse.getStartedAt());
+            row.add(runResponse.getCompletedAt());
+            row.add(fill.getOpenTime());
+            row.add(fill.getSequenceNo());
+            row.add(fill.getSide());
+            row.add(fill.getPrice());
+            row.add(fill.getQuantity());
+            row.add(fill.getRealizedPnl());
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add(joinJsonArray(fill.getMatchedRules()));
+            rows.add(row);
+        }
+
+        for (StrategyBotRunEquityPointResponse point : equityPoints) {
+            List<Object> row = new ArrayList<>();
+            row.add("equityPoint");
+            row.add("");
+            row.add("");
+            row.add(runResponse.getId());
+            row.add(runResponse.getRunMode());
+            row.add(runResponse.getStatus());
+            row.add(runResponse.getRequestedAt());
+            row.add(runResponse.getStartedAt());
+            row.add(runResponse.getCompletedAt());
+            row.add(point.getOpenTime());
+            row.add(point.getSequenceNo());
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add(point.getEquity());
+            row.add(point.getClosePrice());
+            row.add("");
+            row.add("");
+            row.add("");
+            rows.add(row);
+        }
+
+        if (reconciliation != null) {
+            addRunExportMetricRow(rows, "reconciliation", "linkedPortfolioId", reconciliation.getLinkedPortfolioId());
+            addRunExportMetricRow(rows, "reconciliation", "linkedPortfolioName", reconciliation.getLinkedPortfolioName());
+            addRunExportMetricRow(rows, "reconciliation", "symbol", reconciliation.getSymbol());
+            addRunExportMetricRow(rows, "reconciliation", "runStatus", reconciliation.getRunStatus());
+            addRunExportMetricRow(rows, "reconciliation", "targetPositionOpen", reconciliation.isTargetPositionOpen());
+            addRunExportMetricRow(rows, "reconciliation", "targetQuantity", reconciliation.getTargetQuantity());
+            addRunExportMetricRow(rows, "reconciliation", "targetAveragePrice", reconciliation.getTargetAveragePrice());
+            addRunExportMetricRow(rows, "reconciliation", "targetLastPrice", reconciliation.getTargetLastPrice());
+            addRunExportMetricRow(rows, "reconciliation", "targetCashBalance", reconciliation.getTargetCashBalance());
+            addRunExportMetricRow(rows, "reconciliation", "targetEquity", reconciliation.getTargetEquity());
+            addRunExportMetricRow(rows, "reconciliation", "currentCashBalance", reconciliation.getCurrentCashBalance());
+            addRunExportMetricRow(rows, "reconciliation", "currentQuantity", reconciliation.getCurrentQuantity());
+            addRunExportMetricRow(rows, "reconciliation", "currentAveragePrice", reconciliation.getCurrentAveragePrice());
+            addRunExportMetricRow(rows, "reconciliation", "cashDelta", reconciliation.getCashDelta());
+            addRunExportMetricRow(rows, "reconciliation", "quantityDelta", reconciliation.getQuantityDelta());
+            addRunExportMetricRow(rows, "reconciliation", "cashAligned", reconciliation.isCashAligned());
+            addRunExportMetricRow(rows, "reconciliation", "quantityAligned", reconciliation.isQuantityAligned());
+            addRunExportMetricRow(rows, "reconciliation", "portfolioAligned", reconciliation.isPortfolioAligned());
+            addRunExportMetricRow(rows, "reconciliation", "extraSymbolCount", reconciliation.getExtraSymbolCount());
+            addRunExportMetricRow(rows, "reconciliation", "warnings", String.join(" | ", reconciliation.getWarnings()));
+        }
+
+        String content = rows.stream()
+                .map(row -> row.stream().map(this::escapeCsv).reduce((left, right) -> left + "," + right).orElse(""))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+        return content.getBytes(StandardCharsets.UTF_8);
+    }
+
     private StrategyBotAnalyticsResponse buildBotAnalytics(StrategyBot bot, UUID userId) {
         List<StrategyBotRun> runs = strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId);
         List<StrategyBotRunScorecardResponse> scorecards = runs.stream()
@@ -258,11 +458,37 @@ public class StrategyBotRunService {
         rows.add(List.of(section, key, value == null ? "" : value, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""));
     }
 
+    private void addRunExportMetricRow(List<List<Object>> rows, String section, String key, Object value) {
+        List<Object> row = new ArrayList<>();
+        row.add(section);
+        row.add(key);
+        row.add(value == null ? "" : value);
+        while (row.size() < 20) {
+            row.add("");
+        }
+        rows.add(row);
+    }
+
+    private void addRunExportSummaryMetric(List<List<Object>> rows, JsonNode summary, String fieldName) {
+        JsonNode node = summary.get(fieldName);
+        if (node == null || node.isNull()) {
+            return;
+        }
+        addRunExportMetricRow(rows, "summary", fieldName, node.isContainerNode() ? node.toString() : node.asText());
+    }
+
     private void addReasonRows(List<List<Object>> rows, String section, Map<String, Integer> counts) {
         if (counts == null || counts.isEmpty()) {
             return;
         }
         counts.forEach((key, value) -> addMetricRow(rows, section, key, value));
+    }
+
+    private void addReasonMetricRows(List<List<Object>> rows, String section, JsonNode counts) {
+        if (counts == null || !counts.isObject()) {
+            return;
+        }
+        counts.fields().forEachRemaining(entry -> addRunExportMetricRow(rows, section, entry.getKey(), entry.getValue().asInt(0)));
     }
 
     private void addScorecardRow(List<List<Object>> rows, String section, String key, StrategyBotRunScorecardResponse scorecard) {
@@ -1216,6 +1442,28 @@ public class StrategyBotRunService {
                 .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
     }
 
+    private List<StrategyBotRunFillResponse> getRunFillRows(StrategyBotRun run) {
+        return strategyBotRunFillRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), Pageable.unpaged())
+                .stream()
+                .map(this::toFillResponse)
+                .toList();
+    }
+
+    private List<StrategyBotRunEquityPointResponse> getRunEquityPointRows(StrategyBotRun run) {
+        return strategyBotRunEquityPointRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), Pageable.unpaged())
+                .stream()
+                .map(this::toEquityPointResponse)
+                .toList();
+    }
+
+    private StrategyBotRunReconciliationResponse safeBuildRunReconciliation(StrategyBot bot, StrategyBotRun run) {
+        try {
+            return buildRunReconciliationState(bot, run).response();
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            return null;
+        }
+    }
+
     private Map<String, Object> fill(String side,
                                      MarketCandleResponse candle,
                                      double price,
@@ -1283,6 +1531,18 @@ public class StrategyBotRunService {
             return "\"" + raw.replace("\"", "\"\"") + "\"";
         }
         return raw;
+    }
+
+    private String joinJsonArray(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return "";
+        }
+        if (!node.isArray()) {
+            return node.isValueNode() ? node.asText() : node.toString();
+        }
+        List<String> values = new ArrayList<>();
+        node.forEach(entry -> values.add(entry.isValueNode() ? entry.asText() : entry.toString()));
+        return String.join(" | ", values);
     }
 
     private String writeJsonArray(List<String> values) {
