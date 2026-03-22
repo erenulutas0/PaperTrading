@@ -2617,3 +2617,7 @@ Last updated: 2026-03-22
   - Open selected row request-path slices directly from the detail panel
   - Copy path-slice links for sharing
   - Keep request, actor, resource, and path drill-down flows symmetrical
+- [x] Harden leaderboard reads against Redis degradation:
+  - portfolio and account leaderboard reads now fall back to DB-backed metric aggregation when Redis range reads are empty/unavailable
+  - keep Redis as the fast path for cached ZSET ranking, not the availability dependency
+  - lock fallback behavior with targeted `LeaderboardServiceTest` coverage

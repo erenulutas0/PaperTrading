@@ -22,7 +22,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
 | Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, account-backed compare-basket presets, and market-provider split preparing delayed BIST100 support |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
-| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) |
+| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) + DB-backed read fallback when Redis leaderboard ranges are unavailable |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
 | User Profiles & Social | ✅ Done | Display name, bio, avatar, follows, profile page |
 | Portfolio Sharing (Public/Private) | ✅ Done | Visibility toggle, discover endpoint |
@@ -38,6 +38,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Leaderboard Reads Now Treat Redis As A Fast Path Instead Of An Availability Dependency**
+  - **Problem observed**:
+    - Feed reads already degraded cleanly when Redis was cold or unavailable, but leaderboard reads were still structurally tighter to Redis ZSET availability.
+    - If sorted-set range reads came back empty because Redis was degraded, portfolio and account leaderboards could collapse to empty pages even though Postgres still had valid public portfolio state.
+  - **Implementation**:
+    - Added DB-backed fallback aggregation for:
+      - portfolio leaderboard reads
+      - account leaderboard reads
+    - Redis ZSET reads remain the preferred ranking path, but empty/unavailable range results now fall back to direct metric aggregation from public portfolios.
+    - Extended `LeaderboardServiceTest` to lock the degrade path for:
+      - portfolio return leaderboard
+      - account return leaderboard
+  - **Operational impact**:
+    - transient Redis issues no longer imply blank leaderboard pages
+    - leaderboard ranking keeps its fast cached path while becoming materially more resilient under cache degradation
 - **2026-03-21**: **Strategy Bots Start As Audited Draft CRUD Before Any Execution Engine**
   - **Problem observed**:
     - The product direction now includes paper-only strategy bots, but jumping directly into execution/backtest logic would entangle several concerns at once:

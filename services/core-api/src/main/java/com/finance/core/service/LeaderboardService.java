@@ -66,7 +66,7 @@ public class LeaderboardService {
                 start,
                 end);
         if (range == null || range.isEmpty()) {
-            return Page.empty(pageable);
+            return buildPortfolioLeaderboardFromAllPublicPortfolios(safePeriod, safeSortBy, safeDirection, pageable);
         }
 
         List<UUID> rankedPortfolioIds = new ArrayList<>();
@@ -129,7 +129,80 @@ public class LeaderboardService {
         }
 
         long total = Optional.ofNullable(cacheService.zCard(cacheKey)).orElse(0L);
+        if (total <= 0L && !entries.isEmpty()) {
+            return buildPortfolioLeaderboardFromAllPublicPortfolios(safePeriod, safeSortBy, safeDirection, pageable);
+        }
         return new PageImpl<>(entries, pageable, total);
+    }
+
+    private Page<LeaderboardEntry> buildPortfolioLeaderboardFromAllPublicPortfolios(
+            String period,
+            LeaderboardSortBy sortBy,
+            LeaderboardDirection direction,
+            Pageable pageable) {
+        List<Portfolio> publicPortfolios = portfolioRepository.findByVisibility(Portfolio.Visibility.PUBLIC);
+        if (publicPortfolios.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        LocalDateTime startTime = performanceCalculationService.getStartTimeForPeriod(period);
+        Map<String, Double> prices = binanceService.getPrices();
+        Set<UUID> ownerIds = publicPortfolios.stream()
+                .map(this::parseOwnerUuid)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<UUID, AppUser> userMap = userRepository.findAllById(ownerIds).stream()
+                .collect(Collectors.toMap(AppUser::getId, u -> u));
+
+        List<LeaderboardEntry> sorted = new ArrayList<>();
+        for (Portfolio portfolio : publicPortfolios) {
+            try {
+                PerformanceCalculationService.PerformanceMetrics metrics = performanceCalculationService.calculateMetrics(
+                        portfolio,
+                        startTime,
+                        period,
+                        prices);
+                sorted.add(LeaderboardEntry.builder()
+                        .portfolioId(portfolio.getId())
+                        .portfolioName(portfolio.getName())
+                        .ownerId(portfolio.getOwnerId())
+                        .ownerName(resolveOwnerName(portfolio, userMap))
+                        .returnPercentage(metrics.getReturnPercentage())
+                        .startEquity(metrics.getStartEquity())
+                        .profitLoss(metrics.getProfitLoss())
+                        .totalEquity(metrics.getCurrentEquity())
+                        .build());
+            } catch (Exception e) {
+                log.error("Failed to compute fallback leaderboard metrics for portfolio={} period={}",
+                        portfolio.getId(),
+                        period,
+                        e);
+            }
+        }
+
+        sorted.sort(resolvePortfolioComparator(sortBy, direction));
+        long total = sorted.size();
+        int fromIndex = (int) Math.min(pageable.getOffset(), total);
+        int toIndex = (int) Math.min(fromIndex + pageable.getPageSize(), total);
+
+        List<LeaderboardEntry> pageContent = new ArrayList<>();
+        for (int i = fromIndex; i < toIndex; i++) {
+            LeaderboardEntry entry = sorted.get(i);
+            pageContent.add(LeaderboardEntry.builder()
+                    .rank(i + 1)
+                    .portfolioId(entry.getPortfolioId())
+                    .portfolioName(entry.getPortfolioName())
+                    .ownerId(entry.getOwnerId())
+                    .ownerName(entry.getOwnerName())
+                    .returnPercentage(entry.getReturnPercentage())
+                    .startEquity(entry.getStartEquity())
+                    .profitLoss(entry.getProfitLoss())
+                    .totalEquity(entry.getTotalEquity())
+                    .build());
+        }
+
+        return new PageImpl<>(pageContent, pageable, total);
     }
 
     private Page<AccountLeaderboardEntry> buildAccountLeaderboardFromAllPublicPortfolios(
@@ -244,7 +317,7 @@ public class LeaderboardService {
                 start,
                 end);
         if (range == null || range.isEmpty()) {
-            return Page.empty(pageable);
+            return buildAccountLeaderboardFromAllPublicPortfolios(safePeriod, safeSortBy, safeDirection, pageable);
         }
 
         List<UUID> rankedOwnerIds = new ArrayList<>();
@@ -317,6 +390,9 @@ public class LeaderboardService {
         }
 
         long total = Optional.ofNullable(cacheService.zCard(cacheKey)).orElse(0L);
+        if (total <= 0L && !entries.isEmpty()) {
+            return buildAccountLeaderboardFromAllPublicPortfolios(safePeriod, safeSortBy, safeDirection, pageable);
+        }
         return new PageImpl<>(entries, pageable, total);
     }
 
@@ -528,14 +604,38 @@ public class LeaderboardService {
         return sortBy == LeaderboardSortBy.WIN_RATE || sortBy == LeaderboardSortBy.TRUST_SCORE;
     }
 
+    private Comparator<LeaderboardEntry> resolvePortfolioComparator(
+            LeaderboardSortBy sortBy,
+            LeaderboardDirection direction) {
+        Comparator<LeaderboardEntry> comparator;
+        if (sortBy == LeaderboardSortBy.PROFIT_LOSS) {
+            comparator = Comparator.comparing(
+                    LeaderboardEntry::getProfitLoss,
+                    Comparator.nullsLast(BigDecimal::compareTo));
+        } else {
+            comparator = Comparator.comparing(
+                    LeaderboardEntry::getReturnPercentage,
+                    Comparator.nullsLast(BigDecimal::compareTo));
+        }
+
+        comparator = comparator
+                .thenComparing(LeaderboardEntry::getTotalEquity, Comparator.nullsLast(BigDecimal::compareTo))
+                .thenComparing(LeaderboardEntry::getPortfolioName, Comparator.nullsLast(String::compareToIgnoreCase));
+        return direction == LeaderboardDirection.ASC ? comparator : comparator.reversed();
+    }
+
     private Comparator<AccountLeaderboardEntry> resolveAccountComparator(
             LeaderboardSortBy sortBy,
             LeaderboardDirection direction) {
         Comparator<AccountLeaderboardEntry> comparator;
         if (sortBy == LeaderboardSortBy.WIN_RATE) {
-            comparator = Comparator.comparing(AccountLeaderboardEntry::getWinRate);
+            comparator = Comparator.comparing(AccountLeaderboardEntry::getWinRate, Comparator.nullsLast(Double::compareTo));
+        } else if (sortBy == LeaderboardSortBy.PROFIT_LOSS) {
+            comparator = Comparator.comparing(AccountLeaderboardEntry::getProfitLoss, Comparator.nullsLast(BigDecimal::compareTo));
+        } else if (sortBy == LeaderboardSortBy.RETURN_PERCENTAGE) {
+            comparator = Comparator.comparing(AccountLeaderboardEntry::getReturnPercentage, Comparator.nullsLast(BigDecimal::compareTo));
         } else {
-            comparator = Comparator.comparing(AccountLeaderboardEntry::getTrustScore);
+            comparator = Comparator.comparing(AccountLeaderboardEntry::getTrustScore, Comparator.nullsLast(Double::compareTo));
         }
         comparator = comparator.thenComparing(AccountLeaderboardEntry::getOwnerName, Comparator.nullsLast(String::compareToIgnoreCase));
         return direction == LeaderboardDirection.ASC ? comparator : comparator.reversed();

@@ -154,6 +154,43 @@ class LeaderboardServiceTest {
         }
 
         @Test
+        void getLeaderboard_shouldFallbackToDatabaseWhenRedisRangeUnavailable() {
+                Pageable pageable = PageRequest.of(0, 10);
+
+                when(cacheService.zRevRangeWithScores(eq("leaderboard_portfolios:ALL"), anyLong(), anyLong()))
+                                .thenReturn(Set.of());
+                when(binanceService.getPrices()).thenReturn(Map.of());
+                when(portfolioRepository.findByVisibility(eq(Portfolio.Visibility.PUBLIC)))
+                                .thenReturn(List.of(portfolioA));
+                when(performanceCalculationService.getStartTimeForPeriod("ALL"))
+                                .thenReturn(LocalDateTime.of(2026, 1, 1, 0, 0));
+                when(performanceCalculationService.calculateMetrics(eq(portfolioA), any(LocalDateTime.class), eq("ALL"),
+                                anyMap()))
+                                .thenReturn(PerformanceCalculationService.PerformanceMetrics.builder()
+                                                .currentEquity(BigDecimal.valueOf(110000))
+                                                .startEquity(BigDecimal.valueOf(100000))
+                                                .profitLoss(BigDecimal.valueOf(10000))
+                                                .returnPercentage(BigDecimal.valueOf(10.0))
+                                                .build());
+
+                AppUser user = AppUser.builder()
+                                .id(UUID.fromString("11111111-1111-1111-1111-111111111112"))
+                                .username("traderX")
+                                .build();
+                when(userRepository.findAllById(any())).thenReturn(List.of(user));
+
+                Page<LeaderboardEntry> page = leaderboardService.getLeaderboard(
+                                "ALL",
+                                "RETURN_PERCENTAGE",
+                                "DESC",
+                                pageable);
+
+                assertEquals(1, page.getTotalElements());
+                assertEquals("Alpha Portfolio", page.getContent().get(0).getPortfolioName());
+                verify(portfolioRepository).findByVisibility(Portfolio.Visibility.PUBLIC);
+        }
+
+        @Test
         void refreshLeaderboardJob_shouldClearStaleKeysAndProcessPagedPortfolios() {
                 Page<UUID> firstPage = new PageImpl<>(List.of(portfolioA.getId()), PageRequest.of(0, 250), 1);
 
@@ -254,5 +291,49 @@ class LeaderboardServiceTest {
                 assertEquals(1, page.getContent().get(0).getPublicPortfolioCount());
                 assertEquals(63.4, page.getContent().get(0).getTrustScore(), 0.001);
                 assertEquals(68.5, page.getContent().get(0).getWinRate(), 0.001);
+        }
+
+        @Test
+        void getAccountLeaderboard_shouldFallbackToDatabaseWhenRedisRangeUnavailable() {
+                Pageable pageable = PageRequest.of(0, 10);
+                UUID ownerId = UUID.fromString(portfolioA.getOwnerId());
+
+                when(cacheService.zRevRangeWithScores(eq("leaderboard_accounts:ALL"), anyLong(), anyLong()))
+                                .thenReturn(Set.of());
+                when(binanceService.getPrices()).thenReturn(Map.of());
+                when(portfolioRepository.findByVisibility(eq(Portfolio.Visibility.PUBLIC)))
+                                .thenReturn(List.of(portfolioA));
+                when(performanceCalculationService.getStartTimeForPeriod("ALL"))
+                                .thenReturn(LocalDateTime.of(2026, 1, 1, 0, 0));
+                when(performanceCalculationService.calculateMetrics(eq(portfolioA), any(LocalDateTime.class), eq("ALL"),
+                                anyMap()))
+                                .thenReturn(PerformanceCalculationService.PerformanceMetrics.builder()
+                                                .currentEquity(BigDecimal.valueOf(110000))
+                                                .startEquity(BigDecimal.valueOf(100000))
+                                                .profitLoss(BigDecimal.valueOf(10000))
+                                                .returnPercentage(BigDecimal.valueOf(10.0))
+                                                .build());
+
+                AppUser user = AppUser.builder()
+                                .id(ownerId)
+                                .username("traderX")
+                                .displayName("Trader X")
+                                .build();
+                when(userRepository.findAllById(any())).thenReturn(List.of(user));
+                when(trustScoreService.buildTrustScoreBreakdown(ownerId)).thenReturn(TrustScoreBreakdownResponse.builder()
+                                .blendedWinRate(68.5)
+                                .build());
+                when(trustScoreService.calculateTrustScore(any())).thenReturn(63.4);
+
+                Page<AccountLeaderboardEntry> page = leaderboardService.getAccountLeaderboard(
+                                "ALL",
+                                "RETURN_PERCENTAGE",
+                                "DESC",
+                                pageable);
+
+                assertEquals(1, page.getTotalElements());
+                assertEquals("Trader X", page.getContent().get(0).getOwnerName());
+                assertEquals(0, BigDecimal.valueOf(10.0).compareTo(page.getContent().get(0).getReturnPercentage()));
+                verify(portfolioRepository).findByVisibility(Portfolio.Visibility.PUBLIC);
         }
 }
