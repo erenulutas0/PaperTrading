@@ -64,4 +64,24 @@ class ScheduledLockAnnotationTest {
         assertTrue(duplicates.isEmpty(),
                 "Duplicate @SchedulerLock names found: " + String.join(", ", duplicates));
     }
+
+    @Test
+    void schedulerLockNamesShouldFitShedLockSchema() {
+        List<String> tooLong = new ArrayList<>();
+
+        for (Class<?> serviceClass : SCHEDULED_SERVICES) {
+            for (Method method : serviceClass.getDeclaredMethods()) {
+                SchedulerLock schedulerLock = method.getAnnotation(SchedulerLock.class);
+                if (schedulerLock == null) {
+                    continue;
+                }
+                if (schedulerLock.name().length() > 64) {
+                    tooLong.add(serviceClass.getSimpleName() + "." + method.getName() + "=" + schedulerLock.name().length());
+                }
+            }
+        }
+
+        assertTrue(tooLong.isEmpty(),
+                "Overlong @SchedulerLock names found: " + String.join(", ", tooLong));
+    }
 }

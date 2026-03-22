@@ -129,6 +129,10 @@ app:
   market:
     ws:
       enabled: ${APP_MARKET_WS_ENABLED:true}
+  strategy-bots:
+    forward-test-refresh-interval: ${APP_STRATEGY_BOTS_FORWARD_TEST_REFRESH_INTERVAL:PT30S}
+    synthetic-crypto-candles-enabled: ${APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLES_ENABLED:false}
+    synthetic-crypto-candle-count: ${APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLE_COUNT:96}
   feed:
     cache:
       redis-ttl: ${APP_FEED_CACHE_REDIS_TTL:PT15S}

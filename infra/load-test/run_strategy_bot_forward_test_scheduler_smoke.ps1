@@ -106,6 +106,23 @@ function Get-ObjectPropertyValue {
   return $prop.Value
 }
 
+function Format-DetailFragment {
+  param(
+    [string]$Label,
+    [string]$Value
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return ""
+  }
+
+  $normalized = $Value.Replace("`r", " ").Replace("`n", " ").Replace("|", "/").Trim()
+  if ($normalized.Length -gt 220) {
+    $normalized = $normalized.Substring(0, 220) + "..."
+  }
+  return ", $Label=$normalized"
+}
+
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $suffix = Get-Date -Format "yyyyMMddHHmmss"
 $results = New-Object 'System.Collections.Generic.List[object]'
@@ -183,7 +200,10 @@ $executeJson = if ($executeRun.content) { $executeRun.content | ConvertFrom-Json
 $executeStatus = [string](Get-ObjectPropertyValue -Object $executeJson -Name "status")
 $executeSummary = Get-ObjectPropertyValue -Object $executeJson -Name "summary"
 $executePhase = [string](Get-ObjectPropertyValue -Object $executeSummary -Name "phase")
-Assert-Condition -Results $results -Name "Execute Forward-Test Run" -Condition ($executeRun.status -eq 200 -and ($executeStatus -eq "RUNNING" -or $executeStatus -eq "COMPLETED")) -Detail "status=$($executeRun.status), runStatus=$executeStatus, phase=$executePhase"
+$executeDetail = "status=$($executeRun.status), runStatus=$executeStatus, phase=$executePhase"
+$executeDetail += Format-DetailFragment -Label "error" -Value $executeRun.error
+$executeDetail += Format-DetailFragment -Label "body" -Value $executeRun.content
+Assert-Condition -Results $results -Name "Execute Forward-Test Run" -Condition ($executeRun.status -eq 200 -and ($executeStatus -eq "RUNNING" -or $executeStatus -eq "COMPLETED")) -Detail $executeDetail
 
 $finalSnapshotJson = $baselineJson
 $schedulerObserved = $false

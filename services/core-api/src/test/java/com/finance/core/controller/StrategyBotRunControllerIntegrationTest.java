@@ -381,6 +381,44 @@ class StrategyBotRunControllerIntegrationTest {
     }
 
     @Test
+    void executeRun_shouldReturnConflictWhenMarketDataIsUnavailable() throws Exception {
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Forward Unavailable")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{\"all\":[\"price_above_ma_3\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .takeProfitPercent(new BigDecimal("2"))
+                .cooldownMinutes(1000000)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        when(marketDataFacadeService.getCandles(MarketType.CRYPTO, "BTCUSDT", "ALL", "1h", null, 500))
+                .thenThrow(new RuntimeException("I/O error on GET request for market candles"));
+
+        String runResponse = mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("runMode", "FORWARD_TEST"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String runId = objectMapper.readTree(runResponse).get("id").asText();
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/execute")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_market_data_unavailable"))
+                .andExpect(jsonPath("$.message").value("Strategy bot market data unavailable"));
+    }
+
+    @Test
     void refreshRun_shouldCompleteForwardTestWhenToDateIsReached() throws Exception {
         StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
                 .userId(userId)

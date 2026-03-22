@@ -351,6 +351,20 @@ Useful notes:
 - it relies on the scheduler snapshot delta plus `lastRefreshedRunId` to prove recurring runtime refresh actually happened
 - use a poll window comfortably above `app.strategy-bots.forward-test-refresh-interval` if you override that interval locally or in staging
 
+Run a one-off local runtime wrapper that boots a temporary backend, waits for health, and then executes the same scheduler smoke:
+
+```powershell
+./infra/load-test/run_strategy_bot_forward_test_scheduler_local_runtime_check.ps1
+```
+
+Useful notes:
+- this wrapper is for local runtime verification when you do not want to manually restart the backend first
+- it writes a parent report plus the child scheduler smoke report
+- the temporary backend enables deterministic synthetic crypto candles, so the local check does not depend on external Binance REST access
+- the temporary backend also shortens the forward-test refresh interval to keep the scheduler tick observable inside the smoke window
+- use `-SkipAppStart` if you want to point it at an already running backend on the selected port
+- use `-PreserveAppAfterRun` if you want to inspect the temporary backend after the smoke finishes
+
 Run a combined audit validation suite against a local or staging backend:
 
 ```powershell

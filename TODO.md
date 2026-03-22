@@ -677,6 +677,10 @@ Last updated: 2026-03-22
     - `ScheduledLockAnnotationTest`
   - tooling:
     - `run_strategy_bot_forward_test_scheduler_smoke.ps1`
+    - `run_strategy_bot_forward_test_scheduler_local_runtime_check.ps1`
+  - local runtime validation:
+    - one-off wrapper now passes against a temporary local backend without internet-backed candle reads
+    - scheduler lock name length is guarded against ShedLock schema overflow
 - [x] Added strategy-bot run journal foundation:
   - migration:
     - `V23__create_strategy_bot_runs_table.sql`

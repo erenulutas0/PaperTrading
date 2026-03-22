@@ -325,6 +325,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - recurring forward-test refresh can now be verified with evidence instead of timing guesses
     - scheduler safety and runtime refresh observability are now tied to a narrower, more debuggable contract
+- **2026-03-22**: **Forward-Test Scheduler Verification Now Has A One-Off Local Runtime Wrapper Instead Of Requiring Manual Backend Prep**
+  - **Problem observed**:
+    - The focused scheduler smoke already existed, but local verification still depended on the operator to:
+      - start a clean backend
+      - pick a free port
+      - rerun the smoke separately
+    - That kept the runtime check reproducible in theory, but still somewhat manual in practice.
+  - **Implementation**:
+    - Added `run_strategy_bot_forward_test_scheduler_local_runtime_check.ps1`.
+    - The wrapper now:
+      - boots a temporary local backend with local Postgres/Redis wiring
+      - enables deterministic synthetic crypto candles for the temporary runtime so strategy-bot verification does not depend on external market REST access
+      - shortens the scheduler refresh interval during the check to make the recurring tick observable inside a bounded smoke window
+      - waits for `/actuator/health`
+      - runs `run_strategy_bot_forward_test_scheduler_smoke.ps1`
+      - writes a parent runtime report plus app stdout/stderr logs
+      - optionally preserves the temporary backend for debugging
+    - Shortened the forward-test scheduler ShedLock name and added an explicit test that all scheduler lock names fit the current ShedLock schema width.
+    - Strategy-bot run execution now converts market-data transport failures into an explicit conflict contract instead of a generic bad-request path.
+  - **Operational impact**:
+    - strategy-bot runtime verification is now a true one-command local check, even in environments without outbound market-data access
+    - scheduler-smoke failures now come with explicit app-log artifacts instead of only a failing child report
 - **2026-03-22**: **Strategy Bot Runs Now Expose Attribution Metrics, Not Just Outcome Totals**
   - **Problem observed**:
     - Run summaries already exposed result quality:

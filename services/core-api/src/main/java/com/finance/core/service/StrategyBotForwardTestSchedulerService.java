@@ -21,7 +21,7 @@ public class StrategyBotForwardTestSchedulerService {
     private final StrategyBotForwardTestObservabilityService observabilityService;
 
     @Scheduled(fixedDelayString = "${app.strategy-bots.forward-test-refresh-interval:PT30S}")
-    @SchedulerLock(name = "StrategyBotForwardTestSchedulerService.refreshRunningForwardTests", lockAtMostFor = "PT2M", lockAtLeastFor = "PT5S")
+    @SchedulerLock(name = "StrategyBotForwardTest.refresh", lockAtMostFor = "PT2M", lockAtLeastFor = "PT5S")
     public void refreshRunningForwardTests() {
         List<StrategyBotRun> runs = strategyBotRunRepository
                 .findByRunModeAndStatusOrderByRequestedAtAsc(StrategyBotRun.RunMode.FORWARD_TEST, StrategyBotRun.Status.RUNNING);

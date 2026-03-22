@@ -34,6 +34,7 @@ import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
 import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -46,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -74,6 +76,12 @@ public class StrategyBotRunService {
     private final MarketDataFacadeService marketDataFacadeService;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
+
+    @Value("${app.strategy-bots.synthetic-crypto-candles-enabled:false}")
+    private boolean syntheticCryptoCandlesEnabled;
+
+    @Value("${app.strategy-bots.synthetic-crypto-candle-count:96}")
+    private int syntheticCryptoCandleCount;
 
     @Transactional(readOnly = true)
     public Page<StrategyBotRunResponse> getRuns(UUID botId, UUID userId, Pageable pageable) {
@@ -1949,23 +1957,135 @@ public class StrategyBotRunService {
     }
 
     private List<MarketCandleResponse> loadBacktestCandles(StrategyBot bot, StrategyBotRun run) {
-        List<MarketCandleResponse> rawCandles = marketDataFacadeService.getCandles(
-                resolveMarketType(bot.getMarket()),
-                bot.getSymbol(),
-                "ALL",
-                bot.getTimeframe().toLowerCase(),
-                null,
-                500);
+        MarketType marketType = resolveMarketType(bot.getMarket());
+        String normalizedTimeframe = bot.getTimeframe().toLowerCase();
+        List<MarketCandleResponse> rawCandles;
+        try {
+            rawCandles = marketDataFacadeService.getCandles(
+                    marketType,
+                    bot.getSymbol(),
+                    "ALL",
+                    normalizedTimeframe,
+                    null,
+                    500);
+        } catch (Exception ex) {
+            rawCandles = buildSyntheticCryptoCandlesIfEnabled(bot, run, marketType, normalizedTimeframe, ex);
+            if (rawCandles.isEmpty()) {
+                throw new IllegalStateException("Strategy bot market data unavailable");
+            }
+        }
+
+        if (rawCandles == null) {
+            rawCandles = List.of();
+        }
+
+        if (rawCandles.isEmpty() && syntheticCryptoCandlesEnabled && marketType == MarketType.CRYPTO) {
+            rawCandles = buildSyntheticCryptoCandles(bot, run, normalizedTimeframe);
+        }
 
         List<MarketCandleResponse> filtered = rawCandles.stream()
                 .sorted(Comparator.comparingLong(MarketCandleResponse::getOpenTime))
                 .filter(candle -> matchesDateWindow(candle, run.getFromDate(), run.getToDate()))
                 .toList();
 
+        if (filtered.size() < 20 && syntheticCryptoCandlesEnabled && marketType == MarketType.CRYPTO) {
+            filtered = buildSyntheticCryptoCandles(bot, run, normalizedTimeframe).stream()
+                    .sorted(Comparator.comparingLong(MarketCandleResponse::getOpenTime))
+                    .filter(candle -> matchesDateWindow(candle, run.getFromDate(), run.getToDate()))
+                    .toList();
+        }
+
         if (filtered.size() < 20) {
             throw new IllegalStateException("Not enough candles to execute strategy bot run");
         }
         return filtered;
+    }
+
+    private List<MarketCandleResponse> buildSyntheticCryptoCandlesIfEnabled(StrategyBot bot,
+                                                                             StrategyBotRun run,
+                                                                             MarketType marketType,
+                                                                             String normalizedTimeframe,
+                                                                             Exception ex) {
+        if (!syntheticCryptoCandlesEnabled || marketType != MarketType.CRYPTO) {
+            return List.of();
+        }
+        return buildSyntheticCryptoCandles(bot, run, normalizedTimeframe);
+    }
+
+    private List<MarketCandleResponse> buildSyntheticCryptoCandles(StrategyBot bot,
+                                                                   StrategyBotRun run,
+                                                                   String normalizedTimeframe) {
+        int candleCount = Math.max(24, syntheticCryptoCandleCount);
+        long intervalMillis = resolveTimeframeMillis(normalizedTimeframe);
+        long anchorTime = resolveSyntheticAnchorTime(run, intervalMillis);
+        long startOpenTime = anchorTime - ((long) candleCount - 1L) * intervalMillis;
+        List<MarketCandleResponse> candles = new ArrayList<>(candleCount);
+        double previousClose = baseSyntheticPrice(bot.getSymbol());
+
+        for (int i = 0; i < candleCount; i++) {
+            long openTime = startOpenTime + ((long) i * intervalMillis);
+            double drift = 0.6 + ((i % 7) * 0.15);
+            double open = previousClose;
+            double close = roundSynthetic(open + drift);
+            double high = roundSynthetic(close + 0.35 + ((i % 3) * 0.08));
+            double low = roundSynthetic(Math.max(1.0, open - 0.22 - ((i % 2) * 0.05)));
+            double volume = 1000.0 + (i * 35.0);
+            candles.add(MarketCandleResponse.builder()
+                    .openTime(openTime)
+                    .open(open)
+                    .high(high)
+                    .low(low)
+                    .close(close)
+                    .volume(roundSynthetic(volume))
+                    .build());
+            previousClose = close;
+        }
+
+        return candles;
+    }
+
+    private long resolveSyntheticAnchorTime(StrategyBotRun run, long intervalMillis) {
+        LocalDate anchorDate = run.getToDate() != null
+                ? run.getToDate()
+                : (run.getFromDate() != null ? run.getFromDate().plusDays(4) : LocalDate.now(ZoneOffset.UTC));
+        long rawAnchor = anchorDate.atTime(LocalTime.NOON)
+                .toInstant(ZoneOffset.UTC)
+                .toEpochMilli();
+        return rawAnchor - Math.floorMod(rawAnchor, intervalMillis);
+    }
+
+    private long resolveTimeframeMillis(String timeframe) {
+        return switch (timeframe == null ? "1h" : timeframe.trim().toLowerCase()) {
+            case "1m" -> 60_000L;
+            case "5m" -> 300_000L;
+            case "15m" -> 900_000L;
+            case "30m" -> 1_800_000L;
+            case "4h" -> 14_400_000L;
+            case "1d" -> 86_400_000L;
+            case "1h" -> 3_600_000L;
+            default -> 3_600_000L;
+        };
+    }
+
+    private double baseSyntheticPrice(String symbol) {
+        if (symbol == null) {
+            return 100.0;
+        }
+        String normalized = symbol.trim().toUpperCase();
+        if (normalized.startsWith("BTC")) {
+            return 100_000.0;
+        }
+        if (normalized.startsWith("ETH")) {
+            return 5_000.0;
+        }
+        if (normalized.startsWith("SOL")) {
+            return 250.0;
+        }
+        return 100.0;
+    }
+
+    private double roundSynthetic(double value) {
+        return BigDecimal.valueOf(value).setScale(4, RoundingMode.HALF_UP).doubleValue();
     }
 
     private boolean matchesDateWindow(MarketCandleResponse candle, LocalDate fromDate, LocalDate toDate) {

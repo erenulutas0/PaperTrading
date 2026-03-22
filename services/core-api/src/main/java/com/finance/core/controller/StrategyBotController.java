@@ -532,6 +532,9 @@ public class StrategyBotController {
         if (normalized.contains("forward-test run must be running before refresh")) {
             return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_forward_test_not_running", "Strategy bot forward-test run must be RUNNING before refresh", null, request);
         }
+        if (normalized.contains("strategy bot market data unavailable")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_market_data_unavailable", "Strategy bot market data unavailable", null, request);
+        }
         if (normalized.contains("not enough candles")) {
             return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_market_data_unavailable", "Not enough candles to execute strategy bot run", null, request);
         }
