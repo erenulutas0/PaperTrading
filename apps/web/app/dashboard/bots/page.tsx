@@ -13,6 +13,15 @@ type BotBoardSort = 'AVG_RETURN' | 'AVG_NET_PNL' | 'TOTAL_RUNS' | 'AVG_WIN_RATE'
 type BotBoardRunMode = 'ALL' | RunMode;
 type BotBoardLookback = 'ALL' | '7' | '30' | '90';
 type BotBoardPresetId = 'ALL_TIME_EDGE' | 'BACKTEST_QUALITY' | 'LIVE_FORWARD' | 'RUN_DENSITY';
+type BotBoardSavedView = {
+    id: string;
+    name: string;
+    sortBy: BotBoardSort;
+    direction: 'ASC' | 'DESC';
+    runMode: BotBoardRunMode;
+    lookbackDays: BotBoardLookback;
+    updatedAt: string;
+};
 
 type PortfolioOption = { id: string; name: string; balance: number; visibility?: 'PUBLIC' | 'PRIVATE' };
 type StrategyBot = {
@@ -62,6 +71,7 @@ type StrategyBotRunReconciliationPlan = {
 
 const defaultEntryRules = JSON.stringify({ all: ['price_above_ma_20', 'rsi_below_35'] }, null, 2);
 const defaultExitRules = JSON.stringify({ any: ['take_profit_hit', 'stop_loss_hit'] }, null, 2);
+const BOT_BOARD_VIEW_STORAGE_KEY = 'dashboard.strategy-bot.board-views.v1';
 const boardComparisonPresets: Array<{
     id: BotBoardPresetId;
     label: string;
@@ -167,6 +177,37 @@ function resolveActiveBoardPreset(
     return preset?.id ?? null;
 }
 
+function readPersistedBoardViews(): BotBoardSavedView[] {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+    try {
+        const stored = window.localStorage.getItem(BOT_BOARD_VIEW_STORAGE_KEY);
+        if (!stored) {
+            return [];
+        }
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+        return parsed
+            .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+            .map((entry): BotBoardSavedView => ({
+                id: typeof entry.id === 'string' ? entry.id : crypto.randomUUID(),
+                name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Saved View',
+                sortBy: parseBoardSort(typeof entry.sortBy === 'string' ? entry.sortBy : null),
+                direction: parseBoardDirection(typeof entry.direction === 'string' ? entry.direction : null),
+                runMode: parseBoardRunMode(typeof entry.runMode === 'string' ? entry.runMode : null),
+                lookbackDays: parseBoardLookback(typeof entry.lookbackDays === 'string' ? entry.lookbackDays : null),
+                updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
+            }))
+            .slice(0, 12);
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+}
+
 function buildSparkline(points: StrategyBotRunEquityPoint[]) {
     if (points.length < 2) return '';
     const width = 320;
@@ -209,6 +250,9 @@ export default function StrategyBotsPage() {
     const [boardDirection, setBoardDirection] = useState<'ASC' | 'DESC'>(() => parseBoardDirection(searchParams.get('boardDirection')));
     const [boardRunMode, setBoardRunMode] = useState<BotBoardRunMode>(() => parseBoardRunMode(searchParams.get('boardRunMode')));
     const [boardLookbackDays, setBoardLookbackDays] = useState<BotBoardLookback>(() => parseBoardLookback(searchParams.get('boardLookback')));
+    const [savedBoardViews, setSavedBoardViews] = useState<BotBoardSavedView[]>([]);
+    const [boardViewsHydrated, setBoardViewsHydrated] = useState(false);
+    const [boardViewName, setBoardViewName] = useState('');
     const [portfolios, setPortfolios] = useState<PortfolioOption[]>([]);
     const [bots, setBots] = useState<StrategyBot[]>([]);
     const [runs, setRuns] = useState<StrategyBotRun[]>([]);
@@ -232,6 +276,14 @@ export default function StrategyBotsPage() {
     const activeBoardPresetMeta = useMemo(
         () => boardComparisonPresets.find((preset) => preset.id === activeBoardPreset) ?? null,
         [activeBoardPreset],
+    );
+    const activeSavedBoardView = useMemo(
+        () => savedBoardViews.find((view) =>
+            view.sortBy === boardSortBy
+            && view.direction === boardDirection
+            && view.runMode === boardRunMode
+            && view.lookbackDays === boardLookbackDays) ?? null,
+        [savedBoardViews, boardSortBy, boardDirection, boardRunMode, boardLookbackDays],
     );
 
     useEffect(() => {
@@ -270,6 +322,18 @@ export default function StrategyBotsPage() {
             void loadBotBoard(boardSortBy, boardDirection, boardRunMode, boardLookbackDays);
         }
     }, [userId, boardSortBy, boardDirection, boardRunMode, boardLookbackDays]);
+
+    useEffect(() => {
+        setSavedBoardViews(readPersistedBoardViews());
+        setBoardViewsHydrated(true);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !boardViewsHydrated) {
+            return;
+        }
+        window.localStorage.setItem(BOT_BOARD_VIEW_STORAGE_KEY, JSON.stringify(savedBoardViews.slice(0, 12)));
+    }, [savedBoardViews, boardViewsHydrated]);
 
     useEffect(() => {
         const params = new URLSearchParams();
@@ -491,6 +555,47 @@ export default function StrategyBotsPage() {
         setBoardDirection(preset.direction);
         setBoardRunMode(preset.runMode);
         setBoardLookbackDays(preset.lookbackDays);
+    }
+
+    function saveCurrentBoardView() {
+        const trimmedName = boardViewName.trim();
+        if (!trimmedName) {
+            setActionError('Name the saved board view before storing it');
+            return;
+        }
+        setActionError(null);
+        setNotice(null);
+        setSavedBoardViews((current) => {
+            const existing = current.find((view) => view.name.toLowerCase() === trimmedName.toLowerCase());
+            const nextView: BotBoardSavedView = {
+                id: existing?.id ?? crypto.randomUUID(),
+                name: trimmedName,
+                sortBy: boardSortBy,
+                direction: boardDirection,
+                runMode: boardRunMode,
+                lookbackDays: boardLookbackDays,
+                updatedAt: new Date().toISOString(),
+            };
+            const remaining = current.filter((view) => view.id !== nextView.id).slice(0, 11);
+            return [nextView, ...remaining];
+        });
+        setBoardViewName('');
+        setNotice('Board view saved');
+    }
+
+    function applySavedBoardView(view: BotBoardSavedView) {
+        setBoardSortBy(view.sortBy);
+        setBoardDirection(view.direction);
+        setBoardRunMode(view.runMode);
+        setBoardLookbackDays(view.lookbackDays);
+        setNotice(`Applied ${view.name}`);
+        setActionError(null);
+    }
+
+    function deleteSavedBoardView(viewId: string) {
+        setSavedBoardViews((current) => current.filter((view) => view.id !== viewId));
+        setNotice('Board view removed');
+        setActionError(null);
     }
 
     function resetBotForm() {
@@ -727,6 +832,7 @@ export default function StrategyBotsPage() {
                                             {' · '}
                                             {boardLookbackDays === 'ALL' ? 'All time' : `${boardLookbackDays} day lookback`}
                                             {activeBoardPresetMeta ? ` · Preset ${activeBoardPresetMeta.label}` : ''}
+                                            {activeSavedBoardView ? ` · Saved ${activeSavedBoardView.name}` : ''}
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
@@ -874,6 +980,7 @@ export default function StrategyBotsPage() {
                                     {' · '}
                                     {boardLookbackDays === 'ALL' ? 'All time' : `${boardLookbackDays} day lookback`}
                                     {activeBoardPresetMeta ? ` · Preset ${activeBoardPresetMeta.label}` : ''}
+                                    {activeSavedBoardView ? ` · Saved ${activeSavedBoardView.name}` : ''}
                                 </p>
                                 <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                                     {boardComparisonPresets.map((preset) => (
@@ -891,6 +998,53 @@ export default function StrategyBotsPage() {
                                             <p className="mt-2 line-clamp-2 text-[11px] text-zinc-400">{preset.description}</p>
                                         </button>
                                     ))}
+                                </div>
+                                <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <input
+                                            value={boardViewName}
+                                            onChange={(event) => setBoardViewName(event.target.value)}
+                                            placeholder="Save current board lens"
+                                            className="min-w-[220px] flex-1 rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500/40"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={saveCurrentBoardView}
+                                            className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100"
+                                        >
+                                            Save View
+                                        </button>
+                                    </div>
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        {savedBoardViews.length === 0 ? (
+                                            <span className="text-xs text-zinc-500">No saved board views yet.</span>
+                                        ) : savedBoardViews.map((view) => (
+                                            <div
+                                                key={view.id}
+                                                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] ${
+                                                    activeSavedBoardView?.id === view.id
+                                                        ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100'
+                                                        : 'border-white/10 bg-white/[0.03] text-zinc-300'
+                                                }`}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applySavedBoardView(view)}
+                                                    className="truncate font-semibold"
+                                                >
+                                                    {view.name}
+                                                </button>
+                                                <span className="text-zinc-500">{view.runMode} · {view.lookbackDays}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => deleteSavedBoardView(view.id)}
+                                                    className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-400"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-2">

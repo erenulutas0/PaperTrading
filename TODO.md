@@ -589,6 +589,7 @@ Last updated: 2026-03-22
       - board scope filters for `ALL/BACKTEST/FORWARD_TEST` and `ALL/7D/30D/90D`
       - preset comparison lenses for `All-Time Edge`, `Backtest Quality`, `Live Forward`, and `Run Density`
       - query-backed workspace state for selected tab/bot/run plus board filters
+      - local saved board views for custom sort/scope combinations
       - board-level `Export Board CSV` / `Export Board JSON` actions bound to the visible sort + scope
       - aggregated driver totals
       - recent run scorecards table

@@ -505,6 +505,25 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - repeated bot review modes are now one click instead of a manual control sequence
     - preset views remain fully shareable because they reuse the same URL-backed workspace state rather than introducing a second comparison model
+- **2026-03-22**: **Strategy Bot Board Now Supports Saved Local Compare Views In Addition To Built-In Presets**
+  - **Problem observed**:
+    - Built-in presets cover common review modes, but operators still need a place to keep their own custom comparison lenses:
+      - preferred sort axis
+      - direction
+      - run-mode scope
+      - lookback window
+    - Without a saved-view layer, custom bot triage still regresses to manual control rebuilding.
+  - **Implementation**:
+    - Added local saved board views in `/dashboard/bots`.
+    - Saved views persist the existing board state only:
+      - `sortBy`
+      - `direction`
+      - `runMode`
+      - `lookbackDays`
+    - Implementation stays browser-local via `localStorage`, avoiding a new backend preference contract while the feature is still dashboard-internal.
+  - **Operational impact**:
+    - custom bot comparison lenses can now be restored in one click
+    - built-in presets and user-defined views now coexist on the same board state model instead of branching into separate implementations
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.
