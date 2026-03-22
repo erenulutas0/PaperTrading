@@ -2680,3 +2680,14 @@ Last updated: 2026-03-22
   - targeted verification passed:
     - `MarketTerminalLayoutServiceTest`
     - `MarketTerminalLayoutControllerIntegrationTest`
+- [x] Harden market chart note writes against orphan-user rows and generic failure buckets:
+  - chart note list/create/update/delete now require a real persisted user instead of trusting any bridged `X-User-Id` UUID
+  - chart note controller now emits explicit machine-readable contracts for:
+    - `market_chart_note_not_found`
+    - `market_chart_note_symbol_required`
+    - `market_chart_note_body_required`
+    - `market_chart_note_body_too_long`
+    - `user_not_found`
+  - targeted verification passed:
+    - `MarketChartNoteServiceTest`
+    - `MarketChartNoteControllerIntegrationTest`

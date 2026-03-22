@@ -5,6 +5,7 @@ import com.finance.core.dto.MarketChartNoteRequest;
 import com.finance.core.dto.MarketChartNoteResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.repository.MarketChartNoteRepository;
+import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,9 +21,11 @@ import java.util.UUID;
 public class MarketChartNoteService {
 
     private final MarketChartNoteRepository marketChartNoteRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public List<MarketChartNoteResponse> getNotes(UUID userId, MarketType market, String symbol) {
+        ensureUserExists(userId);
         return marketChartNoteRepository.findByUserIdAndMarketAndSymbolOrderByPinnedDescCreatedAtDesc(
                         userId,
                         normalizeMarket(market),
@@ -34,6 +37,7 @@ public class MarketChartNoteService {
 
     @Transactional(readOnly = true)
     public Page<MarketChartNoteResponse> getNotes(UUID userId, MarketType market, String symbol, Pageable pageable) {
+        ensureUserExists(userId);
         return marketChartNoteRepository.findByUserIdAndMarketAndSymbolOrderByPinnedDescCreatedAtDesc(
                         userId,
                         normalizeMarket(market),
@@ -44,6 +48,7 @@ public class MarketChartNoteService {
 
     @Transactional
     public MarketChartNoteResponse createNote(UUID userId, MarketChartNoteRequest request) {
+        ensureUserExists(userId);
         String symbol = normalizeSymbol(request.getSymbol());
         String body = normalizeBody(request.getBody());
         MarketType market = normalizeMarket(request.getMarket());
@@ -61,6 +66,7 @@ public class MarketChartNoteService {
 
     @Transactional
     public MarketChartNoteResponse updateNote(UUID userId, UUID noteId, MarketChartNoteRequest request) {
+        ensureUserExists(userId);
         MarketChartNote note = marketChartNoteRepository.findByIdAndUserId(noteId, userId)
                 .orElseThrow(() -> new RuntimeException("Chart note not found"));
 
@@ -71,9 +77,16 @@ public class MarketChartNoteService {
 
     @Transactional
     public void deleteNote(UUID userId, UUID noteId) {
+        ensureUserExists(userId);
         MarketChartNote note = marketChartNoteRepository.findByIdAndUserId(noteId, userId)
                 .orElseThrow(() -> new RuntimeException("Chart note not found"));
         marketChartNoteRepository.delete(note);
+    }
+
+    private void ensureUserExists(UUID userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new RuntimeException("User not found");
+        }
     }
 
     private MarketType normalizeMarket(MarketType market) {

@@ -38,6 +38,23 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Chart Note Writes Now Require A Real User And Return Explicit Note Contracts**
+  - **Problem observed**:
+    - `MarketChartNoteService` accepted any `userId` coming from auth/bridge resolution without proving the account actually existed.
+    - Because `market_chart_notes.user_id` is just a UUID column, that meant a bridged `X-User-Id` could create orphan note rows for non-existent users.
+    - The controller surface also still returned generic `market_chart_note_*_failed` buckets for ownership and validation paths.
+  - **Implementation**:
+    - Added explicit `UserRepository.existsById(...)` checks to chart-note list/create/update/delete paths.
+    - `MarketChartNoteController` now maps explicit contracts for:
+      - `market_chart_note_not_found`
+      - `market_chart_note_symbol_required`
+      - `market_chart_note_body_required`
+      - `market_chart_note_body_too_long`
+      - `user_not_found`
+    - Updated integration tests to use real persisted users instead of random UUIDs.
+  - **Operational impact**:
+    - account-backed chart notes can no longer be written under orphan identities
+    - chart-note clients now receive stable machine-readable error codes instead of generic failure buckets
 - **2026-03-22**: **Terminal Layout Mutations Now Serialize On The Owning User Row And Return Explicit Contracts**
   - **Problem observed**:
     - Saved terminal layouts are account-backed preferences, but the write path still used:

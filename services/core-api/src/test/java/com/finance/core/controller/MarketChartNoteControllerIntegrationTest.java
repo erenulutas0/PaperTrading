@@ -1,9 +1,11 @@
 package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.domain.AppUser;
 import com.finance.core.domain.MarketChartNote;
 import com.finance.core.dto.MarketType;
 import com.finance.core.repository.MarketChartNoteRepository;
+import com.finance.core.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,12 +38,28 @@ class MarketChartNoteControllerIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private UUID userId;
+    private UUID otherUserId;
 
     @BeforeEach
     void setUp() {
         marketChartNoteRepository.deleteAll();
-        userId = UUID.randomUUID();
+        userRepository.deleteAll();
+        AppUser user = userRepository.save(AppUser.builder()
+                .username("chart-note-user")
+                .email("chart-note-user@test.com")
+                .password("plaintext")
+                .build());
+        userId = user.getId();
+        AppUser otherUser = userRepository.save(AppUser.builder()
+                .username("chart-note-user-other")
+                .email("chart-note-user-other@test.com")
+                .password("plaintext")
+                .build());
+        otherUserId = otherUser.getId();
     }
 
     @Test
@@ -152,5 +170,65 @@ class MarketChartNoteControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].pinned").value(true))
                 .andExpect(jsonPath("$.content[1].body").value("Latest unpinned note"))
                 .andExpect(jsonPath("$.content[1].pinned").value(false));
+    }
+
+    @Test
+    void createNote_withBlankBody_shouldReturnExplicitValidationContract() throws Exception {
+        mockMvc.perform(post("/api/v1/market/chart-notes")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "market", "CRYPTO",
+                                "symbol", "BTCUSDT",
+                                "body", "   "))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("market_chart_note_body_required"));
+    }
+
+    @Test
+    void createNote_withUnknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+        mockMvc.perform(post("/api/v1/market/chart-notes")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "market", "CRYPTO",
+                                "symbol", "BTCUSDT",
+                                "body", "orphan"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("user_not_found"));
+    }
+
+    @Test
+    void updateNote_nonOwnedNote_shouldReturnExplicitNotFoundContract() throws Exception {
+        MarketChartNote note = marketChartNoteRepository.save(MarketChartNote.builder()
+                .userId(otherUserId)
+                .market(MarketType.CRYPTO)
+                .symbol("BTCUSDT")
+                .body("Other note")
+                .build());
+
+        mockMvc.perform(put("/api/v1/market/chart-notes/" + note.getId())
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "body", "Hijack",
+                                "pinned", true))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("market_chart_note_not_found"));
+    }
+
+    @Test
+    void deleteNote_nonOwnedNote_shouldReturnExplicitNotFoundContract() throws Exception {
+        MarketChartNote note = marketChartNoteRepository.save(MarketChartNote.builder()
+                .userId(otherUserId)
+                .market(MarketType.CRYPTO)
+                .symbol("BTCUSDT")
+                .body("Other note")
+                .build());
+
+        mockMvc.perform(delete("/api/v1/market/chart-notes/" + note.getId())
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("market_chart_note_not_found"));
     }
 }

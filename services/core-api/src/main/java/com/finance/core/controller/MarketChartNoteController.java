@@ -33,12 +33,17 @@ public class MarketChartNoteController {
     private final MarketChartNoteService marketChartNoteService;
 
     @GetMapping
-    public ResponseEntity<Page<MarketChartNoteResponse>> getNotes(
+    public ResponseEntity<?> getNotes(
             @CurrentUserId UUID userId,
             @RequestParam(required = false) MarketType market,
             @RequestParam String symbol,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(marketChartNoteService.getNotes(userId, market, symbol, pageable));
+            @PageableDefault(size = 20) Pageable pageable,
+            HttpServletRequest httpRequest) {
+        try {
+            return ResponseEntity.ok(marketChartNoteService.getNotes(userId, market, symbol, pageable));
+        } catch (RuntimeException exception) {
+            return toChartNoteError(exception, httpRequest, "market_chart_note_read_failed");
+        }
     }
 
     @PostMapping
@@ -49,12 +54,7 @@ public class MarketChartNoteController {
         try {
             return ResponseEntity.ok(marketChartNoteService.createNote(userId, request));
         } catch (RuntimeException exception) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_chart_note_create_failed",
-                    exception.getMessage(),
-                    null,
-                    httpRequest);
+            return toChartNoteError(exception, httpRequest, "market_chart_note_create_failed");
         }
     }
 
@@ -67,12 +67,7 @@ public class MarketChartNoteController {
         try {
             return ResponseEntity.ok(marketChartNoteService.updateNote(userId, noteId, request));
         } catch (RuntimeException exception) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_chart_note_update_failed",
-                    exception.getMessage(),
-                    null,
-                    httpRequest);
+            return toChartNoteError(exception, httpRequest, "market_chart_note_update_failed");
         }
     }
 
@@ -85,12 +80,60 @@ public class MarketChartNoteController {
             marketChartNoteService.deleteNote(userId, noteId);
             return ResponseEntity.ok().build();
         } catch (RuntimeException exception) {
+            return toChartNoteError(exception, httpRequest, "market_chart_note_delete_failed");
+        }
+    }
+
+    private ResponseEntity<?> toChartNoteError(
+            RuntimeException exception,
+            HttpServletRequest httpRequest,
+            String fallbackCode) {
+        String message = exception.getMessage() != null ? exception.getMessage() : "";
+        if ("User not found".equals(message)) {
             return ApiErrorResponses.build(
                     HttpStatus.NOT_FOUND,
-                    "market_chart_note_delete_failed",
-                    exception.getMessage(),
+                    "user_not_found",
+                    message,
                     null,
                     httpRequest);
         }
+        if ("Chart note not found".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.NOT_FOUND,
+                    "market_chart_note_not_found",
+                    message,
+                    null,
+                    httpRequest);
+        }
+        if ("Symbol is required".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "market_chart_note_symbol_required",
+                    message,
+                    null,
+                    httpRequest);
+        }
+        if ("Note body is required".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "market_chart_note_body_required",
+                    message,
+                    null,
+                    httpRequest);
+        }
+        if ("Note body exceeds 2000 characters".equals(message)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "market_chart_note_body_too_long",
+                    message,
+                    null,
+                    httpRequest);
+        }
+        return ApiErrorResponses.build(
+                HttpStatus.BAD_REQUEST,
+                fallbackCode,
+                message,
+                null,
+                httpRequest);
     }
 }
