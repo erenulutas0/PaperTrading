@@ -438,6 +438,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the bot workspace now reads from a single scope-aware analytics lens instead of mixing board-scope and all-time aggregates
     - exported analytics now match the numbers on screen instead of silently reverting to all-history data
+- **2026-03-22**: **Strategy Bot Workspace State Is Now Shareable Instead Of Being Session-Only**
+  - **Problem observed**:
+    - `/dashboard/bots` had become materially more useful, but the current workspace state still lived only in React state.
+    - That meant operators could not reopen or share:
+      - the active workspace tab
+      - selected bot / run
+      - board sorting and scope filters
+    - without manually rebuilding the page state.
+  - **Implementation**:
+    - Added query-backed state syncing for:
+      - `tab`
+      - `bot`
+      - `run`
+      - `boardSort`
+      - `boardDirection`
+      - `boardRunMode`
+      - `boardLookback`
+    - Added a `Copy Link` action in the bot workspace header.
+    - Kept the implementation client-local by using history replacement rather than introducing a new backend share artifact.
+  - **Operational impact**:
+    - bot triage sessions can now be reopened directly from the URL
+    - a scoped bot comparison view can be handed to another operator without screen-by-screen reconstruction
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

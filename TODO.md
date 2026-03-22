@@ -586,6 +586,7 @@ Last updated: 2026-03-22
       - bot analytics cards
       - account-wide bot board with sortable comparison axes
       - board scope filters for `ALL/BACKTEST/FORWARD_TEST` and `ALL/7D/30D/90D`
+      - query-backed workspace state for selected tab/bot/run plus board filters
       - aggregated driver totals
       - recent run scorecards table
       - `Export CSV`

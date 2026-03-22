@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../../lib/api-client';
 import { extractContent } from '../../../lib/page';
@@ -80,6 +80,32 @@ function downloadNameFromDisposition(disposition: string | null, fallback: strin
     return match?.[1] ?? fallback;
 }
 
+function parseTab(value: string | null): Tab {
+    return value === 'BOTS' || value === 'RUNS' ? value : 'OVERVIEW';
+}
+
+function parseBoardSort(value: string | null): BotBoardSort {
+    return value === 'AVG_NET_PNL'
+        || value === 'TOTAL_RUNS'
+        || value === 'AVG_WIN_RATE'
+        || value === 'AVG_PROFIT_FACTOR'
+        || value === 'LATEST_REQUESTED_AT'
+        ? value
+        : 'AVG_RETURN';
+}
+
+function parseBoardDirection(value: string | null): 'ASC' | 'DESC' {
+    return value === 'ASC' ? 'ASC' : 'DESC';
+}
+
+function parseBoardRunMode(value: string | null): BotBoardRunMode {
+    return value === 'BACKTEST' || value === 'FORWARD_TEST' ? value : 'ALL';
+}
+
+function parseBoardLookback(value: string | null): BotBoardLookback {
+    return value === '7' || value === '30' || value === '90' ? value : 'ALL';
+}
+
 function buildSparkline(points: StrategyBotRunEquityPoint[]) {
     if (points.length < 2) return '';
     const width = 320;
@@ -100,7 +126,9 @@ function buildSparkline(points: StrategyBotRunEquityPoint[]) {
 
 export default function StrategyBotsPage() {
     const router = useRouter();
-    const [tab, setTab] = useState<Tab>('OVERVIEW');
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const [tab, setTab] = useState<Tab>(() => parseTab(searchParams.get('tab')));
     const [userId, setUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -115,15 +143,15 @@ export default function StrategyBotsPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
     const [botBoard, setBotBoard] = useState<StrategyBotBoardEntry[]>([]);
-    const [boardSortBy, setBoardSortBy] = useState<BotBoardSort>('AVG_RETURN');
-    const [boardDirection, setBoardDirection] = useState<'ASC' | 'DESC'>('DESC');
-    const [boardRunMode, setBoardRunMode] = useState<BotBoardRunMode>('ALL');
-    const [boardLookbackDays, setBoardLookbackDays] = useState<BotBoardLookback>('ALL');
+    const [boardSortBy, setBoardSortBy] = useState<BotBoardSort>(() => parseBoardSort(searchParams.get('boardSort')));
+    const [boardDirection, setBoardDirection] = useState<'ASC' | 'DESC'>(() => parseBoardDirection(searchParams.get('boardDirection')));
+    const [boardRunMode, setBoardRunMode] = useState<BotBoardRunMode>(() => parseBoardRunMode(searchParams.get('boardRunMode')));
+    const [boardLookbackDays, setBoardLookbackDays] = useState<BotBoardLookback>(() => parseBoardLookback(searchParams.get('boardLookback')));
     const [portfolios, setPortfolios] = useState<PortfolioOption[]>([]);
     const [bots, setBots] = useState<StrategyBot[]>([]);
     const [runs, setRuns] = useState<StrategyBotRun[]>([]);
-    const [selectedBotId, setSelectedBotId] = useState('');
-    const [selectedRunId, setSelectedRunId] = useState('');
+    const [selectedBotId, setSelectedBotId] = useState(() => searchParams.get('bot') ?? '');
+    const [selectedRunId, setSelectedRunId] = useState(() => searchParams.get('run') ?? '');
     const [selectedRunFills, setSelectedRunFills] = useState<StrategyBotRunFill[]>([]);
     const [selectedRunEquityCurve, setSelectedRunEquityCurve] = useState<StrategyBotRunEquityPoint[]>([]);
     const [selectedRunReconciliation, setSelectedRunReconciliation] = useState<StrategyBotRunReconciliationPlan | null>(null);
@@ -172,6 +200,20 @@ export default function StrategyBotsPage() {
             void loadBotBoard(boardSortBy, boardDirection, boardRunMode, boardLookbackDays);
         }
     }, [userId, boardSortBy, boardDirection, boardRunMode, boardLookbackDays]);
+
+    useEffect(() => {
+        const params = new URLSearchParams();
+        if (tab !== 'OVERVIEW') params.set('tab', tab);
+        if (selectedBotId) params.set('bot', selectedBotId);
+        if (selectedRunId) params.set('run', selectedRunId);
+        if (boardSortBy !== 'AVG_RETURN') params.set('boardSort', boardSortBy);
+        if (boardDirection !== 'DESC') params.set('boardDirection', boardDirection);
+        if (boardRunMode !== 'ALL') params.set('boardRunMode', boardRunMode);
+        if (boardLookbackDays !== 'ALL') params.set('boardLookback', boardLookbackDays);
+        const next = params.toString();
+        const nextUrl = next ? `${pathname}?${next}` : pathname;
+        window.history.replaceState(null, '', nextUrl);
+    }, [pathname, tab, selectedBotId, selectedRunId, boardSortBy, boardDirection, boardRunMode, boardLookbackDays]);
 
     async function bootstrap(currentUserId: string) {
         setLoading(true); setPageError(null);
@@ -431,6 +473,16 @@ export default function StrategyBotsPage() {
         } catch (error) { setActionError(err(error)); } finally { setApplyingRunId(null); }
     }
 
+    async function copyWorkspaceLink() {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            setNotice('Bot workspace link copied');
+            setActionError(null);
+        } catch {
+            setActionError('Failed to copy workspace link');
+        }
+    }
+
     return (
         <div className="p-8 pb-20 text-white">
             <header className="rounded-3xl border border-white/10 bg-black/40 p-6 shadow-2xl backdrop-blur-xl">
@@ -441,6 +493,13 @@ export default function StrategyBotsPage() {
                         <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">Build rule-based paper bots, link them to owned portfolios, queue backtests, and inspect compiler plus execution summaries from one dashboard surface.</p>
                     </div>
                     <div className="flex flex-wrap gap-3">
+                        <button
+                            type="button"
+                            onClick={() => void copyWorkspaceLink()}
+                            className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100 transition hover:bg-cyan-500/15"
+                        >
+                            Copy Link
+                        </button>
                         <Link href="/dashboard" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-zinc-300 transition hover:text-white">Dashboard</Link>
                         <Link href="/watchlist" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-zinc-300 transition hover:text-white">Markets</Link>
                     </div>
