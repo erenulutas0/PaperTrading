@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -133,6 +134,29 @@ class ActivityFeedControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].eventType").value("PORTFOLIO_LIKED"));
+    }
+
+    @Test
+    void personalizedFeed_unknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+        mockMvc.perform(get("/api/v1/feed")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-Request-Id", "feed-user-err-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "feed-user-err-1"))
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"))
+                .andExpect(jsonPath("$.requestId").value("feed-user-err-1"));
+    }
+
+    @Test
+    void userActivity_unknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+        mockMvc.perform(get("/api/v1/feed/user/" + UUID.randomUUID())
+                        .header("X-Request-Id", "feed-activity-err-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "feed-activity-err-1"))
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"))
+                .andExpect(jsonPath("$.requestId").value("feed-activity-err-1"));
     }
 
     private boolean redisAvailable() {

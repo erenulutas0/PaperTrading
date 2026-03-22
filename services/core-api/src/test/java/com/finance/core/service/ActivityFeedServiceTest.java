@@ -4,6 +4,7 @@ import com.finance.core.domain.ActivityEvent;
 import com.finance.core.domain.Follow;
 import com.finance.core.repository.ActivityEventRepository;
 import com.finance.core.repository.FollowRepository;
+import com.finance.core.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -34,12 +35,19 @@ class ActivityFeedServiceTest {
     @Mock
     private FollowRepository followRepository;
     @Mock
+    private UserRepository userRepository;
+    @Mock
     private CacheService cacheService;
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
     private ActivityFeedService feedService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        lenient().when(userRepository.existsById(any(UUID.class))).thenReturn(true);
+    }
 
     @Test
     void publish_savesEventAndReturnsIt() {
@@ -173,6 +181,19 @@ class ActivityFeedServiceTest {
     }
 
     @Test
+    void getPersonalizedFeed_requiresExistingUser() {
+        UUID userId = UUID.randomUUID();
+        Pageable pageable = PageRequest.of(0, 20);
+        when(userRepository.existsById(userId)).thenReturn(false);
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> feedService.getPersonalizedFeed(userId, pageable));
+
+        assertEquals("User not found", exception.getMessage());
+        verifyNoInteractions(eventRepository);
+    }
+
+    @Test
     void getPersonalizedFeed_shouldFallbackWhenVersionLookupThrows() {
         UUID userId = UUID.randomUUID();
         UUID followedId = UUID.randomUUID();
@@ -211,6 +232,19 @@ class ActivityFeedServiceTest {
         assertTrue(feed.isEmpty());
         verify(eventRepository).findPersonalizedFeedByFollowerId(userId, pageable);
         verify(followRepository, never()).findByFollowerId(any(UUID.class));
+    }
+
+    @Test
+    void getUserActivity_requiresExistingUser() {
+        UUID userId = UUID.randomUUID();
+        Pageable pageable = PageRequest.of(0, 20);
+        when(userRepository.existsById(userId)).thenReturn(false);
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> feedService.getUserActivity(userId, pageable));
+
+        assertEquals("User not found", exception.getMessage());
+        verify(eventRepository, never()).findByActorIdOrderByCreatedAtDesc(any(UUID.class), any(Pageable.class));
     }
 
     @Test

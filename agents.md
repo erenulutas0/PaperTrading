@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Personalized Activity Feed Reads Now Require Real Users Instead Of Accepting Orphan Identities**
+  - **Problem observed**:
+    - The activity feed had already been hardened around cache degradation and publish-path scale behavior, but two account-backed read surfaces still trusted any bridged UUID:
+      - personalized feed
+      - explicit user-activity feed
+    - That meant orphan identities could still observe empty `200` feed payloads instead of getting a deterministic contract failure, while the public global feed remained intentionally anonymous.
+  - **Implementation**:
+    - Added persisted-user existence checks to `ActivityFeedService` for:
+      - `getPersonalizedFeed(...)`
+      - `getUserActivity(...)`
+    - Extended `ActivityFeedController` with controller-local error mapping so missing users now return explicit `user_not_found`.
+    - Kept `GET /api/v1/feed/global` unchanged as the anonymous/public feed surface.
+    - Added targeted service and controller integration coverage for the missing-user paths.
+  - **Operational impact**:
+    - personalized and user-activity feed reads now align with the rest of the hardened account-backed surfaces
+    - orphan bridged UUIDs no longer look like valid empty-feed identities
 - **2026-03-22**: **Watchlist Account And Alert-History Surfaces Now Require Real Users And Explicit History Contracts**
   - **Problem observed**:
     - Watchlist write paths had already been tightened around owner-scoped item lookup, but several account-backed watchlist surfaces still accepted any bridged UUID without proving the user row existed:

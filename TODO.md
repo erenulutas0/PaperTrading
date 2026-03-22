@@ -1198,6 +1198,18 @@ Last updated: 2026-03-22
     - `WatchlistServiceTest`
     - `WatchlistAlertHistoryServiceTest`
     - `WatchlistControllerIntegrationTest`
+- [x] Hardened personalized feed and user-activity contracts against orphan user ids:
+  - Updated:
+    - `ActivityFeedService`
+    - `ActivityFeedController`
+  - Behavior:
+    - personalized feed and explicit user-activity feed now require a real persisted user row
+    - orphan bridged UUIDs no longer read feed state as empty `200`
+    - missing-user path now returns explicit correlated `user_not_found`
+    - global feed remains anonymous/public and unchanged
+  - Coverage:
+    - `ActivityFeedServiceTest`
+    - `ActivityFeedControllerIntegrationTest`
 - [x] Extended unified error contract into audit ops controller paths:
   - Updated:
     - `AuditOpsController`

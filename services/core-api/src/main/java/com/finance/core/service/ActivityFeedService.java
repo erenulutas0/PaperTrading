@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.finance.core.domain.*;
 import com.finance.core.repository.ActivityEventRepository;
 import com.finance.core.repository.FollowRepository;
+import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +31,7 @@ public class ActivityFeedService {
 
     private final ActivityEventRepository eventRepository;
     private final FollowRepository followRepository;
+    private final UserRepository userRepository;
     private final CacheService cacheService;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -166,6 +168,7 @@ public class ActivityFeedService {
      * Uses Redis cache with short TTL for performance.
      */
     public Page<ActivityEvent> getPersonalizedFeed(UUID userId, Pageable pageable) {
+        ensureUserExists(userId);
         String cacheKey = buildUserFeedCacheKey(userId, pageable);
 
         Optional<Page<ActivityEvent>> localCacheHit = getLocalPage(cacheKey, pageable);
@@ -255,7 +258,14 @@ public class ActivityFeedService {
      * Single user's activity history.
      */
     public Page<ActivityEvent> getUserActivity(UUID userId, Pageable pageable) {
+        ensureUserExists(userId);
         return eventRepository.findByActorIdOrderByCreatedAtDesc(userId, pageable);
+    }
+
+    private void ensureUserExists(UUID userId) {
+        if (userId == null || !userRepository.existsById(userId)) {
+            throw new RuntimeException("User not found");
+        }
     }
 
     private String buildGlobalFeedCacheKey(Pageable pageable) {
