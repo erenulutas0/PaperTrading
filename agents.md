@@ -181,6 +181,21 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - account-backed preference reads and updates no longer depend on a global fallback to express missing-user conditions
     - clients and rollout tooling now get a stable machine-readable contract from the preferences surface
+- **2026-03-23**: **User Preferences Writes No Longer Silently Normalize Invalid Lens Inputs**
+  - **Problem observed**:
+    - Account-backed preference writes still accepted malformed leaderboard and terminal lens values by normalizing them back to defaults.
+    - Saved compare baskets and saved scanner views also truncated overflow payloads during serialization instead of surfacing an explicit contract failure.
+  - **Implementation**:
+    - `UserPreferencesService` now uses explicit write-time parsers for:
+      - leaderboard period/sort/direction
+      - terminal market/range/interval
+      - scanner quick filter and scanner sort mode
+    - Invalid write values now fail fast with dedicated controller-mapped error codes instead of falling back to normalization helpers meant for read-time backward compatibility.
+    - Compare-basket and scanner-view serialization now rejects overflow payloads with explicit conflict contracts instead of silently trimming entries.
+    - Added targeted service and controller integration coverage for invalid-period, invalid-scanner-sort, and compare-basket overflow paths.
+  - **Operational impact**:
+    - preferences/save-view writes now behave deterministically under bad caller input instead of quietly mutating to a different persisted lens
+    - frontend and rollout tooling can distinguish invalid inputs from successful writes without reverse-engineering normalized output
 - **2026-03-22**: **Notification Read And Stream-Token Paths Now Require A Real Persisted User**
   - **Problem observed**:
     - Notification endpoints already enforced ownership at the notification-row level, but account-backed reads such as:

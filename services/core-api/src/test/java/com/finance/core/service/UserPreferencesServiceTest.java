@@ -14,8 +14,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -142,5 +144,91 @@ class UserPreferencesServiceTest {
         assertEquals("bank", response.getTerminal().getScannerViews().get(0).getQuery());
         assertEquals("ISCTR", response.getTerminal().getScannerViews().get(0).getAnchorSymbol());
         verify(userPreferenceRepository).save(org.mockito.ArgumentMatchers.any(UserPreference.class));
+    }
+
+    @Test
+    void updateLeaderboardPreferences_withInvalidPeriod_shouldThrow() {
+        UUID userId = UUID.fromString("44444444-4444-4444-4444-444444444444");
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(userPreferenceRepository.findById(userId)).thenReturn(Optional.of(UserPreference.builder()
+                .userId(userId)
+                .build()));
+
+        UpdateLeaderboardPreferencesRequest request = UpdateLeaderboardPreferencesRequest.builder()
+                .dashboard(UpdateLeaderboardPreferencesRequest.DashboardPreferences.builder()
+                        .period("2Y")
+                        .build())
+                .build();
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> userPreferencesService.updateLeaderboardPreferences(userId, request));
+
+        assertEquals("Invalid user preferences period", exception.getMessage());
+    }
+
+    @Test
+    void updateTerminalPreferences_withInvalidRange_shouldThrow() {
+        UUID userId = UUID.fromString("55555555-5555-5555-5555-555555555555");
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(userPreferenceRepository.findById(userId)).thenReturn(Optional.of(UserPreference.builder()
+                .userId(userId)
+                .build()));
+
+        UpdateTerminalPreferencesRequest request = UpdateTerminalPreferencesRequest.builder()
+                .range("2Y")
+                .build();
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> userPreferencesService.updateTerminalPreferences(userId, request));
+
+        assertEquals("Invalid user preferences terminal range", exception.getMessage());
+    }
+
+    @Test
+    void updateTerminalPreferences_withTooManyCompareBaskets_shouldThrow() {
+        UUID userId = UUID.fromString("66666666-6666-6666-6666-666666666666");
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(userPreferenceRepository.findById(userId)).thenReturn(Optional.of(UserPreference.builder()
+                .userId(userId)
+                .build()));
+
+        UpdateTerminalPreferencesRequest request = UpdateTerminalPreferencesRequest.builder()
+                .compareBaskets(IntStream.range(0, 13)
+                        .mapToObj(index -> UpdateTerminalPreferencesRequest.CompareBasket.builder()
+                                .name("Basket " + index)
+                                .market("CRYPTO")
+                                .symbols(java.util.List.of("BTCUSDT"))
+                                .build())
+                        .toList())
+                .build();
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> userPreferencesService.updateTerminalPreferences(userId, request));
+
+        assertEquals("Compare basket limit reached", exception.getMessage());
+    }
+
+    @Test
+    void updateTerminalPreferences_withInvalidScannerSort_shouldThrow() {
+        UUID userId = UUID.fromString("77777777-7777-7777-7777-777777777777");
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(userPreferenceRepository.findById(userId)).thenReturn(Optional.of(UserPreference.builder()
+                .userId(userId)
+                .build()));
+
+        UpdateTerminalPreferencesRequest request = UpdateTerminalPreferencesRequest.builder()
+                .scannerViews(java.util.List.of(
+                        UpdateTerminalPreferencesRequest.ScannerView.builder()
+                                .name("Bad Sort")
+                                .market("CRYPTO")
+                                .quickFilter("ALL")
+                                .sortMode("SOMETHING_ELSE")
+                                .build()))
+                .build();
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> userPreferencesService.updateTerminalPreferences(userId, request));
+
+        assertEquals("Invalid user preferences scanner sort", exception.getMessage());
     }
 }

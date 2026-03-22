@@ -67,23 +67,23 @@ public class UserPreferencesService {
         if (request != null && request.getDashboard() != null) {
             UpdateLeaderboardPreferencesRequest.DashboardPreferences dashboard = request.getDashboard();
             if (dashboard.getPeriod() != null) {
-                preferences.setDashboardPeriod(normalizePeriod(dashboard.getPeriod()));
+                preferences.setDashboardPeriod(parseRequestedPeriod(dashboard.getPeriod()));
             }
             if (dashboard.getSortBy() != null) {
-                preferences.setDashboardSortBy(normalizeSortBy(dashboard.getSortBy()));
+                preferences.setDashboardSortBy(parseRequestedSortBy(dashboard.getSortBy()));
             }
             if (dashboard.getDirection() != null) {
-                preferences.setDashboardDirection(normalizeDirection(dashboard.getDirection()));
+                preferences.setDashboardDirection(parseRequestedDirection(dashboard.getDirection()));
             }
         }
 
         if (request != null && request.getPublicPage() != null) {
             UpdateLeaderboardPreferencesRequest.PublicPreferences publicPage = request.getPublicPage();
             if (publicPage.getSortBy() != null) {
-                preferences.setPublicSortBy(normalizeSortBy(publicPage.getSortBy()));
+                preferences.setPublicSortBy(parseRequestedSortBy(publicPage.getSortBy()));
             }
             if (publicPage.getDirection() != null) {
-                preferences.setPublicDirection(normalizeDirection(publicPage.getDirection()));
+                preferences.setPublicDirection(parseRequestedDirection(publicPage.getDirection()));
             }
         }
 
@@ -102,7 +102,7 @@ public class UserPreferencesService {
 
         if (request != null) {
             if (request.getMarket() != null) {
-                preferences.setTerminalMarket(normalizeTerminalMarket(request.getMarket()));
+                preferences.setTerminalMarket(parseRequestedTerminalMarket(request.getMarket()));
             }
             if (request.getSymbol() != null) {
                 preferences.setTerminalSymbol(normalizeTerminalSymbol(request.getSymbol()));
@@ -114,10 +114,10 @@ public class UserPreferencesService {
                 preferences.setTerminalCompareVisible(request.getCompareVisible());
             }
             if (request.getRange() != null) {
-                preferences.setTerminalRange(normalizeTerminalRange(request.getRange()));
+                preferences.setTerminalRange(parseRequestedTerminalRange(request.getRange()));
             }
             if (request.getInterval() != null) {
-                preferences.setTerminalInterval(normalizeTerminalInterval(request.getInterval()));
+                preferences.setTerminalInterval(parseRequestedTerminalInterval(request.getInterval()));
             }
             if (request.getFavoriteSymbols() != null) {
                 preferences.setTerminalFavoriteSymbols(serializeSymbols(request.getFavoriteSymbols(), 32));
@@ -267,6 +267,9 @@ public class UserPreferencesService {
         if (rawBaskets == null || rawBaskets.isEmpty()) {
             return "";
         }
+        if (rawBaskets.size() > MAX_COMPARE_BASKETS) {
+            throw new RuntimeException("Compare basket limit reached");
+        }
         List<UserPreferencesResponse.CompareBasket> normalized = new ArrayList<>();
         for (UpdateTerminalPreferencesRequest.CompareBasket basket : rawBaskets) {
             if (basket == null) {
@@ -283,13 +286,10 @@ public class UserPreferencesService {
             }
             normalized.add(UserPreferencesResponse.CompareBasket.builder()
                     .name((basket.getName() == null || basket.getName().isBlank()) ? "Compare Basket" : basket.getName().trim())
-                    .market(normalizeTerminalMarket(basket.getMarket()))
+                    .market(basket.getMarket() == null ? DEFAULT_TERMINAL_MARKET : parseRequestedTerminalMarket(basket.getMarket()))
                     .symbols(symbols)
                     .updatedAt((basket.getUpdatedAt() == null || basket.getUpdatedAt().isBlank()) ? null : basket.getUpdatedAt().trim())
                     .build());
-            if (normalized.size() >= MAX_COMPARE_BASKETS) {
-                break;
-            }
         }
         if (normalized.isEmpty()) {
             return "";
@@ -306,6 +306,9 @@ public class UserPreferencesService {
         if (rawViews == null || rawViews.isEmpty()) {
             return "";
         }
+        if (rawViews.size() > MAX_SCANNER_VIEWS) {
+            throw new RuntimeException("Scanner view limit reached");
+        }
         List<UserPreferencesResponse.ScannerView> normalized = new ArrayList<>();
         for (UpdateTerminalPreferencesRequest.ScannerView view : rawViews) {
             if (view == null) {
@@ -313,16 +316,13 @@ public class UserPreferencesService {
             }
             normalized.add(UserPreferencesResponse.ScannerView.builder()
                     .name((view.getName() == null || view.getName().isBlank()) ? "Scanner View" : view.getName().trim())
-                    .market(normalizeTerminalMarket(view.getMarket()))
-                    .quickFilter(normalizeScannerQuickFilter(view.getQuickFilter()))
-                    .sortMode(normalizeScannerSortMode(view.getSortMode()))
+                    .market(view.getMarket() == null ? DEFAULT_TERMINAL_MARKET : parseRequestedTerminalMarket(view.getMarket()))
+                    .quickFilter(view.getQuickFilter() == null ? "ALL" : parseRequestedScannerQuickFilter(view.getQuickFilter()))
+                    .sortMode(view.getSortMode() == null ? "MOVE_DESC" : parseRequestedScannerSortMode(view.getSortMode()))
                     .query(view.getQuery() == null ? "" : view.getQuery().trim())
                     .anchorSymbol((view.getAnchorSymbol() == null || view.getAnchorSymbol().isBlank()) ? null : normalizeTerminalSymbol(view.getAnchorSymbol()))
                     .updatedAt((view.getUpdatedAt() == null || view.getUpdatedAt().isBlank()) ? null : view.getUpdatedAt().trim())
                     .build());
-            if (normalized.size() >= MAX_SCANNER_VIEWS) {
-                break;
-            }
         }
         if (normalized.isEmpty()) {
             return "";
@@ -406,5 +406,91 @@ public class UserPreferencesService {
         }
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
         return SUPPORTED_SCANNER_SORTS.contains(normalized) ? normalized : "MOVE_DESC";
+    }
+
+    private String parseRequestedPeriod(String raw) {
+        if (raw == null) {
+            return DEFAULT_PERIOD;
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "1D", "1W", "1M", "ALL" -> normalized;
+            default -> throw new RuntimeException("Invalid user preferences period");
+        };
+    }
+
+    private String parseRequestedSortBy(String raw) {
+        if (raw == null) {
+            return DEFAULT_SORT_BY;
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "RETURN_PERCENTAGE", "ROI", "RETURN" -> "RETURN_PERCENTAGE";
+            case "PROFIT_LOSS", "PROFIT" -> "PROFIT_LOSS";
+            case "WIN_RATE", "WINRATE", "WIN" -> "WIN_RATE";
+            case "TRUST_SCORE", "TRUST", "TRUSTSCORE" -> "TRUST_SCORE";
+            default -> throw new RuntimeException("Invalid user preferences sort");
+        };
+    }
+
+    private String parseRequestedDirection(String raw) {
+        if (raw == null) {
+            return DEFAULT_DIRECTION;
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "ASC", "ASCENDING", "UP" -> "ASC";
+            case "DESC", "DESCENDING", "DOWN" -> "DESC";
+            default -> throw new RuntimeException("Invalid user preferences direction");
+        };
+    }
+
+    private String parseRequestedTerminalMarket(String raw) {
+        if (raw == null) {
+            return DEFAULT_TERMINAL_MARKET;
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_TERMINAL_MARKETS.contains(normalized)) {
+            throw new RuntimeException("Invalid user preferences terminal market");
+        }
+        return normalized;
+    }
+
+    private String parseRequestedTerminalRange(String raw) {
+        if (raw == null) {
+            return DEFAULT_TERMINAL_RANGE;
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_TERMINAL_RANGES.contains(normalized)) {
+            throw new RuntimeException("Invalid user preferences terminal range");
+        }
+        return normalized;
+    }
+
+    private String parseRequestedTerminalInterval(String raw) {
+        if (raw == null) {
+            return DEFAULT_TERMINAL_INTERVAL;
+        }
+        String trimmed = raw.trim();
+        if (!SUPPORTED_TERMINAL_INTERVALS.contains(trimmed)) {
+            throw new RuntimeException("Invalid user preferences terminal interval");
+        }
+        return trimmed;
+    }
+
+    private String parseRequestedScannerQuickFilter(String raw) {
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_SCANNER_FILTERS.contains(normalized)) {
+            throw new RuntimeException("Invalid user preferences scanner filter");
+        }
+        return normalized;
+    }
+
+    private String parseRequestedScannerSortMode(String raw) {
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_SCANNER_SORTS.contains(normalized)) {
+            throw new RuntimeException("Invalid user preferences scanner sort");
+        }
+        return normalized;
     }
 }

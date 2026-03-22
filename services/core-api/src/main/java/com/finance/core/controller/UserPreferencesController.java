@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @RestController
@@ -69,6 +70,7 @@ public class UserPreferencesController {
             String fallbackCode,
             HttpServletRequest request) {
         String message = exception.getMessage() != null ? exception.getMessage() : "";
+        String normalized = message.toLowerCase(Locale.ROOT);
         if ("User not found".equals(message)) {
             return ApiErrorResponses.build(
                     HttpStatus.NOT_FOUND,
@@ -76,6 +78,36 @@ public class UserPreferencesController {
                     message,
                     null,
                     request);
+        }
+        if (normalized.contains("invalid user preferences period")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_user_preferences_period", "Invalid user preferences period", null, request);
+        }
+        if (normalized.contains("invalid user preferences sort")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_user_preferences_sort", "Invalid user preferences sort", null, request);
+        }
+        if (normalized.contains("invalid user preferences direction")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_user_preferences_direction", "Invalid user preferences direction", null, request);
+        }
+        if (normalized.contains("invalid user preferences terminal market")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_user_preferences_terminal_market", "Invalid user preferences terminal market", null, request);
+        }
+        if (normalized.contains("invalid user preferences terminal range")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_user_preferences_terminal_range", "Invalid user preferences terminal range", null, request);
+        }
+        if (normalized.contains("invalid user preferences terminal interval")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_user_preferences_terminal_interval", "Invalid user preferences terminal interval", null, request);
+        }
+        if (normalized.contains("invalid user preferences scanner filter")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_user_preferences_scanner_filter", "Invalid user preferences scanner filter", null, request);
+        }
+        if (normalized.contains("invalid user preferences scanner sort")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_user_preferences_scanner_sort", "Invalid user preferences scanner sort", null, request);
+        }
+        if (normalized.contains("compare basket limit reached")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "user_preferences_compare_basket_limit_reached", "Compare basket limit reached", null, request);
+        }
+        if (normalized.contains("scanner view limit reached")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "user_preferences_scanner_view_limit_reached", "Scanner view limit reached", null, request);
         }
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,

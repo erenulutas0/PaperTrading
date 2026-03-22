@@ -19,6 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -176,6 +177,23 @@ class UserPreferencesControllerIntegrationTest {
     }
 
     @Test
+    void updateLeaderboardPreferences_withInvalidPeriod_shouldReturnExplicitBadRequestContract() throws Exception {
+        when(userPreferencesService.updateLeaderboardPreferences(any(UUID.class), any(UpdateLeaderboardPreferencesRequest.class)))
+                .thenThrow(new RuntimeException("Invalid user preferences period"));
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/leaderboard")
+                        .header("X-Request-Id", "prefs-leaderboard-invalid-period-1")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dashboard\":{\"period\":\"2Y\"}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "prefs-leaderboard-invalid-period-1"))
+                .andExpect(jsonPath("$.code").value("invalid_user_preferences_period"))
+                .andExpect(jsonPath("$.message").value("Invalid user preferences period"))
+                .andExpect(jsonPath("$.requestId").value("prefs-leaderboard-invalid-period-1"));
+    }
+
+    @Test
     void updateTerminalPreferences_shouldReturnUpdatedTerminalPayload() throws Exception {
         UserPreferencesResponse response = UserPreferencesResponse.builder()
                 .leaderboard(UserPreferencesResponse.LeaderboardPreferences.builder()
@@ -279,5 +297,39 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("user_not_found"))
                 .andExpect(jsonPath("$.message").value("User not found"))
                 .andExpect(jsonPath("$.requestId").value("prefs-terminal-missing-user-1"));
+    }
+
+    @Test
+    void updateTerminalPreferences_withInvalidScannerSort_shouldReturnExplicitBadRequestContract() throws Exception {
+        when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
+                .thenThrow(new RuntimeException("Invalid user preferences scanner sort"));
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/terminal")
+                        .header("X-Request-Id", "prefs-terminal-invalid-scanner-sort-1")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scannerViews\":[{\"name\":\"Bad\",\"market\":\"CRYPTO\",\"quickFilter\":\"ALL\",\"sortMode\":\"BROKEN\"}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "prefs-terminal-invalid-scanner-sort-1"))
+                .andExpect(jsonPath("$.code").value("invalid_user_preferences_scanner_sort"))
+                .andExpect(jsonPath("$.message").value("Invalid user preferences scanner sort"))
+                .andExpect(jsonPath("$.requestId").value("prefs-terminal-invalid-scanner-sort-1"));
+    }
+
+    @Test
+    void updateTerminalPreferences_withCompareBasketLimit_shouldReturnExplicitConflictContract() throws Exception {
+        when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
+                .thenThrow(new RuntimeException("Compare basket limit reached"));
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/terminal")
+                        .header("X-Request-Id", "prefs-terminal-basket-limit-1")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"compareBaskets\":[]}"))
+                .andExpect(status().isConflict())
+                .andExpect(header().string("X-Request-Id", "prefs-terminal-basket-limit-1"))
+                .andExpect(jsonPath("$.code").value("user_preferences_compare_basket_limit_reached"))
+                .andExpect(jsonPath("$.message").value("Compare basket limit reached"))
+                .andExpect(jsonPath("$.requestId").value("prefs-terminal-basket-limit-1"));
     }
 }

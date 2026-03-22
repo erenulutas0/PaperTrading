@@ -1,6 +1,6 @@
 # TODO - Core API Reliability & Scalability Sweep
 
-Last updated: 2026-03-22
+Last updated: 2026-03-23
 
 ## In Progress
 - [x] Verify the new local-dev bootstrap path:
@@ -2776,6 +2776,13 @@ Last updated: 2026-03-22
 - [x] Align user-preferences controller with explicit missing-user contracts:
   - `/api/v1/users/me/preferences`, `/leaderboard`, and `/terminal` now map service-side missing-user cases to explicit `user_not_found`
   - removes dependence on the global generic runtime handler for account-backed preferences reads/writes
+  - targeted verification passed:
+    - `UserPreferencesControllerIntegrationTest`
+    - `UserPreferencesServiceTest`
+- [x] Harden user-preferences writes against silent normalization and truncation:
+  - leaderboard and terminal preference updates now reject invalid requested period/sort/direction/market/range/interval/scanner values instead of silently normalizing them to defaults
+  - compare-basket and scanner-view saves now return explicit limit conflicts instead of truncating overflow input during serialization
+  - controller contracts now expose machine-readable write errors for invalid preference lenses and save-view overflow cases
   - targeted verification passed:
     - `UserPreferencesControllerIntegrationTest`
     - `UserPreferencesServiceTest`
