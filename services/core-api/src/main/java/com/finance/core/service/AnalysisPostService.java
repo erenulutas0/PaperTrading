@@ -47,8 +47,7 @@ public class AnalysisPostService {
     @org.springframework.cache.annotation.CacheEvict(value = "authorStats", key = "#authorId.toString()")
     @Transactional
     public AnalysisPostResponse createPost(UUID authorId, AnalysisPostRequest request) {
-        AppUser author = userRepository.findById(authorId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        AppUser author = requireUser(authorId);
 
         // Validate direction
         AnalysisPost.Direction direction;
@@ -134,6 +133,7 @@ public class AnalysisPostService {
     @org.springframework.cache.annotation.CacheEvict(value = "authorStats", key = "#requesterId.toString()")
     @Transactional
     public void deletePost(UUID postId, UUID requesterId) {
+        ensureUserExists(requesterId);
         AnalysisPost post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
 
@@ -182,8 +182,7 @@ public class AnalysisPostService {
 
     /** User's analysis posts */
     public Page<AnalysisPostResponse> getPostsByAuthor(UUID authorId, Pageable pageable) {
-        AppUser author = userRepository.findById(authorId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        AppUser author = requireUser(authorId);
 
         return postRepository.findByAuthorIdAndDeletedFalseOrderByCreatedAtDesc(authorId, pageable)
                 .map(post -> toResponse(post, author));
@@ -192,6 +191,7 @@ public class AnalysisPostService {
     /** Get author accuracy stats */
     @org.springframework.cache.annotation.Cacheable(value = "authorStats", key = "#authorId.toString()")
     public Map<String, Long> getAuthorStats(UUID authorId) {
+        ensureUserExists(authorId);
         long total = postRepository.countByAuthorIdAndDeletedFalse(authorId);
         long hits = postRepository.countByAuthorIdAndOutcomeAndDeletedFalse(
                 authorId, AnalysisPost.Outcome.HIT);
@@ -205,6 +205,17 @@ public class AnalysisPostService {
         stats.put("misses", misses);
         stats.put("pending", pending);
         return stats;
+    }
+
+    private AppUser requireUser(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    private void ensureUserExists(UUID userId) {
+        if (userId == null || !userRepository.existsById(userId)) {
+            throw new RuntimeException("User not found");
+        }
     }
 
     private AnalysisPostResponse toResponse(AnalysisPost post, AppUser author) {

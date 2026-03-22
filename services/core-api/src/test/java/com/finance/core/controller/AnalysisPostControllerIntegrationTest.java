@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -135,10 +136,14 @@ class AnalysisPostControllerIntegrationTest {
 
                         mockMvc.perform(post("/api/v1/analysis-posts")
                                         .header("X-User-Id", author.getId().toString())
+                                        .header("X-Request-Id", "analysis-create-err-1")
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(objectMapper.writeValueAsString(request)))
                                         .andExpect(status().isBadRequest())
-                                        .andExpect(jsonPath("$.detail").value(containsString("Invalid direction")));
+                                        .andExpect(header().string("X-Request-Id", "analysis-create-err-1"))
+                                        .andExpect(jsonPath("$.code").value("invalid_analysis_direction"))
+                                        .andExpect(jsonPath("$.message").value("Invalid analysis direction"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-create-err-1"));
                 }
 
                 @Test
@@ -152,10 +157,14 @@ class AnalysisPostControllerIntegrationTest {
 
                         mockMvc.perform(post("/api/v1/analysis-posts")
                                         .header("X-User-Id", author.getId().toString())
+                                        .header("X-Request-Id", "analysis-create-err-2")
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(objectMapper.writeValueAsString(request)))
-                                        .andExpect(status().isBadRequest())
-                                        .andExpect(jsonPath("$.detail").value(containsString("No market data")));
+                                        .andExpect(status().isConflict())
+                                        .andExpect(header().string("X-Request-Id", "analysis-create-err-2"))
+                                        .andExpect(jsonPath("$.code").value("analysis_market_data_unavailable"))
+                                        .andExpect(jsonPath("$.message").value(containsString("No market data")))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-create-err-2"));
                 }
 
                 @Test
@@ -170,11 +179,36 @@ class AnalysisPostControllerIntegrationTest {
 
                         mockMvc.perform(post("/api/v1/analysis-posts")
                                         .header("X-User-Id", author.getId().toString())
+                                        .header("X-Request-Id", "analysis-create-err-3")
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(objectMapper.writeValueAsString(request)))
                                         .andExpect(status().isBadRequest())
-                                        .andExpect(jsonPath("$.detail")
-                                                        .value(containsString("BULLISH target price must be above")));
+                                        .andExpect(header().string("X-Request-Id", "analysis-create-err-3"))
+                                        .andExpect(jsonPath("$.code").value("invalid_analysis_target_price"))
+                                        .andExpect(jsonPath("$.message")
+                                                        .value(containsString("BULLISH target price must be above")))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-create-err-3"));
+                }
+
+                @Test
+                void createPost_unknownUser_returnsExplicitNotFoundContract() throws Exception {
+                        AnalysisPostRequest request = AnalysisPostRequest.builder()
+                                        .title("Test")
+                                        .content("Content")
+                                        .instrumentSymbol("BTCUSDT")
+                                        .direction("BULLISH")
+                                        .build();
+
+                        mockMvc.perform(post("/api/v1/analysis-posts")
+                                        .header("X-User-Id", UUID.randomUUID().toString())
+                                        .header("X-Request-Id", "analysis-create-err-4")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(objectMapper.writeValueAsString(request)))
+                                        .andExpect(status().isNotFound())
+                                        .andExpect(header().string("X-Request-Id", "analysis-create-err-4"))
+                                        .andExpect(jsonPath("$.code").value("user_not_found"))
+                                        .andExpect(jsonPath("$.message").value("User not found"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-create-err-4"));
                 }
         }
 
@@ -198,8 +232,13 @@ class AnalysisPostControllerIntegrationTest {
 
                 @Test
                 void getPost_nonExistent_returns404() throws Exception {
-                        mockMvc.perform(get("/api/v1/analysis-posts/{postId}", UUID.randomUUID()))
-                                        .andExpect(status().isNotFound());
+                        mockMvc.perform(get("/api/v1/analysis-posts/{postId}", UUID.randomUUID())
+                                        .header("X-Request-Id", "analysis-read-err-1"))
+                                        .andExpect(status().isNotFound())
+                                        .andExpect(header().string("X-Request-Id", "analysis-read-err-1"))
+                                        .andExpect(jsonPath("$.code").value("analysis_post_not_found"))
+                                        .andExpect(jsonPath("$.message").value("Analysis post not found"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-read-err-1"));
                 }
 
                 @Test
@@ -220,6 +259,17 @@ class AnalysisPostControllerIntegrationTest {
                                         .andExpect(status().isOk())
                                         .andExpect(jsonPath("$.content", hasSize(greaterThanOrEqualTo(1))))
                                         .andExpect(jsonPath("$.content[0].authorId").value(author.getId().toString()));
+                }
+
+                @Test
+                void getPostsByUser_unknownUser_returnsExplicitNotFoundContract() throws Exception {
+                        mockMvc.perform(get("/api/v1/analysis-posts/user/{userId}", UUID.randomUUID())
+                                        .header("X-Request-Id", "analysis-user-err-1"))
+                                        .andExpect(status().isNotFound())
+                                        .andExpect(header().string("X-Request-Id", "analysis-user-err-1"))
+                                        .andExpect(jsonPath("$.code").value("user_not_found"))
+                                        .andExpect(jsonPath("$.message").value("User not found"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-user-err-1"));
                 }
         }
 
@@ -245,7 +295,7 @@ class AnalysisPostControllerIntegrationTest {
                 }
 
                 @Test
-                void deletePost_notAuthor_returns400() throws Exception {
+                void deletePost_notAuthor_returns403() throws Exception {
                         String createResponse = createSamplePost();
                         String postId = objectMapper.readTree(createResponse).get("id").asText();
 
@@ -257,13 +307,17 @@ class AnalysisPostControllerIntegrationTest {
                                         .build());
 
                         mockMvc.perform(delete("/api/v1/analysis-posts/{postId}", postId)
-                                        .header("X-User-Id", otherUser.getId().toString()))
-                                        .andExpect(status().isBadRequest())
-                                        .andExpect(jsonPath("$.detail").value("Only the author can delete their post"));
+                                        .header("X-User-Id", otherUser.getId().toString())
+                                        .header("X-Request-Id", "analysis-delete-err-1"))
+                                        .andExpect(status().isForbidden())
+                                        .andExpect(header().string("X-Request-Id", "analysis-delete-err-1"))
+                                        .andExpect(jsonPath("$.code").value("analysis_post_delete_forbidden"))
+                                        .andExpect(jsonPath("$.message").value("Only the author can delete their post"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-delete-err-1"));
                 }
 
                 @Test
-                void deletePost_alreadyDeleted_returns400() throws Exception {
+                void deletePost_alreadyDeleted_returns409() throws Exception {
                         String createResponse = createSamplePost();
                         String postId = objectMapper.readTree(createResponse).get("id").asText();
 
@@ -274,9 +328,28 @@ class AnalysisPostControllerIntegrationTest {
 
                         // Delete again
                         mockMvc.perform(delete("/api/v1/analysis-posts/{postId}", postId)
-                                        .header("X-User-Id", author.getId().toString()))
-                                        .andExpect(status().isBadRequest())
-                                        .andExpect(jsonPath("$.detail").value("Post already deleted"));
+                                        .header("X-User-Id", author.getId().toString())
+                                        .header("X-Request-Id", "analysis-delete-err-2"))
+                                        .andExpect(status().isConflict())
+                                        .andExpect(header().string("X-Request-Id", "analysis-delete-err-2"))
+                                        .andExpect(jsonPath("$.code").value("analysis_post_already_deleted"))
+                                        .andExpect(jsonPath("$.message").value("Analysis post already deleted"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-delete-err-2"));
+                }
+
+                @Test
+                void deletePost_unknownUser_returnsExplicitNotFoundContract() throws Exception {
+                        String createResponse = createSamplePost();
+                        String postId = objectMapper.readTree(createResponse).get("id").asText();
+
+                        mockMvc.perform(delete("/api/v1/analysis-posts/{postId}", postId)
+                                        .header("X-User-Id", UUID.randomUUID().toString())
+                                        .header("X-Request-Id", "analysis-delete-err-3"))
+                                        .andExpect(status().isNotFound())
+                                        .andExpect(header().string("X-Request-Id", "analysis-delete-err-3"))
+                                        .andExpect(jsonPath("$.code").value("user_not_found"))
+                                        .andExpect(jsonPath("$.message").value("User not found"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-delete-err-3"));
                 }
 
                 @Test
@@ -310,6 +383,17 @@ class AnalysisPostControllerIntegrationTest {
                                         .andExpect(jsonPath("$.total").value(greaterThanOrEqualTo(1)))
                                         .andExpect(jsonPath("$.hits").value(0))
                                         .andExpect(jsonPath("$.pending").value(greaterThanOrEqualTo(1)));
+                }
+
+                @Test
+                void getAuthorStats_unknownUser_returnsExplicitNotFoundContract() throws Exception {
+                        mockMvc.perform(get("/api/v1/analysis-posts/user/{userId}/stats", UUID.randomUUID())
+                                        .header("X-Request-Id", "analysis-stats-err-1"))
+                                        .andExpect(status().isNotFound())
+                                        .andExpect(header().string("X-Request-Id", "analysis-stats-err-1"))
+                                        .andExpect(jsonPath("$.code").value("user_not_found"))
+                                        .andExpect(jsonPath("$.message").value("User not found"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-stats-err-1"));
                 }
         }
 

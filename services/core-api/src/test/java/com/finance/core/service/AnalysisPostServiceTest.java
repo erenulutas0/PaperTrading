@@ -37,6 +37,8 @@ class AnalysisPostServiceTest {
         private BinanceService binanceService;
         @Mock
         private ActivityFeedService activityFeedService;
+        @Mock
+        private AuditLogService auditLogService;
 
         @InjectMocks
         private AnalysisPostService postService;
@@ -54,6 +56,7 @@ class AnalysisPostServiceTest {
                                 .email("trader@test.com")
                                 .password("pass")
                                 .build();
+                lenient().when(userRepository.existsById(any(UUID.class))).thenReturn(true);
                 org.springframework.test.util.ReflectionTestUtils.setField(postService, "self", postService);
         }
 
@@ -319,6 +322,17 @@ class AnalysisPostServiceTest {
                 }
 
                 @Test
+                void deletePost_requesterUserNotFound_throws() {
+                        UUID postId = UUID.randomUUID();
+                        when(userRepository.existsById(authorId)).thenReturn(false);
+
+                        RuntimeException ex = assertThrows(RuntimeException.class,
+                                        () -> postService.deletePost(postId, authorId));
+                        assertEquals("User not found", ex.getMessage());
+                        verify(postRepository, never()).findById(any());
+                }
+
+                @Test
                 void deletePost_notAuthor_throws() {
                         UUID postId = UUID.randomUUID();
                         UUID otherId = UUID.randomUUID();
@@ -491,6 +505,17 @@ class AnalysisPostServiceTest {
                         assertEquals(6L, stats.get("hits"));
                         assertEquals(2L, stats.get("misses"));
                         assertEquals(2L, stats.get("pending"));
+                }
+
+                @Test
+                void getAuthorStats_requiresExistingUser() {
+                        when(userRepository.existsById(authorId)).thenReturn(false);
+
+                        RuntimeException ex = assertThrows(RuntimeException.class,
+                                        () -> postService.getAuthorStats(authorId));
+
+                        assertEquals("User not found", ex.getMessage());
+                        verify(postRepository, never()).countByAuthorIdAndDeletedFalse(any());
                 }
         }
 

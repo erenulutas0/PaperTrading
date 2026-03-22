@@ -14,7 +14,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-22)
+### Progress Tracker (updated 2026-03-23)
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
@@ -38,6 +38,31 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-23**: **Analysis Post User And Delete Paths Now Return Explicit Contracts Instead Of Generic Handler Drift**
+  - **Problem observed**:
+    - Analysis posts were already immutable and auditable, but several controller edges still depended on the global runtime handler:
+      - create with orphan user ids
+      - delete authorization/conflict paths
+      - author post list
+      - author stats
+    - That left important accountability surfaces returning generic `bad_request/not_found` codes, and author stats for unknown users could still degrade to empty-looking counts instead of a deterministic contract failure.
+  - **Implementation**:
+    - Added persisted-user guards in `AnalysisPostService` for:
+      - delete requester
+      - author stats
+      - author post list
+    - Extended `AnalysisPostController` with controller-local mapping for:
+      - `user_not_found`
+      - `analysis_post_not_found`
+      - `analysis_post_delete_forbidden`
+      - `analysis_post_already_deleted`
+      - `invalid_analysis_direction`
+      - `invalid_analysis_target_price`
+      - `analysis_market_data_unavailable`
+    - Added targeted service and controller integration coverage for missing-user, delete-conflict, and explicit error-code paths.
+  - **Operational impact**:
+    - analysis-post clients now get stable machine-readable contracts instead of generic handler fallthrough
+    - author stats and by-author reads no longer treat orphan identities as valid empty analysis profiles
 - **2026-03-22**: **Personalized Activity Feed Reads Now Require Real Users Instead Of Accepting Orphan Identities**
   - **Problem observed**:
     - The activity feed had already been hardened around cache degradation and publish-path scale behavior, but two account-backed read surfaces still trusted any bridged UUID:

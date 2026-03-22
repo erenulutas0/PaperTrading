@@ -1210,6 +1210,19 @@ Last updated: 2026-03-22
   - Coverage:
     - `ActivityFeedServiceTest`
     - `ActivityFeedControllerIntegrationTest`
+- [x] Hardened analysis-post ownership and author-stat contracts:
+  - Updated:
+    - `AnalysisPostService`
+    - `AnalysisPostController`
+  - Behavior:
+    - create/delete/by-author/stats paths now require a real persisted user instead of trusting orphan bridged UUIDs
+    - missing-user path now returns explicit correlated `user_not_found`
+    - missing post path now returns `analysis_post_not_found`
+    - delete conflict/forbidden paths now return explicit `analysis_post_delete_forbidden` and `analysis_post_already_deleted`
+    - invalid direction / target-price / market-data failures now return explicit analysis-post codes instead of generic global handler buckets
+  - Coverage:
+    - `AnalysisPostServiceTest`
+    - `AnalysisPostControllerIntegrationTest`
 - [x] Extended unified error contract into audit ops controller paths:
   - Updated:
     - `AuditOpsController`
