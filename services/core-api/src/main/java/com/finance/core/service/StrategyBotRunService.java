@@ -419,13 +419,13 @@ public class StrategyBotRunService {
     }
 
     @Transactional
-    public void refreshForwardTestRunSystem(UUID runId) {
+    public StrategyBotRun refreshForwardTestRunSystem(UUID runId) {
         StrategyBotRun run = strategyBotRunRepository.findById(runId).orElse(null);
         if (run == null || run.getRunMode() != StrategyBotRun.RunMode.FORWARD_TEST || run.getStatus() != StrategyBotRun.Status.RUNNING) {
-            return;
+            return null;
         }
-        StrategyBot bot = strategyBotService.getOwnedBotEntity(run.getStrategyBotId(), run.getUserId());
         try {
+            StrategyBot bot = strategyBotService.getOwnedBotEntity(run.getStrategyBotId(), run.getUserId());
             RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, false);
             StrategyBotRun saved = strategyBotRunRepository.save(run);
             if (saved.getStatus() == StrategyBotRun.Status.COMPLETED) {
@@ -436,11 +436,12 @@ public class StrategyBotRunService {
                         saved.getId(),
                         buildExecutionAuditDetails(saved, bot, summary));
             }
+            return saved;
         } catch (Exception ex) {
             run.setStatus(StrategyBotRun.Status.FAILED);
             run.setCompletedAt(LocalDateTime.now());
             run.setErrorMessage(ex.getMessage());
-            strategyBotRunRepository.save(run);
+            return strategyBotRunRepository.save(run);
         }
     }
 

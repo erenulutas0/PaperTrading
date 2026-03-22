@@ -41,6 +41,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_idempotency_cleanup_smoke.ps1`
 - `run_audit_write_capture_smoke.ps1`
 - `run_portfolio_pagination_warning_smoke.ps1`
+- `run_strategy_bot_forward_test_scheduler_smoke.ps1`
 - `run_rate_limit_profile_smoke.ps1`
 - `run_rate_limit_staging_checklist.ps1`
 - `run_auth_strict_mode_smoke.ps1`
@@ -325,9 +326,30 @@ The portfolio pagination warning smoke checks:
   - trade buy
   - follow
   - comment
-  - analysis create
-  - analysis delete
+- analysis create
+- analysis delete
 - verify `/actuator/auditlog` still exposes a recent unfiltered snapshot
+
+Run strategy-bot forward-test scheduler smoke against a local backend:
+
+```powershell
+./infra/load-test/run_strategy_bot_forward_test_scheduler_smoke.ps1 `
+  -BaseUrl "http://localhost:8080"
+```
+
+The strategy-bot forward-test scheduler smoke checks:
+- `/actuator/strategybotforwardtests` is exposed and returns a valid baseline snapshot
+- register + create linked paper portfolio
+- create a `READY` strategy bot
+- request + execute a `FORWARD_TEST` run
+- observe scheduler tick delta on the actuator snapshot
+- prove the scheduler refreshed the exact target run id
+- verify the refreshed run still exposes live summary fields such as `lastEvaluatedOpenTime`
+
+Useful notes:
+- this smoke is intentionally actuator-backed instead of blind sleeping
+- it relies on the scheduler snapshot delta plus `lastRefreshedRunId` to prove recurring runtime refresh actually happened
+- use a poll window comfortably above `app.strategy-bots.forward-test-refresh-interval` if you override that interval locally or in staging
 
 Run a combined audit validation suite against a local or staging backend:
 

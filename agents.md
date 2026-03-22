@@ -255,6 +255,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the product now has a real live-paper monitoring loop without introducing brokerage semantics or a second hidden execution model
     - later evolution can optimize refresh/incremental state handling behind a stable API and UI contract
+- **2026-03-22**: **Forward-Test Scheduler Verification Now Uses Actuator Snapshots Instead Of Blind Wait Windows**
+  - **Problem observed**:
+    - The forward-test scheduler existed, but recurring runtime verification was still weak.
+    - A smoke test that only sleeps and re-reads the run would not prove:
+      - that the scheduler actually ticked
+      - that the target run id was the one refreshed
+      - that multi-instance safety remained covered by ShedLock
+  - **Implementation**:
+    - Added `StrategyBotForwardTestObservabilityService`.
+    - Added actuator endpoint:
+      - `GET /actuator/strategybotforwardtests`
+    - The snapshot now exposes:
+      - scheduler tick count
+      - running-run count at the last tick
+      - refresh success/failure counts
+      - last refreshed run id / status
+      - last error
+    - Added `@SchedulerLock` coverage to `StrategyBotForwardTestSchedulerService` and extended the scheduler-lock structure test to include it.
+    - Added focused verification tooling:
+      - `run_strategy_bot_forward_test_scheduler_smoke.ps1`
+  - **Operational impact**:
+    - recurring forward-test refresh can now be verified with evidence instead of timing guesses
+    - scheduler safety and runtime refresh observability are now tied to a narrower, more debuggable contract
 - **2026-03-22**: **Strategy Bot Runs Now Expose Attribution Metrics, Not Just Outcome Totals**
   - **Problem observed**:
     - Run summaries already exposed result quality:

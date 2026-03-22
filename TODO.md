@@ -565,8 +565,19 @@ Last updated: 2026-03-21
   - tests:
     - `StrategyBotControllerIntegrationTest`
 - [ ] Extend strategy-bot live paper execution beyond the current refresh-based forward-test slice:
-  - richer attribution views beyond run-level summary metrics
-  - staging/runtime verification for recurring scheduled forward-test refresh
+  - richer bot-specific analytics/reporting tables beyond the current outcome + attribution blocks
+  - run recurring scheduler verification against a freshly restarted local/staging runtime
+- [x] Added strategy-bot forward-test scheduler observability + smoke tooling:
+  - backend:
+    - `StrategyBotForwardTestObservabilityService`
+    - `/actuator/strategybotforwardtests`
+    - `@SchedulerLock` coverage for `StrategyBotForwardTestSchedulerService`
+  - tests:
+    - `StrategyBotForwardTestSchedulerServiceTest`
+    - `StrategyBotForwardTestEndpointIntegrationTest`
+    - `ScheduledLockAnnotationTest`
+  - tooling:
+    - `run_strategy_bot_forward_test_scheduler_smoke.ps1`
 - [x] Added strategy-bot run journal foundation:
   - migration:
     - `V23__create_strategy_bot_runs_table.sql`

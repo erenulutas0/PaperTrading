@@ -447,6 +447,38 @@ class StrategyBotRunServiceTest {
         assertThat(response.getCompletedAt()).isNotNull();
     }
 
+    @Test
+    void refreshForwardTestRunSystem_shouldFailRunWhenSystemRefreshThrows() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(runId)
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .compiledEntryRules("{\"all\":[\"price_above_ma_3\"]}")
+                .compiledExitRules("{\"any\":[\"take_profit_hit\"]}")
+                .summary("{}")
+                .build();
+
+        when(strategyBotRunRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(strategyBotService.getOwnedBotEntity(botId, userId))
+                .thenThrow(new IllegalArgumentException("Strategy bot not found"));
+        when(strategyBotRunRepository.save(any(StrategyBotRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        StrategyBotRun failed = strategyBotRunService.refreshForwardTestRunSystem(runId);
+
+        assertThat(failed).isNotNull();
+        assertThat(failed.getStatus()).isEqualTo(StrategyBotRun.Status.FAILED);
+        assertThat(failed.getCompletedAt()).isNotNull();
+        assertThat(failed.getErrorMessage()).contains("Strategy bot not found");
+        verify(auditLogService, never()).record(any(), any(), any(), any(), any());
+    }
+
     private List<MarketCandleResponse> risingCandles() {
         return List.of(
                 candle(1, 100, 101, 99, 100, 1000),
