@@ -4,6 +4,7 @@ import com.finance.core.domain.WatchlistAlertDirection;
 import com.finance.core.domain.WatchlistAlertEvent;
 import com.finance.core.domain.WatchlistItem;
 import com.finance.core.dto.WatchlistAlertEventResponse;
+import com.finance.core.repository.UserRepository;
 import com.finance.core.repository.WatchlistAlertEventRepository;
 import com.finance.core.repository.WatchlistItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class WatchlistAlertHistoryService {
 
     private final WatchlistAlertEventRepository watchlistAlertEventRepository;
     private final WatchlistItemRepository watchlistItemRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public void recordEvent(
@@ -52,6 +54,7 @@ public class WatchlistAlertHistoryService {
             int limit,
             Integer days,
             WatchlistAlertDirection direction) {
+        ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
 
@@ -67,6 +70,7 @@ public class WatchlistAlertHistoryService {
             Pageable pageable,
             Integer days,
             WatchlistAlertDirection direction) {
+        ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
 
@@ -87,6 +91,7 @@ public class WatchlistAlertHistoryService {
             UUID userId,
             Integer days,
             WatchlistAlertDirection direction) {
+        ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
 
@@ -182,5 +187,11 @@ public class WatchlistAlertHistoryService {
             return null;
         }
         return Math.min(days, 365);
+    }
+
+    private void ensureUserExists(UUID userId) {
+        if (userId == null || !userRepository.existsById(userId)) {
+            throw new RuntimeException("User not found");
+        }
     }
 }

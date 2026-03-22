@@ -2,6 +2,7 @@ package com.finance.core.service;
 
 import com.finance.core.domain.Watchlist;
 import com.finance.core.domain.WatchlistItem;
+import com.finance.core.repository.UserRepository;
 import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,21 +26,25 @@ public class WatchlistService {
     private final WatchlistRepository watchlistRepository;
     private final WatchlistItemRepository watchlistItemRepository;
     private final MarketDataFacadeService marketDataFacadeService;
+    private final UserRepository userRepository;
 
     /** Get all watchlists for a user */
     @Transactional(readOnly = true)
     public List<Watchlist> getUserWatchlists(UUID userId) {
+        ensureUserExists(userId);
         return watchlistRepository.findByUserId(userId);
     }
 
     /** Get all watchlists for a user (paged) */
     @Transactional(readOnly = true)
     public Page<Watchlist> getUserWatchlists(UUID userId, Pageable pageable) {
+        ensureUserExists(userId);
         return watchlistRepository.findByUserId(userId, pageable);
     }
 
     /** Create a new watchlist */
     public Watchlist createWatchlist(UUID userId, String name) {
+        ensureUserExists(userId);
         Watchlist watchlist = Watchlist.builder()
                 .userId(userId)
                 .name(name != null ? name : "My Watchlist")
@@ -50,6 +55,7 @@ public class WatchlistService {
     /** Delete a watchlist (only if owned by user) */
     @Transactional
     public void deleteWatchlist(UUID watchlistId, UUID userId) {
+        ensureUserExists(userId);
         Watchlist watchlist = watchlistRepository.findByIdAndUserId(watchlistId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist not found or not owned by user"));
         watchlistRepository.delete(watchlist);
@@ -60,6 +66,7 @@ public class WatchlistService {
     @Transactional
     public WatchlistItem addItem(UUID watchlistId, UUID userId, String symbol,
             BigDecimal alertAbove, BigDecimal alertBelow, String notes) {
+        ensureUserExists(userId);
         Watchlist watchlist = watchlistRepository.findByIdAndUserId(watchlistId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist not found or not owned by user"));
 
@@ -79,6 +86,7 @@ public class WatchlistService {
     /** Remove an item from a watchlist */
     @Transactional
     public void removeItem(UUID itemId, UUID userId) {
+        ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
         watchlistItemRepository.delete(item);
@@ -87,6 +95,7 @@ public class WatchlistService {
     /** Update alert prices for an item */
     @Transactional
     public WatchlistItem updateAlerts(UUID itemId, UUID userId, BigDecimal alertAbove, BigDecimal alertBelow) {
+        ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
 
@@ -108,6 +117,7 @@ public class WatchlistService {
     /** Get enriched watchlist items with current prices (paged) */
     @Transactional(readOnly = true)
     public Page<Map<String, Object>> getEnrichedItemsPage(UUID watchlistId, UUID userId, Pageable pageable) {
+        ensureUserExists(userId);
         Watchlist watchlist = watchlistRepository.findByIdAndUserId(watchlistId, userId)
                 .orElseThrow(() -> new RuntimeException("Watchlist not found"));
 
@@ -132,5 +142,11 @@ public class WatchlistService {
                     "alertBelowTriggered", item.getAlertBelowTriggered(),
                     "notes", item.getNotes() != null ? item.getNotes() : "");
         });
+    }
+
+    private void ensureUserExists(UUID userId) {
+        if (userId == null || !userRepository.existsById(userId)) {
+            throw new RuntimeException("User not found");
+        }
     }
 }

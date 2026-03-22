@@ -5,9 +5,11 @@ import com.finance.core.domain.Watchlist;
 import com.finance.core.domain.WatchlistAlertDirection;
 import com.finance.core.domain.WatchlistAlertEvent;
 import com.finance.core.domain.WatchlistItem;
+import com.finance.core.domain.AppUser;
 import com.finance.core.dto.MarketType;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketInstrumentResponse;
+import com.finance.core.repository.UserRepository;
 import com.finance.core.repository.WatchlistAlertEventRepository;
 import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
@@ -49,6 +51,8 @@ class WatchlistControllerIntegrationTest {
         private WatchlistItemRepository watchlistItemRepository;
         @Autowired
         private WatchlistAlertEventRepository watchlistAlertEventRepository;
+        @Autowired
+        private UserRepository userRepository;
         @MockitoBean
         private MarketDataFacadeService marketDataFacadeService;
         @Autowired
@@ -56,8 +60,8 @@ class WatchlistControllerIntegrationTest {
         @Autowired
         private JdbcTemplate jdbcTemplate;
 
-        private UUID userId = UUID.randomUUID();
-        private UUID otherUserId = UUID.randomUUID();
+        private UUID userId;
+        private UUID otherUserId;
         private Watchlist testWatchlist;
 
         @BeforeEach
@@ -65,6 +69,20 @@ class WatchlistControllerIntegrationTest {
                 watchlistItemRepository.deleteAll();
                 watchlistAlertEventRepository.deleteAll();
                 watchlistRepository.deleteAll();
+
+                AppUser user = userRepository.save(AppUser.builder()
+                                .username("watchlist-user-" + UUID.randomUUID())
+                                .email("watchlist-user-" + UUID.randomUUID() + "@example.com")
+                                .password("pw")
+                                .build());
+                AppUser otherUser = userRepository.save(AppUser.builder()
+                                .username("watchlist-other-" + UUID.randomUUID())
+                                .email("watchlist-other-" + UUID.randomUUID() + "@example.com")
+                                .password("pw")
+                                .build());
+
+                userId = user.getId();
+                otherUserId = otherUser.getId();
 
                 testWatchlist = Watchlist.builder()
                                 .name("Integration Watchlist")
@@ -116,6 +134,18 @@ class WatchlistControllerIntegrationTest {
         }
 
         @Test
+        void testGetWatchlistsPaged_unknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+                mockMvc.perform(get("/api/v1/watchlists")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-Request-Id", "watchlist-read-err-1"))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "watchlist-read-err-1"))
+                                .andExpect(jsonPath("$.code").value("user_not_found"))
+                                .andExpect(jsonPath("$.message").value("User not found"))
+                                .andExpect(jsonPath("$.requestId").value("watchlist-read-err-1"));
+        }
+
+        @Test
         void testAddItemToWatchlist() throws Exception {
                 Map<String, Object> itemRequest = Map.of(
                                 "symbol", "ETHUSDT",
@@ -128,6 +158,21 @@ class WatchlistControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.symbol").value("ETHUSDT"))
                                 .andExpect(jsonPath("$.alertPriceAbove").value(4000.0));
+        }
+
+        @Test
+        void testCreateWatchlist_unknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+                Map<String, String> body = Map.of("name", "Ghost Watchlist");
+                mockMvc.perform(post("/api/v1/watchlists")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-Request-Id", "watchlist-create-err-1")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(body)))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "watchlist-create-err-1"))
+                                .andExpect(jsonPath("$.code").value("user_not_found"))
+                                .andExpect(jsonPath("$.message").value("User not found"))
+                                .andExpect(jsonPath("$.requestId").value("watchlist-create-err-1"));
         }
 
         @Test
@@ -272,6 +317,35 @@ class WatchlistControllerIntegrationTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Disposition", org.hamcrest.Matchers.containsString("alert-history-above.csv")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentType("text/csv"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(org.hamcrest.Matchers.containsString("CSV trigger")));
+    }
+
+    @Test
+    void testGetAlertHistory_unknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-Request-Id", "watchlist-history-err-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-err-1"))
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-err-1"));
+    }
+
+    @Test
+    void testExportAlertHistory_missingItem_shouldReturnExplicitNotFoundContract() throws Exception {
+        mockMvc.perform(get("/api/v1/watchlists/items/" + UUID.randomUUID() + "/alert-history/export")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-export-err-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-export-err-1"))
+                .andExpect(jsonPath("$.code").value("watchlist_item_not_found"))
+                .andExpect(jsonPath("$.message").value("Watchlist item not found"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-export-err-1"));
     }
 
     @Test

@@ -22,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,19 +37,29 @@ public class WatchlistController {
 
     /** Get all watchlists for the current user */
     @GetMapping
-    public ResponseEntity<Page<Watchlist>> getUserWatchlists(
+    public ResponseEntity<?> getUserWatchlists(
             @CurrentUserId UUID userId,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(watchlistService.getUserWatchlists(userId, pageable));
+            @PageableDefault(size = 20) Pageable pageable,
+            HttpServletRequest httpRequest) {
+        try {
+            return ResponseEntity.ok(watchlistService.getUserWatchlists(userId, pageable));
+        } catch (Exception e) {
+            return buildWatchlistError(e, "watchlists_read_failed", "Failed to load watchlists", httpRequest);
+        }
     }
 
     /** Create a new watchlist */
     @PostMapping
-    public ResponseEntity<Watchlist> createWatchlist(
+    public ResponseEntity<?> createWatchlist(
             @CurrentUserId UUID userId,
-            @RequestBody(required = false) CreateWatchlistRequest request) {
+            @RequestBody(required = false) CreateWatchlistRequest request,
+            HttpServletRequest httpRequest) {
         String name = request != null ? request.getName() : null;
-        return ResponseEntity.ok(watchlistService.createWatchlist(userId, name));
+        try {
+            return ResponseEntity.ok(watchlistService.createWatchlist(userId, name));
+        } catch (Exception e) {
+            return buildWatchlistError(e, "watchlist_create_failed", "Failed to create watchlist", httpRequest);
+        }
     }
 
     /** Delete a watchlist */
@@ -134,34 +145,44 @@ public class WatchlistController {
     }
 
     @GetMapping("/items/{itemId}/alert-history")
-    public ResponseEntity<Page<WatchlistAlertEventResponse>> getAlertHistory(
+    public ResponseEntity<?> getAlertHistory(
             @PathVariable UUID itemId,
             @CurrentUserId UUID userId,
             @PageableDefault(size = 10) Pageable pageable,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Integer days,
-            @RequestParam(required = false) WatchlistAlertDirection direction) {
+            @RequestParam(required = false) WatchlistAlertDirection direction,
+            HttpServletRequest httpRequest) {
         Pageable effectivePageable = pageable;
         if (limit != null && limit > 0) {
             effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
         }
-        return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistoryPage(itemId, userId, effectivePageable, days, direction));
+        try {
+            return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistoryPage(itemId, userId, effectivePageable, days, direction));
+        } catch (Exception e) {
+            return buildWatchlistError(e, "watchlist_alert_history_failed", "Failed to load watchlist alert history", httpRequest);
+        }
     }
 
     @GetMapping("/items/{itemId}/alert-history/export")
-    public ResponseEntity<byte[]> exportAlertHistory(
+    public ResponseEntity<?> exportAlertHistory(
             @PathVariable UUID itemId,
             @CurrentUserId UUID userId,
             @RequestParam(required = false) Integer days,
-            @RequestParam(required = false) WatchlistAlertDirection direction) {
-        byte[] csv = watchlistAlertHistoryService.exportHistoryCsv(itemId, userId, days, direction);
-        String filename = direction == null
-                ? "alert-history.csv"
-                : "alert-history-" + direction.name().toLowerCase() + ".csv";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.parseMediaType("text/csv"))
-                .body(csv);
+            @RequestParam(required = false) WatchlistAlertDirection direction,
+            HttpServletRequest httpRequest) {
+        try {
+            byte[] csv = watchlistAlertHistoryService.exportHistoryCsv(itemId, userId, days, direction);
+            String filename = direction == null
+                    ? "alert-history.csv"
+                    : "alert-history-" + direction.name().toLowerCase(Locale.ROOT) + ".csv";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.parseMediaType("text/csv"))
+                    .body(csv);
+        } catch (Exception e) {
+            return buildWatchlistError(e, "watchlist_alert_history_export_failed", "Failed to export watchlist alert history", httpRequest);
+        }
     }
 
     @Data
@@ -185,13 +206,16 @@ public class WatchlistController {
 
     private ResponseEntity<?> buildWatchlistError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
         String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
-        String normalized = message.toLowerCase();
+        String normalized = message.toLowerCase(Locale.ROOT);
 
         if (normalized.contains("watchlist item not found")) {
             return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "watchlist_item_not_found", "Watchlist item not found", null, request);
         }
         if (normalized.contains("watchlist not found")) {
             return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "watchlist_not_found", "Watchlist not found", null, request);
+        }
+        if (normalized.contains("user not found")) {
+            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "user_not_found", "User not found", null, request);
         }
 
         return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);

@@ -1183,6 +1183,21 @@ Last updated: 2026-03-22
   - Coverage:
     - `PerformanceAnalyticsServiceTest`
     - `AnalyticsControllerIntegrationTest`
+- [x] Hardened watchlist account and alert-history ownership contracts:
+  - Updated:
+    - `WatchlistService`
+    - `WatchlistAlertHistoryService`
+    - `WatchlistController`
+  - Behavior:
+    - watchlist list/create/delete/item/history/export paths now require a real persisted user instead of operating against orphan bridged UUIDs
+    - watchlist history/export endpoints now return explicit correlated contracts instead of falling through to generic global handlers
+    - missing-user path now returns `user_not_found`
+    - missing/non-owned alert-history item path now consistently returns `watchlist_item_not_found`
+    - locale-sensitive lowercasing in watchlist controller error mapping is now anchored to `Locale.ROOT`
+  - Coverage:
+    - `WatchlistServiceTest`
+    - `WatchlistAlertHistoryServiceTest`
+    - `WatchlistControllerIntegrationTest`
 - [x] Extended unified error contract into audit ops controller paths:
   - Updated:
     - `AuditOpsController`

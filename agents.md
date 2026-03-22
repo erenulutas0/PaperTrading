@@ -38,6 +38,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Watchlist Account And Alert-History Surfaces Now Require Real Users And Explicit History Contracts**
+  - **Problem observed**:
+    - Watchlist write paths had already been tightened around owner-scoped item lookup, but several account-backed watchlist surfaces still accepted any bridged UUID without proving the user row existed:
+      - list watchlists
+      - create watchlist
+      - alert-history read
+      - alert-history CSV export
+    - Alert-history controller paths also bypassed the local watchlist error mapper, so missing-item cases could fall through to generic global contracts.
+  - **Implementation**:
+    - Added user existence checks to:
+      - `WatchlistService`
+      - `WatchlistAlertHistoryService`
+    - Extended `WatchlistController` error mapping to cover:
+      - `user_not_found`
+      - `watchlist_item_not_found`
+      on list/create/history/export paths.
+    - Switched watchlist error normalization to `Locale.ROOT`.
+    - Added targeted unit and integration coverage, including real persisted users in `WatchlistControllerIntegrationTest`.
+  - **Operational impact**:
+    - watchlist/account-backed surfaces no longer operate under orphan identities
+    - alert-history scripts and clients now get stable machine-readable contracts instead of generic handler fallthrough
 - **2026-03-22**: **Portfolio Analytics Now Anchor Author Signals To The Portfolio Owner And Reject Silent Export Fallbacks**
   - **Problem observed**:
     - `AnalyticsController` still had two quiet but real contract problems:
