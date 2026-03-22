@@ -35,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -103,6 +104,112 @@ public class StrategyBotRunService {
     @Transactional(readOnly = true)
     public StrategyBotAnalyticsResponse getBotAnalytics(UUID botId, UUID userId) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        return buildBotAnalytics(bot, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public String buildBotAnalyticsExportJson(UUID botId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId);
+        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+        payload.put("strategyBotId", bot.getId());
+        payload.put("name", bot.getName());
+        payload.put("description", bot.getDescription());
+        payload.put("market", bot.getMarket());
+        payload.put("symbol", bot.getSymbol());
+        payload.put("timeframe", bot.getTimeframe());
+        payload.put("status", bot.getStatus().name());
+        payload.put("linkedPortfolioId", bot.getLinkedPortfolioId());
+        payload.put("exportedAt", LocalDateTime.now().toString());
+        payload.put("analytics", analytics);
+        try {
+            return objectMapper.copy()
+                    .findAndRegisterModules()
+                    .writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Failed to serialize strategy bot analytics export", ex);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] buildBotAnalyticsExportCsv(UUID botId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId);
+
+        List<List<Object>> rows = new ArrayList<>();
+        rows.add(List.of(
+                "section",
+                "key",
+                "value",
+                "runId",
+                "runMode",
+                "status",
+                "requestedAt",
+                "completedAt",
+                "returnPercent",
+                "netPnl",
+                "maxDrawdownPercent",
+                "winRate",
+                "tradeCount",
+                "profitFactor",
+                "expectancyPerTrade",
+                "timeInMarketPercent",
+                "linkedPortfolioAligned",
+                "executionEngineReady",
+                "lastEvaluatedOpenTime",
+                "errorMessage"));
+
+        addMetricRow(rows, "context", "strategyBotId", bot.getId());
+        addMetricRow(rows, "context", "name", bot.getName());
+        addMetricRow(rows, "context", "description", bot.getDescription());
+        addMetricRow(rows, "context", "market", bot.getMarket());
+        addMetricRow(rows, "context", "symbol", bot.getSymbol());
+        addMetricRow(rows, "context", "timeframe", bot.getTimeframe());
+        addMetricRow(rows, "context", "status", bot.getStatus().name());
+        addMetricRow(rows, "context", "linkedPortfolioId", bot.getLinkedPortfolioId());
+        addMetricRow(rows, "context", "exportedAt", LocalDateTime.now());
+
+        addMetricRow(rows, "summary", "totalRuns", analytics.getTotalRuns());
+        addMetricRow(rows, "summary", "backtestRuns", analytics.getBacktestRuns());
+        addMetricRow(rows, "summary", "forwardTestRuns", analytics.getForwardTestRuns());
+        addMetricRow(rows, "summary", "completedRuns", analytics.getCompletedRuns());
+        addMetricRow(rows, "summary", "runningRuns", analytics.getRunningRuns());
+        addMetricRow(rows, "summary", "failedRuns", analytics.getFailedRuns());
+        addMetricRow(rows, "summary", "compilerReadyRuns", analytics.getCompilerReadyRuns());
+        addMetricRow(rows, "summary", "positiveCompletedRuns", analytics.getPositiveCompletedRuns());
+        addMetricRow(rows, "summary", "negativeCompletedRuns", analytics.getNegativeCompletedRuns());
+        addMetricRow(rows, "summary", "totalSimulatedTrades", analytics.getTotalSimulatedTrades());
+        addMetricRow(rows, "summary", "avgReturnPercent", analytics.getAvgReturnPercent());
+        addMetricRow(rows, "summary", "avgNetPnl", analytics.getAvgNetPnl());
+        addMetricRow(rows, "summary", "avgMaxDrawdownPercent", analytics.getAvgMaxDrawdownPercent());
+        addMetricRow(rows, "summary", "avgWinRate", analytics.getAvgWinRate());
+        addMetricRow(rows, "summary", "avgTradeCount", analytics.getAvgTradeCount());
+        addMetricRow(rows, "summary", "avgProfitFactor", analytics.getAvgProfitFactor());
+        addMetricRow(rows, "summary", "avgExpectancyPerTrade", analytics.getAvgExpectancyPerTrade());
+
+        addScorecardRow(rows, "highlightRun", "bestRun", analytics.getBestRun());
+        addScorecardRow(rows, "highlightRun", "worstRun", analytics.getWorstRun());
+        addScorecardRow(rows, "highlightRun", "latestCompletedRun", analytics.getLatestCompletedRun());
+        addScorecardRow(rows, "highlightRun", "activeForwardRun", analytics.getActiveForwardRun());
+
+        addReasonRows(rows, "entryDriver", analytics.getEntryDriverTotals());
+        addReasonRows(rows, "exitDriver", analytics.getExitDriverTotals());
+
+        if (analytics.getRecentScorecards() != null) {
+            for (StrategyBotRunScorecardResponse scorecard : analytics.getRecentScorecards()) {
+                addScorecardRow(rows, "recentScorecard", "recent", scorecard);
+            }
+        }
+
+        String content = rows.stream()
+                .map(row -> row.stream().map(this::escapeCsv).reduce((left, right) -> left + "," + right).orElse(""))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+        return content.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private StrategyBotAnalyticsResponse buildBotAnalytics(StrategyBot bot, UUID userId) {
         List<StrategyBotRun> runs = strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId);
         List<StrategyBotRunScorecardResponse> scorecards = runs.stream()
                 .map(this::toScorecard)
@@ -145,6 +252,45 @@ public class StrategyBotRunService {
                 .exitDriverTotals(aggregateReasonCounts(runs, "exitReasonCounts"))
                 .recentScorecards(scorecards.stream().limit(12).toList())
                 .build();
+    }
+
+    private void addMetricRow(List<List<Object>> rows, String section, String key, Object value) {
+        rows.add(List.of(section, key, value == null ? "" : value, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""));
+    }
+
+    private void addReasonRows(List<List<Object>> rows, String section, Map<String, Integer> counts) {
+        if (counts == null || counts.isEmpty()) {
+            return;
+        }
+        counts.forEach((key, value) -> addMetricRow(rows, section, key, value));
+    }
+
+    private void addScorecardRow(List<List<Object>> rows, String section, String key, StrategyBotRunScorecardResponse scorecard) {
+        if (scorecard == null) {
+            return;
+        }
+        List<Object> row = new ArrayList<>();
+        row.add(section);
+        row.add(key);
+        row.add("");
+        row.add(scorecard.getId());
+        row.add(scorecard.getRunMode());
+        row.add(scorecard.getStatus());
+        row.add(scorecard.getRequestedAt());
+        row.add(scorecard.getCompletedAt());
+        row.add(scorecard.getReturnPercent());
+        row.add(scorecard.getNetPnl());
+        row.add(scorecard.getMaxDrawdownPercent());
+        row.add(scorecard.getWinRate());
+        row.add(scorecard.getTradeCount());
+        row.add(scorecard.getProfitFactor());
+        row.add(scorecard.getExpectancyPerTrade());
+        row.add(scorecard.getTimeInMarketPercent());
+        row.add(scorecard.getLinkedPortfolioAligned());
+        row.add(scorecard.getExecutionEngineReady());
+        row.add(scorecard.getLastEvaluatedOpenTime());
+        row.add(scorecard.getErrorMessage());
+        rows.add(row);
     }
 
     @Transactional
@@ -1129,6 +1275,14 @@ public class StrategyBotRunService {
 
     private double round(double value) {
         return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
+    }
+
+    private String escapeCsv(Object value) {
+        String raw = value == null ? "" : String.valueOf(value);
+        if (raw.contains(",") || raw.contains("\"") || raw.contains("\n")) {
+            return "\"" + raw.replace("\"", "\"\"") + "\"";
+        }
+        return raw;
     }
 
     private String writeJsonArray(List<String> values) {

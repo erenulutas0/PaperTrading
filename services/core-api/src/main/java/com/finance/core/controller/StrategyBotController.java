@@ -17,7 +17,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -60,6 +62,32 @@ public class StrategyBotController {
             return ResponseEntity.ok(analytics);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_analytics_failed", "Failed to load strategy bot analytics", request);
+        }
+    }
+
+    @GetMapping("/{botId}/analytics/export")
+    public ResponseEntity<?> exportBotAnalytics(
+            @PathVariable UUID botId,
+            @CurrentUserId UUID userId,
+            @RequestParam(defaultValue = "json") String format,
+            HttpServletRequest request) {
+        try {
+            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase();
+            if ("csv".equals(normalizedFormat)) {
+                byte[] content = strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-analytics-" + botId + ".csv\"")
+                        .contentType(new MediaType("text", "csv"))
+                        .body(content);
+            }
+
+            String content = strategyBotRunService.buildBotAnalyticsExportJson(botId, userId);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-analytics-" + botId + ".json\"")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(content);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_analytics_export_failed", "Failed to export strategy bot analytics", request);
         }
     }
 

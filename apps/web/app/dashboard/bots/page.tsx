@@ -66,6 +66,10 @@ function fmtCurrency(value?: number | null) { return value === undefined || valu
 function fmtPercent(value?: number | null) { return value === undefined || value === null || Number.isNaN(value) ? 'N/A' : `${value.toFixed(2)}%`; }
 function pretty(value: unknown) { try { return JSON.stringify(value ?? {}, null, 2); } catch { return '{}'; } }
 function err(error: unknown) { return error instanceof Error ? error.message : 'Unexpected request failure'; }
+function downloadNameFromDisposition(disposition: string | null, fallback: string) {
+    const match = disposition?.match(/filename="?([^"]+)"?/i);
+    return match?.[1] ?? fallback;
+}
 
 function buildSparkline(points: StrategyBotRunEquityPoint[]) {
     if (points.length < 2) return '';
@@ -95,6 +99,7 @@ export default function StrategyBotsPage() {
     const [executingRunId, setExecutingRunId] = useState<string | null>(null);
     const [refreshingRunId, setRefreshingRunId] = useState<string | null>(null);
     const [applyingRunId, setApplyingRunId] = useState<string | null>(null);
+    const [exportingFormat, setExportingFormat] = useState<'csv' | 'json' | null>(null);
     const [outputsLoading, setOutputsLoading] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -213,6 +218,37 @@ export default function StrategyBotsPage() {
             setSelectedBotAnalytics(await response.json() as StrategyBotAnalytics);
         } catch {
             setSelectedBotAnalytics(null);
+        }
+    }
+
+    async function exportBotAnalytics(format: 'csv' | 'json') {
+        if (!selectedBotId) {
+            setActionError('Select a strategy bot before exporting analytics');
+            return;
+        }
+        setExportingFormat(format);
+        setActionError(null);
+        setNotice(null);
+        try {
+            const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/analytics/export?format=${format}`, {
+                cache: 'no-store',
+            });
+            if (!response.ok) throw new Error(await response.text() || `Strategy bot analytics export failed (${response.status})`);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = downloadNameFromDisposition(
+                response.headers.get('Content-Disposition'),
+                `strategy-bot-analytics.${format}`,
+            );
+            anchor.click();
+            window.URL.revokeObjectURL(url);
+            setNotice(format === 'csv' ? 'Bot analytics CSV exported' : 'Bot analytics JSON exported');
+        } catch (error) {
+            setActionError(err(error));
+        } finally {
+            setExportingFormat(null);
         }
     }
 
@@ -419,8 +455,30 @@ export default function StrategyBotsPage() {
                     <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
                         <div className="space-y-6">
                             <div className="rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl">
-                                <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Bot Analytics</p>
-                                <h2 className="mt-3 text-xl font-bold text-white">Run-level quality at the bot surface.</h2>
+                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Bot Analytics</p>
+                                        <h2 className="mt-3 text-xl font-bold text-white">Run-level quality at the bot surface.</h2>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => void exportBotAnalytics('csv')}
+                                            disabled={!selectedBotId || exportingFormat !== null}
+                                            className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {exportingFormat === 'csv' ? 'Exporting CSV...' : 'Export CSV'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void exportBotAnalytics('json')}
+                                            disabled={!selectedBotId || exportingFormat !== null}
+                                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {exportingFormat === 'json' ? 'Exporting JSON...' : 'Export JSON'}
+                                        </button>
+                                    </div>
+                                </div>
                                 {selectedBotAnalytics ? (
                                     <div className="mt-5 grid gap-4 sm:grid-cols-2">
                                         <div className="rounded-2xl border border-white/5 bg-black/20 p-4">

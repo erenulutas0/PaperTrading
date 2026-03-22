@@ -21,11 +21,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -301,5 +304,70 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.worstRun.returnPercent").value(-6.0))
                 .andExpect(jsonPath("$.activeForwardRun.runMode").value("FORWARD_TEST"))
                 .andExpect(jsonPath("$.recentScorecards", hasSize(3)));
+    }
+
+    @Test
+    void exportStrategyBotAnalytics_shouldReturnCsvAndJsonDownloads() throws Exception {
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Analytics Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": 8.5,
+                          "netPnl": 8500.0,
+                          "maxDrawdownPercent": 3.2,
+                          "winRate": 75.0,
+                          "tradeCount": 4,
+                          "profitFactor": 2.1,
+                          "expectancyPerTrade": 2125.0,
+                          "timeInMarketPercent": 38.0,
+                          "linkedPortfolioAligned": true,
+                          "entryReasonCounts": {"price_above_ma_3": 2},
+                          "exitReasonCounts": {"take_profit_hit": 1}
+                        }
+                        """)
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("format", "csv"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString(".csv")))
+                .andExpect(content().contentType("text/csv"))
+                .andExpect(content().string(containsString("context,name,Analytics Bot")))
+                .andExpect(content().string(containsString("recentScorecard,recent")));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("format", "json"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString(".json")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.name").value("Analytics Bot"))
+                .andExpect(jsonPath("$.analytics.totalRuns").value(1))
+                .andExpect(jsonPath("$.analytics.recentScorecards", hasSize(1)));
     }
 }

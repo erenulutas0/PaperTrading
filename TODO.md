@@ -1,6 +1,6 @@
 # TODO - Core API Reliability & Scalability Sweep
 
-Last updated: 2026-03-21
+Last updated: 2026-03-22
 
 ## In Progress
 - [x] Verify the new local-dev bootstrap path:
@@ -569,6 +569,7 @@ Last updated: 2026-03-21
 - [x] Added strategy-bot analytics/reporting surface:
   - backend:
     - `GET /api/v1/strategy-bots/{botId}/analytics`
+    - `GET /api/v1/strategy-bots/{botId}/analytics/export?format=csv|json`
     - bot-level aggregates for:
       - run counts by mode/status
       - average return / pnl / drawdown / win-rate / profit-factor / expectancy
@@ -576,14 +577,18 @@ Last updated: 2026-03-21
       - active forward-test run
       - aggregated entry/exit driver totals
       - recent run scorecards
+    - downloadable JSON/CSV exports now reuse the same bot analytics contract instead of building a second report model
   - frontend:
     - `/dashboard/bots` overview now renders:
       - bot analytics cards
       - aggregated driver totals
       - recent run scorecards table
+      - `Export CSV`
+      - `Export JSON`
   - tests:
     - `StrategyBotRunServiceTest`
     - `StrategyBotControllerIntegrationTest`
+    - `apps/web` `npx tsc --noEmit`
 - [x] Added strategy-bot forward-test scheduler observability + smoke tooling:
   - backend:
     - `StrategyBotForwardTestObservabilityService`

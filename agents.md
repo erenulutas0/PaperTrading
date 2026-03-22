@@ -14,7 +14,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-21)
+### Progress Tracker (updated 2026-03-22)
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
@@ -328,6 +328,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - the product now has a bot-level reporting surface, not just isolated run inspection
     - later export/leaderboard work can reuse an already-normalized analytics contract instead of scraping run cards from the UI
+- **2026-03-22**: **Strategy Bot Reports Now Export From The Same Analytics Contract Instead Of A Parallel Reporting Path**
+  - **Problem observed**:
+    - Bot-level analytics were now visible in `/dashboard/bots`, but the reporting surface still stopped at the browser.
+    - Without a downloadable export path:
+      - operators could not archive or share bot-level summaries cleanly
+      - frontend would eventually be tempted to build ad-hoc report blobs that drift from the backend analytics contract
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/{botId}/analytics/export?format=csv|json`.
+    - Export payloads are derived from the existing bot analytics aggregate instead of a second reporting model.
+    - JSON export now wraps:
+      - bot context
+      - exported timestamp
+      - the normalized analytics payload
+    - CSV export now flattens:
+      - context rows
+      - summary metrics
+      - entry/exit driver totals
+      - highlighted runs
+      - recent scorecards
+    - `/dashboard/bots` now exposes `Export CSV` and `Export JSON` actions directly in the overview analytics block.
+  - **Operational impact**:
+    - bot reporting is now portable without introducing a second analytics source of truth
+    - future admin/reporting surfaces can reuse the same aggregate contract for both screen and download paths
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

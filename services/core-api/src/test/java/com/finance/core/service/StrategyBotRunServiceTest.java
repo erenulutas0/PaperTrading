@@ -26,6 +26,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.LocalDate;
@@ -513,6 +514,70 @@ class StrategyBotRunServiceTest {
         assertThat(analytics.getEntryDriverTotals()).containsEntry("price_above_ma_3", 4);
         assertThat(analytics.getExitDriverTotals()).containsEntry("take_profit_hit", 2);
         assertThat(analytics.getRecentScorecards()).hasSize(3);
+    }
+
+    @Test
+    void buildBotAnalyticsExports_shouldWrapContextAndFlattenScorecards() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID linkedPortfolioId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
+                .name("Analytics Bot")
+                .description("Deterministic breakout model")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun completedRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": 12.5,
+                          "netPnl": 12500,
+                          "maxDrawdownPercent": 4.2,
+                          "winRate": 66.7,
+                          "tradeCount": 6,
+                          "profitFactor": 1.9,
+                          "expectancyPerTrade": 2083.33,
+                          "timeInMarketPercent": 45.5,
+                          "linkedPortfolioAligned": false,
+                          "entryReasonCounts": {"price_above_ma_3": 2},
+                          "exitReasonCounts": {"take_profit_hit": 2}
+                        }
+                        """)
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId))
+                .thenReturn(List.of(completedRun));
+
+        String json = strategyBotRunService.buildBotAnalyticsExportJson(botId, userId);
+        String csv = new String(strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId), StandardCharsets.UTF_8);
+
+        assertThat(json).contains("\"name\" : \"Analytics Bot\"");
+        assertThat(json).contains("\"analytics\"");
+        assertThat(csv).contains("context,name,Analytics Bot");
+        assertThat(csv).contains("summary,totalRuns,1");
+        assertThat(csv).contains("entryDriver,price_above_ma_3,2");
+        assertThat(csv).contains("recentScorecard,recent");
     }
 
     @Test
