@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -104,39 +105,37 @@ public class UserProfileService {
                         throw new RuntimeException("Already following");
                 }
 
-                // Verify both users exist
-                userRepository.findById(followerId)
-                                .orElseThrow(() -> new RuntimeException("Follower not found"));
-                AppUser following = userRepository.findById(followingId)
-                                .orElseThrow(() -> new RuntimeException("User to follow not found"));
+                loadRequiredUser(followerId, "Follower not found");
+                loadRequiredUser(followingId, "User to follow not found");
 
-                followRepository.save(Follow.builder()
-                                .followerId(followerId)
-                                .followingId(followingId)
-                                .build());
+                try {
+                        followRepository.save(Follow.builder()
+                                        .followerId(followerId)
+                                        .followingId(followingId)
+                                        .build());
+                } catch (DataIntegrityViolationException ex) {
+                        throw new RuntimeException("Already following", ex);
+                }
 
-                // Update denormalized counters
-                AppUser follower = userRepository.findById(followerId).get();
-                follower.setFollowingCount(follower.getFollowingCount() + 1);
-                following.setFollowerCount(following.getFollowerCount() + 1);
-                userRepository.save(follower);
-                userRepository.save(following);
+                adjustFollowCounters(followerId, followingId, 1);
+                AppUser refreshedFollower = loadRequiredUser(followerId, "Follower not found");
+                AppUser refreshedFollowing = loadRequiredUser(followingId, "User to follow not found");
 
                 // Publish follow event to activity feed
                 activityFeedService.publish(
-                                followerId, follower.getUsername(),
+                                followerId, refreshedFollower.getUsername(),
                                 ActivityEvent.EventType.FOLLOW,
                                 ActivityEvent.TargetType.USER,
-                                followingId, following.getUsername());
+                                followingId, refreshedFollowing.getUsername());
 
                 // Publish real-time notification
                 eventPublisher.publishEvent(NotificationEvent.builder()
                                 .receiverId(followingId)
                                 .actorId(followerId)
-                                .actorUsername(follower.getUsername())
+                                .actorUsername(refreshedFollower.getUsername())
                                 .type(NotificationType.FOLLOW)
                                 .referenceId(followerId)
-                                .referenceLabel(follower.getUsername())
+                                .referenceLabel(refreshedFollower.getUsername())
                                 .build());
 
                 auditLogService.record(
@@ -145,26 +144,22 @@ public class UserProfileService {
                                 AuditResourceType.USER,
                                 followingId,
                                 Map.of(
-                                                "followerUsername", follower.getUsername(),
-                                                "followingUsername", following.getUsername()));
+                                                "followerUsername", refreshedFollower.getUsername(),
+                                                "followingUsername", refreshedFollowing.getUsername()));
 
                 log.info("User {} followed user {}", followerId, followingId);
         }
 
         @Transactional
         public void unfollow(UUID followerId, UUID followingId) {
-                Follow follow = followRepository.findByFollowerIdAndFollowingId(followerId, followingId)
-                                .orElseThrow(() -> new RuntimeException("Not following this user"));
+                int deleted = followRepository.deleteByFollowerIdAndFollowingId(followerId, followingId);
+                if (deleted == 0) {
+                        throw new RuntimeException("Not following this user");
+                }
 
-                followRepository.delete(follow);
-
-                // Update denormalized counters
-                AppUser follower = userRepository.findById(followerId).get();
-                AppUser following = userRepository.findById(followingId).get();
-                follower.setFollowingCount(Math.max(0, follower.getFollowingCount() - 1));
-                following.setFollowerCount(Math.max(0, following.getFollowerCount() - 1));
-                userRepository.save(follower);
-                userRepository.save(following);
+                adjustFollowCounters(followerId, followingId, -1);
+                AppUser follower = loadRequiredUser(followerId, "Follower not found");
+                AppUser following = loadRequiredUser(followingId, "User to unfollow not found");
 
                 auditLogService.record(
                                 followerId,
@@ -176,6 +171,20 @@ public class UserProfileService {
                                                 "followingUsername", following.getUsername()));
 
                 log.info("User {} unfollowed user {}", followerId, followingId);
+        }
+
+        private void adjustFollowCounters(UUID followerId, UUID followingId, int delta) {
+                if (userRepository.adjustFollowingCount(followerId, delta) == 0) {
+                        throw new RuntimeException("Follower not found");
+                }
+                if (userRepository.adjustFollowerCount(followingId, delta) == 0) {
+                        throw new RuntimeException(delta > 0 ? "User to follow not found" : "User to unfollow not found");
+                }
+        }
+
+        private AppUser loadRequiredUser(UUID userId, String message) {
+                return userRepository.findById(userId)
+                                .orElseThrow(() -> new RuntimeException(message));
         }
 
         public Page<UserProfileResponse> getFollowers(UUID userId, UUID requesterId, Pageable pageable) {

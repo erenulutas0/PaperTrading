@@ -38,6 +38,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Follow Graph Writes Now Use Atomic Counter Updates Instead Of Load-Modify-Save User Rows**
+  - **Problem observed**:
+    - `UserProfileService.follow/unfollow` was still adjusting `followerCount` and `followingCount` by loading both users, mutating counters in memory, and saving them back.
+    - Under concurrent follow/unfollow traffic, that pattern carries a real lost-update risk even though the `follows` table already has a unique edge constraint.
+    - The newer strategy-bot schema also exposed that some older integration tests were no longer cleaning dependent rows before deleting portfolios, which made unrelated social tests fail on foreign keys.
+  - **Implementation**:
+    - Added repository-level atomic counter updates on `AppUser` for:
+      - follower count adjustments
+      - following count adjustments
+    - Switched unfollow removal to an atomic delete-by-edge query that returns affected-row count instead of loading the relation first.
+    - Normalized duplicate follow constraint races back into the existing `Already following` domain error so controller error mapping stays stable.
+    - Updated `UserProfileControllerIntegrationTest` cleanup order to remove strategy-bot run/output rows before portfolios.
+  - **Operational impact**:
+    - follow/unfollow writes are less prone to lost counter updates under concurrent traffic
+    - duplicate follow races now degrade to a stable domain conflict instead of surfacing raw database exceptions
+    - social integration tests no longer depend on pre-strategy-bot schema assumptions during cleanup
 - **2026-03-22**: **Leaderboard Reads Now Treat Redis As A Fast Path Instead Of An Availability Dependency**
   - **Problem observed**:
     - Feed reads already degraded cleanly when Redis was cold or unavailable, but leaderboard reads were still structurally tighter to Redis ZSET availability.

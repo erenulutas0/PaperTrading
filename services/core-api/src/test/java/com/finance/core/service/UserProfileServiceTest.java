@@ -8,12 +8,12 @@ import com.finance.core.dto.UpdateProfileRequest;
 import com.finance.core.dto.UserProfileResponse;
 import com.finance.core.repository.FollowRepository;
 import com.finance.core.repository.PortfolioRepository;
-import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -241,25 +241,16 @@ class UserProfileServiceTest {
                 when(followRepository.existsByFollowerIdAndFollowingId(userAId, userBId)).thenReturn(false);
                 when(userRepository.findById(userAId)).thenReturn(Optional.of(userA));
                 when(userRepository.findById(userBId)).thenReturn(Optional.of(userB));
+                when(userRepository.adjustFollowingCount(userAId, 1)).thenReturn(1);
+                when(userRepository.adjustFollowerCount(userBId, 1)).thenReturn(1);
 
                 userProfileService.follow(userAId, userBId);
 
                 verify(followRepository).save(any(Follow.class));
-
-                // Verify counters were incremented
-                ArgumentCaptor<AppUser> captor = ArgumentCaptor.forClass(AppUser.class);
-                verify(userRepository, atLeast(2)).save(captor.capture());
-
-                List<AppUser> savedUsers = captor.getAllValues();
-                // Find userA (follower) — followingCount should be 1
-                AppUser savedFollower = savedUsers.stream()
-                                .filter(u -> u.getId().equals(userAId)).findFirst().orElseThrow();
-                assertEquals(1, savedFollower.getFollowingCount());
-
-                // Find userB (following) — followerCount should be 1
-                AppUser savedFollowing = savedUsers.stream()
-                                .filter(u -> u.getId().equals(userBId)).findFirst().orElseThrow();
-                assertEquals(1, savedFollowing.getFollowerCount());
+                verify(userRepository).adjustFollowingCount(userAId, 1);
+                verify(userRepository).adjustFollowerCount(userBId, 1);
+                verify(activityFeedService).publish(userAId, "alice", com.finance.core.domain.ActivityEvent.EventType.FOLLOW,
+                                com.finance.core.domain.ActivityEvent.TargetType.USER, userBId, "bob");
         }
 
         @Test
@@ -287,66 +278,55 @@ class UserProfileServiceTest {
                 assertThrows(RuntimeException.class, () -> userProfileService.follow(userAId, userBId));
         }
 
+        @Test
+        void follow_normalizesDuplicateConstraintRace() {
+                when(followRepository.existsByFollowerIdAndFollowingId(userAId, userBId)).thenReturn(false);
+                when(userRepository.findById(userAId)).thenReturn(Optional.of(userA));
+                when(userRepository.findById(userBId)).thenReturn(Optional.of(userB));
+                when(followRepository.save(any(Follow.class))).thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+                RuntimeException ex = assertThrows(RuntimeException.class,
+                                () -> userProfileService.follow(userAId, userBId));
+
+                assertEquals("Already following", ex.getMessage());
+                verify(userRepository, never()).adjustFollowingCount(any(), anyInt());
+                verify(userRepository, never()).adjustFollowerCount(any(), anyInt());
+        }
+
         // ===== UNFOLLOW =====
 
         @Test
         void unfollow_deletesRelationshipAndDecrementsCounters() {
-                userA.setFollowingCount(3);
-                userB.setFollowerCount(5);
-
-                Follow existingFollow = Follow.builder()
-                                .id(UUID.randomUUID()).followerId(userAId).followingId(userBId).build();
-
-                when(followRepository.findByFollowerIdAndFollowingId(userAId, userBId))
-                                .thenReturn(Optional.of(existingFollow));
+                when(followRepository.deleteByFollowerIdAndFollowingId(userAId, userBId)).thenReturn(1);
                 when(userRepository.findById(userAId)).thenReturn(Optional.of(userA));
                 when(userRepository.findById(userBId)).thenReturn(Optional.of(userB));
+                when(userRepository.adjustFollowingCount(userAId, -1)).thenReturn(1);
+                when(userRepository.adjustFollowerCount(userBId, -1)).thenReturn(1);
 
                 userProfileService.unfollow(userAId, userBId);
 
-                verify(followRepository).delete(existingFollow);
-
-                ArgumentCaptor<AppUser> captor = ArgumentCaptor.forClass(AppUser.class);
-                verify(userRepository, atLeast(2)).save(captor.capture());
-
-                AppUser savedFollower = captor.getAllValues().stream()
-                                .filter(u -> u.getId().equals(userAId)).findFirst().orElseThrow();
-                assertEquals(2, savedFollower.getFollowingCount()); // 3 -> 2
-
-                AppUser savedFollowing = captor.getAllValues().stream()
-                                .filter(u -> u.getId().equals(userBId)).findFirst().orElseThrow();
-                assertEquals(4, savedFollowing.getFollowerCount()); // 5 -> 4
+                verify(followRepository).deleteByFollowerIdAndFollowingId(userAId, userBId);
+                verify(userRepository).adjustFollowingCount(userAId, -1);
+                verify(userRepository).adjustFollowerCount(userBId, -1);
         }
 
         @Test
         void unfollow_countersNeverGoNegative() {
-                userA.setFollowingCount(0);
-                userB.setFollowerCount(0);
-
-                Follow existingFollow = Follow.builder()
-                                .id(UUID.randomUUID()).followerId(userAId).followingId(userBId).build();
-
-                when(followRepository.findByFollowerIdAndFollowingId(userAId, userBId))
-                                .thenReturn(Optional.of(existingFollow));
+                when(followRepository.deleteByFollowerIdAndFollowingId(userAId, userBId)).thenReturn(1);
                 when(userRepository.findById(userAId)).thenReturn(Optional.of(userA));
                 when(userRepository.findById(userBId)).thenReturn(Optional.of(userB));
+                when(userRepository.adjustFollowingCount(userAId, -1)).thenReturn(1);
+                when(userRepository.adjustFollowerCount(userBId, -1)).thenReturn(1);
 
                 userProfileService.unfollow(userAId, userBId);
 
-                ArgumentCaptor<AppUser> captor = ArgumentCaptor.forClass(AppUser.class);
-                verify(userRepository, atLeast(2)).save(captor.capture());
-
-                // Counters should remain 0, not go to -1
-                captor.getAllValues().forEach(u -> {
-                        assertTrue(u.getFollowerCount() >= 0, "followerCount must not be negative");
-                        assertTrue(u.getFollowingCount() >= 0, "followingCount must not be negative");
-                });
+                verify(userRepository).adjustFollowingCount(userAId, -1);
+                verify(userRepository).adjustFollowerCount(userBId, -1);
         }
 
         @Test
         void unfollow_throwsWhenNotFollowing() {
-                when(followRepository.findByFollowerIdAndFollowingId(userAId, userBId))
-                                .thenReturn(Optional.empty());
+                when(followRepository.deleteByFollowerIdAndFollowingId(userAId, userBId)).thenReturn(0);
 
                 RuntimeException ex = assertThrows(RuntimeException.class,
                                 () -> userProfileService.unfollow(userAId, userBId));

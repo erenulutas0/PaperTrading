@@ -2633,3 +2633,10 @@ Last updated: 2026-03-22
   - `incrementWithTtl` now preserves a successful increment even if the follow-up TTL write fails
   - cache-level tests now cover typed reads, sorted-set reads, counter increments, and TTL-write degradation metrics
   - avoids unnecessary higher-level fallback work when Redis increment succeeded but expiry write did not
+- [x] Harden social follow writes against DB races and lost counter updates:
+  - `UserProfileService.follow/unfollow` now uses repository-level atomic counter adjustments instead of load-modify-save user writes
+  - duplicate follow constraint races are normalized back to the stable `Already following` domain error instead of leaking raw DB failures
+  - controller integration cleanup now deletes strategy-bot run/output rows before portfolios so newer FK surfaces do not break unrelated social tests
+  - targeted verification passed:
+    - `UserProfileServiceTest`
+    - `UserProfileControllerIntegrationTest`
