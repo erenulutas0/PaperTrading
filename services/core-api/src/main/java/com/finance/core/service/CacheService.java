@@ -230,7 +230,13 @@ public class CacheService {
         try {
             Long count = redisTemplate.opsForValue().increment(key);
             if (count != null && count == 1) {
-                redisTemplate.expire(key, ttl.toSeconds(), TimeUnit.SECONDS);
+                try {
+                    redisTemplate.expire(key, ttl.toSeconds(), TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    recordCommand("increment_with_ttl", "ttl_error", start);
+                    log.warn("Redis EXPIRE after INCREMENT failed for key {}: {}", key, e.getMessage());
+                    return count;
+                }
             }
             recordCommand("increment_with_ttl", "success", start);
             return count;

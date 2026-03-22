@@ -2625,3 +2625,7 @@ Last updated: 2026-03-22
   - global/personalized feed reads now fall back to repository paths if cache page reads or version lookups throw unexpectedly
   - publish path now tolerates global cache invalidation and follower-version bump failures
   - targeted `ActivityFeedServiceTest` coverage locks Redis-degradation behavior without requiring a live outage harness
+- [x] Harden cache adapter semantics for partial Redis failures:
+  - `incrementWithTtl` now preserves a successful increment even if the follow-up TTL write fails
+  - cache-level tests now cover typed reads, sorted-set reads, counter increments, and TTL-write degradation metrics
+  - avoids unnecessary higher-level fallback work when Redis increment succeeded but expiry write did not

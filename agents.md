@@ -69,6 +69,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - feed publish/read paths now degrade more predictably under Redis adapter faults
     - cache failures stay a performance problem instead of becoming a user-visible feed outage
+- **2026-03-22**: **Cache Counters Now Preserve Successful Increments Even If TTL Writes Fail**
+  - **Problem observed**:
+    - `CacheService.incrementWithTtl(...)` treated the increment and the follow-up expiry write as one all-or-nothing block.
+    - That meant a successful Redis increment followed by an `EXPIRE` failure still surfaced as `null`, which could trigger unnecessary higher-level fallback work.
+  - **Implementation**:
+    - Split `incrementWithTtl(...)` error handling so:
+      - increment failure still returns `null`
+      - expiry-write failure returns the successful increment count and records a dedicated `ttl_error` metric result
+    - Extended `CacheServiceTest` coverage for:
+      - typed get failure
+      - sorted-set read failure
+      - counter increment failure
+      - TTL-write-after-increment failure
+  - **Operational impact**:
+    - services that version cache keys can keep the successful increment signal instead of overreacting to a partial TTL failure
+    - Redis degradation telemetry is more specific than a generic command failure bucket
 - **2026-03-21**: **Strategy Bots Start As Audited Draft CRUD Before Any Execution Engine**
   - **Problem observed**:
     - The product direction now includes paper-only strategy bots, but jumping directly into execution/backtest logic would entangle several concerns at once:
