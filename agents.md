@@ -38,6 +38,30 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Interaction Controller Fail Paths Now Use Explicit Correlated Contracts Instead Of Global Fallback Codes**
+  - **Problem observed**:
+    - `InteractionController` still relied on the global exception handler for edge paths such as:
+      - invalid target type
+      - empty comment
+      - overly long comment
+      - missing portfolio / post / comment targets
+    - That left the interaction surface with generic `bad_request` / `not_found` codes while nearby social controllers had already moved to more explicit, machine-stable contracts.
+    - A Turkish locale lowercasing quirk also meant naive `toLowerCase()` matching could miss strings like `Invalid ...` because `I` became `ı`.
+  - **Implementation**:
+    - Added controller-local interaction error mapping for:
+      - `interaction_target_type_required`
+      - `interaction_target_type_invalid`
+      - `interaction_comment_empty`
+      - `interaction_comment_too_long`
+      - `portfolio_not_found`
+      - `analysis_post_not_found`
+      - `comment_not_found`
+    - Switched error-message normalization to `Locale.ROOT`.
+    - Updated `InteractionControllerIntegrationTest` cleanup order to delete strategy-bot run/output rows before portfolios.
+  - **Operational impact**:
+    - interaction clients and smoke tooling now receive more stable error codes for common social edge paths
+    - locale-specific casing behavior no longer creates hidden contract drift in manual error mapping
+    - interaction integration tests no longer assume a pre-strategy-bot schema during cleanup
 - **2026-03-22**: **Watchlist Item Mutations Now Enforce Owner-Scoped Lookup Instead Of Raw Item Id Access**
   - **Problem observed**:
     - `WatchlistService.removeItem(...)` and `updateAlerts(...)` were still resolving items with plain `findById(...)`.

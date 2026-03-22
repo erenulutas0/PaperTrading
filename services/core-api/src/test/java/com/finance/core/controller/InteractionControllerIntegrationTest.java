@@ -9,6 +9,10 @@ import com.finance.core.repository.FollowRepository;
 import com.finance.core.repository.InteractionRepository;
 import com.finance.core.repository.NotificationRepository;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.StrategyBotRepository;
+import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunFillRepository;
+import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.UserRepository;
 import com.finance.core.service.BinanceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +63,18 @@ class InteractionControllerIntegrationTest {
     @Autowired
     private NotificationRepository notificationRepository;
 
+    @Autowired
+    private StrategyBotRepository strategyBotRepository;
+
+    @Autowired
+    private StrategyBotRunRepository strategyBotRunRepository;
+
+    @Autowired
+    private StrategyBotRunFillRepository strategyBotRunFillRepository;
+
+    @Autowired
+    private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+
     @MockitoBean
     private BinanceService binanceService;
 
@@ -72,6 +88,10 @@ class InteractionControllerIntegrationTest {
         interactionRepository.deleteAll();
         notificationRepository.deleteAll();
         followRepository.deleteAll();
+        strategyBotRunEquityPointRepository.deleteAll();
+        strategyBotRunFillRepository.deleteAll();
+        strategyBotRunRepository.deleteAll();
+        strategyBotRepository.deleteAll();
         portfolioRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -217,10 +237,63 @@ class InteractionControllerIntegrationTest {
 
         mockMvc.perform(post("/api/v1/interactions/{targetId}/like", UUID.randomUUID())
                 .header("X-User-Id", actor.getId().toString())
+                .header("X-Request-Id", "interaction-err-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("not_found"))
-                .andExpect(jsonPath("$.message").value(containsString("Portfolio not found")));
+                .andExpect(jsonPath("$.code").value("portfolio_not_found"))
+                .andExpect(jsonPath("$.message").value("Portfolio not found"))
+                .andExpect(jsonPath("$.requestId").value("interaction-err-1"));
+    }
+
+    @Test
+    void addComment_withInvalidTargetType_shouldReturnUnifiedBadRequestContract() throws Exception {
+        InteractionRequest request = new InteractionRequest();
+        request.setTargetType("INVALID");
+        request.setContent("Bad target");
+
+        mockMvc.perform(post("/api/v1/interactions/{targetId}/comments", portfolio.getId())
+                .header("X-User-Id", actor.getId().toString())
+                .header("X-Request-Id", "interaction-err-2")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("interaction_target_type_invalid"))
+                .andExpect(jsonPath("$.message").value("Invalid target type. Use PORTFOLIO, ANALYSIS_POST or COMMENT"))
+                .andExpect(jsonPath("$.requestId").value("interaction-err-2"));
+    }
+
+    @Test
+    void addComment_withEmptyContent_shouldReturnUnifiedBadRequestContract() throws Exception {
+        InteractionRequest request = new InteractionRequest();
+        request.setTargetType("PORTFOLIO");
+        request.setContent("   ");
+
+        mockMvc.perform(post("/api/v1/interactions/{targetId}/comments", portfolio.getId())
+                .header("X-User-Id", actor.getId().toString())
+                .header("X-Request-Id", "interaction-err-3")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("interaction_comment_empty"))
+                .andExpect(jsonPath("$.message").value("Comment content cannot be empty"))
+                .andExpect(jsonPath("$.requestId").value("interaction-err-3"));
+    }
+
+    @Test
+    void addComment_toMissingComment_shouldReturnUnifiedNotFoundContract() throws Exception {
+        InteractionRequest request = new InteractionRequest();
+        request.setTargetType("COMMENT");
+        request.setContent("Reply");
+
+        mockMvc.perform(post("/api/v1/interactions/{targetId}/comments", UUID.randomUUID())
+                .header("X-User-Id", actor.getId().toString())
+                .header("X-Request-Id", "interaction-err-4")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("comment_not_found"))
+                .andExpect(jsonPath("$.message").value("Comment not found"))
+                .andExpect(jsonPath("$.requestId").value("interaction-err-4"));
     }
 }

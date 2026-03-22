@@ -2663,3 +2663,10 @@ Last updated: 2026-03-22
   - targeted verification passed:
     - `WatchlistServiceTest`
     - `WatchlistControllerIntegrationTest`
+- [x] Align interaction fail paths with explicit API contracts:
+  - interaction like/comment controller paths now normalize invalid target type, empty comment, too-long comment, and missing portfolio/post/comment targets into explicit correlated API errors
+  - Turkish-locale lowercasing no longer breaks interaction error-code normalization; string matching now uses `Locale.ROOT`
+  - interaction controller integration cleanup now deletes strategy-bot run/output rows before portfolios so newer FK surfaces do not break social tests
+  - targeted verification passed:
+    - `InteractionServiceTest`
+    - `InteractionControllerIntegrationTest`
