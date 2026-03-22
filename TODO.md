@@ -605,6 +605,35 @@ Last updated: 2026-03-22
     - `StrategyBotControllerIntegrationTest`
     - `StrategyBotRunControllerIntegrationTest`
     - `apps/web` `npx tsc --noEmit`
+- [x] Added public strategy-bot comparison surface:
+  - backend:
+    - `GET /api/v1/strategy-bots/discover`
+    - public eligibility now means:
+      - linked portfolio is `PUBLIC`
+      - bot status is not `DRAFT`
+    - discover query supports:
+      - `q`
+      - `sortBy`
+      - `direction`
+      - `runMode`
+      - `lookbackDays`
+    - discover rows reuse the existing board aggregate instead of inventing a second public metric model
+  - frontend:
+    - new public route:
+      - `/bots`
+    - includes:
+      - preset comparison lenses
+      - scope filters
+      - backend-backed search
+      - owner trust/profile context
+      - linked public portfolio jump
+    - public nav entry added from:
+      - landing page
+      - `/discover`
+  - tests:
+    - `StrategyBotControllerIntegrationTest`
+    - `StrategyBotRunServiceTest`
+    - `apps/web` `npx tsc --noEmit`
 - [x] Added strategy-bot forward-test scheduler observability + smoke tooling:
   - backend:
     - `StrategyBotForwardTestObservabilityService`

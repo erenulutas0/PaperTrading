@@ -537,6 +537,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - saved bot comparison lenses can now move across devices or accounts with a simple JSON file
     - one saved lens can now be handed off as a direct deep link instead of being recreated manually
+- **2026-03-22**: **Public Strategy Bot Comparison Reuses The Board Contract Instead Of Creating A Separate Public Metric Model**
+  - **Problem observed**:
+    - The bot workspace already had a rich private board, but there was no public read surface for comparing published bots.
+    - Building a separate public scoring model would have duplicated:
+      - scope filtering
+      - sort semantics
+      - run aggregation rules
+    - while still leaving the harder policy question unresolved: what makes a bot public?
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/discover` as a public paged comparison endpoint.
+    - Public eligibility is currently derived, not separately configured:
+      - linked portfolio must be `PUBLIC`
+      - bot status must not be `DRAFT`
+    - Reused the existing board aggregate and sort/filter semantics for the public endpoint instead of introducing a second reporting contract.
+    - Added a new public `/bots` page in the web app with:
+      - preset lenses
+      - scope filters
+      - search
+      - owner trust/profile context
+      - linked public portfolio jumps
+  - **Operational impact**:
+    - public bot comparison now behaves consistently with the private dashboard board instead of drifting into a different scoring language
+    - the product now has an explicit public strategy-bot layer without adding a premature bot-visibility flag yet
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

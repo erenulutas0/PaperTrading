@@ -10,12 +10,19 @@ import java.util.UUID;
 @Builder
 public class StrategyBotBoardEntryResponse {
     UUID strategyBotId;
+    String description;
     String name;
     String status;
     String market;
     String symbol;
     String timeframe;
     UUID linkedPortfolioId;
+    String linkedPortfolioName;
+    UUID ownerId;
+    String ownerUsername;
+    String ownerDisplayName;
+    String ownerAvatarUrl;
+    Double ownerTrustScore;
     int totalRuns;
     int completedRuns;
     int runningRuns;

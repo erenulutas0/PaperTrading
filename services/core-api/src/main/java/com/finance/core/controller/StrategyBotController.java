@@ -42,6 +42,29 @@ public class StrategyBotController {
         return ResponseEntity.ok(strategyBotService.getUserBots(userId, pageable));
     }
 
+    @GetMapping("/discover")
+    public ResponseEntity<?> discoverBots(
+            @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
+            @RequestParam(defaultValue = "DESC") String direction,
+            @RequestParam(defaultValue = "ALL") String runMode,
+            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(defaultValue = "") String q,
+            @PageableDefault(size = 12) Pageable pageable,
+            HttpServletRequest request) {
+        try {
+            Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.discoverPublicBotBoard(
+                    pageable,
+                    sortBy,
+                    direction,
+                    runMode,
+                    lookbackDays,
+                    q);
+            return ResponseEntity.ok(board);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_discover_failed", "Failed to load public strategy bots", request);
+        }
+    }
+
     @GetMapping("/board")
     public ResponseEntity<?> getBotBoard(
             @CurrentUserId UUID userId,

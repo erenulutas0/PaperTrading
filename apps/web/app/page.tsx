@@ -64,6 +64,9 @@ export default function Home() {
               <Link href="/discover" className="px-6 py-3 rounded-lg border border-border hover:bg-accent text-foreground w-full sm:w-auto">
                 Discover Portfolios
               </Link>
+              <Link href="/bots" className="px-6 py-3 rounded-lg border border-border hover:bg-accent text-foreground w-full sm:w-auto">
+                Explore Strategy Bots
+              </Link>
             </div>
           </div>
         </section>

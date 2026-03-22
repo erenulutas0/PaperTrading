@@ -1,12 +1,14 @@
 package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
+import com.finance.core.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +54,9 @@ class StrategyBotControllerIntegrationTest {
     @Autowired
     private StrategyBotRunRepository strategyBotRunRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private UUID userId;
     private Portfolio linkedPortfolio;
 
@@ -60,7 +65,15 @@ class StrategyBotControllerIntegrationTest {
         strategyBotRunRepository.deleteAll();
         strategyBotRepository.deleteAll();
         portfolioRepository.deleteAll();
-        userId = UUID.randomUUID();
+        userRepository.deleteAll();
+        AppUser savedUser = userRepository.save(AppUser.builder()
+                .username("strategy-owner")
+                .email("strategy-owner@example.com")
+                .password("hashed")
+                .displayName("Strategy Owner")
+                .trustScore(61.5)
+                .build());
+        userId = savedUser.getId();
         linkedPortfolio = portfolioRepository.save(Portfolio.builder()
                 .name("Bot Portfolio")
                 .ownerId(userId.toString())
@@ -675,6 +688,124 @@ class StrategyBotControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/strategy-bots/board/export")
                         .header("X-User-Id", userId.toString())
+                        .param("sortBy", "BOGUS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
+    }
+
+    @Test
+    void discoverStrategyBots_shouldReturnPublicNonDraftBotsWithOwnerContext() throws Exception {
+        AppUser publicOwner = userRepository.save(AppUser.builder()
+                .username("aurora")
+                .email("aurora@example.com")
+                .password("hashed")
+                .displayName("Aurora Signals")
+                .avatarUrl("https://example.com/avatar.png")
+                .trustScore(72.25)
+                .build());
+        UUID publicOwnerId = publicOwner.getId();
+
+        Portfolio publicPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Aurora Public Basket")
+                .ownerId(publicOwnerId.toString())
+                .balance(new BigDecimal("150000"))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build());
+        Portfolio privatePortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Aurora Private Basket")
+                .ownerId(publicOwnerId.toString())
+                .balance(new BigDecimal("90000"))
+                .visibility(Portfolio.Visibility.PRIVATE)
+                .build());
+
+        StrategyBot publicReadyBot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .name("Aurora Breakout")
+                .description("Public breakout engine")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build());
+        strategyBotRepository.save(StrategyBot.builder()
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .name("Aurora Draft")
+                .description("Should stay private")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("15"))
+                .cooldownMinutes(30)
+                .status(StrategyBot.Status.DRAFT)
+                .build());
+        strategyBotRepository.save(StrategyBot.builder()
+                .userId(publicOwnerId)
+                .linkedPortfolioId(privatePortfolio.getId())
+                .name("Aurora Private Bot")
+                .description("Private basket only")
+                .market("CRYPTO")
+                .symbol("SOLUSDT")
+                .timeframe("15M")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("15"))
+                .cooldownMinutes(30)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(publicReadyBot.getId())
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(1))
+                .completedAt(LocalDateTime.now().minusHours(12))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 12.0,
+                          "netPnl": 12000.0,
+                          "maxDrawdownPercent": 4.0,
+                          "winRate": 66.0,
+                          "tradeCount": 6,
+                          "profitFactor": 1.9
+                        }
+                        """)
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .param("q", "aurora")
+                        .param("sortBy", "AVG_RETURN")
+                        .param("direction", "DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(publicReadyBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].name").value("Aurora Breakout"))
+                .andExpect(jsonPath("$.content[0].description").value("Public breakout engine"))
+                .andExpect(jsonPath("$.content[0].linkedPortfolioId").value(publicPortfolio.getId().toString()))
+                .andExpect(jsonPath("$.content[0].linkedPortfolioName").value("Aurora Public Basket"))
+                .andExpect(jsonPath("$.content[0].ownerId").value(publicOwnerId.toString()))
+                .andExpect(jsonPath("$.content[0].ownerUsername").value("aurora"))
+                .andExpect(jsonPath("$.content[0].ownerDisplayName").value("Aurora Signals"))
+                .andExpect(jsonPath("$.content[0].ownerAvatarUrl").value("https://example.com/avatar.png"))
+                .andExpect(jsonPath("$.content[0].ownerTrustScore").value(72.25))
+                .andExpect(jsonPath("$.content[0].avgReturnPercent").value(12.0))
+                .andExpect(jsonPath("$.content[0].totalRuns").value(1))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
                         .param("sortBy", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));

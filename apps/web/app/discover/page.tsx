@@ -117,6 +117,7 @@ export default function DiscoverPage() {
                     <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
                     <Link href="/dashboard/leaderboard" className="hover:text-white transition-colors">Leaderboard</Link>
                     <Link href="/discover" className="text-white">Discover</Link>
+                    <Link href="/bots" className="hover:text-white transition-colors">Bots</Link>
                 </div>
             </nav>
 

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.List;
+import java.util.Collection;
 import java.util.UUID;
 
 @Repository
@@ -17,6 +18,8 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
     Optional<StrategyBotRun> findByIdAndStrategyBotIdAndUserId(UUID id, UUID strategyBotId, UUID userId);
 
     List<StrategyBotRun> findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(UUID strategyBotId, UUID userId);
+
+    List<StrategyBotRun> findByStrategyBotIdInOrderByRequestedAtDesc(Collection<UUID> strategyBotIds);
 
     List<StrategyBotRun> findByRunModeAndStatusOrderByRequestedAtAsc(StrategyBotRun.RunMode runMode, StrategyBotRun.Status status);
 

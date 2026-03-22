@@ -3,6 +3,7 @@ package com.finance.core.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finance.core.domain.AppUser;
 import com.finance.core.domain.AuditActionType;
 import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.Portfolio;
@@ -29,6 +30,7 @@ import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
+import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -66,6 +68,7 @@ public class StrategyBotRunService {
     private final StrategyBotRunFillRepository strategyBotRunFillRepository;
     private final StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
     private final TradeActivityRepository tradeActivityRepository;
+    private final UserRepository userRepository;
     private final MarketDataFacadeService marketDataFacadeService;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
@@ -130,6 +133,30 @@ public class StrategyBotRunService {
                 direction,
                 scopedRunMode,
                 normalizedLookbackDays);
+
+        int start = Math.toIntExact(pageable.getOffset());
+        if (start >= entries.size()) {
+            return new PageImpl<>(List.of(), pageable, entries.size());
+        }
+        int end = Math.min(start + pageable.getPageSize(), entries.size());
+        return new PageImpl<>(entries.subList(start, end), pageable, entries.size());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StrategyBotBoardEntryResponse> discoverPublicBotBoard(Pageable pageable,
+                                                                      String sortBy,
+                                                                      String direction,
+                                                                      String runMode,
+                                                                      Integer lookbackDays,
+                                                                      String query) {
+        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
+        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        List<StrategyBotBoardEntryResponse> entries = buildPublicBotBoardEntries(
+                sortBy,
+                direction,
+                scopedRunMode,
+                normalizedLookbackDays,
+                query);
 
         int start = Math.toIntExact(pageable.getOffset());
         if (start >= entries.size()) {
@@ -552,10 +579,18 @@ public class StrategyBotRunService {
                                                            UUID userId,
                                                            StrategyBotRun.RunMode scopedRunMode,
                                                            Integer lookbackDays) {
-        List<StrategyBotRun> runs = filterRuns(
+        return buildBotAnalytics(
+                bot,
                 strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId),
                 scopedRunMode,
                 lookbackDays);
+    }
+
+    private StrategyBotAnalyticsResponse buildBotAnalytics(StrategyBot bot,
+                                                           List<StrategyBotRun> rawRuns,
+                                                           StrategyBotRun.RunMode scopedRunMode,
+                                                           Integer lookbackDays) {
+        List<StrategyBotRun> runs = filterRuns(rawRuns, scopedRunMode, lookbackDays);
         List<StrategyBotRunScorecardResponse> scorecards = runs.stream()
                 .map(this::toScorecard)
                 .toList();
@@ -607,6 +642,58 @@ public class StrategyBotRunService {
         return strategyBotRepository.findByUserId(userId, Pageable.unpaged())
                 .stream()
                 .map(bot -> toBoardEntry(bot, buildBotAnalytics(bot, userId, scopedRunMode, lookbackDays)))
+                .sorted(resolveBoardComparator(sortBy, direction))
+                .toList();
+    }
+
+    private List<StrategyBotBoardEntryResponse> buildPublicBotBoardEntries(String sortBy,
+                                                                           String direction,
+                                                                           StrategyBotRun.RunMode scopedRunMode,
+                                                                           Integer lookbackDays,
+                                                                           String query) {
+        List<StrategyBot> bots = strategyBotRepository.findPublicDiscoverableBots(
+                Portfolio.Visibility.PUBLIC,
+                StrategyBot.Status.DRAFT,
+                normalizeSearchQuery(query));
+        if (bots.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, AppUser> ownersById = userRepository.findByIdIn(bots.stream()
+                        .map(StrategyBot::getUserId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, user) -> map.put(user.getId(), user),
+                        LinkedHashMap::putAll);
+
+        Map<UUID, Portfolio> publicPortfoliosById = portfolioRepository.findByIdInAndVisibility(
+                        bots.stream()
+                                .map(StrategyBot::getLinkedPortfolioId)
+                                .filter(Objects::nonNull)
+                                .distinct()
+                                .toList(),
+                        Portfolio.Visibility.PUBLIC)
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, portfolio) -> map.put(portfolio.getId(), portfolio),
+                        LinkedHashMap::putAll);
+
+        Map<UUID, List<StrategyBotRun>> runsByBotId = new HashMap<>();
+        strategyBotRunRepository.findByStrategyBotIdInOrderByRequestedAtDesc(
+                        bots.stream().map(StrategyBot::getId).toList())
+                .forEach(run -> runsByBotId
+                        .computeIfAbsent(run.getStrategyBotId(), ignored -> new ArrayList<>())
+                        .add(run));
+
+        return bots.stream()
+                .map(bot -> toBoardEntry(
+                        bot,
+                        buildBotAnalytics(bot, runsByBotId.getOrDefault(bot.getId(), List.of()), scopedRunMode, lookbackDays),
+                        ownersById.get(bot.getUserId()),
+                        publicPortfoliosById.get(bot.getLinkedPortfolioId())))
                 .sorted(resolveBoardComparator(sortBy, direction))
                 .toList();
     }
@@ -666,18 +753,39 @@ public class StrategyBotRunService {
         return "ASC".equalsIgnoreCase(direction) ? "ASC" : "DESC";
     }
 
+    private String normalizeSearchQuery(String query) {
+        if (query == null) {
+            return "";
+        }
+        return query.trim();
+    }
+
     private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot, StrategyBotAnalyticsResponse analytics) {
+        return toBoardEntry(bot, analytics, null, null);
+    }
+
+    private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot,
+                                                       StrategyBotAnalyticsResponse analytics,
+                                                       AppUser owner,
+                                                       Portfolio linkedPortfolio) {
         LocalDateTime latestRequestedAt = analytics.getRecentScorecards() == null || analytics.getRecentScorecards().isEmpty()
                 ? null
                 : analytics.getRecentScorecards().get(0).getRequestedAt();
         return StrategyBotBoardEntryResponse.builder()
                 .strategyBotId(bot.getId())
+                .description(bot.getDescription())
                 .name(bot.getName())
                 .status(bot.getStatus().name())
                 .market(bot.getMarket())
                 .symbol(bot.getSymbol())
                 .timeframe(bot.getTimeframe())
                 .linkedPortfolioId(bot.getLinkedPortfolioId())
+                .linkedPortfolioName(linkedPortfolio == null ? null : linkedPortfolio.getName())
+                .ownerId(owner == null ? bot.getUserId() : owner.getId())
+                .ownerUsername(owner == null ? null : owner.getUsername())
+                .ownerDisplayName(owner == null ? null : owner.getDisplayName())
+                .ownerAvatarUrl(owner == null ? null : owner.getAvatarUrl())
+                .ownerTrustScore(owner == null ? null : round(owner.getTrustScore()))
                 .totalRuns(analytics.getTotalRuns())
                 .completedRuns(analytics.getCompletedRuns())
                 .runningRuns(analytics.getRunningRuns())
