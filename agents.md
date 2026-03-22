@@ -38,6 +38,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-23**: **Portfolio History And Snapshot Reads Now Reject Unknown Portfolio Ids Explicitly**
+  - **Problem observed**:
+    - The core portfolio surface already returned explicit `portfolio_not_found` on:
+      - portfolio detail
+      - deposit
+      - delete
+      - visibility changes
+    - Two adjacent read surfaces still drifted:
+      - trade history
+      - snapshots
+    - For an unknown portfolio id they could return empty `200` payloads, which makes missing resources look like real but empty history.
+  - **Implementation**:
+    - Added portfolio existence checks to:
+      - `GET /api/v1/portfolios/{id}/history`
+      - `GET /api/v1/portfolios/{id}/snapshots`
+    - Missing ids now return explicit `portfolio_not_found` via the shared correlated API error shape.
+    - Extended `PortfolioControllerIntegrationTest` with missing-history and missing-snapshot coverage.
+  - **Operational impact**:
+    - portfolio inspection clients no longer need to distinguish "missing resource" from "empty activity" heuristically
+    - portfolio-adjacent read contracts are now more internally consistent
 - **2026-03-23**: **Analysis Post User And Delete Paths Now Return Explicit Contracts Instead Of Generic Handler Drift**
   - **Problem observed**:
     - Analysis posts were already immutable and auditable, but several controller edges still depended on the global runtime handler:

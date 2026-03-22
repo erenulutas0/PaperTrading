@@ -1223,6 +1223,15 @@ Last updated: 2026-03-22
   - Coverage:
     - `AnalysisPostServiceTest`
     - `AnalysisPostControllerIntegrationTest`
+- [x] Hardened portfolio history and snapshot reads against missing portfolio ids:
+  - Updated:
+    - `PortfolioController`
+  - Behavior:
+    - `/api/v1/portfolios/{id}/history`
+    - `/api/v1/portfolios/{id}/snapshots`
+    now return explicit correlated `portfolio_not_found` instead of empty `200` payloads for unknown portfolio ids
+  - Coverage:
+    - `PortfolioControllerIntegrationTest`
 - [x] Extended unified error contract into audit ops controller paths:
   - Updated:
     - `AuditOpsController`

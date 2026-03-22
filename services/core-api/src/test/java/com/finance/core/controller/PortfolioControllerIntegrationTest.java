@@ -157,6 +157,28 @@ class PortfolioControllerIntegrationTest {
     }
 
     @Test
+    void getPortfolioHistory_unknownPortfolio_shouldReturnUnifiedErrorContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios/{id}/history", java.util.UUID.randomUUID())
+                        .header("X-Request-Id", "portfolio-err-3"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-3"))
+                .andExpect(jsonPath("$.code").value("portfolio_not_found"))
+                .andExpect(jsonPath("$.message").value("Portfolio not found"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-3"));
+    }
+
+    @Test
+    void getPortfolioSnapshots_unknownPortfolio_shouldReturnUnifiedErrorContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios/{id}/snapshots", java.util.UUID.randomUUID())
+                        .header("X-Request-Id", "portfolio-err-4"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-4"))
+                .andExpect(jsonPath("$.code").value("portfolio_not_found"))
+                .andExpect(jsonPath("$.message").value("Portfolio not found"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-4"));
+    }
+
+    @Test
     void deposit_withNonPositiveAmount_shouldReturnUnifiedErrorContract() throws Exception {
         mockMvc.perform(post("/api/v1/portfolios/{id}/deposit", portfolio.getId())
                         .header("X-Request-Id", "portfolio-err-1")

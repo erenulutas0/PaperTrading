@@ -301,7 +301,17 @@ public class PortfolioController {
     public ResponseEntity<?> getPortfolioHistory(
             @PathVariable UUID id,
             @PageableDefault(size = 20) Pageable pageable,
-            @RequestParam(required = false) Integer limit) {
+            @RequestParam(required = false) Integer limit,
+            HttpServletRequest httpRequest) {
+        if (!portfolioRepository.existsById(id)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.NOT_FOUND,
+                    "portfolio_not_found",
+                    "Portfolio not found",
+                    null,
+                    httpRequest);
+        }
+
         Pageable effectivePageable = pageable;
         if (limit != null && limit > 0) {
             effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
@@ -322,7 +332,15 @@ public class PortfolioController {
     }
 
     @GetMapping("/{id}/snapshots")
-    public ResponseEntity<?> getPortfolioSnapshots(@PathVariable UUID id) {
+    public ResponseEntity<?> getPortfolioSnapshots(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        if (!portfolioRepository.existsById(id)) {
+            return ApiErrorResponses.build(
+                    HttpStatus.NOT_FOUND,
+                    "portfolio_not_found",
+                    "Portfolio not found",
+                    null,
+                    httpRequest);
+        }
         return ResponseEntity.ok(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(id));
     }
 
