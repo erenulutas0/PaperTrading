@@ -185,6 +185,12 @@ export default function PublicStrategyBotDetailPage() {
     return queryString ? `/bots?${queryString}` : '/bots';
   }, [lookback, runMode, searchParams]);
 
+  const buildRunHref = (targetRunId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const query = params.toString();
+    return query ? `/bots/${botId}/runs/${targetRunId}?${query}` : `/bots/${botId}/runs/${targetRunId}`;
+  };
+
   function updateScope(nextRunMode: RunMode, nextLookback: LookbackOption) {
     const params = new URLSearchParams(searchParams.toString());
     params.set('runMode', nextRunMode);
@@ -396,6 +402,14 @@ export default function PublicStrategyBotDetailPage() {
                         <span>Expectancy {fmtCurrency(scorecard.expectancyPerTrade)}</span>
                         <span>Time In Market {fmtPercent(scorecard.timeInMarketPercent)}</span>
                         <span>Completed {fmtDate(scorecard.completedAt)}</span>
+                      </div>
+                      <div className="mt-3">
+                        <Link
+                          href={buildRunHref(scorecard.id)}
+                          className="inline-flex rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-300 transition hover:bg-green-500/15"
+                        >
+                          Open Run
+                        </Link>
                       </div>
                       {scorecard.errorMessage && <p className="mt-3 text-xs text-red-300">{scorecard.errorMessage}</p>}
                     </div>

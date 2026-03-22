@@ -5,8 +5,12 @@ import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
+import com.finance.core.domain.StrategyBotRunEquityPoint;
+import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
+import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +59,12 @@ class StrategyBotControllerIntegrationTest {
     private StrategyBotRunRepository strategyBotRunRepository;
 
     @Autowired
+    private StrategyBotRunFillRepository strategyBotRunFillRepository;
+
+    @Autowired
+    private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     private UUID userId;
@@ -62,6 +72,8 @@ class StrategyBotControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        strategyBotRunEquityPointRepository.deleteAll();
+        strategyBotRunFillRepository.deleteAll();
         strategyBotRunRepository.deleteAll();
         strategyBotRepository.deleteAll();
         portfolioRepository.deleteAll();
@@ -1102,5 +1114,111 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.lookbackDays").value(30))
                 .andExpect(jsonPath("$.analytics.totalRuns").value(1))
                 .andExpect(jsonPath("$.entryRules.all", hasSize(1)));
+    }
+
+    @Test
+    void getPublicStrategyBotRunDetail_shouldReturnRunRowsAndSummary() throws Exception {
+        AppUser publicOwner = userRepository.save(AppUser.builder()
+                .username("run-owner")
+                .email("run-owner@example.com")
+                .password("hashed")
+                .displayName("Run Owner")
+                .trustScore(69.0)
+                .build());
+        UUID publicOwnerId = publicOwner.getId();
+
+        Portfolio publicPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Run Public Basket")
+                .ownerId(publicOwnerId.toString())
+                .balance(new BigDecimal("190000"))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build());
+
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .name("Run Drilldown Bot")
+                .description("Public run inspection")
+                .market("CRYPTO")
+                .symbol("SOLUSDT")
+                .timeframe("1H")
+                .entryRules("{\"all\":[\"price_above_ma_20\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("16"))
+                .cooldownMinutes(20)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        StrategyBotRun run = strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(publicOwnerId)
+                .linkedPortfolioId(publicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(3))
+                .startedAt(LocalDateTime.now().minusDays(3).plusMinutes(1))
+                .completedAt(LocalDateTime.now().minusDays(2))
+                .compiledEntryRules("{\"all\":[\"price_above_ma_20\"]}")
+                .compiledExitRules("{\"any\":[\"take_profit_hit\"]}")
+                .summary("""
+                        {
+                          "executionEngineReady": true,
+                          "returnPercent": 9.0,
+                          "netPnl": 9000.0,
+                          "maxDrawdownPercent": 2.8,
+                          "winRate": 100.0,
+                          "tradeCount": 1,
+                          "profitFactor": 2.0
+                        }
+                        """)
+                .build());
+
+        strategyBotRunFillRepository.save(StrategyBotRunFill.builder()
+                .strategyBotRunId(run.getId())
+                .sequenceNo(1)
+                .side("ENTRY")
+                .openTime(1711000000000L)
+                .price(new BigDecimal("135.25"))
+                .quantity(new BigDecimal("4.25000000"))
+                .realizedPnl(new BigDecimal("0.00"))
+                .matchedRules("[\"price_above_ma_20\"]")
+                .build());
+        strategyBotRunEquityPointRepository.save(StrategyBotRunEquityPoint.builder()
+                .strategyBotRunId(run.getId())
+                .sequenceNo(1)
+                .openTime(1711000000000L)
+                .closePrice(new BigDecimal("135.25"))
+                .equity(new BigDecimal("100000.00"))
+                .build());
+        strategyBotRunEquityPointRepository.save(StrategyBotRunEquityPoint.builder()
+                .strategyBotRunId(run.getId())
+                .sequenceNo(2)
+                .openTime(1711003600000L)
+                .closePrice(new BigDecimal("139.50"))
+                .equity(new BigDecimal("109000.00"))
+                .build());
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + bot.getId() + "/runs/" + run.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.strategyBotId").value(bot.getId().toString()))
+                .andExpect(jsonPath("$.runId").value(run.getId().toString()))
+                .andExpect(jsonPath("$.botName").value("Run Drilldown Bot"))
+                .andExpect(jsonPath("$.ownerDisplayName").value("Run Owner"))
+                .andExpect(jsonPath("$.linkedPortfolioName").value("Run Public Basket"))
+                .andExpect(jsonPath("$.runMode").value("BACKTEST"))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.summary.returnPercent").value(9.0))
+                .andExpect(jsonPath("$.summary.tradeCount").value(1))
+                .andExpect(jsonPath("$.fills", hasSize(1)))
+                .andExpect(jsonPath("$.fills[0].side").value("ENTRY"))
+                .andExpect(jsonPath("$.fills[0].matchedRules[0]").value("price_above_ma_20"))
+                .andExpect(jsonPath("$.equityCurve", hasSize(2)))
+                .andExpect(jsonPath("$.equityCurve[1].equity").value(109000.00));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + bot.getId() + "/runs/" + UUID.randomUUID()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_not_found"));
     }
 }

@@ -601,6 +601,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - public bot review is now portable instead of trapped in one browser session
     - comparison, detail reading, and exports all stay aligned to the same scoped evidence lens
+- **2026-03-22**: **Public Strategy Bot Reading Now Includes Run Drilldown Instead Of Flattening History To Scorecards**
+  - **Problem observed**:
+    - Public bot detail already exposed scoped scorecards, but that still left a gap between:
+      - seeing that a run exists
+      - actually inspecting the persisted execution path behind it
+    - Without a public run page, fills and equity curve remained effectively operator-only even for public bots.
+  - **Implementation**:
+    - Added `GET /api/v1/strategy-bots/discover/{botId}/runs/{runId}` as a public run-detail endpoint.
+    - Reused the existing public bot eligibility policy:
+      - linked portfolio must be `PUBLIC`
+      - bot status must not be `DRAFT`
+    - The public run contract exposes:
+      - run metadata
+      - persisted fills
+      - persisted equity curve
+      - compiled rule snapshot
+      - summary payload
+    - It intentionally does not expose reconciliation/apply tooling.
+    - Added `/bots/[botId]/runs/[runId]` in the web app and linked recent public scorecards into that drilldown.
+  - **Operational impact**:
+    - the public bot layer now supports compare -> detail -> run inspection as one continuous read path
+    - persisted execution evidence is now inspectable without leaking operator-only reconciliation controls
 - **2026-03-22**: **Strategy Bot Runs Now Surface Linked-Portfolio Drift Instead Of Hiding Capital Mismatch**
   - **Problem observed**:
     - Strategy bots can already bind to owned paper portfolios, but run execution still evaluates against run-local capital snapshots.

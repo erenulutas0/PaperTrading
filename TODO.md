@@ -609,6 +609,7 @@ Last updated: 2026-03-22
   - backend:
     - `GET /api/v1/strategy-bots/discover`
     - `GET /api/v1/strategy-bots/discover/{botId}`
+    - `GET /api/v1/strategy-bots/discover/{botId}/runs/{runId}`
     - `GET /api/v1/strategy-bots/discover/export?format=csv|json`
     - `GET /api/v1/strategy-bots/discover/{botId}/export?format=csv|json`
     - public eligibility now means:
@@ -625,6 +626,7 @@ Last updated: 2026-03-22
     - new public route:
       - `/bots`
       - `/bots/{botId}`
+      - `/bots/{botId}/runs/{runId}`
     - includes:
       - preset comparison lenses
       - scope filters
@@ -646,6 +648,11 @@ Last updated: 2026-03-22
         - rule JSON
         - scoped analytics
         - recent scorecards
+        - public run drilldown for:
+          - run summary
+          - persisted fills
+          - persisted equity curve
+          - compiled rule snapshot
         - `Export CSV`
         - `Export JSON`
         - `Copy Link`

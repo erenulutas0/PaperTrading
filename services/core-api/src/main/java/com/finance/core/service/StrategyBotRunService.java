@@ -16,6 +16,7 @@ import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.dto.PublicStrategyBotDetailResponse;
+import com.finance.core.dto.PublicStrategyBotRunDetailResponse;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
@@ -213,6 +214,57 @@ public class StrategyBotRunService {
                 .entryRules(parseJson(bot.getEntryRules()))
                 .exitRules(parseJson(bot.getExitRules()))
                 .analytics(analytics)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public PublicStrategyBotRunDetailResponse getPublicBotRunDetail(UUID botId, UUID runId) {
+        StrategyBot bot = strategyBotRepository.findPublicDiscoverableBotById(
+                        botId,
+                        Portfolio.Visibility.PUBLIC,
+                        StrategyBot.Status.DRAFT)
+                .orElseThrow(() -> new IllegalArgumentException("Strategy bot not found"));
+        StrategyBotRun run = strategyBotRunRepository.findById(runId)
+                .filter(candidate -> candidate.getStrategyBotId().equals(bot.getId()))
+                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+        AppUser owner = userRepository.findById(bot.getUserId()).orElse(null);
+        Portfolio linkedPortfolio = bot.getLinkedPortfolioId() == null
+                ? null
+                : portfolioRepository.findById(bot.getLinkedPortfolioId())
+                        .filter(portfolio -> portfolio.getVisibility() == Portfolio.Visibility.PUBLIC)
+                        .orElse(null);
+
+        return PublicStrategyBotRunDetailResponse.builder()
+                .strategyBotId(bot.getId())
+                .runId(run.getId())
+                .botName(bot.getName())
+                .botDescription(bot.getDescription())
+                .botStatus(bot.getStatus().name())
+                .market(bot.getMarket())
+                .symbol(bot.getSymbol())
+                .timeframe(bot.getTimeframe())
+                .linkedPortfolioId(bot.getLinkedPortfolioId())
+                .linkedPortfolioName(linkedPortfolio == null ? null : linkedPortfolio.getName())
+                .ownerId(owner == null ? bot.getUserId() : owner.getId())
+                .ownerUsername(owner == null ? null : owner.getUsername())
+                .ownerDisplayName(owner == null ? null : owner.getDisplayName())
+                .ownerAvatarUrl(owner == null ? null : owner.getAvatarUrl())
+                .ownerTrustScore(owner == null ? null : round(owner.getTrustScore()))
+                .runMode(run.getRunMode().name())
+                .status(run.getStatus().name())
+                .requestedInitialCapital(run.getRequestedInitialCapital())
+                .effectiveInitialCapital(run.getEffectiveInitialCapital())
+                .fromDate(run.getFromDate())
+                .toDate(run.getToDate())
+                .compiledEntryRules(parseJson(run.getCompiledEntryRules()))
+                .compiledExitRules(parseJson(run.getCompiledExitRules()))
+                .summary(parseJson(run.getSummary()))
+                .errorMessage(run.getErrorMessage())
+                .requestedAt(run.getRequestedAt())
+                .startedAt(run.getStartedAt())
+                .completedAt(run.getCompletedAt())
+                .fills(getRunFillRows(run))
+                .equityCurve(getRunEquityPointRows(run))
                 .build();
     }
 
