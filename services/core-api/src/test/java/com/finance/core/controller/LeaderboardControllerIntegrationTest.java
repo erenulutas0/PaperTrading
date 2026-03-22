@@ -134,6 +134,53 @@ class LeaderboardControllerIntegrationTest {
         }
 
         @Test
+        void getLeaderboard_withInvalidSort_ShouldReturnExplicitBadRequest() throws Exception {
+                mockMvc.perform(get("/api/v1/leaderboards?period=1D&sortBy=TRUST_SCORE&direction=DESC")
+                                .header("X-Request-Id", "leaderboard-invalid-sort-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "leaderboard-invalid-sort-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_leaderboard_sort"))
+                                .andExpect(jsonPath("$.message").value("Invalid leaderboard sort"))
+                                .andExpect(jsonPath("$.requestId").value("leaderboard-invalid-sort-1"));
+        }
+
+        @Test
+        void getLeaderboard_withInvalidPeriod_ShouldReturnExplicitBadRequest() throws Exception {
+                mockMvc.perform(get("/api/v1/leaderboards?period=1Y&sortBy=RETURN_PERCENTAGE&direction=DESC")
+                                .header("X-Request-Id", "leaderboard-invalid-period-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "leaderboard-invalid-period-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_leaderboard_period"))
+                                .andExpect(jsonPath("$.message").value("Invalid leaderboard period"))
+                                .andExpect(jsonPath("$.requestId").value("leaderboard-invalid-period-1"));
+        }
+
+        @Test
+        void getAccountLeaderboard_withInvalidDirection_ShouldReturnExplicitBadRequest() throws Exception {
+                mockMvc.perform(get("/api/v1/leaderboards/accounts?period=1W&sortBy=TRUST_SCORE&direction=SIDEWAYS")
+                                .header("X-Request-Id", "account-leaderboard-invalid-direction-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "account-leaderboard-invalid-direction-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_account_leaderboard_direction"))
+                                .andExpect(jsonPath("$.message").value("Invalid account leaderboard direction"))
+                                .andExpect(jsonPath("$.requestId").value("account-leaderboard-invalid-direction-1"));
+        }
+
+        @Test
+        void getAccountLeaderboard_whenServiceFails_ShouldReturnCorrelatedApiError() throws Exception {
+                when(leaderboardService.getAccountLeaderboard(eq("1W"), eq("TRUST_SCORE"), eq("DESC"), any(Pageable.class)))
+                                .thenThrow(new RuntimeException("boom"));
+
+                mockMvc.perform(get("/api/v1/leaderboards/accounts?period=1W&sortBy=TRUST_SCORE&direction=DESC")
+                                .header("X-Request-Id", "account-leaderboard-err-1"))
+                                .andExpect(status().isInternalServerError())
+                                .andExpect(header().string("X-Request-Id", "account-leaderboard-err-1"))
+                                .andExpect(jsonPath("$.code").value("account_leaderboard_fetch_failed"))
+                                .andExpect(jsonPath("$.message").value("Failed to fetch account leaderboard"))
+                                .andExpect(jsonPath("$.requestId").value("account-leaderboard-err-1"));
+        }
+
+        @Test
         void refreshLeaderboard_whenServiceFails_ShouldReturnCorrelatedApiError() throws Exception {
                 doThrow(new RuntimeException("refresh-boom")).when(leaderboardService).refreshLeaderboardJob();
 

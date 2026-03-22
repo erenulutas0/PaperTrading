@@ -22,7 +22,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
 | Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, account-backed compare-basket presets, and market-provider split preparing delayed BIST100 support |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
-| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) + DB-backed read fallback when Redis leaderboard ranges are unavailable |
+| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) + DB-backed read fallback when Redis leaderboard ranges are unavailable + explicit invalid-param contracts for portfolio/account leaderboard reads |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
 | User Profiles & Social | ✅ Done | Display name, bio, avatar, follows, profile page |
 | Portfolio Sharing (Public/Private) | ✅ Done | Visibility toggle, discover endpoint |
@@ -38,6 +38,33 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **Leaderboard Reads No Longer Silently Normalize Invalid Query Lenses**
+  - **Problem observed**:
+    - `LeaderboardService` intentionally normalizes raw `period/sortBy/direction` strings so internal callers and aliases stay resilient.
+    - At the public controller edge, that meant obviously wrong query inputs could still be accepted and silently coerced:
+      - invalid periods fell back to `1D`
+      - invalid directions fell back to `DESC`
+      - portfolio leaderboard could accept account-only sort lenses like `TRUST_SCORE` and quietly degrade to return ranking
+    - That makes client behavior less deterministic and hides contract mistakes from scripts/UI callers.
+  - **Implementation**:
+    - Added controller-level validation for:
+      - portfolio leaderboard params
+      - account leaderboard params
+    - Invalid inputs now return explicit `400` codes:
+      - `invalid_leaderboard_period`
+      - `invalid_leaderboard_sort`
+      - `invalid_leaderboard_direction`
+      - `invalid_account_leaderboard_period`
+      - `invalid_account_leaderboard_sort`
+      - `invalid_account_leaderboard_direction`
+    - Extended `LeaderboardControllerIntegrationTest` coverage for:
+      - invalid portfolio sort
+      - invalid portfolio period
+      - invalid account direction
+      - account fetch failure contract
+  - **Operational impact**:
+    - leaderboard clients now get stable machine-readable feedback instead of hidden fallback behavior
+    - portfolio and account leaderboard lenses are less likely to drift apart silently under bad caller input
 - **2026-03-22**: **User Preferences Controller Now Uses An Explicit Missing-User Contract**
   - **Problem observed**:
     - `UserPreferencesService` already enforced real-user existence, but `UserPreferencesController` still let those service exceptions fall into the global generic runtime handler.

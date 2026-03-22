@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Locale;
+import java.util.Set;
+
 @RestController
 @RequestMapping("/api/v1/leaderboards")
 @RequiredArgsConstructor
@@ -24,6 +27,32 @@ import org.springframework.web.bind.annotation.RestController;
 public class LeaderboardController {
 
     private final LeaderboardService leaderboardService;
+    private static final Set<String> SUPPORTED_PERIODS = Set.of("1D", "1W", "1M", "ALL");
+    private static final Set<String> PORTFOLIO_SORT_ALIASES = Set.of(
+            "RETURN_PERCENTAGE",
+            "RETURN",
+            "ROI",
+            "PROFIT_LOSS",
+            "PROFIT");
+    private static final Set<String> ACCOUNT_SORT_ALIASES = Set.of(
+            "RETURN_PERCENTAGE",
+            "RETURN",
+            "ROI",
+            "PROFIT_LOSS",
+            "PROFIT",
+            "WIN_RATE",
+            "WIN",
+            "WINRATE",
+            "TRUST_SCORE",
+            "TRUST",
+            "TRUSTSCORE");
+    private static final Set<String> DIRECTION_ALIASES = Set.of(
+            "ASC",
+            "DESC",
+            "ASCENDING",
+            "DESCENDING",
+            "UP",
+            "DOWN");
 
     @GetMapping
     public ResponseEntity<?> getLeaderboard(
@@ -32,6 +61,11 @@ public class LeaderboardController {
             @RequestParam(defaultValue = "DESC") String direction,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
+        ResponseEntity<?> validationError = validatePortfolioRequest(period, sortBy, direction, httpRequest);
+        if (validationError != null) {
+            return validationError;
+        }
+
         try {
             return ResponseEntity.ok(leaderboardService.getLeaderboard(period, sortBy, direction, pageable));
         } catch (Exception e) {
@@ -57,6 +91,11 @@ public class LeaderboardController {
             @RequestParam(defaultValue = "DESC") String direction,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
+        ResponseEntity<?> validationError = validateAccountRequest(period, sortBy, direction, httpRequest);
+        if (validationError != null) {
+            return validationError;
+        }
+
         try {
             return ResponseEntity.ok(leaderboardService.getAccountLeaderboard(period, sortBy, direction, pageable));
         } catch (Exception e) {
@@ -90,5 +129,54 @@ public class LeaderboardController {
                     null,
                     httpRequest);
         }
+    }
+
+    private ResponseEntity<?> validatePortfolioRequest(
+            String period,
+            String sortBy,
+            String direction,
+            HttpServletRequest request) {
+        if (!isSupportedPeriod(period)) {
+            return buildBadRequest("invalid_leaderboard_period", "Invalid leaderboard period", request);
+        }
+        if (!isSupportedAlias(sortBy, PORTFOLIO_SORT_ALIASES)) {
+            return buildBadRequest("invalid_leaderboard_sort", "Invalid leaderboard sort", request);
+        }
+        if (!isSupportedAlias(direction, DIRECTION_ALIASES)) {
+            return buildBadRequest("invalid_leaderboard_direction", "Invalid leaderboard direction", request);
+        }
+        return null;
+    }
+
+    private ResponseEntity<?> validateAccountRequest(
+            String period,
+            String sortBy,
+            String direction,
+            HttpServletRequest request) {
+        if (!isSupportedPeriod(period)) {
+            return buildBadRequest("invalid_account_leaderboard_period", "Invalid account leaderboard period", request);
+        }
+        if (!isSupportedAlias(sortBy, ACCOUNT_SORT_ALIASES)) {
+            return buildBadRequest("invalid_account_leaderboard_sort", "Invalid account leaderboard sort", request);
+        }
+        if (!isSupportedAlias(direction, DIRECTION_ALIASES)) {
+            return buildBadRequest("invalid_account_leaderboard_direction", "Invalid account leaderboard direction", request);
+        }
+        return null;
+    }
+
+    private boolean isSupportedPeriod(String period) {
+        return isSupportedAlias(period, SUPPORTED_PERIODS);
+    }
+
+    private boolean isSupportedAlias(String value, Set<String> supportedValues) {
+        if (value == null) {
+            return false;
+        }
+        return supportedValues.contains(value.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private ResponseEntity<?> buildBadRequest(String code, String message, HttpServletRequest request) {
+        return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, code, message, null, request);
     }
 }

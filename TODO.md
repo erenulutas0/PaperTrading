@@ -1156,6 +1156,21 @@ Last updated: 2026-03-22
     - `X-Request-Id` is echoed on manual leaderboard failures instead of falling back to empty `500` or raw message bodies
   - Coverage:
     - `LeaderboardControllerIntegrationTest`
+- [x] Hardened leaderboard read params against silent fallback defaults:
+  - Updated:
+    - `LeaderboardController`
+  - Behavior:
+    - invalid portfolio leaderboard params now return explicit `400` codes instead of silently normalizing:
+      - `invalid_leaderboard_period`
+      - `invalid_leaderboard_sort`
+      - `invalid_leaderboard_direction`
+    - invalid account leaderboard params now return explicit `400` codes instead of silently normalizing:
+      - `invalid_account_leaderboard_period`
+      - `invalid_account_leaderboard_sort`
+      - `invalid_account_leaderboard_direction`
+    - portfolio leaderboard no longer accepts account-only sort lenses like `TRUST_SCORE` as an implicit fallback to return ranking
+  - Coverage:
+    - `LeaderboardControllerIntegrationTest`
 - [x] Extended unified error contract into audit ops controller paths:
   - Updated:
     - `AuditOpsController`
