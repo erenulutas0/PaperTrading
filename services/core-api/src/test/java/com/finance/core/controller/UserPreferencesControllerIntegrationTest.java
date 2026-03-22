@@ -94,6 +94,20 @@ class UserPreferencesControllerIntegrationTest {
     }
 
     @Test
+    void getPreferences_withUnknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+        when(userPreferencesService.getPreferences(any(UUID.class)))
+                .thenThrow(new RuntimeException("User not found"));
+
+        mockMvc.perform(get("/api/v1/users/me/preferences")
+                        .header("X-Request-Id", "prefs-missing-user-1")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"))
+                .andExpect(jsonPath("$.requestId").value("prefs-missing-user-1"));
+    }
+
+    @Test
     void updateLeaderboardPreferences_shouldReturnUpdatedPayload() throws Exception {
         UserPreferencesResponse response = UserPreferencesResponse.builder()
                 .leaderboard(UserPreferencesResponse.LeaderboardPreferences.builder()
@@ -143,6 +157,22 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.leaderboard.dashboard.period").value("ALL"))
                 .andExpect(jsonPath("$.leaderboard.publicPage.sortBy").value("PROFIT_LOSS"))
                 .andExpect(jsonPath("$.leaderboard.publicPage.direction").value("ASC"));
+    }
+
+    @Test
+    void updateLeaderboardPreferences_withUnknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+        when(userPreferencesService.updateLeaderboardPreferences(any(UUID.class), any(UpdateLeaderboardPreferencesRequest.class)))
+                .thenThrow(new RuntimeException("User not found"));
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/leaderboard")
+                        .header("X-Request-Id", "prefs-leaderboard-missing-user-1")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dashboard\":{\"period\":\"1D\"}}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"))
+                .andExpect(jsonPath("$.requestId").value("prefs-leaderboard-missing-user-1"));
     }
 
     @Test
@@ -233,5 +263,21 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.terminal.interval").value("4h"))
                 .andExpect(jsonPath("$.terminal.compareBaskets[0].name").value("Banks"))
                 .andExpect(jsonPath("$.terminal.scannerViews[0].name").value("Bank Winners"));
+    }
+
+    @Test
+    void updateTerminalPreferences_withUnknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
+        when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
+                .thenThrow(new RuntimeException("User not found"));
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/terminal")
+                        .header("X-Request-Id", "prefs-terminal-missing-user-1")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"market\":\"CRYPTO\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"))
+                .andExpect(jsonPath("$.requestId").value("prefs-terminal-missing-user-1"));
     }
 }

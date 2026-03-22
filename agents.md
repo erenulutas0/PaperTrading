@@ -38,6 +38,20 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-22**: **User Preferences Controller Now Uses An Explicit Missing-User Contract**
+  - **Problem observed**:
+    - `UserPreferencesService` already enforced real-user existence, but `UserPreferencesController` still let those service exceptions fall into the global generic runtime handler.
+    - That made account-backed preferences endpoints less deterministic than the nearby hardened account surfaces.
+  - **Implementation**:
+    - Added controller-local error mapping for:
+      - `GET /api/v1/users/me/preferences`
+      - `PUT /api/v1/users/me/preferences/leaderboard`
+      - `PUT /api/v1/users/me/preferences/terminal`
+    - Missing account rows now return explicit `user_not_found`.
+    - Added controller integration coverage for missing-user read/update cases.
+  - **Operational impact**:
+    - account-backed preference reads and updates no longer depend on a global fallback to express missing-user conditions
+    - clients and rollout tooling now get a stable machine-readable contract from the preferences surface
 - **2026-03-22**: **Notification Read And Stream-Token Paths Now Require A Real Persisted User**
   - **Problem observed**:
     - Notification endpoints already enforced ownership at the notification-row level, but account-backed reads such as:

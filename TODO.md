@@ -2697,3 +2697,9 @@ Last updated: 2026-03-22
   - targeted verification passed:
     - `NotificationServiceTest`
     - `NotificationControllerIntegrationTest`
+- [x] Align user-preferences controller with explicit missing-user contracts:
+  - `/api/v1/users/me/preferences`, `/leaderboard`, and `/terminal` now map service-side missing-user cases to explicit `user_not_found`
+  - removes dependence on the global generic runtime handler for account-backed preferences reads/writes
+  - targeted verification passed:
+    - `UserPreferencesControllerIntegrationTest`
+    - `UserPreferencesServiceTest`
