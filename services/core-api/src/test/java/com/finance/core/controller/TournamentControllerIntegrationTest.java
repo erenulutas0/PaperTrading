@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.Mockito.when;
@@ -116,6 +117,77 @@ class TournamentControllerIntegrationTest {
         }
 
         @Test
+        void testListTournaments_invalidPage_shouldReturnExplicitBadRequestContract() throws Exception {
+                mockMvc.perform(get("/api/v1/tournaments")
+                                .param("page", "later")
+                                .header("X-Request-Id", "tournament-page-err-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "tournament-page-err-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_tournament_page"))
+                                .andExpect(jsonPath("$.message").value("Invalid tournament page"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-page-err-1"));
+        }
+
+        @Test
+        void testCreateTournament_missingName_shouldReturnUnifiedErrorContract() throws Exception {
+                Map<String, Object> request = Map.of(
+                                "description", "Test Description",
+                                "startingBalance", 100000,
+                                "startsAt", LocalDateTime.now().plusDays(1).toString(),
+                                "endsAt", LocalDateTime.now().plusDays(8).toString());
+
+                mockMvc.perform(post("/api/v1/tournaments")
+                                .header("X-Request-Id", "tournament-create-err-1")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "tournament-create-err-1"))
+                                .andExpect(jsonPath("$.code").value("tournament_name_required"))
+                                .andExpect(jsonPath("$.message").value("Tournament name is required"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-create-err-1"));
+        }
+
+        @Test
+        void testCreateTournament_invalidSchedule_shouldReturnUnifiedErrorContract() throws Exception {
+                Map<String, Object> request = Map.of(
+                                "name", "Broken Cup",
+                                "description", "Test Description",
+                                "startingBalance", 100000,
+                                "startsAt", LocalDateTime.now().plusDays(8).toString(),
+                                "endsAt", LocalDateTime.now().plusDays(1).toString());
+
+                mockMvc.perform(post("/api/v1/tournaments")
+                                .header("X-Request-Id", "tournament-create-err-2")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "tournament-create-err-2"))
+                                .andExpect(jsonPath("$.code").value("tournament_schedule_invalid"))
+                                .andExpect(jsonPath("$.message").value("Tournament end time must be after start time"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-create-err-2"));
+        }
+
+        @Test
+        void testCreateTournament_invalidStartingBalance_shouldReturnUnifiedErrorContract() throws Exception {
+                Map<String, Object> request = Map.of(
+                                "name", "Zero Cup",
+                                "description", "Test Description",
+                                "startingBalance", 0,
+                                "startsAt", LocalDateTime.now().plusDays(1).toString(),
+                                "endsAt", LocalDateTime.now().plusDays(8).toString());
+
+                mockMvc.perform(post("/api/v1/tournaments")
+                                .header("X-Request-Id", "tournament-create-err-3")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "tournament-create-err-3"))
+                                .andExpect(jsonPath("$.code").value("tournament_starting_balance_invalid"))
+                                .andExpect(jsonPath("$.message").value("Tournament starting balance must be greater than 0"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-create-err-3"));
+        }
+
+        @Test
         void testJoinTournament() throws Exception {
                 // 1. Arrange: Create an active tournament
                 Tournament active = Tournament.builder()
@@ -160,6 +232,26 @@ class TournamentControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(0)))
                                 .andExpect(jsonPath("$.page.totalElements").value(0));
+        }
+
+        @Test
+        void testGetLeaderboard_invalidSize_shouldReturnExplicitBadRequestContract() throws Exception {
+                Tournament t = Tournament.builder()
+                                .name("Leaderboard Paging Test")
+                                .status(Tournament.Status.ACTIVE)
+                                .startsAt(LocalDateTime.now().minusDays(1))
+                                .endsAt(LocalDateTime.now().plusDays(1))
+                                .build();
+                t = tournamentRepository.save(t);
+
+                mockMvc.perform(get("/api/v1/tournaments/" + t.getId() + "/leaderboard")
+                                .param("size", "0")
+                                .header("X-Request-Id", "tournament-page-err-2"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "tournament-page-err-2"))
+                                .andExpect(jsonPath("$.code").value("invalid_tournament_size"))
+                                .andExpect(jsonPath("$.message").value("Invalid tournament size"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-page-err-2"));
         }
 
         @Test
@@ -268,5 +360,45 @@ class TournamentControllerIntegrationTest {
                                 .andExpect(jsonPath("$.code").value("tournament_not_found"))
                                 .andExpect(jsonPath("$.message").value("Tournament not found"))
                                 .andExpect(jsonPath("$.requestId").value("tournament-err-5"));
+        }
+
+        @Test
+        void testTournamentTrades_invalidLimit_shouldReturnUnifiedErrorContract() throws Exception {
+                Tournament tournament = Tournament.builder()
+                                .name("Trades Limit Test")
+                                .status(Tournament.Status.ACTIVE)
+                                .startsAt(LocalDateTime.now().minusDays(1))
+                                .endsAt(LocalDateTime.now().plusDays(1))
+                                .build();
+                tournament = tournamentRepository.save(tournament);
+
+                mockMvc.perform(get("/api/v1/tournaments/" + tournament.getId() + "/trades")
+                                .param("limit", "0")
+                                .header("X-Request-Id", "tournament-trades-err-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "tournament-trades-err-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_tournament_trades_limit"))
+                                .andExpect(jsonPath("$.message").value("Tournament trades limit must be an integer between 1 and 100"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-trades-err-1"));
+        }
+
+        @Test
+        void testTournamentTrades_nonNumericLimit_shouldReturnUnifiedErrorContract() throws Exception {
+                Tournament tournament = Tournament.builder()
+                                .name("Trades Parse Test")
+                                .status(Tournament.Status.ACTIVE)
+                                .startsAt(LocalDateTime.now().minusDays(1))
+                                .endsAt(LocalDateTime.now().plusDays(1))
+                                .build();
+                tournament = tournamentRepository.save(tournament);
+
+                mockMvc.perform(get("/api/v1/tournaments/" + tournament.getId() + "/trades")
+                                .param("limit", "abc")
+                                .header("X-Request-Id", "tournament-trades-err-2"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "tournament-trades-err-2"))
+                                .andExpect(jsonPath("$.code").value("invalid_tournament_trades_limit"))
+                                .andExpect(jsonPath("$.message").value("Tournament trades limit must be an integer between 1 and 100"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-trades-err-2"));
         }
 }

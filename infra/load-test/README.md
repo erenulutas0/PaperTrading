@@ -39,7 +39,9 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_auth_spoof_regression_check.ps1`
 - `run_backend_contract_smoke.ps1`
 - `run_idempotency_cleanup_smoke.ps1`
+- `run_idempotency_cleanup_local_runtime_check.ps1`
 - `run_audit_write_capture_smoke.ps1`
+- `run_audit_validation_local_runtime_check.ps1`
 - `run_portfolio_pagination_warning_smoke.ps1`
 - `run_strategy_bot_forward_test_scheduler_smoke.ps1`
 - `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
@@ -54,6 +56,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_browser_origin_staging_checklist.ps1`
 - `run_websocket_canary_staging_checklist.ps1`
 - `run_websocket_staging_resilience_suite.ps1`
+- `run_backend_contract_local_runtime_check.ps1`
 
 ## Prerequisites
 
@@ -252,6 +255,10 @@ Validate against an already running app:
   -WebhookPort 19099
 ```
 
+Useful notes:
+- the local validator now waits for the temporary webhook listener to start listening before it triggers the feed-latency breach
+- it also compares `/actuator/opsalerts` before/after counts after payload capture so local runs verify both webhook delivery and actuator summary deltas
+
 Validate a live/staging app with its real configured ops webhook by triggering a deterministic manual alert and checking actuator metrics:
 
 ```powershell
@@ -270,12 +277,32 @@ The backend contract smoke currently checks:
 - health
 - register + authenticated write
 - idempotent replay + request-id echo
+- `/actuator/idempotency` exposes `alertState` alongside total record counts
+- `/actuator/health/idempotency` is present and healthy
+- `/actuator/opsalerts` exposes live counter summary fields
 - unauthorized notification contract
 - invalid notification-id `400` contract
 - missing notification `404` contract
 - `/actuator/idempotency`
 - `/api/v1/ops/auditlog`
 - `/actuator/auditlog`
+
+Useful notes:
+- this smoke now expects a backend that includes the latest idempotency observability rollout
+- if the target runtime does not expose both `/actuator/idempotency.alertState` and `/actuator/health/idempotency`, the report includes a rollout-diagnostic note
+
+Run a one-off local runtime wrapper that boots a temporary backend, waits for health, and then executes the same backend contract smoke:
+
+```powershell
+./infra/load-test/run_backend_contract_local_runtime_check.ps1
+```
+
+Useful notes:
+- this wrapper is for local runtime verification when you do not want to manually restart the backend first
+- it writes a parent report plus the child backend contract smoke report
+- the temporary backend enables health component details and fresh idempotency observability so the child smoke can validate the full current contract set
+- use `-SkipAppStart` if you want to point it at an already running backend on the selected port
+- use `-PreserveAppAfterRun` if you want to inspect the temporary backend after the smoke finishes
 
 Run idempotency cleanup smoke against a local backend + local Docker Postgres:
 
@@ -288,9 +315,33 @@ The idempotency cleanup smoke checks:
 - register + protected idempotent write
 - replay still works before cleanup
 - expired idempotency row can be seeded into local Postgres
+- `/actuator/health/idempotency` starts healthy before stale seeding
+- stale expired backlog flips `/actuator/health/idempotency` to `DOWN`
+- `/actuator/idempotency` surfaces `alertState=WARNING` while stale backlog is present
 - `POST /actuator/idempotency` purges expired rows
 - `/actuator/idempotency` reflects the cleanup result
+- cleanup resets `alertState` back to `NONE`
+- `/actuator/health/idempotency` returns to `UP` after cleanup
 - replay semantics for a live key still work after cleanup
+
+Useful notes:
+- this smoke now expects a backend that includes the latest idempotency observability rollout
+- if the target runtime does not expose both `/actuator/idempotency.alertState` and `/actuator/health/idempotency`, the script now fails fast with a rollout-diagnostic note instead of cascading follow-on failures
+- use the local runtime wrapper below when you want the script to boot a fresh backend automatically
+
+Run a one-off local runtime wrapper that boots a temporary backend, waits for health, and then executes the same idempotency cleanup smoke:
+
+```powershell
+./infra/load-test/run_idempotency_cleanup_local_runtime_check.ps1
+```
+
+Useful notes:
+- this wrapper is for local runtime verification when you do not want to manually restart the backend first
+- it writes a parent report plus the child idempotency cleanup smoke report
+- the temporary backend enables health component details so the child smoke can validate `/actuator/health/idempotency` directly
+- the temporary backend also shortens idempotency cleanup observability refresh to keep alert-state transitions visible during the same run
+- use `-SkipAppStart` if you want to point it at an already running backend on the selected port
+- use `-PreserveAppAfterRun` if you want to inspect the temporary backend after the smoke finishes
 
 Run audit write-capture smoke against a local backend:
 
@@ -416,6 +467,17 @@ Useful notes:
 - this wrapper delegates to `run_audit_validation_suite.ps1` with staging-friendly defaults.
 - use `-SkipWriteCapture` if you only want endpoint health/inspection validation.
 - use `-SkipContractSmoke` if you only want append-only write capture validation.
+
+Run a one-off local runtime wrapper that boots a temporary backend, seeds local market prices, and then executes the same audit validation suite:
+
+```powershell
+./infra/load-test/run_audit_validation_local_runtime_check.ps1
+```
+
+Useful notes:
+- this wrapper is for local runtime verification when you do not want to manually restart the backend first
+- the temporary backend enables `app.market.manual-seed-enabled` and seeds `BTCUSDT` through `/actuator/marketprices` so trade + analysis audit writes do not depend on external Binance connectivity
+- it writes a parent report plus the child audit validation suite report
 
 Run endpoint-aware rate-limit profile smoke against a local backend:
 
@@ -558,6 +620,10 @@ Run a single-command end-to-end `-SkipAppStart` flow (script starts core-api, ru
 ```powershell
 ./infra/load-test/validate_ops_alert_webhook_skipapp_flow.ps1
 ```
+
+Useful notes:
+- this wrapper is the safest local regression check for ops-alert webhook changes because it avoids stale shared runtime state
+- the child validation now re-checks `/actuator/opsalerts` after the webhook payload arrives, so the resulting report proves log/webhook sent counters advanced together
 
 Validate websocket relay smoke scenario against an already running relay-enabled app:
 

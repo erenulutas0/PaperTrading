@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -156,5 +157,17 @@ class PortfolioParticipationControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("user_not_found"))
                 .andExpect(jsonPath("$.message").value("User not found"))
                 .andExpect(jsonPath("$.requestId").value("participation-err-4"));
+    }
+
+    @Test
+    void getParticipants_invalidPage_returnsExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios/{portfolioId}/participants", publicPortfolio.getId())
+                        .header("X-Request-Id", "participation-page-err-1")
+                        .param("page", "later"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "participation-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_portfolio_participants_page"))
+                .andExpect(jsonPath("$.message").value("Invalid portfolio participants page"))
+                .andExpect(jsonPath("$.requestId").value("participation-page-err-1"));
     }
 }

@@ -6,6 +6,7 @@ import com.finance.core.service.UserProfileService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -73,15 +74,32 @@ public class UserProfileController {
     public ResponseEntity<Page<UserProfileResponse>> getFollowers(
             @PathVariable UUID userId,
             @CurrentUserId(required = false) UUID requesterId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(userProfileService.getFollowers(userId, requesterId, pageable));
+        Pageable effectivePageable = resolveFollowPageable(pageable, page, size);
+        return ResponseEntity.ok(userProfileService.getFollowers(userId, requesterId, effectivePageable));
     }
 
     @GetMapping("/{userId}/following")
     public ResponseEntity<Page<UserProfileResponse>> getFollowing(
             @PathVariable UUID userId,
             @CurrentUserId(required = false) UUID requesterId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(userProfileService.getFollowing(userId, requesterId, pageable));
+        Pageable effectivePageable = resolveFollowPageable(pageable, page, size);
+        return ResponseEntity.ok(userProfileService.getFollowing(userId, requesterId, effectivePageable));
+    }
+
+    private Pageable resolveFollowPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_user_follow_page",
+                "Invalid user follow page",
+                "invalid_user_follow_size",
+                "Invalid user follow size");
     }
 }

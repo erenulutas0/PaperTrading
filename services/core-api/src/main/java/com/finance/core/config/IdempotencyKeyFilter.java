@@ -2,6 +2,7 @@ package com.finance.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.IdempotencyKeyRecord;
+import com.finance.core.observability.IdempotencyObservabilityService;
 import com.finance.core.service.IdempotencyService;
 import com.finance.core.web.ApiErrorResponse;
 import com.finance.core.web.RequestCorrelation;
@@ -17,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
@@ -45,6 +47,7 @@ public class IdempotencyKeyFilter extends OncePerRequestFilter {
     private final IdempotencyService idempotencyService;
     private final IdempotencyProperties idempotencyProperties;
     private final ObjectMapper objectMapper;
+    private final ObjectProvider<IdempotencyObservabilityService> observabilityServiceProvider;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     @Override
@@ -79,6 +82,7 @@ public class IdempotencyKeyFilter extends OncePerRequestFilter {
                 requestPath,
                 requestHash,
                 LocalDateTime.now().plus(idempotencyProperties.getTtl()));
+        recordClaimOutcome(claim.type());
 
         switch (claim.type()) {
             case REPLAY -> {
@@ -106,6 +110,7 @@ public class IdempotencyKeyFilter extends OncePerRequestFilter {
             handleCompletion(claim.record(), responseWrapper);
         } catch (Exception ex) {
             idempotencyService.release(claim.record());
+            recordReleased();
             throw ex;
         } finally {
             responseWrapper.copyBodyToResponse();
@@ -118,11 +123,49 @@ public class IdempotencyKeyFilter extends OncePerRequestFilter {
             String body = readResponseBody(response.getContentAsByteArray());
             if (body.length() > idempotencyProperties.getMaxBodyBytes()) {
                 idempotencyService.release(record);
+                recordSkippedLargeResponse();
+                recordReleased();
                 return;
             }
             idempotencyService.complete(record, status, response.getContentType(), body);
+            recordCompletedResponse();
         } else {
             idempotencyService.release(record);
+            recordReleased();
+        }
+    }
+
+    private void recordClaimOutcome(IdempotencyService.ClaimResult.Type type) {
+        IdempotencyObservabilityService observabilityService = observabilityServiceProvider.getIfAvailable();
+        if (observabilityService == null) {
+            return;
+        }
+        switch (type) {
+            case CLAIMED -> observabilityService.recordClaimed();
+            case REPLAY -> observabilityService.recordReplay();
+            case CONFLICT -> observabilityService.recordConflict();
+            case IN_PROGRESS -> observabilityService.recordInProgressConflict();
+        }
+    }
+
+    private void recordReleased() {
+        IdempotencyObservabilityService observabilityService = observabilityServiceProvider.getIfAvailable();
+        if (observabilityService != null) {
+            observabilityService.recordReleased();
+        }
+    }
+
+    private void recordCompletedResponse() {
+        IdempotencyObservabilityService observabilityService = observabilityServiceProvider.getIfAvailable();
+        if (observabilityService != null) {
+            observabilityService.recordCompletedResponse();
+        }
+    }
+
+    private void recordSkippedLargeResponse() {
+        IdempotencyObservabilityService observabilityService = observabilityServiceProvider.getIfAvailable();
+        if (observabilityService != null) {
+            observabilityService.recordSkippedLargeResponse();
         }
     }
 

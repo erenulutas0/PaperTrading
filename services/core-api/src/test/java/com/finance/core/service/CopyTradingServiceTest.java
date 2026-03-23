@@ -125,6 +125,26 @@ class CopyTradingServiceTest {
         }
 
         @Test
+        void missingClonedPortfolio_skipsWithoutThrowing() {
+            when(participantRepository.findByPortfolioId(eq(originalPortfolioId), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(participant)));
+            when(portfolioRepository.findById(originalPortfolioId)).thenReturn(Optional.of(originalPortfolio));
+            when(portfolioRepository.findById(clonedPortfolioId)).thenReturn(Optional.empty());
+
+            TradeRequest request = new TradeRequest();
+            request.setSymbol("BTCUSDT");
+            request.setQuantity(new BigDecimal("0.1"));
+            request.setLeverage(10);
+            request.setSide("LONG");
+
+            assertDoesNotThrow(() -> copyTradingService.replicateBuy(originalPortfolioId, request, new BigDecimal("50000")));
+
+            verify(portfolioRepository, never()).save(clonedPortfolio);
+            verify(portfolioItemRepository, never()).save(any());
+            verify(tradeActivityRepository, never()).save(any());
+        }
+
+        @Test
         void insufficientFunds_skipsCopy() {
             clonedPortfolio.setBalance(BigDecimal.ZERO); // zero balance = impossible to copy
 
@@ -275,6 +295,25 @@ class CopyTradingServiceTest {
             // Should not delete, just reduce
             verify(portfolioItemRepository).save(item);
             assertEquals(0, BigDecimal.ONE.compareTo(item.getQuantity()));
+        }
+
+        @Test
+        void missingClonedPortfolio_skipsWithoutThrowing() {
+            when(participantRepository.findByPortfolioId(eq(originalPortfolioId), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(participant)));
+            when(portfolioRepository.findById(originalPortfolioId)).thenReturn(Optional.of(originalPortfolio));
+            when(portfolioRepository.findById(clonedPortfolioId)).thenReturn(Optional.empty());
+
+            TradeRequest request = new TradeRequest();
+            request.setSymbol("BTCUSDT");
+            request.setQuantity(BigDecimal.ONE);
+            request.setSide("LONG");
+
+            assertDoesNotThrow(() -> copyTradingService.replicateSell(originalPortfolioId, request, new BigDecimal("50000")));
+
+            verify(portfolioRepository, never()).save(clonedPortfolio);
+            verify(portfolioItemRepository, never()).save(any());
+            verify(tradeActivityRepository, never()).save(any());
         }
     }
 }

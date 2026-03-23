@@ -17,6 +17,7 @@ import com.finance.core.service.StrategyBotService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -42,10 +43,13 @@ public class StrategyBotController {
     @GetMapping
     public ResponseEntity<?> listBots(
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest request) {
+        Pageable effectivePageable = resolveStrategyBotPageable(pageable, page, size);
         try {
-            return ResponseEntity.ok(strategyBotService.getUserBots(userId, pageable));
+            return ResponseEntity.ok(strategyBotService.getUserBots(userId, effectivePageable));
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_list_failed", "Failed to load strategy bots", request);
         }
@@ -56,17 +60,21 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction,
             @RequestParam(defaultValue = "ALL") String runMode,
-            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(required = false) String lookbackDays,
             @RequestParam(defaultValue = "") String q,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 12) Pageable pageable,
             HttpServletRequest request) {
+        Pageable effectivePageable = resolveStrategyBotBoardPageable(pageable, page, size);
         try {
+            Integer parsedLookbackDays = parseLookbackDays(lookbackDays);
             Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.discoverPublicBotBoard(
-                    pageable,
+                    effectivePageable,
                     sortBy,
                     direction,
                     runMode,
-                    lookbackDays,
+                    parsedLookbackDays,
                     q);
             return ResponseEntity.ok(board);
         } catch (Exception ex) {
@@ -78,10 +86,13 @@ public class StrategyBotController {
     public ResponseEntity<?> getPublicBotDetail(
             @PathVariable UUID botId,
             @RequestParam(defaultValue = "ALL") String runMode,
-            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(required = false) String lookbackDays,
             HttpServletRequest request) {
         try {
-            PublicStrategyBotDetailResponse detail = strategyBotRunService.getPublicBotDetail(botId, runMode, lookbackDays);
+            PublicStrategyBotDetailResponse detail = strategyBotRunService.getPublicBotDetail(
+                    botId,
+                    runMode,
+                    parseLookbackDays(lookbackDays));
             return ResponseEntity.ok(detail);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_public_detail_failed", "Failed to load public strategy bot", request);
@@ -133,20 +144,31 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction,
             @RequestParam(defaultValue = "ALL") String runMode,
-            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(required = false) String lookbackDays,
             @RequestParam(defaultValue = "") String q,
             HttpServletRequest request) {
         try {
             String normalizedFormat = normalizeExportFormat(format);
+            Integer parsedLookbackDays = parseLookbackDays(lookbackDays);
             if ("csv".equals(normalizedFormat)) {
-                byte[] content = strategyBotRunService.buildPublicBotBoardExportCsv(sortBy, direction, runMode, lookbackDays, q);
+                byte[] content = strategyBotRunService.buildPublicBotBoardExportCsv(
+                        sortBy,
+                        direction,
+                        runMode,
+                        parsedLookbackDays,
+                        q);
                 return ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"public-strategy-bot-board.csv\"")
                         .contentType(new MediaType("text", "csv"))
                         .body(content);
             }
 
-            String content = strategyBotRunService.buildPublicBotBoardExportJson(sortBy, direction, runMode, lookbackDays, q);
+            String content = strategyBotRunService.buildPublicBotBoardExportJson(
+                    sortBy,
+                    direction,
+                    runMode,
+                    parsedLookbackDays,
+                    q);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"public-strategy-bot-board.json\"")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -161,19 +183,20 @@ public class StrategyBotController {
             @PathVariable UUID botId,
             @RequestParam(defaultValue = "json") String format,
             @RequestParam(defaultValue = "ALL") String runMode,
-            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(required = false) String lookbackDays,
             HttpServletRequest request) {
         try {
             String normalizedFormat = normalizeExportFormat(format);
+            Integer parsedLookbackDays = parseLookbackDays(lookbackDays);
             if ("csv".equals(normalizedFormat)) {
-                byte[] content = strategyBotRunService.buildPublicBotDetailExportCsv(botId, runMode, lookbackDays);
+                byte[] content = strategyBotRunService.buildPublicBotDetailExportCsv(botId, runMode, parsedLookbackDays);
                 return ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"public-strategy-bot-" + botId + ".csv\"")
                         .contentType(new MediaType("text", "csv"))
                         .body(content);
             }
 
-            String content = strategyBotRunService.buildPublicBotDetailExportJson(botId, runMode, lookbackDays);
+            String content = strategyBotRunService.buildPublicBotDetailExportJson(botId, runMode, parsedLookbackDays);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"public-strategy-bot-" + botId + ".json\"")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -189,17 +212,21 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction,
             @RequestParam(defaultValue = "ALL") String runMode,
-            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(required = false) String lookbackDays,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 12) Pageable pageable,
             HttpServletRequest request) {
+        Pageable effectivePageable = resolveStrategyBotBoardPageable(pageable, page, size);
         try {
+            Integer parsedLookbackDays = parseLookbackDays(lookbackDays);
             Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(
                     userId,
-                    pageable,
+                    effectivePageable,
                     sortBy,
                     direction,
                     runMode,
-                    lookbackDays);
+                    parsedLookbackDays);
             return ResponseEntity.ok(board);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_board_failed", "Failed to load strategy bot board", request);
@@ -213,19 +240,30 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "AVG_RETURN") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction,
             @RequestParam(defaultValue = "ALL") String runMode,
-            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(required = false) String lookbackDays,
             HttpServletRequest request) {
         try {
             String normalizedFormat = normalizeExportFormat(format);
+            Integer parsedLookbackDays = parseLookbackDays(lookbackDays);
             if ("csv".equals(normalizedFormat)) {
-                byte[] content = strategyBotRunService.buildBotBoardExportCsv(userId, sortBy, direction, runMode, lookbackDays);
+                byte[] content = strategyBotRunService.buildBotBoardExportCsv(
+                        userId,
+                        sortBy,
+                        direction,
+                        runMode,
+                        parsedLookbackDays);
                 return ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-board.csv\"")
                         .contentType(new MediaType("text", "csv"))
                         .body(content);
             }
 
-            String content = strategyBotRunService.buildBotBoardExportJson(userId, sortBy, direction, runMode, lookbackDays);
+            String content = strategyBotRunService.buildBotBoardExportJson(
+                    userId,
+                    sortBy,
+                    direction,
+                    runMode,
+                    parsedLookbackDays);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-board.json\"")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -252,10 +290,14 @@ public class StrategyBotController {
             @PathVariable UUID botId,
             @CurrentUserId UUID userId,
             @RequestParam(defaultValue = "ALL") String runMode,
-            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(required = false) String lookbackDays,
             HttpServletRequest request) {
         try {
-            StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId, runMode, lookbackDays);
+            StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(
+                    botId,
+                    userId,
+                    runMode,
+                    parseLookbackDays(lookbackDays));
             return ResponseEntity.ok(analytics);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_analytics_failed", "Failed to load strategy bot analytics", request);
@@ -268,19 +310,28 @@ public class StrategyBotController {
             @CurrentUserId UUID userId,
             @RequestParam(defaultValue = "json") String format,
             @RequestParam(defaultValue = "ALL") String runMode,
-            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(required = false) String lookbackDays,
             HttpServletRequest request) {
         try {
             String normalizedFormat = normalizeExportFormat(format);
+            Integer parsedLookbackDays = parseLookbackDays(lookbackDays);
             if ("csv".equals(normalizedFormat)) {
-                byte[] content = strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId, runMode, lookbackDays);
+                byte[] content = strategyBotRunService.buildBotAnalyticsExportCsv(
+                        botId,
+                        userId,
+                        runMode,
+                        parsedLookbackDays);
                 return ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-analytics-" + botId + ".csv\"")
                         .contentType(new MediaType("text", "csv"))
                         .body(content);
             }
 
-            String content = strategyBotRunService.buildBotAnalyticsExportJson(botId, userId, runMode, lookbackDays);
+            String content = strategyBotRunService.buildBotAnalyticsExportJson(
+                    botId,
+                    userId,
+                    runMode,
+                    parsedLookbackDays);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"strategy-bot-analytics-" + botId + ".json\"")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -332,10 +383,13 @@ public class StrategyBotController {
     public ResponseEntity<?> listRuns(
             @PathVariable UUID botId,
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest request) {
+        Pageable effectivePageable = resolveStrategyBotRunsPageable(pageable, page, size);
         try {
-            Page<StrategyBotRunResponse> runs = strategyBotRunService.getRuns(botId, userId, pageable);
+            Page<StrategyBotRunResponse> runs = strategyBotRunService.getRuns(botId, userId, effectivePageable);
             return ResponseEntity.ok(runs);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_runs_failed", "Failed to load strategy bot runs", request);
@@ -387,10 +441,13 @@ public class StrategyBotController {
             @PathVariable UUID botId,
             @PathVariable UUID runId,
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 50) Pageable pageable,
             HttpServletRequest request) {
+        Pageable effectivePageable = resolveStrategyBotRunFillsPageable(pageable, page, size);
         try {
-            Page<StrategyBotRunFillResponse> fills = strategyBotRunService.getRunFills(botId, runId, userId, pageable);
+            Page<StrategyBotRunFillResponse> fills = strategyBotRunService.getRunFills(botId, runId, userId, effectivePageable);
             return ResponseEntity.ok(fills);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_run_fills_failed", "Failed to load strategy bot run fills", request);
@@ -402,10 +459,13 @@ public class StrategyBotController {
             @PathVariable UUID botId,
             @PathVariable UUID runId,
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 100) Pageable pageable,
             HttpServletRequest request) {
+        Pageable effectivePageable = resolveStrategyBotRunEventsPageable(pageable, page, size);
         try {
-            Page<StrategyBotRunEventResponse> events = strategyBotRunService.getRunEvents(botId, runId, userId, pageable);
+            Page<StrategyBotRunEventResponse> events = strategyBotRunService.getRunEvents(botId, runId, userId, effectivePageable);
             return ResponseEntity.ok(events);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_run_events_failed", "Failed to load strategy bot run events", request);
@@ -417,10 +477,13 @@ public class StrategyBotController {
             @PathVariable UUID botId,
             @PathVariable UUID runId,
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 100) Pageable pageable,
             HttpServletRequest request) {
+        Pageable effectivePageable = resolveStrategyBotRunEquityCurvePageable(pageable, page, size);
         try {
-            Page<StrategyBotRunEquityPointResponse> points = strategyBotRunService.getRunEquityCurve(botId, runId, userId, pageable);
+            Page<StrategyBotRunEquityPointResponse> points = strategyBotRunService.getRunEquityCurve(botId, runId, userId, effectivePageable);
             return ResponseEntity.ok(points);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_run_equity_curve_failed", "Failed to load strategy bot run equity curve", request);
@@ -510,13 +573,78 @@ public class StrategyBotController {
         if (exception instanceof ApiRequestException apiRequestException) {
             throw apiRequestException;
         }
-        String message = exception.getMessage();
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,
                 fallbackCode,
-                message == null || message.isBlank() ? fallbackMessage : message,
+                fallbackMessage,
                 null,
                 request);
+    }
+
+    private Pageable resolveStrategyBotPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_strategy_bot_page",
+                "Invalid strategy bot page",
+                "invalid_strategy_bot_size",
+                "Invalid strategy bot size");
+    }
+
+    private Pageable resolveStrategyBotBoardPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_strategy_bot_board_page",
+                "Invalid strategy bot board page",
+                "invalid_strategy_bot_board_size",
+                "Invalid strategy bot board size");
+    }
+
+    private Pageable resolveStrategyBotRunsPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_strategy_bot_runs_page",
+                "Invalid strategy bot runs page",
+                "invalid_strategy_bot_runs_size",
+                "Invalid strategy bot runs size");
+    }
+
+    private Pageable resolveStrategyBotRunFillsPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_strategy_bot_run_fills_page",
+                "Invalid strategy bot run fills page",
+                "invalid_strategy_bot_run_fills_size",
+                "Invalid strategy bot run fills size");
+    }
+
+    private Pageable resolveStrategyBotRunEventsPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_strategy_bot_run_events_page",
+                "Invalid strategy bot run events page",
+                "invalid_strategy_bot_run_events_size",
+                "Invalid strategy bot run events size");
+    }
+
+    private Pageable resolveStrategyBotRunEquityCurvePageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_strategy_bot_run_equity_curve_page",
+                "Invalid strategy bot run equity curve page",
+                "invalid_strategy_bot_run_equity_curve_size",
+                "Invalid strategy bot run equity curve size");
     }
 
     private String normalizeExportFormat(String format) {
@@ -525,5 +653,18 @@ public class StrategyBotController {
             return normalizedFormat;
         }
         throw ApiRequestException.badRequest("invalid_strategy_bot_export_format", "Invalid strategy bot export format");
+    }
+
+    private Integer parseLookbackDays(String rawLookbackDays) {
+        if (rawLookbackDays == null || rawLookbackDays.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(rawLookbackDays.trim());
+        } catch (NumberFormatException exception) {
+            throw ApiRequestException.badRequest(
+                    "invalid_strategy_bot_board_lookback",
+                    "Strategy bot board lookback days must be positive");
+        }
     }
 }

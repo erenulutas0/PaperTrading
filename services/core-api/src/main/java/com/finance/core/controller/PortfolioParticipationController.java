@@ -5,6 +5,7 @@ import com.finance.core.service.PortfolioParticipationService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -59,8 +60,18 @@ public class PortfolioParticipationController {
     @GetMapping("/{portfolioId}/participants")
     public ResponseEntity<Page<PortfolioParticipant>> getParticipants(
             @PathVariable UUID portfolioId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(participationService.getParticipants(portfolioId, pageable));
+        Pageable effectivePageable = PageableRequestParser.resolvePageable(
+                pageable,
+                page,
+                size,
+                "invalid_portfolio_participants_page",
+                "Invalid portfolio participants page",
+                "invalid_portfolio_participants_size",
+                "Invalid portfolio participants size");
+        return ResponseEntity.ok(participationService.getParticipants(portfolioId, effectivePageable));
     }
 
     /** Get participation stats for a portfolio */

@@ -194,8 +194,8 @@ public class InteractionService {
             UUID ownerId;
             try {
                 ownerId = UUID.fromString(portfolio.getOwnerId());
-            } catch (Exception e) {
-                throw new RuntimeException("Portfolio owner is invalid");
+            } catch (IllegalArgumentException exception) {
+                throw ApiRequestException.badRequest("portfolio_owner_invalid", "Portfolio owner is invalid");
             }
             return new TargetMetadata(
                     ownerId,

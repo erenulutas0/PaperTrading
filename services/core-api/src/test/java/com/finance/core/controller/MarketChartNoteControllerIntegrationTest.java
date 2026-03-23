@@ -6,10 +6,12 @@ import com.finance.core.domain.MarketChartNote;
 import com.finance.core.dto.MarketType;
 import com.finance.core.repository.MarketChartNoteRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.service.MarketChartNoteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,10 +20,13 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,6 +45,9 @@ class MarketChartNoteControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @SpyBean
+    private MarketChartNoteService marketChartNoteService;
 
     private UUID userId;
     private UUID otherUserId;
@@ -173,6 +181,21 @@ class MarketChartNoteControllerIntegrationTest {
     }
 
     @Test
+    void listNotes_withInvalidPage_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/market/chart-notes")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "chart-note-page-err-1")
+                        .param("market", "CRYPTO")
+                        .param("symbol", "BTCUSDT")
+                        .param("page", "later"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "chart-note-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_market_chart_note_page"))
+                .andExpect(jsonPath("$.message").value("Invalid market chart note page"))
+                .andExpect(jsonPath("$.requestId").value("chart-note-page-err-1"));
+    }
+
+    @Test
     void createNote_withBlankBody_shouldReturnExplicitValidationContract() throws Exception {
         mockMvc.perform(post("/api/v1/market/chart-notes")
                         .header("X-User-Id", userId.toString())
@@ -230,5 +253,25 @@ class MarketChartNoteControllerIntegrationTest {
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("market_chart_note_not_found"));
+    }
+
+    @Test
+    void createNote_whenUnexpectedRuntime_shouldReturnGenericFallbackMessage() throws Exception {
+        doThrow(new RuntimeException("note payload leaked"))
+                .when(marketChartNoteService)
+                .createNote(org.mockito.ArgumentMatchers.eq(userId), any());
+
+        mockMvc.perform(post("/api/v1/market/chart-notes")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "chart-note-fallback-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "market", "CRYPTO",
+                                "symbol", "BTCUSDT",
+                                "body", "test"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("market_chart_note_create_failed"))
+                .andExpect(jsonPath("$.message").value("Failed to create market chart note"))
+                .andExpect(jsonPath("$.requestId").value("chart-note-fallback-1"));
     }
 }

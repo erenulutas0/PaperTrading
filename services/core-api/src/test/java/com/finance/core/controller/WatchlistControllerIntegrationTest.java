@@ -134,6 +134,19 @@ class WatchlistControllerIntegrationTest {
         }
 
         @Test
+        void testGetWatchlistsPaged_invalidPage_shouldReturnExplicitBadRequestContract() throws Exception {
+                mockMvc.perform(get("/api/v1/watchlists")
+                                .header("X-User-Id", userId.toString())
+                                .header("X-Request-Id", "watchlist-page-err-1")
+                                .param("page", "later"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "watchlist-page-err-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_watchlist_page"))
+                                .andExpect(jsonPath("$.message").value("Invalid watchlist page"))
+                                .andExpect(jsonPath("$.requestId").value("watchlist-page-err-1"));
+        }
+
+        @Test
         void testGetWatchlistsPaged_unknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
                 mockMvc.perform(get("/api/v1/watchlists")
                                 .header("X-User-Id", UUID.randomUUID().toString())
@@ -192,6 +205,19 @@ class WatchlistControllerIntegrationTest {
                                 .andExpect(jsonPath("$.content[0].symbol").value("BTCUSDT"))
                                 .andExpect(jsonPath("$.content[0].currentPrice").value(60000.0))
                                 .andExpect(jsonPath("$.content[0].changePercent24h").value(3.4));
+        }
+
+        @Test
+        void testGetWatchlistEnriched_invalidSize_shouldReturnExplicitBadRequestContract() throws Exception {
+                mockMvc.perform(get("/api/v1/watchlists/" + testWatchlist.getId() + "/items")
+                                .header("X-User-Id", userId.toString())
+                                .header("X-Request-Id", "watchlist-page-err-2")
+                                .param("size", "0"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "watchlist-page-err-2"))
+                                .andExpect(jsonPath("$.code").value("invalid_watchlist_size"))
+                                .andExpect(jsonPath("$.message").value("Invalid watchlist size"))
+                                .andExpect(jsonPath("$.requestId").value("watchlist-page-err-2"));
         }
 
         @Test
@@ -337,6 +363,132 @@ class WatchlistControllerIntegrationTest {
     }
 
     @Test
+    void testGetAlertHistory_invalidLimit_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-err-2")
+                        .param("limit", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-err-2"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_limit"))
+                .andExpect(jsonPath("$.message").value("Watchlist alert history limit must be between 1 and 50"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-err-2"));
+    }
+
+    @Test
+    void testGetAlertHistory_nonNumericLimit_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-err-6")
+                        .param("limit", "many"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-err-6"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_limit"))
+                .andExpect(jsonPath("$.message").value("Watchlist alert history limit must be between 1 and 50"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-err-6"));
+    }
+
+    @Test
+    void testGetAlertHistory_invalidPage_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-err-8")
+                        .param("page", "later"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-err-8"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_page"))
+                .andExpect(jsonPath("$.message").value("Invalid watchlist alert history page"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-err-8"));
+    }
+
+    @Test
+    void testGetAlertHistory_invalidSize_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-err-9")
+                        .param("size", "51"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-err-9"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_size"))
+                .andExpect(jsonPath("$.message").value("Invalid watchlist alert history size"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-err-9"));
+    }
+
+    @Test
+    void testGetAlertHistory_invalidDays_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-err-3")
+                        .param("days", "366"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-err-3"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_days"))
+                .andExpect(jsonPath("$.message").value("Watchlist alert history days must be between 1 and 365"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-err-3"));
+    }
+
+    @Test
+    void testGetAlertHistory_nonNumericDays_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-err-7")
+                        .param("days", "recent"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-err-7"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_days"))
+                .andExpect(jsonPath("$.message").value("Watchlist alert history days must be between 1 and 365"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-err-7"));
+    }
+
+    @Test
+    void testGetAlertHistory_invalidDirection_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-err-4")
+                        .param("direction", "SIDEWAYS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-err-4"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_direction"))
+                .andExpect(jsonPath("$.message").value("Watchlist alert history direction must be ABOVE or BELOW"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-err-4"));
+    }
+
+    @Test
     void testExportAlertHistory_missingItem_shouldReturnExplicitNotFoundContract() throws Exception {
         mockMvc.perform(get("/api/v1/watchlists/items/" + UUID.randomUUID() + "/alert-history/export")
                         .header("X-User-Id", userId.toString())
@@ -346,6 +498,42 @@ class WatchlistControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("watchlist_item_not_found"))
                 .andExpect(jsonPath("$.message").value("Watchlist item not found"))
                 .andExpect(jsonPath("$.requestId").value("watchlist-history-export-err-1"));
+    }
+
+    @Test
+    void testExportAlertHistory_invalidDirection_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history/export")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-export-err-2")
+                        .param("direction", "SIDEWAYS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-export-err-2"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_direction"))
+                .andExpect(jsonPath("$.message").value("Watchlist alert history direction must be ABOVE or BELOW"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-export-err-2"));
+    }
+
+    @Test
+    void testExportAlertHistory_nonNumericDays_shouldReturnExplicitBadRequestContract() throws Exception {
+        WatchlistItem item = watchlistItemRepository.save(WatchlistItem.builder()
+                .watchlist(testWatchlist)
+                .symbol("BTCUSDT")
+                .build());
+
+        mockMvc.perform(get("/api/v1/watchlists/items/" + item.getId() + "/alert-history/export")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "watchlist-history-export-err-3")
+                        .param("days", "recent"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "watchlist-history-export-err-3"))
+                .andExpect(jsonPath("$.code").value("invalid_watchlist_alert_history_days"))
+                .andExpect(jsonPath("$.message").value("Watchlist alert history days must be between 1 and 365"))
+                .andExpect(jsonPath("$.requestId").value("watchlist-history-export-err-3"));
     }
 
     @Test

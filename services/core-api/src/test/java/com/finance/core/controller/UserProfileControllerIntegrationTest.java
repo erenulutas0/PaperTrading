@@ -275,6 +275,18 @@ class UserProfileControllerIntegrationTest {
         }
 
         @Test
+        void getFollowers_invalidPage_returnsExplicitBadRequestContract() throws Exception {
+                mockMvc.perform(get("/api/v1/users/{userId}/followers", userBob.getId())
+                                .header("X-Request-Id", "follow-page-err-1")
+                                .param("page", "later"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "follow-page-err-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_user_follow_page"))
+                                .andExpect(jsonPath("$.message").value("Invalid user follow page"))
+                                .andExpect(jsonPath("$.requestId").value("follow-page-err-1"));
+        }
+
+        @Test
         void getFollowing_returnsFollowingList() throws Exception {
                 // Alice follows Bob
                 mockMvc.perform(post("/api/v1/users/{userId}/follow", userBob.getId())
@@ -286,6 +298,18 @@ class UserProfileControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(1)))
                                 .andExpect(jsonPath("$.content[0].username").value(userBob.getUsername()));
+        }
+
+        @Test
+        void getFollowing_invalidSize_returnsExplicitBadRequestContract() throws Exception {
+                mockMvc.perform(get("/api/v1/users/{userId}/following", userAlice.getId())
+                                .header("X-Request-Id", "follow-page-err-2")
+                                .param("size", "0"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "follow-page-err-2"))
+                                .andExpect(jsonPath("$.code").value("invalid_user_follow_size"))
+                                .andExpect(jsonPath("$.message").value("Invalid user follow size"))
+                                .andExpect(jsonPath("$.requestId").value("follow-page-err-2"));
         }
 
         // ===== FULL LIFECYCLE =====

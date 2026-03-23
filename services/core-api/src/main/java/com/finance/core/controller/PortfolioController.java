@@ -8,7 +8,9 @@ import com.finance.core.dto.PortfolioResponse;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.service.AuditLogService;
 import com.finance.core.service.PerformanceCalculationService;
+import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -49,24 +51,16 @@ public class PortfolioController {
 
     @PostMapping
     public ResponseEntity<?> createPortfolio(@RequestBody PortfolioRequest request, HttpServletRequest httpRequest) {
+        validateCreateRequest(request);
         Portfolio.PortfolioBuilder builder = Portfolio.builder()
-                .name(request.getName())
-                .ownerId(request.getOwnerId());
+                .name(request.getName().trim())
+                .ownerId(request.getOwnerId().trim());
 
         // Optional fields
         if (request.getDescription() != null)
             builder.description(request.getDescription());
         if (request.getVisibility() != null) {
-            try {
-                builder.visibility(Portfolio.Visibility.valueOf(request.getVisibility().toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                return ApiErrorResponses.build(
-                        HttpStatus.BAD_REQUEST,
-                        "invalid_visibility",
-                        "Invalid visibility value. Use PUBLIC or PRIVATE.",
-                        null,
-                        httpRequest);
-            }
+            builder.visibility(parseVisibility(request.getVisibility(), false));
         }
 
         Portfolio saved = portfolioRepository.save(builder.build());
@@ -88,12 +82,22 @@ public class PortfolioController {
     @GetMapping
     public ResponseEntity<Page<Portfolio>> listPortfolios(
             @RequestParam String ownerId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable) {
-        Page<UUID> idPage = portfolioRepository.findIdsByOwnerId(ownerId, pageable);
+        Pageable effectivePageable = PageableRequestParser.resolvePageable(
+                pageable,
+                page,
+                size,
+                "invalid_portfolio_page",
+                "Invalid portfolio page",
+                "invalid_portfolio_size",
+                "Invalid portfolio size");
+        Page<UUID> idPage = portfolioRepository.findIdsByOwnerId(ownerId, effectivePageable);
         if (idPage.isEmpty()) {
-            return ResponseEntity.ok(Page.empty(pageable));
+            return ResponseEntity.ok(Page.empty(effectivePageable));
         }
-        return ResponseEntity.ok(toOrderedPortfolioPage(idPage, pageable, false));
+        return ResponseEntity.ok(toOrderedPortfolioPage(idPage, effectivePageable, false));
     }
 
     @GetMapping("/{id}")
@@ -151,16 +155,26 @@ public class PortfolioController {
     @GetMapping("/discover")
     public ResponseEntity<Page<Portfolio>> discoverPortfolios(
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable) {
+        Pageable effectivePageable = PageableRequestParser.resolvePageable(
+                pageable,
+                page,
+                size,
+                "invalid_portfolio_page",
+                "Invalid portfolio page",
+                "invalid_portfolio_size",
+                "Invalid portfolio size");
         String normalizedQuery = q == null || q.isBlank() ? "" : q.trim();
         Page<UUID> idPage = portfolioRepository.searchDiscoverableIdsByVisibility(
                 Portfolio.Visibility.PUBLIC,
                 normalizedQuery,
-                pageable);
+                effectivePageable);
         if (idPage.isEmpty()) {
-            return ResponseEntity.ok(Page.empty(pageable));
+            return ResponseEntity.ok(Page.empty(effectivePageable));
         }
-        return ResponseEntity.ok(toOrderedPortfolioPage(idPage, pageable, true));
+        return ResponseEntity.ok(toOrderedPortfolioPage(idPage, effectivePageable, true));
     }
 
     @PutMapping("/{id}/visibility")
@@ -168,52 +182,42 @@ public class PortfolioController {
             @PathVariable UUID id,
             @RequestBody VisibilityRequest request,
             HttpServletRequest httpRequest) {
-        return portfolioRepository.findById(id).map(portfolio -> {
-            try {
-                Portfolio.Visibility oldVisibility = portfolio.getVisibility();
-                Portfolio.Visibility newVisibility = Portfolio.Visibility
-                        .valueOf(request.getVisibility().toUpperCase());
-                portfolio.setVisibility(newVisibility);
-                Portfolio saved = portfolioRepository.save(portfolio);
+        return portfolioRepository.findById(id).<ResponseEntity<?>>map(portfolio -> {
+            Portfolio.Visibility oldVisibility = portfolio.getVisibility();
+            Portfolio.Visibility newVisibility = parseVisibility(request != null ? request.getVisibility() : null, true);
+            portfolio.setVisibility(newVisibility);
+            Portfolio saved = portfolioRepository.save(portfolio);
 
-                // Social logic: If made PUBLIC, publish to feed
-                if (oldVisibility == Portfolio.Visibility.PRIVATE && newVisibility == Portfolio.Visibility.PUBLIC) {
-                    try {
-                        UUID authorId = UUID.fromString(portfolio.getOwnerId());
-                        String username = userRepository.findById(authorId)
-                                .map(com.finance.core.domain.AppUser::getUsername).orElse("User");
-                        feedService.publish(authorId, username,
-                                com.finance.core.domain.ActivityEvent.EventType.PORTFOLIO_PUBLISHED,
-                                com.finance.core.domain.ActivityEvent.TargetType.PORTFOLIO,
-                                portfolio.getId(), portfolio.getName());
-                    } catch (Exception e) {
-                        // Log but don't fail transition
-                    }
+            // Social logic: If made PUBLIC, publish to feed
+            if (oldVisibility == Portfolio.Visibility.PRIVATE && newVisibility == Portfolio.Visibility.PUBLIC) {
+                try {
+                    UUID authorId = UUID.fromString(portfolio.getOwnerId());
+                    String username = userRepository.findById(authorId)
+                            .map(com.finance.core.domain.AppUser::getUsername).orElse("User");
+                    feedService.publish(authorId, username,
+                            com.finance.core.domain.ActivityEvent.EventType.PORTFOLIO_PUBLISHED,
+                            com.finance.core.domain.ActivityEvent.TargetType.PORTFOLIO,
+                            portfolio.getId(), portfolio.getName());
+                } catch (Exception e) {
+                    // Log but don't fail transition
                 }
-
-                // Refresh leaderboard cache
-                leaderboardService.invalidateCache();
-
-                LinkedHashMap<String, Object> details = new LinkedHashMap<>();
-                details.put("oldVisibility", oldVisibility.name());
-                details.put("newVisibility", newVisibility.name());
-                details.put("portfolioName", saved.getName());
-                auditLogService.record(
-                        parseActorId(saved.getOwnerId()),
-                        AuditActionType.PORTFOLIO_VISIBILITY_CHANGED,
-                        AuditResourceType.PORTFOLIO,
-                        saved.getId(),
-                        details);
-
-                return ResponseEntity.ok(saved);
-            } catch (IllegalArgumentException e) {
-                return ApiErrorResponses.build(
-                        HttpStatus.BAD_REQUEST,
-                        "invalid_visibility",
-                        "Invalid visibility value. Use PUBLIC or PRIVATE.",
-                        null,
-                        httpRequest);
             }
+
+            // Refresh leaderboard cache
+            leaderboardService.invalidateCache();
+
+            LinkedHashMap<String, Object> details = new LinkedHashMap<>();
+            details.put("oldVisibility", oldVisibility.name());
+            details.put("newVisibility", newVisibility.name());
+            details.put("portfolioName", saved.getName());
+            auditLogService.record(
+                    parseActorId(saved.getOwnerId()),
+                    AuditActionType.PORTFOLIO_VISIBILITY_CHANGED,
+                    AuditResourceType.PORTFOLIO,
+                    saved.getId(),
+                    details);
+
+            return ResponseEntity.ok(saved);
         }).orElseGet(() -> ApiErrorResponses.build(
                 HttpStatus.NOT_FOUND,
                 "portfolio_not_found",
@@ -301,7 +305,7 @@ public class PortfolioController {
     public ResponseEntity<?> getPortfolioHistory(
             @PathVariable UUID id,
             @PageableDefault(size = 20) Pageable pageable,
-            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String limit,
             HttpServletRequest httpRequest) {
         if (!portfolioRepository.existsById(id)) {
             return ApiErrorResponses.build(
@@ -313,8 +317,9 @@ public class PortfolioController {
         }
 
         Pageable effectivePageable = pageable;
-        if (limit != null && limit > 0) {
-            effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
+        Integer parsedLimit = parsePortfolioHistoryLimit(limit);
+        if (parsedLimit != null) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), parsedLimit, pageable.getSort());
         }
 
         Page<TradeHistoryEntryResponse> history = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(id, effectivePageable)
@@ -393,5 +398,60 @@ public class PortfolioController {
                 .sorted(Comparator.comparingInt(portfolio -> orderIndex.getOrDefault(portfolio.getId(), Integer.MAX_VALUE)))
                 .toList();
         return new PageImpl<>(ordered, pageable, idPage.getTotalElements());
+    }
+
+    private void validateCreateRequest(PortfolioRequest request) {
+        if (request == null) {
+            throw ApiRequestException.badRequest("portfolio_payload_required", "Portfolio payload is required");
+        }
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw ApiRequestException.badRequest("portfolio_name_required", "Portfolio name is required");
+        }
+        if (request.getOwnerId() == null || request.getOwnerId().isBlank()) {
+            throw ApiRequestException.badRequest("portfolio_owner_required", "Portfolio owner is required");
+        }
+        if (request.getDescription() != null && request.getDescription().length() > 500) {
+            throw ApiRequestException.badRequest(
+                    "portfolio_description_too_long",
+                    "Portfolio description must be 500 characters or fewer");
+        }
+    }
+
+    private Portfolio.Visibility parseVisibility(String rawVisibility, boolean required) {
+        if (rawVisibility == null || rawVisibility.isBlank()) {
+            if (required) {
+                throw ApiRequestException.badRequest(
+                        "portfolio_visibility_required",
+                        "Portfolio visibility is required");
+            }
+            return null;
+        }
+        try {
+            return Portfolio.Visibility.valueOf(rawVisibility.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw ApiRequestException.badRequest(
+                    "invalid_visibility",
+                    "Invalid visibility value. Use PUBLIC or PRIVATE.");
+        }
+    }
+
+    private Integer parsePortfolioHistoryLimit(String rawLimit) {
+        if (rawLimit == null || rawLimit.isBlank()) {
+            return null;
+        }
+        final int parsed;
+        try {
+            parsed = Integer.parseInt(rawLimit.trim());
+        } catch (NumberFormatException exception) {
+            throw ApiRequestException.badRequest(
+                    "invalid_portfolio_history_limit",
+                    "Portfolio history limit must be an integer between 1 and 100");
+        }
+        if (parsed < 1 || parsed > 100) {
+            throw ApiRequestException.badRequest(
+                    "invalid_portfolio_history_limit",
+                    "Portfolio history limit must be an integer between 1 and 100");
+        }
+        return parsed;
     }
 }

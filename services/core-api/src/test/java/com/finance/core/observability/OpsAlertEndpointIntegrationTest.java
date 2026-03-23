@@ -47,7 +47,11 @@ class OpsAlertEndpointIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true))
                 .andExpect(jsonPath("$.webhookConfigured").value(true))
-                .andExpect(jsonPath("$.cooldownSeconds").isNumber());
+                .andExpect(jsonPath("$.cooldownSeconds").isNumber())
+                .andExpect(jsonPath("$.totalAlertCount").isNumber())
+                .andExpect(jsonPath("$.logSentCount").isNumber())
+                .andExpect(jsonPath("$.webhookSentCount").isNumber())
+                .andExpect(jsonPath("$.webhookFailedCount").isNumber());
     }
 
     @Test
@@ -78,6 +82,13 @@ class OpsAlertEndpointIntegrationTest {
         assertThat(payload.get("component")).isEqualTo(component);
         assertThat(payload.get("severity")).isEqualTo("CRITICAL");
         assertThat(payload.get("alertKey")).isEqualTo("endpoint-it-key");
+
+        mockMvc.perform(get("/actuator/opsalerts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalAlertCount").value(2.0))
+                .andExpect(jsonPath("$.logSentCount").value(1.0))
+                .andExpect(jsonPath("$.webhookSentCount").value(1.0))
+                .andExpect(jsonPath("$.webhookFailedCount").value(0.0));
 
     }
 

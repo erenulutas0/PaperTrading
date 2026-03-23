@@ -38,6 +38,18 @@ function Get-MetricValue {
   }
 }
 
+function Get-OpsAlertsStatus {
+  param(
+    [string]$StatusUrl
+  )
+
+  try {
+    return Invoke-RestMethod -Uri $StatusUrl -Method Get -TimeoutSec 10
+  } catch {
+    throw "Ops alerts status request failed for $StatusUrl : $($_.Exception.Message)"
+  }
+}
+
 function Build-MetricUrl {
   param(
     [string]$BaseUrl,
@@ -89,6 +101,9 @@ try {
     webhookSent       = Get-MetricValue -MetricUrl $webhookSentUrl
     webhookFailed     = Get-MetricValue -MetricUrl $webhookFailedUrl
     webhookSuppressed = Get-MetricValue -MetricUrl $webhookSuppressedUrl
+    statusTotal       = [double]$statusResponse.totalAlertCount
+    statusLogSent     = [double]$statusResponse.logSentCount
+    statusWebhookSent = [double]$statusResponse.webhookSentCount
   }
 
   $triggerBody = @{
@@ -106,17 +121,24 @@ try {
 
   $post = $null
   for ($attempt = 1; $attempt -le $PollAttempts; $attempt++) {
+    $currentStatus = Get-OpsAlertsStatus -StatusUrl $statusUrl
     $current = [ordered]@{
       logSent           = Get-MetricValue -MetricUrl $logSentUrl
       webhookSent       = Get-MetricValue -MetricUrl $webhookSentUrl
       webhookFailed     = Get-MetricValue -MetricUrl $webhookFailedUrl
       webhookSuppressed = Get-MetricValue -MetricUrl $webhookSuppressedUrl
+      statusTotal       = [double]$currentStatus.totalAlertCount
+      statusLogSent     = [double]$currentStatus.logSentCount
+      statusWebhookSent = [double]$currentStatus.webhookSentCount
     }
     $deltas = [ordered]@{
       logSent           = $current.logSent - $baseline.logSent
       webhookSent       = $current.webhookSent - $baseline.webhookSent
       webhookFailed     = $current.webhookFailed - $baseline.webhookFailed
       webhookSuppressed = $current.webhookSuppressed - $baseline.webhookSuppressed
+      statusTotal       = $current.statusTotal - $baseline.statusTotal
+      statusLogSent     = $current.statusLogSent - $baseline.statusLogSent
+      statusWebhookSent = $current.statusWebhookSent - $baseline.statusWebhookSent
     }
 
     $post = [ordered]@{
@@ -125,7 +147,7 @@ try {
       deltas  = $deltas
     }
 
-    if ($deltas.webhookSent -ge 1 -and $deltas.logSent -ge 1) {
+    if ($deltas.webhookSent -ge 1 -and $deltas.logSent -ge 1 -and $deltas.statusWebhookSent -ge 1 -and $deltas.statusLogSent -ge 1) {
       $status = "PASSED"
       break
     }
@@ -161,6 +183,8 @@ try {
       $notes.Add("Webhook metric moved to failed after the validation alert.")
     } elseif ($post.deltas.webhookSuppressed -ge 1) {
       $notes.Add("Webhook metric moved to suppressed; check cooldown/key reuse behavior.")
+    } elseif ($post.deltas.statusWebhookSent -lt 1 -or $post.deltas.statusLogSent -lt 1) {
+      $notes.Add("Ops alerts actuator summary did not reflect the expected sent-count delta within the polling window.")
     } else {
       $notes.Add("Webhook sent metric did not increase within the polling window.")
     }
@@ -205,6 +229,9 @@ $lines = @(
   "- Webhook sent: $baselineWebhookSent",
   "- Webhook failed: $baselineWebhookFailed",
   "- Webhook suppressed: $baselineWebhookSuppressed",
+  "- Opsalerts total: $(if ($childData.baseline) { $childData.baseline.statusTotal } else { 'n/a' })",
+  "- Opsalerts log sent: $(if ($childData.baseline) { $childData.baseline.statusLogSent } else { 'n/a' })",
+  "- Opsalerts webhook sent: $(if ($childData.baseline) { $childData.baseline.statusWebhookSent } else { 'n/a' })",
   "",
   "## Post-Trigger Delta",
   "- Sample attempt: $postAttempt",
@@ -212,6 +239,9 @@ $lines = @(
   "- Webhook sent delta: $postWebhookSentDelta",
   "- Webhook failed delta: $postWebhookFailedDelta",
   "- Webhook suppressed delta: $postWebhookSuppressedDelta",
+  "- Opsalerts total delta: $(if ($childData.post) { $childData.post.deltas.statusTotal } else { 'n/a' })",
+  "- Opsalerts log sent delta: $(if ($childData.post) { $childData.post.deltas.statusLogSent } else { 'n/a' })",
+  "- Opsalerts webhook sent delta: $(if ($childData.post) { $childData.post.deltas.statusWebhookSent } else { 'n/a' })",
   "",
   "## Notes",
   $notesBlock

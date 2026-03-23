@@ -5,10 +5,12 @@ import com.finance.core.domain.AppUser;
 import com.finance.core.domain.MarketTerminalLayout;
 import com.finance.core.repository.MarketTerminalLayoutRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.service.MarketTerminalLayoutService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -17,10 +19,12 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,6 +43,9 @@ class MarketTerminalLayoutControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @SpyBean
+    private MarketTerminalLayoutService marketTerminalLayoutService;
 
     private UUID userId;
     private UUID otherUserId;
@@ -152,6 +159,19 @@ class MarketTerminalLayoutControllerIntegrationTest {
     }
 
     @Test
+    void listLayouts_withInvalidSize_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me/preferences/terminal-layouts")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "layout-page-err-1")
+                        .param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "layout-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_market_terminal_layout_size"))
+                .andExpect(jsonPath("$.message").value("Invalid market terminal layout size"))
+                .andExpect(jsonPath("$.requestId").value("layout-page-err-1"));
+    }
+
+    @Test
     void createLayout_whenLimitReached_shouldReturnExplicitConflictContract() throws Exception {
         for (int index = 0; index < 10; index++) {
             marketTerminalLayoutRepository.save(MarketTerminalLayout.builder()
@@ -199,5 +219,21 @@ class MarketTerminalLayoutControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(Map.of("name", "   "))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("market_terminal_layout_name_required"));
+    }
+
+    @Test
+    void deleteLayout_whenUnexpectedRuntime_shouldReturnDeleteFallbackContract() throws Exception {
+        UUID layoutId = UUID.randomUUID();
+        doThrow(new RuntimeException("layout storage exploded"))
+                .when(marketTerminalLayoutService)
+                .deleteLayout(userId, layoutId);
+
+        mockMvc.perform(delete("/api/v1/users/me/preferences/terminal-layouts/" + layoutId)
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "layout-delete-fallback-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("market_terminal_layout_delete_failed"))
+                .andExpect(jsonPath("$.message").value("Failed to delete market terminal layout"))
+                .andExpect(jsonPath("$.requestId").value("layout-delete-fallback-1"));
     }
 }

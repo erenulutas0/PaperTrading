@@ -46,6 +46,10 @@ public class ApiRequestException extends RuntimeException {
         return new ApiRequestException(HttpStatus.CONFLICT, code, message, null, false);
     }
 
+    public static ApiRequestException internal(String code, String message) {
+        return new ApiRequestException(HttpStatus.INTERNAL_SERVER_ERROR, code, message, null, false);
+    }
+
     public HttpStatus status() {
         return status;
     }

@@ -177,9 +177,23 @@ function Invoke-SeedSql {
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $suffix = Get-Date -Format "yyyyMMddHHmmss"
 $results = New-Object 'System.Collections.Generic.List[object]'
+$notes = New-Object 'System.Collections.Generic.List[string]'
 
 $health = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health"
 Assert-Condition -Results $results -Name "Health" -Condition ($health.status -eq 200) -Detail "status=$($health.status)"
+
+$capabilitySnapshot = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/idempotency"
+$capabilitySnapshotJson = if ($capabilitySnapshot.content) { $capabilitySnapshot.content | ConvertFrom-Json } else { $null }
+$baselineAlertState = [string](Get-ObjectPropertyValue -Object $capabilitySnapshotJson -Name "alertState")
+$idempotencyHealthBeforeSeed = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health/idempotency"
+$supportsLatestIdempotencyObservability = ($capabilitySnapshot.status -eq 200 -and -not [string]::IsNullOrWhiteSpace($baselineAlertState) -and $idempotencyHealthBeforeSeed.status -eq 200)
+Assert-Condition -Results $results -Name "Idempotency Observability Rollout Available" -Condition $supportsLatestIdempotencyObservability -Detail "snapshotStatus=$($capabilitySnapshot.status), alertState=$(if ([string]::IsNullOrWhiteSpace($baselineAlertState)) { '<missing>' } else { $baselineAlertState }), healthStatus=$($idempotencyHealthBeforeSeed.status)"
+if (-not $supportsLatestIdempotencyObservability) {
+  $notes.Add("Target runtime does not expose the latest idempotency observability rollout. Expected both `/actuator/idempotency.alertState` and `/actuator/health/idempotency`. Restart the backend with current code or use `run_idempotency_cleanup_local_runtime_check.ps1`.") | Out-Null
+  throw "Latest idempotency observability rollout not available on target runtime."
+}
+
+Assert-Condition -Results $results -Name "Idempotency Health Baseline" -Condition ($idempotencyHealthBeforeSeed.status -eq 200) -Detail "status=$($idempotencyHealthBeforeSeed.status)"
 
 $registerBody = @{
   username = "idem_cleanup_$suffix"
@@ -216,6 +230,14 @@ $replayHeaders = @{
 $createReplayBefore = Invoke-Request -Method "POST" -Url "$BaseUrl/api/v1/portfolios" -Headers $replayHeaders -Body $portfolioBody
 Assert-Condition -Results $results -Name "Replay Before Cleanup" -Condition ($createReplayBefore.status -eq 200 -and (Get-HeaderValue -Headers $createReplayBefore.headers -Name "X-Idempotent-Replay") -eq "true") -Detail "status=$($createReplayBefore.status), replay=$(Get-HeaderValue -Headers $createReplayBefore.headers -Name "X-Idempotent-Replay")"
 
+$baselineSnapshot = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/idempotency"
+$baselineSnapshotJson = if ($baselineSnapshot.content) { $baselineSnapshot.content | ConvertFrom-Json } else { $null }
+$cleanupIntervalSeconds = [int](Get-ObjectPropertyValue -Object $baselineSnapshotJson -Name "cleanupIntervalSeconds")
+if ($cleanupIntervalSeconds -le 0) {
+  $cleanupIntervalSeconds = 1800
+}
+$seedExpiredAgeSeconds = $cleanupIntervalSeconds + 600
+
 $expiredId = [guid]::NewGuid().ToString()
 $expiredKey = "expired-cleanup-$suffix"
 $insertSql = @"
@@ -246,7 +268,7 @@ INSERT INTO idempotency_keys (
   '{}',
   NOW() - INTERVAL '2 hours',
   NOW() - INTERVAL '90 minutes',
-  NOW() - INTERVAL '10 minutes'
+  NOW() - INTERVAL '$seedExpiredAgeSeconds seconds'
 );
 "@
 
@@ -255,19 +277,32 @@ Invoke-SeedSql -Sql $insertSql | Out-Null
 $beforeCleanup = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/idempotency"
 $beforeCleanupJson = if ($beforeCleanup.content) { $beforeCleanup.content | ConvertFrom-Json } else { $null }
 $beforeExpired = [int](Get-ObjectPropertyValue -Object $beforeCleanupJson -Name "expiredRecords")
-Assert-Condition -Results $results -Name "Expired Record Visible" -Condition ($beforeCleanup.status -eq 200 -and $beforeExpired -ge 1) -Detail "status=$($beforeCleanup.status), expired=$beforeExpired"
+$beforeAlertState = [string](Get-ObjectPropertyValue -Object $beforeCleanupJson -Name "alertState")
+Assert-Condition -Results $results -Name "Expired Record Visible" -Condition ($beforeCleanup.status -eq 200 -and $beforeExpired -ge 1) -Detail "status=$($beforeCleanup.status), expired=$beforeExpired, alertState=$beforeAlertState"
+
+$staleHealth = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health/idempotency"
+$staleHealthJson = if ($staleHealth.content) { $staleHealth.content | ConvertFrom-Json } else { $null }
+$staleHealthStatus = [string](Get-ObjectPropertyValue -Object $staleHealthJson -Name "status")
+Assert-Condition -Results $results -Name "Idempotency Health Detects Stale Backlog" -Condition ($staleHealth.status -eq 503 -and $staleHealthStatus -eq "DOWN" -and $beforeAlertState -eq "WARNING") -Detail "healthStatusCode=$($staleHealth.status), healthStatus=$staleHealthStatus, alertState=$beforeAlertState"
 
 $cleanup = Invoke-Request -Method "POST" -Url "$BaseUrl/actuator/idempotency"
 $cleanupJson = if ($cleanup.content) { $cleanup.content | ConvertFrom-Json } else { $null }
 $cleanupDeleted = [int](Get-ObjectPropertyValue -Object $cleanupJson -Name "lastCleanupDeletedCount")
 $cleanupExpired = [int](Get-ObjectPropertyValue -Object $cleanupJson -Name "expiredRecords")
-Assert-Condition -Results $results -Name "Cleanup Write Operation" -Condition ($cleanup.status -eq 200 -and $cleanupDeleted -ge 1 -and $cleanupExpired -eq 0) -Detail "status=$($cleanup.status), deleted=$cleanupDeleted, expired=$cleanupExpired"
+$cleanupAlertState = [string](Get-ObjectPropertyValue -Object $cleanupJson -Name "alertState")
+Assert-Condition -Results $results -Name "Cleanup Write Operation" -Condition ($cleanup.status -eq 200 -and $cleanupDeleted -ge 1 -and $cleanupExpired -eq 0 -and $cleanupAlertState -eq "NONE") -Detail "status=$($cleanup.status), deleted=$cleanupDeleted, expired=$cleanupExpired, alertState=$cleanupAlertState"
 
 $afterCleanup = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/idempotency"
 $afterCleanupJson = if ($afterCleanup.content) { $afterCleanup.content | ConvertFrom-Json } else { $null }
 $afterExpired = [int](Get-ObjectPropertyValue -Object $afterCleanupJson -Name "expiredRecords")
 $afterTotal = [int](Get-ObjectPropertyValue -Object $afterCleanupJson -Name "totalRecords")
-Assert-Condition -Results $results -Name "Cleanup Snapshot Stable" -Condition ($afterCleanup.status -eq 200 -and $afterExpired -eq 0 -and $afterTotal -ge 1) -Detail "status=$($afterCleanup.status), total=$afterTotal, expired=$afterExpired"
+$afterAlertState = [string](Get-ObjectPropertyValue -Object $afterCleanupJson -Name "alertState")
+Assert-Condition -Results $results -Name "Cleanup Snapshot Stable" -Condition ($afterCleanup.status -eq 200 -and $afterExpired -eq 0 -and $afterTotal -ge 1 -and $afterAlertState -eq "NONE") -Detail "status=$($afterCleanup.status), total=$afterTotal, expired=$afterExpired, alertState=$afterAlertState"
+
+$recoveredHealth = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health/idempotency"
+$recoveredHealthJson = if ($recoveredHealth.content) { $recoveredHealth.content | ConvertFrom-Json } else { $null }
+$recoveredHealthStatus = [string](Get-ObjectPropertyValue -Object $recoveredHealthJson -Name "status")
+Assert-Condition -Results $results -Name "Idempotency Health Recovers After Cleanup" -Condition ($recoveredHealth.status -eq 200 -and $recoveredHealthStatus -eq "UP") -Detail "healthStatusCode=$($recoveredHealth.status), healthStatus=$recoveredHealthStatus"
 
 $replayAfterHeaders = @{
   "Authorization"   = "Bearer $accessToken"
@@ -296,6 +331,14 @@ $lines += "| Check | Result | Detail |"
 $lines += "|---|---|---|"
 foreach ($result in $results) {
   $lines += "| $($result.Name) | $(if ($result.Passed) { 'PASS' } else { 'FAIL' }) | $($result.Detail.Replace('|', '/')) |"
+}
+
+if ($notes.Count -gt 0) {
+  $lines += ""
+  $lines += "## Notes"
+  foreach ($note in $notes) {
+    $lines += "- $($note.Replace('|', '/'))"
+  }
 }
 
 Set-Content -Path $reportPath -Value $lines -Encoding UTF8

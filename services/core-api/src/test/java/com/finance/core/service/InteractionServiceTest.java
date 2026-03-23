@@ -192,6 +192,17 @@ class InteractionServiceTest {
     }
 
     @Test
+    void toggleLike_WithInvalidPortfolioOwner_ShouldThrowTypedBadRequest() {
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolioWithOwner("Growth", "not-a-uuid")));
+
+        ApiRequestException ex = assertThrows(ApiRequestException.class,
+                () -> interactionService.toggleLike(actorId, targetId, likeRequest));
+
+        assertEquals("portfolio_owner_invalid", ex.code());
+        assertEquals("Portfolio owner is invalid", ex.getMessage());
+    }
+
+    @Test
     void addReplyToComment_ShouldResolveCommentTargetAndNotifyCommentOwner() {
         UUID commentId = UUID.randomUUID();
         UUID commentOwnerId = UUID.randomUUID();
@@ -353,8 +364,12 @@ class InteractionServiceTest {
     }
 
     private Portfolio portfolio(String name) {
+        return portfolioWithOwner(name, UUID.randomUUID().toString());
+    }
+
+    private Portfolio portfolioWithOwner(String name, String ownerId) {
         Portfolio portfolio = new Portfolio();
-        portfolio.setOwnerId(UUID.randomUUID().toString());
+        portfolio.setOwnerId(ownerId);
         portfolio.setName(name);
         return portfolio;
     }

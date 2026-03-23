@@ -7,6 +7,7 @@ import com.finance.core.service.NotificationService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -52,7 +53,11 @@ public class NotificationController {
                     "streamToken", streamToken,
                     "expiresInSeconds", expiresInSeconds));
         } catch (RuntimeException exception) {
-            return buildNotificationError(exception, "notification_stream_token_failed", request);
+            return buildNotificationError(
+                    exception,
+                    "notification_stream_token_failed",
+                    "Failed to issue notification stream token",
+                    request);
         }
     }
 
@@ -62,12 +67,26 @@ public class NotificationController {
     @GetMapping
     public ResponseEntity<?> getNotifications(
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest request) {
+        Pageable effectivePageable = PageableRequestParser.resolvePageable(
+                pageable,
+                page,
+                size,
+                "invalid_notification_page",
+                "Invalid notification page",
+                "invalid_notification_size",
+                "Invalid notification size");
         try {
-            return ResponseEntity.ok(notificationService.getUserNotifications(userId, pageable));
+            return ResponseEntity.ok(notificationService.getUserNotifications(userId, effectivePageable));
         } catch (RuntimeException exception) {
-            return buildNotificationError(exception, "notifications_fetch_failed", request);
+            return buildNotificationError(
+                    exception,
+                    "notifications_fetch_failed",
+                    "Failed to load notifications",
+                    request);
         }
     }
 
@@ -82,7 +101,11 @@ public class NotificationController {
             long count = notificationService.getUnreadCount(userId);
             return ResponseEntity.ok(Map.of("count", count));
         } catch (RuntimeException exception) {
-            return buildNotificationError(exception, "notification_unread_count_failed", request);
+            return buildNotificationError(
+                    exception,
+                    "notification_unread_count_failed",
+                    "Failed to load unread notification count",
+                    request);
         }
     }
 
@@ -97,7 +120,11 @@ public class NotificationController {
             notificationService.markAllAsRead(userId);
             return ResponseEntity.ok().build();
         } catch (RuntimeException exception) {
-            return buildNotificationError(exception, "notification_mark_all_read_failed", request);
+            return buildNotificationError(
+                    exception,
+                    "notification_mark_all_read_failed",
+                    "Failed to mark notifications as read",
+                    request);
         }
     }
 
@@ -133,15 +160,15 @@ public class NotificationController {
     private ResponseEntity<?> buildNotificationError(
             RuntimeException exception,
             String fallbackCode,
+            String fallbackMessage,
             HttpServletRequest request) {
         if (exception instanceof ApiRequestException apiRequestException) {
             throw apiRequestException;
         }
-        String message = exception.getMessage() != null ? exception.getMessage() : "";
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,
                 fallbackCode,
-                message,
+                fallbackMessage,
                 null,
                 request);
     }

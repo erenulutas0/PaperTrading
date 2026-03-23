@@ -130,6 +130,7 @@ function Get-ObjectPropertyValue {
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $suffix = Get-Date -Format "yyyyMMddHHmmss"
 $results = New-Object 'System.Collections.Generic.List[object]'
+$notes = New-Object 'System.Collections.Generic.List[string]'
 
 $health = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health"
 Assert-Condition -Results $results -Name "Health" -Condition ($health.status -eq 200) -Detail "status=$($health.status)"
@@ -209,7 +210,23 @@ Assert-Condition -Results $results -Name "Notification Missing Id Echo" -Conditi
 $idempotencyActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/idempotency"
 $idempotencyJson = if ($idempotencyActuator.content) { $idempotencyActuator.content | ConvertFrom-Json } else { $null }
 $idempotencyTotal = Get-ObjectPropertyValue -Object $idempotencyJson -Name "totalRecords"
-Assert-Condition -Results $results -Name "Idempotency Actuator" -Condition ($idempotencyActuator.status -eq 200 -and $null -ne $idempotencyTotal) -Detail "status=$($idempotencyActuator.status), total=$idempotencyTotal, body=$($idempotencyActuator.content)"
+$idempotencyAlertState = [string](Get-ObjectPropertyValue -Object $idempotencyJson -Name "alertState")
+Assert-Condition -Results $results -Name "Idempotency Actuator" -Condition ($idempotencyActuator.status -eq 200 -and $null -ne $idempotencyTotal -and -not [string]::IsNullOrWhiteSpace($idempotencyAlertState)) -Detail "status=$($idempotencyActuator.status), total=$idempotencyTotal, alertState=$(if ([string]::IsNullOrWhiteSpace($idempotencyAlertState)) { '<missing>' } else { $idempotencyAlertState })"
+
+$idempotencyHealth = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health/idempotency"
+$idempotencyHealthJson = if ($idempotencyHealth.content) { $idempotencyHealth.content | ConvertFrom-Json } else { $null }
+$idempotencyHealthStatus = [string](Get-ObjectPropertyValue -Object $idempotencyHealthJson -Name "status")
+Assert-Condition -Results $results -Name "Idempotency Health Component" -Condition ($idempotencyHealth.status -eq 200 -and $idempotencyHealthStatus -eq "UP") -Detail "status=$($idempotencyHealth.status), healthStatus=$idempotencyHealthStatus"
+if ($idempotencyHealth.status -eq 404 -or [string]::IsNullOrWhiteSpace($idempotencyAlertState)) {
+  $notes.Add("Target runtime does not expose the latest idempotency observability rollout. Expected `/actuator/idempotency.alertState` and `/actuator/health/idempotency` to be available for contract verification.") | Out-Null
+}
+
+$opsAlerts = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/opsalerts"
+$opsAlertsJson = if ($opsAlerts.content) { $opsAlerts.content | ConvertFrom-Json } else { $null }
+$opsAlertsTotal = Get-ObjectPropertyValue -Object $opsAlertsJson -Name "totalAlertCount"
+$opsAlertsLogSent = Get-ObjectPropertyValue -Object $opsAlertsJson -Name "logSentCount"
+$opsAlertsWebhookSent = Get-ObjectPropertyValue -Object $opsAlertsJson -Name "webhookSentCount"
+Assert-Condition -Results $results -Name "Ops Alerts Actuator" -Condition ($opsAlerts.status -eq 200 -and $null -ne $opsAlertsTotal -and $null -ne $opsAlertsLogSent -and $null -ne $opsAlertsWebhookSent) -Detail "status=$($opsAlerts.status), total=$opsAlertsTotal, logSent=$opsAlertsLogSent, webhookSent=$opsAlertsWebhookSent"
 
 $auditOps = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?requestId=$([System.Uri]::EscapeDataString($requestId))"
 $auditOpsJson = if ($auditOps.content) { $auditOps.content | ConvertFrom-Json } else { $null }
@@ -240,6 +257,14 @@ $lines += "| Check | Result | Detail |"
 $lines += "|---|---|---|"
 foreach ($result in $results) {
   $lines += "| $($result.Name) | $(if ($result.Passed) { 'PASS' } else { 'FAIL' }) | $($result.Detail.Replace('|', '/')) |"
+}
+
+if ($notes.Count -gt 0) {
+  $lines += ""
+  $lines += "## Notes"
+  foreach ($note in $notes) {
+    $lines += "- $($note.Replace('|', '/'))"
+  }
 }
 
 Set-Content -Path $reportPath -Value $lines -Encoding UTF8

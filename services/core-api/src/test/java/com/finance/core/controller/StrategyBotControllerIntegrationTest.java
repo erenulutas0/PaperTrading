@@ -15,10 +15,13 @@ import com.finance.core.repository.StrategyBotRunEventRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.service.StrategyBotRunService;
+import com.finance.core.service.StrategyBotService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,6 +35,9 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -71,6 +77,12 @@ class StrategyBotControllerIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @SpyBean
+    private StrategyBotService strategyBotService;
+
+    @SpyBean
+    private StrategyBotRunService strategyBotRunService;
 
     private UUID userId;
     private Portfolio linkedPortfolio;
@@ -134,6 +146,60 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.content", hasSize(1)))
                 .andExpect(jsonPath("$.content[0].symbol").value("BTCUSDT"))
                 .andExpect(jsonPath("$.page.totalElements").value(1));
+    }
+
+    @Test
+    void listStrategyBots_shouldRejectInvalidPage() throws Exception {
+        mockMvc.perform(get("/api/v1/strategy-bots")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "strategy-bot-page-err-1")
+                        .param("page", "later"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_page"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot page"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-page-err-1"));
+    }
+
+    @Test
+    void createStrategyBot_whenUnexpectedRuntimeOccurs_shouldReturnGenericFallbackMessage() throws Exception {
+        doThrow(new RuntimeException("strategy bot internals leaked"))
+                .when(strategyBotService)
+                .createBot(eq(userId), any());
+
+        mockMvc.perform(post("/api/v1/strategy-bots")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "strategy-bot-fallback-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Fallback Bot",
+                                "linkedPortfolioId", linkedPortfolio.getId(),
+                                "market", "CRYPTO",
+                                "symbol", "BTCUSDT",
+                                "timeframe", "1H"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-fallback-1"))
+                .andExpect(jsonPath("$.code").value("strategy_bot_create_failed"))
+                .andExpect(jsonPath("$.message").value("Failed to create strategy bot"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-fallback-1"));
+    }
+
+    @Test
+    void cancelRun_whenUnexpectedRuntimeOccurs_shouldReturnGenericFallbackMessage() throws Exception {
+        UUID botId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        doThrow(new RuntimeException("strategy bot cancel internals leaked"))
+                .when(strategyBotRunService)
+                .cancelRun(eq(botId), eq(runId), eq(userId));
+
+        mockMvc.perform(post("/api/v1/strategy-bots/{botId}/runs/{runId}/cancel", botId, runId)
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "strategy-bot-fallback-2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-fallback-2"))
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_cancel_failed"))
+                .andExpect(jsonPath("$.message").value("Failed to cancel strategy bot run"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-fallback-2"));
     }
 
     @Test
@@ -748,6 +814,22 @@ class StrategyBotControllerIntegrationTest {
                         .param("lookbackDays", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_lookback"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
+                        .param("lookbackDays", "recent"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_lookback"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "strategy-bot-board-page-err-1")
+                        .param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-board-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_size"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot board size"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-board-page-err-1"));
     }
 
     @Test
@@ -1013,6 +1095,20 @@ class StrategyBotControllerIntegrationTest {
                         .param("direction", "SIDEWAYS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_direction"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .param("lookbackDays", "recent"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_lookback"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .header("X-Request-Id", "strategy-bot-discover-page-err-1")
+                        .param("page", "later"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-discover-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_page"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot board page"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-discover-page-err-1"));
     }
 
     @Test
@@ -1320,6 +1416,11 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.lookbackDays").value(30))
                 .andExpect(jsonPath("$.analytics.totalRuns").value(1))
                 .andExpect(jsonPath("$.entryRules.all", hasSize(1)));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/" + bot.getId() + "/export")
+                        .param("lookbackDays", "recent"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_lookback"));
     }
 
     @Test

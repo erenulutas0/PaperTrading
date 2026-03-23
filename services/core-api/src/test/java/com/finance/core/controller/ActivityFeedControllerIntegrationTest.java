@@ -137,6 +137,31 @@ class ActivityFeedControllerIntegrationTest {
     }
 
     @Test
+    void globalFeed_withInvalidPage_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/feed/global")
+                        .param("page", "later")
+                        .header("X-Request-Id", "feed-page-err-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "feed-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_feed_page"))
+                .andExpect(jsonPath("$.message").value("Invalid feed page"))
+                .andExpect(jsonPath("$.requestId").value("feed-page-err-1"));
+    }
+
+    @Test
+    void personalizedFeed_withInvalidSize_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/feed")
+                        .header("X-User-Id", owner.getId().toString())
+                        .param("size", "0")
+                        .header("X-Request-Id", "feed-page-err-2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "feed-page-err-2"))
+                .andExpect(jsonPath("$.code").value("invalid_feed_size"))
+                .andExpect(jsonPath("$.message").value("Invalid feed size"))
+                .andExpect(jsonPath("$.requestId").value("feed-page-err-2"));
+    }
+
+    @Test
     void personalizedFeed_unknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
         mockMvc.perform(get("/api/v1/feed")
                         .header("X-User-Id", UUID.randomUUID().toString())

@@ -8,19 +8,24 @@ import com.finance.core.dto.TradeRequest;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.service.AuditLogService;
 import com.finance.core.service.BinanceService;
-import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -28,6 +33,8 @@ import java.util.UUID;
 @RequestMapping("/api/v1/trade")
 @RequiredArgsConstructor
 public class TradeController {
+
+    private static final Set<String> SUPPORTED_SIDES = Set.of("LONG", "SHORT");
 
     private final PortfolioRepository portfolioRepository;
     private final com.finance.core.repository.PortfolioItemRepository portfolioItemRepository;
@@ -40,76 +47,48 @@ public class TradeController {
     @PostMapping("/buy")
     @Transactional
     public ResponseEntity<?> buyAsset(@RequestBody TradeRequest request, HttpServletRequest httpRequest) {
-        if (request.getPortfolioId() == null || request.getPortfolioId().isBlank()) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "portfolio_id_invalid", "Portfolio id must be a valid UUID", null, httpRequest);
-        }
+        UUID portfolioId = parseRequiredPortfolioId(request);
+        Portfolio portfolio = loadRequiredPortfolio(portfolioId);
+        String symbol = normalizeRequiredSymbol(request.getSymbol());
+        BigDecimal quantity = requirePositiveQuantity(request.getQuantity());
+        BigDecimal currentPrice = resolveCurrentPrice(symbol);
+        Integer leverage = resolveBuyLeverage(request.getLeverage());
+        String side = resolveTradeSide(request.getSide(), true);
 
-        UUID portfolioId;
-        try {
-            portfolioId = UUID.fromString(request.getPortfolioId());
-        } catch (IllegalArgumentException ex) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "portfolio_id_invalid", "Portfolio id must be a valid UUID", null, httpRequest);
-        }
-        Optional<Portfolio> portfolioOpt = portfolioRepository.findById(portfolioId);
+        request.setPortfolioId(portfolioId.toString());
+        request.setSymbol(symbol);
+        request.setQuantity(quantity);
+        request.setLeverage(leverage);
+        request.setSide(side);
 
-        if (portfolioOpt.isEmpty()) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "portfolio_not_found", "Portfolio not found", null, httpRequest);
-        }
-
-        Portfolio portfolio = portfolioOpt.get();
-        if (request.getSymbol() == null || request.getSymbol().isBlank()) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "symbol_required", "Symbol is required", null, httpRequest);
-        }
-
-        String symbol = request.getSymbol().toUpperCase();
-        Double currentPriceDouble = binanceService.getPrices().get(symbol);
-
-        if (currentPriceDouble == null || currentPriceDouble <= 0) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "price_not_available", "Price not available for symbol: " + symbol, null, httpRequest);
-        }
-
-        BigDecimal currentPrice = BigDecimal.valueOf(currentPriceDouble);
-        Integer leverage = request.getLeverage() != null && request.getLeverage() > 0 ? request.getLeverage() : 1;
-        String side = request.getSide() != null ? request.getSide().toUpperCase() : "LONG";
-
-        // Calculate Notional Value and Required Margin
-        BigDecimal notionalValue = currentPrice.multiply(request.getQuantity());
+        BigDecimal notionalValue = currentPrice.multiply(quantity);
         BigDecimal requiredMargin = notionalValue.divide(BigDecimal.valueOf(leverage), 8, RoundingMode.HALF_UP);
 
         if (portfolio.getBalance().compareTo(requiredMargin) < 0) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
+            throw ApiRequestException.badRequest(
                     "insufficient_balance",
-                    "Insufficient balance for margin. Required: " + requiredMargin + ", Balance: " + portfolio.getBalance(),
-                    null,
-                    httpRequest);
+                    "Insufficient balance for margin. Required: " + requiredMargin + ", Balance: " + portfolio.getBalance());
         }
 
-        // Deduct Margin from Balance
         portfolio.setBalance(portfolio.getBalance().subtract(requiredMargin));
-        portfolioRepository.save(portfolio); // Save balance update first
+        portfolioRepository.save(portfolio);
 
-        // updating existing asset or add new
         Optional<PortfolioItem> existingItem = portfolio.getItems().stream()
-                .filter(item -> item.getSymbol().equals(symbol) && item.getSide().equals(side))
+                .filter(item -> symbol.equals(item.getSymbol()) && side.equals(normalizePersistedSide(item.getSide())))
                 .findFirst();
 
         if (existingItem.isPresent()) {
             PortfolioItem item = existingItem.get();
-            // Check leverage match
             Integer existingLev = item.getLeverage() != null ? item.getLeverage() : 1;
             if (!existingLev.equals(leverage)) {
-                return ApiErrorResponses.build(
-                        HttpStatus.BAD_REQUEST,
+                throw ApiRequestException.badRequest(
                         "leverage_mismatch",
-                        "Existing position has leverage " + existingLev + "x. Cannot add with " + leverage + "x.",
-                        null,
-                        httpRequest);
+                        "Existing position has leverage " + existingLev + "x. Cannot add with " + leverage + "x.");
             }
 
             BigDecimal oldTotal = item.getQuantity().multiply(item.getAveragePrice());
             BigDecimal newTotal = oldTotal.add(notionalValue);
-            BigDecimal newQuantity = item.getQuantity().add(request.getQuantity());
+            BigDecimal newQuantity = item.getQuantity().add(quantity);
 
             item.setAveragePrice(newTotal.divide(newQuantity, 8, RoundingMode.HALF_UP));
             item.setQuantity(newQuantity);
@@ -118,16 +97,12 @@ public class TradeController {
             PortfolioItem newItem = PortfolioItem.builder()
                     .portfolio(portfolio)
                     .symbol(symbol)
-                    .quantity(request.getQuantity())
+                    .quantity(quantity)
                     .averagePrice(currentPrice)
                     .leverage(leverage)
                     .side(side)
                     .build();
             portfolioItemRepository.save(newItem);
-            // We need to add to the list so the response is correct if we returned the
-            // whole portfolio
-            // But since we are saving explicitly, we rely on the repo.
-            // However refetching might be safer for response.
             portfolio.getItems().add(newItem);
         }
 
@@ -136,7 +111,7 @@ public class TradeController {
                 .symbol(symbol)
                 .type("BUY")
                 .side(side)
-                .quantity(request.getQuantity())
+                .quantity(quantity)
                 .price(currentPrice)
                 .realizedPnl(BigDecimal.ZERO)
                 .build();
@@ -146,7 +121,7 @@ public class TradeController {
         details.put("portfolioId", portfolioId);
         details.put("symbol", symbol);
         details.put("side", side);
-        details.put("quantity", request.getQuantity());
+        details.put("quantity", quantity);
         details.put("price", currentPrice);
         details.put("leverage", leverage);
         details.put("requiredMargin", requiredMargin);
@@ -157,11 +132,8 @@ public class TradeController {
                 trade.getId(),
                 details);
 
-        // Notify tournament hub if applicable
-        tournamentService.notifyTournamentOfTrade(trade);
-
-        // Trigger Copy Trading
-        copyTradingService.replicateBuy(portfolioId, request, currentPrice);
+        safelyNotifyTournamentTrade(trade);
+        safelyReplicateBuy(portfolioId, request, currentPrice);
 
         return ResponseEntity.ok(portfolio);
     }
@@ -169,58 +141,24 @@ public class TradeController {
     @PostMapping("/sell")
     @Transactional
     public ResponseEntity<?> sellAsset(@RequestBody TradeRequest request, HttpServletRequest httpRequest) {
-        if (request.getPortfolioId() == null || request.getPortfolioId().isBlank()) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "portfolio_id_invalid", "Portfolio id must be a valid UUID", null, httpRequest);
-        }
+        UUID portfolioId = parseRequiredPortfolioId(request);
+        Portfolio portfolio = loadRequiredPortfolio(portfolioId);
+        String symbol = normalizeRequiredSymbol(request.getSymbol());
+        BigDecimal quantity = requirePositiveQuantity(request.getQuantity());
+        BigDecimal currentPrice = resolveCurrentPrice(symbol);
+        String requestedSide = resolveTradeSide(request.getSide(), false);
+        PortfolioItem item = resolveSellItem(portfolio, symbol, requestedSide, quantity);
+        String side = normalizePersistedSide(item.getSide());
 
-        UUID portfolioId;
-        try {
-            portfolioId = UUID.fromString(request.getPortfolioId());
-        } catch (IllegalArgumentException ex) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "portfolio_id_invalid", "Portfolio id must be a valid UUID", null, httpRequest);
-        }
-        Optional<Portfolio> portfolioOpt = portfolioRepository.findById(portfolioId);
+        request.setPortfolioId(portfolioId.toString());
+        request.setSymbol(symbol);
+        request.setQuantity(quantity);
+        request.setSide(side);
 
-        if (portfolioOpt.isEmpty()) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "portfolio_not_found", "Portfolio not found", null, httpRequest);
-        }
-
-        Portfolio portfolio = portfolioOpt.get();
-        if (request.getSymbol() == null || request.getSymbol().isBlank()) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "symbol_required", "Symbol is required", null, httpRequest);
-        }
-
-        String symbol = request.getSymbol().toUpperCase();
-        Double currentPriceDouble = binanceService.getPrices().get(symbol);
-
-        if (currentPriceDouble == null || currentPriceDouble <= 0) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "price_not_available", "Price not available for symbol: " + symbol, null, httpRequest);
-        }
-
-        BigDecimal quantity = request.getQuantity();
-
-        // Find the asset
-        Optional<PortfolioItem> existingItem = portfolio.getItems().stream()
-                .filter(item -> item.getSymbol().equals(symbol))
-                .findFirst();
-
-        if (existingItem.isEmpty() || existingItem.get().getQuantity().compareTo(quantity) < 0) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "insufficient_assets", "Insufficient assets to sell.", null, httpRequest);
-        }
-
-        PortfolioItem item = existingItem.get();
-        BigDecimal currentPrice = BigDecimal.valueOf(currentPriceDouble);
-        String side = item.getSide() != null ? item.getSide().toUpperCase() : "LONG";
-
-        // Calculate Payout with Leverage logic
-        // Initial Margin for this chunk = (AvgPrice * Qty) / Leverage
         Integer lev = item.getLeverage() != null ? item.getLeverage() : 1;
         BigDecimal initialMargin = item.getAveragePrice().multiply(quantity)
                 .divide(BigDecimal.valueOf(lev), 8, RoundingMode.HALF_UP);
 
-        // P/L Calculation:
-        // LONG: (CurrentPrice - AvgPrice) * Qty
-        // SHORT: (AvgPrice - CurrentPrice) * Qty
         BigDecimal pnl;
         if ("SHORT".equals(side)) {
             pnl = item.getAveragePrice().subtract(currentPrice).multiply(quantity);
@@ -230,14 +168,11 @@ public class TradeController {
 
         BigDecimal credit = initialMargin.add(pnl);
 
-        // Add to Balance
         portfolio.setBalance(portfolio.getBalance().add(credit));
         portfolioRepository.save(portfolio);
 
-        // Update Item
         BigDecimal newQuantity = item.getQuantity().subtract(quantity);
         if (newQuantity.compareTo(BigDecimal.ZERO) <= 0) {
-            // Remove completely
             portfolio.getItems().remove(item);
             portfolioItemRepository.delete(item);
         } else {
@@ -271,13 +206,132 @@ public class TradeController {
                 trade.getId(),
                 details);
 
-        // Notify tournament hub if applicable
-        tournamentService.notifyTournamentOfTrade(trade);
-
-        // Trigger Copy Trading
-        copyTradingService.replicateSell(portfolioId, request, currentPrice);
+        safelyNotifyTournamentTrade(trade);
+        safelyReplicateSell(portfolioId, request, currentPrice);
 
         return ResponseEntity.ok(portfolio);
+    }
+
+    private UUID parseRequiredPortfolioId(TradeRequest request) {
+        if (request.getPortfolioId() == null || request.getPortfolioId().isBlank()) {
+            throw ApiRequestException.badRequest("portfolio_id_invalid", "Portfolio id must be a valid UUID");
+        }
+        try {
+            return UUID.fromString(request.getPortfolioId());
+        } catch (IllegalArgumentException ex) {
+            throw ApiRequestException.badRequest("portfolio_id_invalid", "Portfolio id must be a valid UUID");
+        }
+    }
+
+    private Portfolio loadRequiredPortfolio(UUID portfolioId) {
+        return portfolioRepository.findById(portfolioId)
+                .orElseThrow(() -> ApiRequestException.notFound("portfolio_not_found", "Portfolio not found"));
+    }
+
+    private String normalizeRequiredSymbol(String rawSymbol) {
+        if (rawSymbol == null || rawSymbol.isBlank()) {
+            throw ApiRequestException.badRequest("symbol_required", "Symbol is required");
+        }
+        return rawSymbol.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private BigDecimal requirePositiveQuantity(BigDecimal quantity) {
+        if (quantity == null || quantity.signum() <= 0) {
+            throw ApiRequestException.badRequest("trade_quantity_invalid", "Trade quantity must be greater than 0");
+        }
+        return quantity;
+    }
+
+    private Integer resolveBuyLeverage(Integer leverage) {
+        if (leverage == null) {
+            return 1;
+        }
+        if (leverage <= 0) {
+            throw ApiRequestException.badRequest("trade_leverage_invalid", "Trade leverage must be greater than 0");
+        }
+        return leverage;
+    }
+
+    private String resolveTradeSide(String rawSide, boolean defaultLongWhenMissing) {
+        if (rawSide == null || rawSide.isBlank()) {
+            return defaultLongWhenMissing ? "LONG" : null;
+        }
+        String normalized = rawSide.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_SIDES.contains(normalized)) {
+            throw ApiRequestException.badRequest("trade_side_invalid", "Trade side must be LONG or SHORT");
+        }
+        return normalized;
+    }
+
+    private BigDecimal resolveCurrentPrice(String symbol) {
+        final Double currentPriceDouble;
+        try {
+            currentPriceDouble = binanceService.getPrices().get(symbol);
+        } catch (RuntimeException ex) {
+            log.error("Trade price lookup failed for symbol {}: {}", symbol, ex.getMessage(), ex);
+            throw ApiRequestException.internal("trade_price_lookup_failed", "Failed to load trade price");
+        }
+        if (currentPriceDouble == null || currentPriceDouble <= 0) {
+            throw ApiRequestException.badRequest("price_not_available", "Price not available for symbol: " + symbol);
+        }
+        return BigDecimal.valueOf(currentPriceDouble);
+    }
+
+    private PortfolioItem resolveSellItem(
+            Portfolio portfolio,
+            String symbol,
+            String requestedSide,
+            BigDecimal quantity) {
+        List<PortfolioItem> matchingItems = portfolio.getItems().stream()
+                .filter(item -> symbol.equals(item.getSymbol()))
+                .filter(item -> requestedSide == null || requestedSide.equals(normalizePersistedSide(item.getSide())))
+                .toList();
+
+        if (matchingItems.isEmpty()) {
+            throw ApiRequestException.badRequest("insufficient_assets", "Insufficient assets to sell.");
+        }
+        if (requestedSide == null && matchingItems.size() > 1) {
+            throw ApiRequestException.badRequest(
+                    "trade_side_required",
+                    "Trade side is required when multiple positions exist for symbol");
+        }
+
+        PortfolioItem item = matchingItems.get(0);
+        if (item.getQuantity().compareTo(quantity) < 0) {
+            throw ApiRequestException.badRequest("insufficient_assets", "Insufficient assets to sell.");
+        }
+        return item;
+    }
+
+    private String normalizePersistedSide(String rawSide) {
+        if (rawSide == null || rawSide.isBlank()) {
+            return "LONG";
+        }
+        return rawSide.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private void safelyNotifyTournamentTrade(com.finance.core.domain.TradeActivity trade) {
+        try {
+            tournamentService.notifyTournamentOfTrade(trade);
+        } catch (RuntimeException ex) {
+            log.warn("Tournament trade notification failed for trade {}: {}", trade.getId(), ex.getMessage());
+        }
+    }
+
+    private void safelyReplicateBuy(UUID portfolioId, TradeRequest request, BigDecimal currentPrice) {
+        try {
+            copyTradingService.replicateBuy(portfolioId, request, currentPrice);
+        } catch (RuntimeException ex) {
+            log.warn("Copy BUY replication failed for portfolio {}: {}", portfolioId, ex.getMessage());
+        }
+    }
+
+    private void safelyReplicateSell(UUID portfolioId, TradeRequest request, BigDecimal currentPrice) {
+        try {
+            copyTradingService.replicateSell(portfolioId, request, currentPrice);
+        } catch (RuntimeException ex) {
+            log.warn("Copy SELL replication failed for portfolio {}: {}", portfolioId, ex.getMessage());
+        }
     }
 
     private UUID parseOwnerId(String ownerId) {

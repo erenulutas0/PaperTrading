@@ -31,13 +31,24 @@ public class IdempotencyObservabilityService {
     private final AtomicReference<IdempotencySnapshot> latestSnapshot = new AtomicReference<>();
     private final AtomicReference<LocalDateTime> lastCleanupAt = new AtomicReference<>();
     private final AtomicLong lastCleanupDeletedCount = new AtomicLong(0);
+    private final AtomicLong claimedCount = new AtomicLong(0);
+    private final AtomicLong replayCount = new AtomicLong(0);
+    private final AtomicLong conflictCount = new AtomicLong(0);
+    private final AtomicLong inProgressConflictCount = new AtomicLong(0);
+    private final AtomicLong completedResponseCount = new AtomicLong(0);
+    private final AtomicLong releasedCount = new AtomicLong(0);
+    private final AtomicLong skippedLargeResponseCount = new AtomicLong(0);
+    private final AtomicReference<LocalDateTime> lastClaimedAt = new AtomicReference<>();
+    private final AtomicReference<LocalDateTime> lastReplayAt = new AtomicReference<>();
+    private final AtomicReference<LocalDateTime> lastConflictAt = new AtomicReference<>();
+    private final AtomicReference<LocalDateTime> lastInProgressConflictAt = new AtomicReference<>();
+    private final AtomicReference<LocalDateTime> lastCompletedResponseAt = new AtomicReference<>();
+    private final AtomicReference<LocalDateTime> lastReleasedAt = new AtomicReference<>();
+    private final AtomicReference<LocalDateTime> lastSkippedLargeResponseAt = new AtomicReference<>();
 
     @PostConstruct
     void initialize() {
-        latestSnapshot.set(IdempotencySnapshot.empty(
-                properties.isEnabled(),
-                properties.getTtl().toSeconds(),
-                properties.getCleanupInterval().toSeconds()));
+        latestSnapshot.set(emptySnapshot());
     }
 
     @Scheduled(fixedDelayString = "${app.idempotency.cleanup-interval:PT30M}")
@@ -67,6 +78,54 @@ public class IdempotencyObservabilityService {
         return snapshot;
     }
 
+    public void recordClaimed() {
+        record(claimedCount, lastClaimedAt);
+    }
+
+    public void recordReplay() {
+        record(replayCount, lastReplayAt);
+    }
+
+    public void recordConflict() {
+        record(conflictCount, lastConflictAt);
+    }
+
+    public void recordInProgressConflict() {
+        record(inProgressConflictCount, lastInProgressConflictAt);
+    }
+
+    public void recordCompletedResponse() {
+        record(completedResponseCount, lastCompletedResponseAt);
+    }
+
+    public void recordReleased() {
+        record(releasedCount, lastReleasedAt);
+    }
+
+    public void recordSkippedLargeResponse() {
+        record(skippedLargeResponseCount, lastSkippedLargeResponseAt);
+    }
+
+    void resetRuntimeTelemetry() {
+        claimedCount.set(0);
+        replayCount.set(0);
+        conflictCount.set(0);
+        inProgressConflictCount.set(0);
+        completedResponseCount.set(0);
+        releasedCount.set(0);
+        skippedLargeResponseCount.set(0);
+        lastClaimedAt.set(null);
+        lastReplayAt.set(null);
+        lastConflictAt.set(null);
+        lastInProgressConflictAt.set(null);
+        lastCompletedResponseAt.set(null);
+        lastReleasedAt.set(null);
+        lastSkippedLargeResponseAt.set(null);
+        lastCleanupAt.set(null);
+        lastCleanupDeletedCount.set(0);
+        latestSnapshot.set(emptySnapshot());
+    }
+
     public IdempotencySnapshot refreshSnapshot() {
         try {
             LocalDateTime now = LocalDateTime.now();
@@ -79,41 +138,79 @@ public class IdempotencyObservabilityService {
                     .map(record -> (double) ChronoUnit.SECONDS.between(record.getExpiresAt(), now))
                     .orElse(null);
 
-            IdempotencySnapshot snapshot = new IdempotencySnapshot(
+            IdempotencySnapshot snapshot = buildSnapshot(
                     now,
-                    properties.isEnabled(),
-                    properties.getTtl().toSeconds(),
-                    properties.getCleanupInterval().toSeconds(),
                     total,
                     inProgress,
                     completed,
                     expired,
                     oldestExpiredAgeSeconds,
-                    lastCleanupAt.get(),
-                    lastCleanupDeletedCount.get(),
-                    null
-            );
+                    null);
             latestSnapshot.set(snapshot);
             return snapshot;
         } catch (Exception ex) {
             log.error("Failed to collect idempotency snapshot", ex);
-            IdempotencySnapshot errorSnapshot = new IdempotencySnapshot(
+            IdempotencySnapshot errorSnapshot = buildSnapshot(
                     LocalDateTime.now(),
-                    properties.isEnabled(),
-                    safeToSeconds(properties.getTtl()),
-                    safeToSeconds(properties.getCleanupInterval()),
                     0,
                     0,
                     0,
                     0,
                     null,
-                    lastCleanupAt.get(),
-                    lastCleanupDeletedCount.get(),
-                    ex.getMessage()
-            );
+                    ex.getMessage());
             latestSnapshot.set(errorSnapshot);
             return errorSnapshot;
         }
+    }
+
+    private IdempotencySnapshot emptySnapshot() {
+        return IdempotencySnapshot.empty(
+                properties.isEnabled(),
+                safeToSeconds(properties.getTtl()),
+                safeToSeconds(properties.getCleanupInterval()));
+    }
+
+    private IdempotencySnapshot buildSnapshot(
+            LocalDateTime checkedAt,
+            long totalRecords,
+            long inProgressRecords,
+            long completedRecords,
+            long expiredRecords,
+            Double oldestExpiredAgeSeconds,
+            String error) {
+        return new IdempotencySnapshot(
+                checkedAt,
+                properties.isEnabled(),
+                safeToSeconds(properties.getTtl()),
+                safeToSeconds(properties.getCleanupInterval()),
+                totalRecords,
+                inProgressRecords,
+                completedRecords,
+                expiredRecords,
+                oldestExpiredAgeSeconds,
+                claimedCount.get(),
+                replayCount.get(),
+                conflictCount.get(),
+                inProgressConflictCount.get(),
+                completedResponseCount.get(),
+                releasedCount.get(),
+                skippedLargeResponseCount.get(),
+                lastClaimedAt.get(),
+                lastReplayAt.get(),
+                lastConflictAt.get(),
+                lastInProgressConflictAt.get(),
+                lastCompletedResponseAt.get(),
+                lastReleasedAt.get(),
+                lastSkippedLargeResponseAt.get(),
+                lastCleanupAt.get(),
+                lastCleanupDeletedCount.get(),
+                error
+        );
+    }
+
+    private void record(AtomicLong counter, AtomicReference<LocalDateTime> lastAt) {
+        counter.incrementAndGet();
+        lastAt.set(LocalDateTime.now());
     }
 
     private long safeToSeconds(Duration duration) {

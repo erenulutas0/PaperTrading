@@ -6,6 +6,7 @@ import com.finance.core.service.AnalysisPostService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -71,10 +72,13 @@ public class AnalysisPostController {
     /** Global feed: all analysis posts, newest first */
     @GetMapping("/feed")
     public ResponseEntity<?> getFeed(
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
+        Pageable effectivePageable = resolveAnalysisPostPageable(pageable, page, size);
         try {
-            return ResponseEntity.ok(postService.getFeed(pageable));
+            return ResponseEntity.ok(postService.getFeed(effectivePageable));
         } catch (ApiRequestException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -86,10 +90,13 @@ public class AnalysisPostController {
     @GetMapping("/user/{userId}")
     public ResponseEntity<?> getPostsByUser(
             @PathVariable UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
+        Pageable effectivePageable = resolveAnalysisPostPageable(pageable, page, size);
         try {
-            return ResponseEntity.ok(postService.getPostsByAuthor(userId, pageable));
+            return ResponseEntity.ok(postService.getPostsByAuthor(userId, effectivePageable));
         } catch (ApiRequestException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -107,5 +114,16 @@ public class AnalysisPostController {
         } catch (RuntimeException exception) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "analysis_post_stats_failed", "Failed to load analysis author stats", null, httpRequest);
         }
+    }
+
+    private Pageable resolveAnalysisPostPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_analysis_post_page",
+                "Invalid analysis post page",
+                "invalid_analysis_post_size",
+                "Invalid analysis post size");
     }
 }

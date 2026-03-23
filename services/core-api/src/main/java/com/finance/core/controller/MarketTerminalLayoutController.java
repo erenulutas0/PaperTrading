@@ -5,6 +5,7 @@ import com.finance.core.service.MarketTerminalLayoutService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -32,8 +33,18 @@ public class MarketTerminalLayoutController {
     @GetMapping
     public ResponseEntity<?> getLayouts(
             @CurrentUserId UUID userId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String page,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(marketTerminalLayoutService.getLayouts(userId, pageable));
+        Pageable effectivePageable = PageableRequestParser.resolvePageable(
+                pageable,
+                page,
+                size,
+                "invalid_market_terminal_layout_page",
+                "Invalid market terminal layout page",
+                "invalid_market_terminal_layout_size",
+                "Invalid market terminal layout size");
+        return ResponseEntity.ok(marketTerminalLayoutService.getLayouts(userId, effectivePageable));
     }
 
     @PostMapping
@@ -44,7 +55,11 @@ public class MarketTerminalLayoutController {
         try {
             return ResponseEntity.ok(marketTerminalLayoutService.createLayout(userId, request));
         } catch (RuntimeException exception) {
-            return toLayoutError(exception, httpRequest, true);
+            return toLayoutError(
+                    exception,
+                    httpRequest,
+                    "market_terminal_layout_create_failed",
+                    "Failed to create market terminal layout");
         }
     }
 
@@ -57,7 +72,11 @@ public class MarketTerminalLayoutController {
         try {
             return ResponseEntity.ok(marketTerminalLayoutService.updateLayout(userId, layoutId, request));
         } catch (RuntimeException exception) {
-            return toLayoutError(exception, httpRequest, false);
+            return toLayoutError(
+                    exception,
+                    httpRequest,
+                    "market_terminal_layout_update_failed",
+                    "Failed to update market terminal layout");
         }
     }
 
@@ -70,22 +89,26 @@ public class MarketTerminalLayoutController {
             marketTerminalLayoutService.deleteLayout(userId, layoutId);
             return ResponseEntity.ok().build();
         } catch (RuntimeException exception) {
-            return toLayoutError(exception, httpRequest, false);
+            return toLayoutError(
+                    exception,
+                    httpRequest,
+                    "market_terminal_layout_delete_failed",
+                    "Failed to delete market terminal layout");
         }
     }
 
     private ResponseEntity<?> toLayoutError(
             RuntimeException exception,
             HttpServletRequest httpRequest,
-            boolean createPath) {
+            String fallbackCode,
+            String fallbackMessage) {
         if (exception instanceof ApiRequestException apiRequestException) {
             throw apiRequestException;
         }
-        String message = exception.getMessage() != null ? exception.getMessage() : "";
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,
-                createPath ? "market_terminal_layout_create_failed" : "market_terminal_layout_update_failed",
-                message,
+                fallbackCode,
+                fallbackMessage,
                 null,
                 httpRequest);
     }

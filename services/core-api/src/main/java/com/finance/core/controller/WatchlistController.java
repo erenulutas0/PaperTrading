@@ -9,6 +9,7 @@ import com.finance.core.service.WatchlistService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -39,10 +41,13 @@ public class WatchlistController {
     @GetMapping
     public ResponseEntity<?> getUserWatchlists(
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
+        Pageable effectivePageable = resolveWatchlistPageable(pageable, page, size);
         try {
-            return ResponseEntity.ok(watchlistService.getUserWatchlists(userId, pageable));
+            return ResponseEntity.ok(watchlistService.getUserWatchlists(userId, effectivePageable));
         } catch (ApiRequestException exception) {
             throw exception;
         } catch (Exception e) {
@@ -146,10 +151,13 @@ public class WatchlistController {
     public ResponseEntity<?> getEnrichedItems(
             @PathVariable UUID watchlistId,
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 100) Pageable pageable,
             HttpServletRequest httpRequest) {
+        Pageable effectivePageable = resolveWatchlistPageable(pageable, page, size);
         try {
-            Page<Map<String, Object>> items = watchlistService.getEnrichedItemsPage(watchlistId, userId, pageable);
+            Page<Map<String, Object>> items = watchlistService.getEnrichedItemsPage(watchlistId, userId, effectivePageable);
             return ResponseEntity.ok(items);
         } catch (ApiRequestException exception) {
             throw exception;
@@ -162,17 +170,18 @@ public class WatchlistController {
     public ResponseEntity<?> getAlertHistory(
             @PathVariable UUID itemId,
             @CurrentUserId UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 10) Pageable pageable,
-            @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) Integer days,
-            @RequestParam(required = false) WatchlistAlertDirection direction,
+            @RequestParam(required = false) String limit,
+            @RequestParam(required = false) String days,
+            @RequestParam(required = false) String direction,
             HttpServletRequest httpRequest) {
-        Pageable effectivePageable = pageable;
-        if (limit != null && limit > 0) {
-            effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
-        }
+        Pageable effectivePageable = resolveAlertHistoryPageable(pageable, page, size, limit);
+        WatchlistAlertDirection parsedDirection = parseAlertHistoryDirection(direction);
+        Integer validatedDays = validateAlertHistoryDays(days);
         try {
-            return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistoryPage(itemId, userId, effectivePageable, days, direction));
+            return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistoryPage(itemId, userId, effectivePageable, validatedDays, parsedDirection));
         } catch (ApiRequestException exception) {
             throw exception;
         } catch (Exception e) {
@@ -184,14 +193,16 @@ public class WatchlistController {
     public ResponseEntity<?> exportAlertHistory(
             @PathVariable UUID itemId,
             @CurrentUserId UUID userId,
-            @RequestParam(required = false) Integer days,
-            @RequestParam(required = false) WatchlistAlertDirection direction,
+            @RequestParam(required = false) String days,
+            @RequestParam(required = false) String direction,
             HttpServletRequest httpRequest) {
+        WatchlistAlertDirection parsedDirection = parseAlertHistoryDirection(direction);
+        Integer validatedDays = validateAlertHistoryDays(days);
         try {
-            byte[] csv = watchlistAlertHistoryService.exportHistoryCsv(itemId, userId, days, direction);
-            String filename = direction == null
+            byte[] csv = watchlistAlertHistoryService.exportHistoryCsv(itemId, userId, validatedDays, parsedDirection);
+            String filename = parsedDirection == null
                     ? "alert-history.csv"
-                    : "alert-history-" + direction.name().toLowerCase(java.util.Locale.ROOT) + ".csv";
+                    : "alert-history-" + parsedDirection.name().toLowerCase(Locale.ROOT) + ".csv";
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .contentType(MediaType.parseMediaType("text/csv"))
@@ -220,5 +231,81 @@ public class WatchlistController {
     static class UpdateAlertsRequest {
         private BigDecimal alertPriceAbove;
         private BigDecimal alertPriceBelow;
+    }
+
+    private Pageable resolveWatchlistPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_watchlist_page",
+                "Invalid watchlist page",
+                "invalid_watchlist_size",
+                "Invalid watchlist size");
+    }
+
+    private Pageable resolveAlertHistoryPageable(Pageable pageable, String rawPage, String rawSize, String rawLimit) {
+        Pageable resolvedPageable = PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_watchlist_alert_history_page",
+                "Invalid watchlist alert history page",
+                "invalid_watchlist_alert_history_size",
+                "Invalid watchlist alert history size",
+                50);
+        Integer limit = parsePositiveInteger(
+                rawLimit,
+                "invalid_watchlist_alert_history_limit",
+                "Watchlist alert history limit must be between 1 and 50");
+        if (limit == null) {
+            return resolvedPageable;
+        }
+        if (limit < 1 || limit > 50) {
+            throw ApiRequestException.badRequest(
+                    "invalid_watchlist_alert_history_limit",
+                    "Watchlist alert history limit must be between 1 and 50");
+        }
+        return PageRequest.of(resolvedPageable.getPageNumber(), limit, resolvedPageable.getSort());
+    }
+
+    private Integer validateAlertHistoryDays(String rawDays) {
+        Integer days = parsePositiveInteger(
+                rawDays,
+                "invalid_watchlist_alert_history_days",
+                "Watchlist alert history days must be between 1 and 365");
+        if (days == null) {
+            return null;
+        }
+        if (days < 1 || days > 365) {
+            throw ApiRequestException.badRequest(
+                    "invalid_watchlist_alert_history_days",
+                    "Watchlist alert history days must be between 1 and 365");
+        }
+        return days;
+    }
+
+    private Integer parsePositiveInteger(String rawValue, String code, String message) {
+        if (rawValue == null || rawValue.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(rawValue.trim());
+        } catch (NumberFormatException exception) {
+            throw ApiRequestException.badRequest(code, message);
+        }
+    }
+
+    private WatchlistAlertDirection parseAlertHistoryDirection(String rawDirection) {
+        if (rawDirection == null || rawDirection.isBlank()) {
+            return null;
+        }
+        try {
+            return WatchlistAlertDirection.valueOf(rawDirection.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw ApiRequestException.badRequest(
+                    "invalid_watchlist_alert_history_direction",
+                    "Watchlist alert history direction must be ABOVE or BELOW");
+        }
     }
 }

@@ -151,6 +151,27 @@ class StrategyBotRunControllerIntegrationTest {
     }
 
     @Test
+    void listRuns_shouldRejectInvalidPage() throws Exception {
+        StrategyBot bot = saveBot(
+                "Paged Runs",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "strategy-bot-runs-page-err-1")
+                        .param("page", "later"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-runs-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_runs_page"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot runs page"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-runs-page-err-1"));
+    }
+
+    @Test
     void requestRun_shouldUseLinkedPortfolioBalanceWhenInitialCapitalMissing() throws Exception {
         StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
                 .userId(userId)
@@ -311,6 +332,72 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].type").value("CASH SYNC (BOT)"))
                 .andExpect(jsonPath("$.content[0].symbol").value("BTCUSDT"));
+    }
+
+    @Test
+    void listRunFills_shouldRejectInvalidSize() throws Exception {
+        StrategyBot bot = saveBot(
+                "Fill Paging",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED, "{}");
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/fills")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "strategy-bot-run-fills-page-err-1")
+                        .param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-run-fills-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_run_fills_size"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot run fills size"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-run-fills-page-err-1"));
+    }
+
+    @Test
+    void listRunEvents_shouldRejectInvalidPage() throws Exception {
+        StrategyBot bot = saveBot(
+                "Event Paging",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED, "{}");
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/events")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "strategy-bot-run-events-page-err-1")
+                        .param("page", "later"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-run-events-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_run_events_page"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot run events page"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-run-events-page-err-1"));
+    }
+
+    @Test
+    void listRunEquityCurve_shouldRejectInvalidSize() throws Exception {
+        StrategyBot bot = saveBot(
+                "Equity Paging",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED, "{}");
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/equity-curve")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "strategy-bot-run-equity-page-err-1")
+                        .param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "strategy-bot-run-equity-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_run_equity_curve_size"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot run equity curve size"))
+                .andExpect(jsonPath("$.requestId").value("strategy-bot-run-equity-page-err-1"));
     }
 
     @Test

@@ -105,6 +105,25 @@ public class BinanceService extends TextWebSocketHandler {
         return Map.copyOf(prices);
     }
 
+    public Map<String, Double> currentPriceSnapshot() {
+        return Map.copyOf(prices);
+    }
+
+    public Instant lastPriceUpdateAt() {
+        return lastPriceUpdateAt;
+    }
+
+    public String seedTrackedPrice(String symbol, double price) {
+        if (price <= 0) {
+            throw new IllegalArgumentException("invalid_market_price");
+        }
+        String normalizedSymbol = normalizeTrackedSymbol(symbol);
+        prices.put(normalizedSymbol, price);
+        lastPriceUpdateAt = Instant.now();
+        log.info("Seeded Binance tracked price for symbol={} price={}", normalizedSymbol, price);
+        return normalizedSymbol;
+    }
+
     public List<MarketInstrumentResponse> getSupportedInstruments() {
         Map<String, Double> livePrices = getPrices();
         Map<String, Double> dailyChanges = fetchTracked24hChangePercent();

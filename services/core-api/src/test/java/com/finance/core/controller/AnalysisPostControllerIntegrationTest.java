@@ -274,6 +274,18 @@ class AnalysisPostControllerIntegrationTest {
                 }
 
                 @Test
+                void getFeed_invalidPage_returnsExplicitBadRequestContract() throws Exception {
+                        mockMvc.perform(get("/api/v1/analysis-posts/feed")
+                                        .header("X-Request-Id", "analysis-feed-err-1")
+                                        .param("page", "later"))
+                                        .andExpect(status().isBadRequest())
+                                        .andExpect(header().string("X-Request-Id", "analysis-feed-err-1"))
+                                        .andExpect(jsonPath("$.code").value("invalid_analysis_post_page"))
+                                        .andExpect(jsonPath("$.message").value("Invalid analysis post page"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-feed-err-1"));
+                }
+
+                @Test
                 void getPostsByUser_returnsOnlyUserPosts() throws Exception {
                         createSamplePost();
 
@@ -281,6 +293,18 @@ class AnalysisPostControllerIntegrationTest {
                                         .andExpect(status().isOk())
                                         .andExpect(jsonPath("$.content", hasSize(greaterThanOrEqualTo(1))))
                                         .andExpect(jsonPath("$.content[0].authorId").value(author.getId().toString()));
+                }
+
+                @Test
+                void getPostsByUser_invalidSize_returnsExplicitBadRequestContract() throws Exception {
+                        mockMvc.perform(get("/api/v1/analysis-posts/user/{userId}", author.getId())
+                                        .header("X-Request-Id", "analysis-user-err-2")
+                                        .param("size", "0"))
+                                        .andExpect(status().isBadRequest())
+                                        .andExpect(header().string("X-Request-Id", "analysis-user-err-2"))
+                                        .andExpect(jsonPath("$.code").value("invalid_analysis_post_size"))
+                                        .andExpect(jsonPath("$.message").value("Invalid analysis post size"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-user-err-2"));
                 }
 
                 @Test

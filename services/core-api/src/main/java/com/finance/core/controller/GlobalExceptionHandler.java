@@ -7,10 +7,14 @@ import com.finance.core.web.ApiRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -56,15 +60,62 @@ public class GlobalExceptionHandler {
         return ApiErrorResponses.build(ex.status(), ex.code(), ex.getMessage(), ex.details(), request);
     }
 
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleMethodArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        if (ex.getName() != null && !ex.getName().isBlank()) {
+            details.put("parameter", ex.getName());
+        }
+        if (ex.getValue() != null) {
+            details.put("value", ex.getValue().toString());
+        }
+        if (ex.getRequiredType() != null) {
+            details.put("expectedType", ex.getRequiredType().getSimpleName());
+        }
+        return ApiErrorResponses.build(
+                HttpStatus.BAD_REQUEST,
+                "invalid_request_parameter",
+                "Invalid request parameter",
+                details.isEmpty() ? null : details,
+                request);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException ex,
+            HttpServletRequest request) {
+        return ApiErrorResponses.build(
+                HttpStatus.BAD_REQUEST,
+                "missing_request_parameter",
+                "Missing required request parameter",
+                Map.of(
+                        "parameter", ex.getParameterName(),
+                        "expectedType", ex.getParameterType()),
+                request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request) {
+        return ApiErrorResponses.build(
+                HttpStatus.BAD_REQUEST,
+                "invalid_request_payload",
+                "Invalid request payload",
+                null,
+                request);
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiErrorResponse> handleRuntime(
             RuntimeException ex,
             HttpServletRequest request) {
-        String msg = ex.getMessage();
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,
                 "bad_request",
-                msg != null ? msg : "Unexpected error",
+                "Unexpected error",
                 null,
                 request);
     }

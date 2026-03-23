@@ -38,6 +38,16 @@ function Invoke-IgnoreError {
   }
 }
 
+function Get-OpsAlertsStatus {
+  param([string]$Url)
+
+  try {
+    return Invoke-RestMethod -Uri $Url -Method Get -TimeoutSec 10
+  } catch {
+    throw "Ops alerts status request failed for $Url : $($_.Exception.Message)"
+  }
+}
+
 function Test-PortOpen {
   param([int]$Port)
   $client = [System.Net.Sockets.TcpClient]::new()
@@ -54,6 +64,22 @@ function Test-PortOpen {
   } finally {
     $client.Close()
   }
+}
+
+function Wait-PortListening {
+  param(
+    [int]$Port,
+    [int]$TimeoutSec = 10
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSec)
+  while ((Get-Date) -lt $deadline) {
+    if (Test-PortOpen -Port $Port) {
+      return $true
+    }
+    Start-Sleep -Milliseconds 200
+  }
+  return $false
 }
 
 function Get-FreeTcpPort {
@@ -86,6 +112,7 @@ $baseUrl = "http://localhost:$ServerPort"
 $healthUrl = "$baseUrl/actuator/health"
 $feedUrl = "$baseUrl/api/v1/feed/global?page=0&size=20"
 $feedLatencyUrl = "$baseUrl/actuator/feedlatency"
+$opsAlertsUrl = "$baseUrl/actuator/opsalerts"
 $webhookUrl = "http://127.0.0.1:$WebhookPort/ops"
 
 $listenerProcess = $null
@@ -94,6 +121,8 @@ $appStartedByScript = $false
 $validationStatus = "FAILED"
 $notes = @()
 $payloadContent = ""
+$baselineOpsAlerts = $null
+$postOpsAlerts = $null
 
 if ($portAutoSwitchNote) {
   $notes += $portAutoSwitchNote
@@ -164,6 +193,10 @@ while not httpd.should_exit:
     -RedirectStandardError $listenerErrLogPath `
     -PassThru
 
+  if (-not (Wait-PortListening -Port $WebhookPort -TimeoutSec 10)) {
+    throw "Webhook listener did not start listening on port $WebhookPort within 10 seconds."
+  }
+
   if (-not $SkipAppStart) {
     $coreApiPath = Resolve-Path $CoreApiDir
     $appCommand = @(
@@ -198,6 +231,8 @@ while not httpd.should_exit:
     }
   }
 
+  $baselineOpsAlerts = Get-OpsAlertsStatus -Url $opsAlertsUrl
+
   1..5 | ForEach-Object { Invoke-IgnoreError -Url $feedUrl }
   $null = Invoke-WebRequest -Uri $feedLatencyUrl -Method Get -TimeoutSec 10
 
@@ -217,6 +252,20 @@ while not httpd.should_exit:
     throw "Webhook payload file is empty."
   }
 
+  if ($null -ne $baselineOpsAlerts) {
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+      $postOpsAlerts = Get-OpsAlertsStatus -Url $opsAlertsUrl
+      $logSentDelta = [double]$postOpsAlerts.logSentCount - [double]$baselineOpsAlerts.logSentCount
+      $webhookSentDelta = [double]$postOpsAlerts.webhookSentCount - [double]$baselineOpsAlerts.webhookSentCount
+      if ($logSentDelta -ge 1 -and $webhookSentDelta -ge 1) {
+        break
+      }
+      if ($attempt -lt 10) {
+        Start-Sleep -Seconds 1
+      }
+    }
+  }
+
   $payload = $payloadContent | ConvertFrom-Json
   $component = [string]$payload.component
   $severity = [string]$payload.severity
@@ -227,7 +276,24 @@ while not httpd.should_exit:
     $notes += "Missing severity in payload"
   }
 
-  $validationStatus = "PASSED"
+  if ($null -eq $baselineOpsAlerts -or $null -eq $postOpsAlerts) {
+    $notes += "Missing ops alert actuator snapshots for before/after comparison."
+  } else {
+    $logSentDelta = [double]$postOpsAlerts.logSentCount - [double]$baselineOpsAlerts.logSentCount
+    $webhookSentDelta = [double]$postOpsAlerts.webhookSentCount - [double]$baselineOpsAlerts.webhookSentCount
+    if ($logSentDelta -lt 1) {
+      $notes += "Expected logSentCount to increase by at least 1 but delta was $logSentDelta."
+    }
+    if ($webhookSentDelta -lt 1) {
+      $notes += "Expected webhookSentCount to increase by at least 1 but delta was $webhookSentDelta."
+    }
+  }
+
+  if ($notes.Count -eq 0 -or (($notes | Where-Object { $_ -like "Requested server port*" }).Count -eq $notes.Count)) {
+    $validationStatus = "PASSED"
+  } else {
+    $validationStatus = "FAILED"
+  }
 } catch {
   $notes += $_.Exception.Message
   if ($_.InvocationInfo -and $_.InvocationInfo.PositionMessage) {
@@ -270,6 +336,12 @@ $startupMode = if ($SkipAppStart) { "reuse-existing-app" } else { "script-starte
 $appLogValue = if ($appStartedByScript) { "$appLogPath (stderr: $appErrLogPath)" } else { "n/a (app not started by script)" }
 $appProcessValue = if ($appStartedByScript -and $appProcess) { [string]$appProcess.Id } else { "n/a" }
 $appLifecycleValue = if ($appStartedByScript) { $(if ($PreserveAppAfterRun) { "preserved" } else { "stopped-on-exit" }) } else { "n/a" }
+$baselineLogSent = if ($null -ne $baselineOpsAlerts) { [string]$baselineOpsAlerts.logSentCount } else { "n/a" }
+$baselineWebhookSent = if ($null -ne $baselineOpsAlerts) { [string]$baselineOpsAlerts.webhookSentCount } else { "n/a" }
+$baselineTotalAlerts = if ($null -ne $baselineOpsAlerts) { [string]$baselineOpsAlerts.totalAlertCount } else { "n/a" }
+$postLogSent = if ($null -ne $postOpsAlerts) { [string]$postOpsAlerts.logSentCount } else { "n/a" }
+$postWebhookSent = if ($null -ne $postOpsAlerts) { [string]$postOpsAlerts.webhookSentCount } else { "n/a" }
+$postTotalAlerts = if ($null -ne $postOpsAlerts) { [string]$postOpsAlerts.totalAlertCount } else { "n/a" }
 
 $reportLines = @(
   "# Ops Alert Webhook Validation",
@@ -292,6 +364,14 @@ $reportLines = @(
   "- App lifecycle: $appLifecycleValue",
   "- Payload file: $payloadPath",
   "- App log: $appLogValue",
+  "",
+  "## Ops Alert Snapshot",
+  "- Baseline totalAlertCount: $baselineTotalAlerts",
+  "- Baseline logSentCount: $baselineLogSent",
+  "- Baseline webhookSentCount: $baselineWebhookSent",
+  "- Post totalAlertCount: $postTotalAlerts",
+  "- Post logSentCount: $postLogSent",
+  "- Post webhookSentCount: $postWebhookSent",
   "",
   "## Notes",
   $notesBlock,

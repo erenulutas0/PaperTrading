@@ -14,22 +14,22 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-23)
+### Progress Tracker (updated 2026-03-24)
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
-| Portfolio CRUD | ✅ Done | Create, delete, deposit |
-| Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
+| Portfolio CRUD | ✅ Done | Create, delete, deposit + explicit create/visibility/history contracts |
+| Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle + explicit quantity/leverage/side contracts + dual-sided sell disambiguation when the same symbol has both `LONG` and `SHORT` positions + non-blocking copy/tournament side-effect fanout |
 | Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + explicit invalid-param contracts for public market query surfaces + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, account-backed compare-basket presets, and market-provider split preparing delayed BIST100 support |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
-| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) + DB-backed read fallback when Redis leaderboard ranges are unavailable + explicit invalid-param contracts for portfolio/account leaderboard reads |
+| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) + DB-backed read fallback when Redis leaderboard ranges are unavailable + explicit invalid-param contracts for portfolio/account leaderboard reads + explicit page/size contracts instead of silent pagination fallback |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
 | User Profiles & Social | ✅ Done | Display name, bio, avatar, follows, profile page |
 | Portfolio Sharing (Public/Private) | ✅ Done | Visibility toggle, discover endpoint |
 | Analysis Posts | ✅ Done | Immutable posts, soft-delete tombstone, price snapshot, auto outcome resolution (30s) |
 | Outcome Resolution Engine | ✅ Done | Scheduled 30s: target hit, stop hit, expiry checks |
 | Redis Integration | ✅ Done | Cache layer for leaderboard (ZSET), prices |
-| Pagination | 🔨 Building | High-traffic list endpoints paged (`portfolios`, `discover`, `tournaments`, `feed`, `leaderboards`) + tournament leaderboard/trade + watchlist list/alert-history + terminal layout/chart-note read surfaces now emit paged payloads; remaining legacy list endpoints are being migrated |
+| Pagination | ✅ Done | Current paged REST surfaces now emit paged payloads with explicit page/size contracts instead of silent resolver fallback: leaderboards, portfolios/discover/history, tournaments/leaderboard/trades/badges, feed, watchlists/items/alert-history, notifications, analysis feeds, user followers/following, strategy-bot list/board/discover/run drilldowns, terminal layouts, chart notes, portfolio participants, and interaction comments |
 | Portfolio Participation | 🔨 Building | Join/leave portfolios, participant count |
 | Activity Feed (Social) | ✅ Done | Follow/post/join + like/comment + portfolio publish events, page-aware cache invalidation |
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
@@ -39,6 +39,335 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-24**: **Fresh Local Audit Validation Now Seeds Market Data Through A Property-Gated Actuator Endpoint**
+  - **Problem observed**:
+    - `run_audit_validation_suite.ps1` already validated:
+      - backend contract smoke
+      - audit write-capture smoke
+    - But when a wrapper booted a fresh local backend, the audit write-capture half still failed because:
+      - trade buy needs a current crypto price
+      - analysis-post create needs a current crypto price
+      - this execution environment blocks outbound Binance access
+    - That meant fresh local audit proof was still dependent on whatever market data happened to be cached in an already running app.
+  - **Implementation**:
+    - Added property-gated actuator endpoint:
+      - `MarketPriceSeedEndpoint` at `/actuator/marketprices`
+    - Added `BinanceService` support for:
+      - snapshot reads without forcing refresh
+      - manual tracked-symbol seeding
+    - Added `run_audit_validation_local_runtime_check.ps1`, which:
+      - boots a temporary backend
+      - enables `APP_MARKET_MANUAL_SEED_ENABLED=true`
+      - seeds `BTCUSDT=50000` through `/actuator/marketprices`
+      - runs the existing audit validation suite against that fresh runtime
+    - Added integration coverage:
+      - `MarketPriceSeedEndpointIntegrationTest`
+  - **Operational impact**:
+    - fresh local audit validation no longer depends on stale shared runtime state or external market connectivity
+    - trade and analysis audit write proofs can now pass in the same deterministic local wrapper run as portfolio/follow/comment checks
+- **2026-03-24**: **Local Ops Webhook Validation Now Waits For Listener Readiness And Rechecks Actuator Summary After Delivery**
+  - **Problem observed**:
+    - `validate_ops_alert_webhook.ps1` had been extended to compare `/actuator/opsalerts` sent counters, but the local validation flow still had a race:
+      - the temporary Python webhook listener process could be started
+      - the feed-latency breach could be triggered immediately after
+      - the app could then attempt webhook delivery before the listener socket was actually bound
+    - That produced false `connection refused` failures even though the webhook path itself was healthy.
+    - The script also sampled `/actuator/opsalerts` too early, before webhook delivery had fully settled, which could undercount `webhookSentCount`.
+  - **Implementation**:
+    - `validate_ops_alert_webhook.ps1` now:
+      - waits until the temporary listener port is actually accepting connections before triggering the feed-latency breach
+      - waits for payload capture first, then polls `/actuator/opsalerts` until the expected `logSentCount` and `webhookSentCount` deltas appear
+    - Re-ran the single-command wrapper:
+      - `infra/load-test/validate_ops_alert_webhook_skipapp_flow.ps1`
+    - New passing artifacts:
+      - `infra/load-test/reports/ops-alert-webhook-skipapp-flow-20260324-013825.md`
+      - `infra/load-test/reports/ops-alert-webhook-validation-20260324-013903.md`
+  - **Operational impact**:
+    - local ops webhook regression checks are less prone to startup-order false negatives
+    - webhook validation reports now prove both payload receipt and actuator counter movement in the same passing run
+- **2026-03-24**: **Ops Alerts Actuator Now Exposes Live Counter Summary Instead Of Only Static Config**
+  - **Problem observed**:
+    - `/actuator/opsalerts` previously only reported:
+      - whether alerting was enabled
+      - whether a webhook URL was configured
+      - cooldown seconds
+    - That made it useful for static config inspection, but not for confirming whether alert publication was actually happening or being suppressed/failing at runtime.
+  - **Implementation**:
+    - Extended `OpsAlertEndpoint` to expose meter-backed counter summaries:
+      - `totalAlertCount`
+      - `logSentCount`
+      - `logSuppressedCount`
+      - `webhookSentCount`
+      - `webhookSuppressedCount`
+      - `webhookFailedCount`
+    - Added integration coverage that publishes a manual actuator alert and then proves the read endpoint reflects the live counter deltas.
+    - Updated backend contract smoke so it also verifies the ops-alert actuator exposes the new summary fields.
+  - **Operational impact**:
+    - ops tooling can now distinguish “alerting configured” from “alerts are actually flowing or being suppressed” without jumping directly to raw metrics endpoints
+    - the general backend contract smoke now covers both idempotency observability and alerting actuator inspection at the same time
+- **2026-03-24**: **Backend Contract Smoke Now Verifies The Latest Idempotency Health And Alert-State Rollout**
+  - **Problem observed**:
+    - `run_backend_contract_smoke.ps1` already covered:
+      - correlated auth/notification contracts
+      - idempotent replay
+      - audit inspection endpoints
+    - After the idempotency observability work, the smoke was no longer checking the newest platform contract pieces:
+      - `/actuator/idempotency.alertState`
+      - `/actuator/health/idempotency`
+    - Manual local verification also still depended on whatever backend happened to be running, which made stale-runtime false negatives likely.
+  - **Implementation**:
+    - Extended `run_backend_contract_smoke.ps1` to verify:
+      - `/actuator/idempotency` exposes `alertState`
+      - `/actuator/health/idempotency` is available and `UP`
+    - Added rollout-diagnostic note handling so missing latest idempotency observability is visible in the smoke report.
+    - Added `run_backend_contract_local_runtime_check.ps1`, which:
+      - starts a temporary backend
+      - enables health component details
+      - runs the child contract smoke
+      - emits a parent report linking the child report
+    - Updated load-test README usage/docs accordingly.
+  - **Operational impact**:
+    - the main backend contract smoke now tracks the current idempotency platform surface instead of an older partial contract
+    - local contract validation is less sensitive to stale already-running runtimes and easier to repeat after backend changes
+- **2026-03-24**: **Idempotency Cleanup Smoke Now Diagnoses Stale Runtimes And Has A Local Runtime Wrapper**
+  - **Problem observed**:
+    - The idempotency cleanup smoke had been extended to verify:
+      - `/actuator/idempotency` `alertState`
+      - `/actuator/health/idempotency`
+    - A still-running older local backend then produced a noisy smoke failure:
+      - health component returned `404`
+      - `alertState` was missing
+      - several follow-on checks failed even though the real issue was simply "runtime not restarted onto the new code"
+    - That made the report less actionable than it should be during local ops validation.
+  - **Implementation**:
+    - Updated `run_idempotency_cleanup_smoke.ps1` to fail fast with an explicit rollout-diagnostic note when the target runtime does not expose:
+      - `/actuator/idempotency.alertState`
+      - `/actuator/health/idempotency`
+    - Added `run_idempotency_cleanup_local_runtime_check.ps1`, which:
+      - starts a temporary backend on a dedicated local port
+      - enables health component details
+      - runs the child cleanup smoke
+      - emits a parent report that links the child report
+    - Updated load-test README usage/docs for both the stricter smoke and the new wrapper flow.
+  - **Operational impact**:
+    - local idempotency cleanup validation no longer depends on manually restarting the backend first
+    - stale runtime drift is now reported as a direct rollout mismatch instead of a cascade of ambiguous smoke failures
+- **2026-03-24**: **Idempotency Cleanup Lag Now Publishes Ops Alerts And Surfaces Alert State In The Actuator Snapshot**
+  - **Problem observed**:
+    - The idempotency surface now had:
+      - runtime telemetry in `/actuator/idempotency`
+      - a dedicated `/actuator/health/idempotency` component
+    - But stale expired-key backlog still required humans to poll health or infer alert posture from raw counters.
+    - There was no dedicated alert-state memory for:
+      - cleanup lag
+      - snapshot collection failure
+      - recovery back to healthy cleanup
+  - **Implementation**:
+    - Added `IdempotencyAlertingService` with:
+      - state machine (`NONE` / `WARNING`)
+      - gauges for alert state and oldest expired age
+      - scheduled refresh using `app.idempotency.observability-refresh-interval`
+      - ops alert publishing on degradation and optional recovery
+    - Extended `IdempotencyProperties` with:
+      - `observabilityRefreshInterval`
+      - `alertOnRecovery`
+    - Updated `/actuator/idempotency` to expose `alertState` alongside the raw snapshot counters.
+    - Added targeted unit and integration coverage for:
+      - one-shot warning publication
+      - recovery publication
+      - stale-backlog endpoint alert-state exposure
+  - **Operational impact**:
+    - idempotency cleanup lag now participates in the same ops alert workflow as the other observability subsystems
+    - actuator inspection callers can read the resolved alert posture directly instead of reconstructing it from backlog age/count heuristics
+- **2026-03-24**: **Idempotency Observability Now Includes A Health Component For Cleanup Lag**
+  - **Problem observed**:
+    - `/actuator/idempotency` already exposed:
+      - storage counts
+      - cleanup metadata
+      - runtime claim/replay/conflict telemetry
+    - But ops still had no first-class health signal for whether expired idempotency keys were aging past the configured cleanup window.
+    - That meant cleanup lag remained something humans had to infer from raw actuator fields instead of seeing directly in `/actuator/health`.
+  - **Implementation**:
+    - Added `IdempotencyHealthIndicator` as `idempotency`.
+    - The health component now returns:
+      - `DOWN` when snapshot collection fails
+      - `DOWN` when expired backlog age exceeds `app.idempotency.cleanup-interval`
+      - `UP` otherwise
+    - Health details expose:
+      - cleanup interval / backlog threshold
+      - expired record count and oldest expired age
+      - cleanup metadata
+      - runtime replay/conflict/release counters
+    - Added targeted unit and actuator endpoint integration coverage for healthy and stale-backlog cases.
+  - **Operational impact**:
+    - idempotency cleanup lag is now visible in the standard health surface without requiring manual actuator field inspection
+    - staging/runtime checks can alert on stale expired-key accumulation as an availability/housekeeping problem rather than a hidden observability-only metric
+- **2026-03-24**: **Idempotency Actuator Now Exposes Runtime Claim/Replay/Release Outcomes Instead Of Only Row Counts**
+  - **Problem observed**:
+    - The idempotency rollout already had:
+      - request correlation on replay/conflict responses
+      - replay protection for write endpoints
+      - cleanup scheduling and manual `/actuator/idempotency` purge
+    - But the actuator surface still only exposed storage state:
+      - total/in-progress/completed/expired rows
+      - cleanup metadata
+    - That meant ops could see accumulation and purge health, but not whether live traffic was currently producing:
+      - claimed keys
+      - cached replays
+      - request conflicts
+      - in-progress collisions
+      - released keys after failed writes
+  - **Implementation**:
+    - Extended `IdempotencyObservabilityService` with runtime counters and last-seen timestamps for:
+      - `claimed`
+      - `replay`
+      - `conflict`
+      - `in-progress conflict`
+      - `completed response cached`
+      - `released`
+      - `skipped large response`
+    - Wired `IdempotencyKeyFilter` to record those outcomes directly on claim, replay/conflict resolution, successful cached completion, and release paths.
+    - Expanded `/actuator/idempotency` output to expose the new runtime telemetry alongside the existing DB counts and cleanup metadata.
+    - Added targeted integration coverage for:
+      - runtime claim/replay/conflict/release telemetry
+      - in-progress collision telemetry
+      - cleanup snapshot integrity
+  - **Operational impact**:
+    - idempotency is now observable as a live request-flow contract instead of only a storage/cleanup concern
+    - rollout validation and staging ops can distinguish replay-heavy traffic, caller misuse, and failed-write release churn without direct DB inspection
+- **2026-03-23**: **Watchlist Alert-History Filters Now Reject Invalid Query Inputs Explicitly**
+  - **Problem observed**:
+    - Watchlist alert history already supported useful read/export filters:
+      - `limit`
+      - `days`
+      - `direction`
+    - But the contract was still uneven:
+      - invalid `direction` could fall through to framework enum binding errors
+      - invalid `limit` and `days` values were silently normalized/clamped in the service layer
+    - That made the watchlist query surface less deterministic than the nearby leaderboard, audit, and strategy-bot filter contracts.
+  - **Implementation**:
+    - Moved alert-history filter parsing/validation into `WatchlistController` for both:
+      - `GET /api/v1/watchlists/items/{itemId}/alert-history`
+      - `GET /api/v1/watchlists/items/{itemId}/alert-history/export`
+    - Invalid inputs now fail fast with explicit correlated codes:
+      - `invalid_watchlist_alert_history_limit`
+      - `invalid_watchlist_alert_history_days`
+      - `invalid_watchlist_alert_history_direction`
+    - Added targeted `WatchlistControllerIntegrationTest` coverage for invalid limit, day window, read-direction, and export-direction paths.
+  - **Operational impact**:
+    - watchlist alert-history clients now get deterministic machine-readable feedback instead of silent normalization or framework-default 400s
+    - filtered CSV/export tooling can handle invalid input the same way as the primary JSON read path
+- **2026-03-23**: **Trade Requests Now Validate Quantity/Leverage/Side Explicitly And Sell Resolution No Longer Guess Long By Default**
+  - **Problem observed**:
+    - The trade surface already returned explicit contracts for:
+      - invalid portfolio id
+      - missing portfolio
+      - price unavailable
+    - Three real gaps still remained:
+      - malformed `quantity`, `leverage`, and `side` values could still drift into runtime math or generic failure buckets
+      - `sell` still resolved positions by `symbol` only, so a portfolio holding both `LONG` and `SHORT` on the same symbol could close the wrong leg
+      - trade-side fanout work such as tournament notification and copy-trading replication could still unwind an otherwise valid primary trade
+    - `TradeRequest.side` also defaulted to `LONG` at DTO construction time, which made omitted sell-side requests indistinguishable from explicit long intent.
+  - **Implementation**:
+    - Removed the DTO-level default `TradeRequest.side = LONG`; buy-side defaulting now happens explicitly in `TradeController`.
+    - Hardened `TradeController` with explicit contracts for:
+      - `trade_quantity_invalid`
+      - `trade_leverage_invalid`
+      - `trade_side_invalid`
+      - `trade_side_required`
+      - `trade_price_lookup_failed`
+    - Updated sell resolution to:
+      - match by `symbol + side` when side is supplied
+      - require explicit side only when multiple open legs exist for the same symbol
+      - keep simple symbol-only sells working when there is only one matching leg
+    - Wrapped tournament notification and copy-trading replication as best-effort side effects so the main trade write still commits when those fanout paths fail.
+    - Hardened `CopyTradingService` so missing cloned portfolios and ambiguous copy-sell legs are skipped instead of surfacing raw runtime failures.
+    - Added targeted integration/unit coverage across:
+      - invalid trade inputs
+      - dual-sided sell ambiguity
+      - explicit short-leg sell selection
+      - sanitized price-provider failure
+      - copy/tournament side-effect isolation
+      - missing cloned-portfolio copy paths
+  - **Operational impact**:
+    - trade callers now get deterministic machine-readable feedback for malformed execution requests instead of math/runtime drift
+    - dual-sided paper portfolios no longer risk closing the wrong leg when users sell a symbol with both open long and short exposure
+    - copy-trading and tournament fanout issues are now degraded as side-effect problems rather than primary trade outages
+- **2026-03-23**: **Shared Generic Runtime Fallback No Longer Echoes Raw Exception Messages**
+  - **Problem observed**:
+    - After the controller-local cleanup passes, one broad raw-message leak path still remained in the shared global handler:
+      - `GlobalExceptionHandler.handleRuntime(RuntimeException, ...)`
+    - Even though it no longer guessed `404 not_found` from message text, it still echoed arbitrary runtime messages back to clients under the generic `bad_request` envelope.
+    - That left every untyped runtime failure one step away from exposing internal wording again.
+  - **Implementation**:
+    - Changed the shared generic runtime fallback to always return the fixed public message:
+      - `Unexpected error`
+    - Kept the existing generic fallback bucket unchanged:
+      - HTTP `400`
+      - code `bad_request`
+    - Updated `GlobalExceptionHandlerTest` so generic runtime text remains in the same bucket without leaking the underlying message.
+  - **Operational impact**:
+    - untyped runtime failures now degrade more safely across the whole backend
+    - phase-3 cleanup is less dependent on every remaining controller manually sanitizing last-resort runtime messages
+- **2026-03-23**: **Market Controller Generic Fallback No Longer Echoes Provider Runtime Text**
+  - **Problem observed**:
+    - Market query validation had already been hardened around explicit public contracts for:
+      - market
+      - symbol
+      - range
+      - interval
+      - beforeOpenTime
+      - limit
+    - One residual fallback branch still reused raw `IllegalArgumentException` text when the code could not be normalized into a known `invalid_market_*` contract.
+    - That meant unexpected provider/runtime wording could still leak through `market_request_failed`.
+  - **Implementation**:
+    - Changed the generic `market_request_failed` fallback to always use the fixed public message:
+      - `Market request failed`
+    - Added `MarketControllerIntegrationTest` coverage for an unexpected provider/runtime validation failure that now stays sanitized.
+  - **Operational impact**:
+    - market query clients now get a stable generic fallback message instead of low-level provider/runtime text
+    - the remaining controller-level raw-message leak surface is materially smaller after the latest phase-3 cleanup pass
+- **2026-03-23**: **Strategy-Bot Fallback Responses No Longer Echo Raw Runtime Messages**
+  - **Problem observed**:
+    - Earlier phase-3 cleanup had already removed the large strategy-bot message-parsing table and moved most public contracts onto typed service exceptions.
+    - One residual fallback issue still remained:
+      - `StrategyBotController.buildBotError(...)` would reuse raw runtime exception text for unexpected failures
+    - That meant internal serialization/corruption/runtime details could still leak through strategy-bot fallback responses even though the primary contract path was already typed.
+  - **Implementation**:
+    - Changed `StrategyBotController.buildBotError(...)` to always return the endpoint-scoped fallback message for unexpected non-typed failures.
+    - Added targeted controller integration coverage proving sanitized fallback behavior on:
+      - create
+      - run cancel
+      fallback paths.
+  - **Operational impact**:
+    - strategy-bot fallback responses now behave like the rest of the hardened controllers and do not expose low-level runtime text
+    - the strategy-bot surface is more consistent under unexpected failure conditions, especially for scripts and dashboard error handling
+- **2026-03-23**: **Controller Fallback Responses No Longer Leak Raw Runtime Messages On Interaction, Notification, Chart-Note, And Terminal-Layout Surfaces**
+  - **Problem observed**:
+    - The phase-3 typed-exception cleanup had already covered the expected validation and not-found paths on several account-backed/social surfaces.
+    - One residual drift still remained on unexpected runtime failures:
+      - `InteractionController`
+      - `NotificationController`
+      - `MarketChartNoteController`
+      - `MarketTerminalLayoutController`
+    - Those controllers still echoed raw exception messages back to clients through fallback contracts.
+    - `MarketTerminalLayoutController` also had a real fallback bug where delete failures reused the update fallback code.
+    - `InteractionService` still surfaced corrupt portfolio-owner data via a generic runtime `"Portfolio owner is invalid"` path instead of a machine-readable contract.
+  - **Implementation**:
+    - Replaced raw exception-message echoing with fixed fallback messages for the four controllers above.
+    - Corrected terminal-layout delete fallback to return:
+      - `market_terminal_layout_delete_failed`
+      instead of the update fallback code.
+    - Updated `InteractionService` to raise explicit typed validation for corrupt portfolio owner ids:
+      - `portfolio_owner_invalid`
+    - Added targeted service/controller coverage for:
+      - invalid portfolio-owner rows
+      - sanitized controller fallback messages
+      - terminal-layout delete fallback code
+  - **Operational impact**:
+    - unexpected runtime failures no longer leak low-level internal message text through user-facing contracts on these surfaces
+    - terminal-layout delete callers now receive a deterministic delete-specific fallback code
+    - corrupt portfolio ownership rows now fail with a stable machine-readable contract instead of degrading to a generic interaction fallback
 - **2026-03-23**: **Global Generic Runtime Fallback No Longer Guesses `not_found` From Exception Text**
   - **Problem observed**:
     - After the controller/service phase-3 cleanup, the shared `GlobalExceptionHandler(RuntimeException)` fallback still contained one last message heuristic:
@@ -304,6 +633,177 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - follow/unfollow and tournament contracts are now less brittle under refactors because stable API codes no longer depend on string wording inside the service layer
     - phase-3 typed-exception cleanup now spans validation-only controllers and real service/controller domain pairs
+- **2026-03-23**: **Tournament And Portfolio Inputs Now Reject Silent Validation Drift Explicitly**
+  - **Problem observed**:
+    - Several portfolio/tournament surfaces already had unified error envelopes, but some edge inputs still behaved too loosely:
+      - tournament create relied on generic fallback buckets for missing/invalid schedule data
+      - tournament trade-feed `limit` still depended on controller/framework parsing behavior
+      - portfolio create allowed missing core fields to drift toward JPA/runtime failures
+      - portfolio history silently ignored invalid `limit` values
+      - portfolio visibility updates could null-deref on missing payload values instead of returning a stable contract
+    - That left high-traffic portfolio/tournament workflows less deterministic than the nearby hardened controllers.
+  - **Implementation**:
+    - Updated `TournamentService.createTournament(...)` to reject:
+      - `tournament_name_required`
+      - `tournament_starts_at_required`
+      - `tournament_ends_at_required`
+      - `tournament_starting_balance_invalid`
+      - `tournament_schedule_invalid`
+    - Updated `TournamentController` trade-feed parsing so invalid `limit` now returns:
+      - `invalid_tournament_trades_limit`
+    - Updated `PortfolioController` to reject:
+      - `portfolio_name_required`
+      - `portfolio_owner_required`
+      - `portfolio_description_too_long`
+      - `portfolio_visibility_required`
+      - `invalid_portfolio_history_limit`
+    - Added targeted integration coverage for tournament create/trade-limit and portfolio create/visibility/history-limit fail paths.
+  - **Operational impact**:
+    - tournament and portfolio clients now get stable machine-readable validation contracts instead of silent fallbacks or generic runtime drift
+    - portfolio history/read tooling no longer needs to infer whether caller-provided limits were accepted or ignored
+- **2026-03-24**: **Framework Binding And Payload Parse Errors Now Return Correlated API Contracts Instead Of Framework-Default 400s**
+  - **Problem observed**:
+    - Many user-facing controllers had already been hardened around domain validation, but three framework-owned failure classes still drifted outside the shared API contract:
+      - malformed path/query type conversion
+      - missing required request parameters
+      - malformed JSON payloads
+    - Those errors could bypass controller-local handling and surface as framework-default `400` responses, which made rollout tooling less deterministic than nearby explicit contracts.
+  - **Implementation**:
+    - Extended `GlobalExceptionHandler` with explicit handlers for:
+      - `MethodArgumentTypeMismatchException`
+      - `MissingServletRequestParameterException`
+      - `HttpMessageNotReadableException`
+    - Added targeted handler and integration coverage proving:
+      - invalid UUID path variables
+      - missing required query params
+      - malformed JSON bodies
+      now return correlated API error payloads.
+  - **Operational impact**:
+    - framework-level request binding failures now align with the repo’s unified error-contract rollout instead of leaking container/framework response shapes
+    - clients and smoke scripts can treat malformed input uniformly whether the failure occurs in controller code or before controller invocation
+- **2026-03-24**: **Leaderboard Paging Inputs No Longer Silently Normalize Invalid Page And Size Values**
+  - **Problem observed**:
+    - Leaderboard sort/period/direction lenses were already explicit, but pagination still drifted:
+      - malformed `page` values could be ignored
+      - malformed or out-of-range `size` values depended on resolver/default behavior
+    - That left a high-traffic read surface still accepting caller mistakes silently even after the rest of the leaderboard lens contract had been hardened.
+  - **Implementation**:
+    - Added explicit controller parsing for leaderboard and account leaderboard:
+      - `page`
+      - `size`
+    - Invalid inputs now return dedicated machine-readable codes:
+      - `invalid_leaderboard_page`
+      - `invalid_leaderboard_size`
+      - `invalid_account_leaderboard_page`
+      - `invalid_account_leaderboard_size`
+    - Added integration coverage for malformed portfolio leaderboard page and invalid account leaderboard size paths.
+  - **Operational impact**:
+    - leaderboard callers now get deterministic pagination contracts instead of silent fallback to resolver defaults
+    - the main public ranking surface is more internally consistent with the repo’s broader explicit-input policy
+- **2026-03-24**: **Portfolio, Tournament, And Feed Paging Inputs Now Reject Invalid Page And Size Values Explicitly**
+  - **Problem observed**:
+    - After the leaderboard pagination cleanup, other high-traffic paged surfaces still relied on resolver/default behavior for `page` and `size`:
+      - portfolio list/discover
+      - tournament list/active/leaderboard/trades/badges
+      - personalized/global/user activity feed
+    - That meant malformed pagination values could still be ignored or normalized silently on some of the busiest read paths in the app.
+  - **Implementation**:
+    - Added shared `PageableRequestParser` to centralize explicit page/size parsing.
+    - Applied it to:
+      - `PortfolioController`
+      - `TournamentController`
+      - `ActivityFeedController`
+    - Invalid pagination inputs now return stable correlated codes:
+      - `invalid_portfolio_page`
+      - `invalid_portfolio_size`
+      - `invalid_tournament_page`
+      - `invalid_tournament_size`
+      - `invalid_feed_page`
+      - `invalid_feed_size`
+    - Preserved tournament trade `limit` override semantics while ensuring explicit `page` values still survive when `limit` is present.
+    - Added targeted integration coverage for representative invalid page/size paths across all three controllers.
+  - **Operational impact**:
+    - portfolio, tournament, and feed callers now get deterministic pagination contracts instead of silently falling back to resolver defaults
+    - the app’s highest-traffic paged surfaces are now more internally consistent with the broader explicit-input/error-contract rollout
+- **2026-03-24**: **Account-Backed Social And Workspace Paging Inputs Now Reject Invalid Page And Size Values Explicitly**
+  - **Problem observed**:
+    - After the first pagination hardening passes, several account-backed paged reads still trusted Spring’s resolver/default behavior for malformed `page` and `size` values:
+      - watchlists and watchlist items
+      - watchlist alert history
+      - notifications
+      - analysis feed and author post feed
+      - user followers and following
+      - market chart notes
+      - terminal layouts
+      - portfolio participants
+      - interaction comments
+    - That left common dashboard/workspace reads able to ignore malformed pagination input silently even while nearby portfolio, feed, and leaderboard surfaces had already moved to explicit contracts.
+  - **Implementation**:
+    - Reused the shared `PageableRequestParser` across the controllers above.
+    - Added endpoint-scoped pagination codes such as:
+      - `invalid_watchlist_page`
+      - `invalid_watchlist_alert_history_page`
+      - `invalid_notification_page`
+      - `invalid_analysis_post_page`
+      - `invalid_user_follow_page`
+      - `invalid_market_chart_note_page`
+      - `invalid_market_terminal_layout_page`
+      - `invalid_portfolio_participants_page`
+      - `invalid_interaction_comments_page`
+    - Kept the tighter `1..50` size ceiling for watchlist alert history while moving its underlying `page` / `size` parsing onto the shared explicit contract path.
+    - Added targeted integration coverage across all touched controllers for malformed or out-of-range pagination inputs.
+  - **Operational impact**:
+    - account-backed workspace and social reads now reject bad pagination input deterministically instead of falling back to resolver defaults
+    - pagination behavior is now more consistent between public discovery surfaces and authenticated dashboard/workspace surfaces
+- **2026-03-24**: **Strategy-Bot Paged Read Surfaces Now Reject Invalid Page And Size Values Explicitly**
+  - **Problem observed**:
+    - Strategy-bot validation had already been hardened for sort, direction, run mode, export format, and lookback filters.
+    - Paged strategy-bot reads still had one quiet contract gap:
+      - owner bot list
+      - owner board
+      - public discover board
+      - run history
+      - run fills
+      - run events
+      - run equity curve
+    - Those endpoints still relied on resolver/default behavior for malformed `page` and `size`, which made one of the most parameter-rich product surfaces less explicit than the rest of the strategy-bot contract.
+  - **Implementation**:
+    - Applied `PageableRequestParser` across the strategy-bot paged reads above.
+    - Added dedicated machine-readable pagination codes:
+      - `invalid_strategy_bot_page`
+      - `invalid_strategy_bot_board_page`
+      - `invalid_strategy_bot_runs_page`
+      - `invalid_strategy_bot_run_fills_page`
+      - `invalid_strategy_bot_run_events_page`
+      - `invalid_strategy_bot_run_equity_curve_page`
+      and their matching `*_size` variants.
+    - Added targeted integration coverage in both strategy-bot controller test suites for representative invalid page/size paths.
+  - **Operational impact**:
+    - strategy-bot dashboard and public board callers now get deterministic pagination contracts instead of silent fallback to resolver defaults
+    - the strategy-bot surface is now internally consistent across filters, exports, and paged run drilldowns
+- **2026-03-23**: **Market, Watchlist, And Strategy-Bot Numeric Query Filters No Longer Fall Through To Framework-Generic 400s**
+  - **Problem observed**:
+    - Market, watchlist alert-history, and strategy-bot board/discover surfaces already rejected out-of-range numeric values explicitly.
+    - A narrower contract gap remained when callers sent malformed non-numeric values:
+      - `beforeOpenTime`
+      - `limit`
+      - `days`
+      - `lookbackDays`
+    - Those requests could still bypass controller-local validation and land in framework-default `400` responses instead of the correlated API contract used elsewhere.
+  - **Implementation**:
+    - Switched `MarketController` candle query parsing for:
+      - `beforeOpenTime`
+      - `limit`
+      onto explicit string parsing before invoking the facade.
+    - Switched `WatchlistController` alert-history read/export parsing for:
+      - `limit`
+      - `days`
+      onto explicit string parsing before pagination/export assembly.
+    - Switched `StrategyBotController` board/discover/detail/export/analytics lookback parsing onto explicit string parsing before delegating to `StrategyBotRunService`.
+    - Added integration coverage for malformed numeric values on both surfaces.
+  - **Operational impact**:
+    - market/watchlist/strategy-bot callers now get the same machine-readable codes for malformed numeric inputs that they already received for out-of-range numeric inputs
+    - framework binding no longer decides the public error shape for those query filters
 - **2026-03-23**: **Portfolio Participation Now Uses Typed API Exceptions Instead Of Controller Message Parsing**
   - **Problem observed**:
     - Portfolio participation had already been hardened around duplicate-edge reservation and unified response contracts.
@@ -2471,11 +2971,15 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - performs an idempotent protected write
       - verifies replay before cleanup
       - seeds an expired idempotency row into local Postgres
+      - verifies stale backlog flips `/actuator/idempotency` to `alertState=WARNING`
+      - verifies stale backlog flips `/actuator/health/idempotency` to `DOWN`
       - triggers actuator cleanup
-      - verifies the refreshed snapshot and replay behavior after cleanup
+      - verifies the refreshed snapshot returns `alertState=NONE`
+      - verifies `/actuator/health/idempotency` recovers to `UP`
+      - verifies replay behavior after cleanup
   - **Operational impact**:
     - expired idempotency cleanup is now directly testable during local ops work instead of being tied to scheduler timing
-    - replay durability can be checked in the same smoke pass that validates cleanup
+    - replay durability, health posture, and alert-state recovery can be checked in the same smoke pass that validates cleanup
   - **Validation**:
     - Passed:
       - `IdempotencyEndpointIntegrationTest`

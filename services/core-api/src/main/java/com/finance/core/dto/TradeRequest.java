@@ -9,5 +9,5 @@ public class TradeRequest {
     private String symbol;
     private BigDecimal quantity;
     private Integer leverage = 1; // Default to 1x (Spot)
-    private String side = "LONG"; // LONG or SHORT
+    private String side; // LONG or SHORT
 }

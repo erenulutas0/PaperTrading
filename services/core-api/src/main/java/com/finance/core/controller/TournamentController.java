@@ -7,6 +7,7 @@ import com.finance.core.repository.TournamentRepository;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -34,14 +35,22 @@ public class TournamentController {
 
     /** List all tournaments */
     @GetMapping
-    public ResponseEntity<Page<Tournament>> getAllTournaments(@PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(tournamentService.getAllTournaments(pageable));
+    public ResponseEntity<Page<Tournament>> getAllTournaments(
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
+            @PageableDefault(size = 20) Pageable pageable) {
+        Pageable effectivePageable = resolveTournamentPageable(pageable, page, size);
+        return ResponseEntity.ok(tournamentService.getAllTournaments(effectivePageable));
     }
 
     /** List active tournaments */
     @GetMapping("/active")
-    public ResponseEntity<Page<Tournament>> getActiveTournaments(@PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(tournamentService.getActiveTournaments(pageable));
+    public ResponseEntity<Page<Tournament>> getActiveTournaments(
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
+            @PageableDefault(size = 20) Pageable pageable) {
+        Pageable effectivePageable = resolveTournamentPageable(pageable, page, size);
+        return ResponseEntity.ok(tournamentService.getActiveTournaments(effectivePageable));
     }
 
     /** Create a new tournament (admin-like) */
@@ -98,10 +107,13 @@ public class TournamentController {
     @GetMapping("/{tournamentId}/leaderboard")
     public ResponseEntity<?> getLeaderboard(
             @PathVariable UUID tournamentId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
+        Pageable effectivePageable = resolveTournamentPageable(pageable, page, size);
         try {
-            return ResponseEntity.ok(tournamentService.getTournamentLeaderboard(tournamentId, pageable));
+            return ResponseEntity.ok(tournamentService.getTournamentLeaderboard(tournamentId, effectivePageable));
         } catch (ApiRequestException exception) {
             throw exception;
         } catch (Exception e) {
@@ -126,13 +138,16 @@ public class TournamentController {
     @GetMapping("/{tournamentId}/trades")
     public ResponseEntity<?> getTournamentTrades(
             @PathVariable UUID tournamentId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 15) Pageable pageable,
-            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String limit,
             HttpServletRequest httpRequest) {
         try {
-            Pageable effectivePageable = pageable;
-            if (limit != null && limit > 0) {
-                effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
+            Pageable effectivePageable = resolveTournamentPageable(pageable, page, size);
+            Integer parsedLimit = parseTournamentTradesLimit(limit);
+            if (parsedLimit != null) {
+                effectivePageable = PageRequest.of(effectivePageable.getPageNumber(), parsedLimit, effectivePageable.getSort());
             }
             return ResponseEntity.ok(tournamentService.getTournamentTrades(tournamentId, effectivePageable));
         } catch (ApiRequestException exception) {
@@ -146,8 +161,11 @@ public class TournamentController {
     @GetMapping("/badges/{userId}")
     public ResponseEntity<Page<Badge>> getUserBadges(
             @PathVariable UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(tournamentService.getUserBadges(userId, pageable));
+        Pageable effectivePageable = resolveTournamentPageable(pageable, page, size);
+        return ResponseEntity.ok(tournamentService.getUserBadges(userId, effectivePageable));
     }
 
     @Data
@@ -157,5 +175,36 @@ public class TournamentController {
         private BigDecimal startingBalance;
         private LocalDateTime startsAt;
         private LocalDateTime endsAt;
+    }
+
+    private Integer parseTournamentTradesLimit(String rawLimit) {
+        if (rawLimit == null || rawLimit.isBlank()) {
+            return null;
+        }
+        final int parsed;
+        try {
+            parsed = Integer.parseInt(rawLimit.trim());
+        } catch (NumberFormatException exception) {
+            throw ApiRequestException.badRequest(
+                    "invalid_tournament_trades_limit",
+                    "Tournament trades limit must be an integer between 1 and 100");
+        }
+        if (parsed < 1 || parsed > 100) {
+            throw ApiRequestException.badRequest(
+                    "invalid_tournament_trades_limit",
+                    "Tournament trades limit must be an integer between 1 and 100");
+        }
+        return parsed;
+    }
+
+    private Pageable resolveTournamentPageable(Pageable pageable, String rawPage, String rawSize) {
+        return PageableRequestParser.resolvePageable(
+                pageable,
+                rawPage,
+                rawSize,
+                "invalid_tournament_page",
+                "Invalid tournament page",
+                "invalid_tournament_size",
+                "Invalid tournament size");
     }
 }

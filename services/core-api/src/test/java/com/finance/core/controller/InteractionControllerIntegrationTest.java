@@ -15,10 +15,12 @@ import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.UserRepository;
 import com.finance.core.service.BinanceService;
+import com.finance.core.service.InteractionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -27,9 +29,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -78,6 +82,9 @@ class InteractionControllerIntegrationTest {
 
     @MockitoBean
     private BinanceService binanceService;
+
+    @SpyBean
+    private InteractionService interactionService;
 
     private AppUser owner;
     private AppUser actor;
@@ -232,6 +239,19 @@ class InteractionControllerIntegrationTest {
     }
 
     @Test
+    void getComments_withInvalidSize_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/interactions/{targetId}/comments", portfolio.getId())
+                .param("type", "PORTFOLIO")
+                .param("size", "0")
+                .header("X-Request-Id", "interaction-page-err-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "interaction-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_interaction_comments_size"))
+                .andExpect(jsonPath("$.message").value("Invalid interaction comments size"))
+                .andExpect(jsonPath("$.requestId").value("interaction-page-err-1"));
+    }
+
+    @Test
     void likeMissingPortfolio_shouldReturn404() throws Exception {
         InteractionRequest request = new InteractionRequest();
         request.setTargetType("PORTFOLIO");
@@ -313,5 +333,49 @@ class InteractionControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("user_not_found"))
                 .andExpect(jsonPath("$.message").value("User not found"))
                 .andExpect(jsonPath("$.requestId").value("interaction-err-5"));
+    }
+
+    @Test
+    void likePortfolio_withInvalidPortfolioOwner_shouldReturnExplicitBadRequestContract() throws Exception {
+        Portfolio brokenPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Broken Portfolio")
+                .ownerId("not-a-uuid")
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build());
+
+        InteractionRequest request = new InteractionRequest();
+        request.setTargetType("PORTFOLIO");
+
+        mockMvc.perform(post("/api/v1/interactions/{targetId}/like", brokenPortfolio.getId())
+                        .header("X-User-Id", actor.getId().toString())
+                        .header("X-Request-Id", "interaction-err-6")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "interaction-err-6"))
+                .andExpect(jsonPath("$.code").value("portfolio_owner_invalid"))
+                .andExpect(jsonPath("$.message").value("Portfolio owner is invalid"))
+                .andExpect(jsonPath("$.requestId").value("interaction-err-6"));
+    }
+
+    @Test
+    void likePortfolio_whenUnexpectedRuntimeOccurs_shouldReturnGenericFallbackMessage() throws Exception {
+        InteractionRequest request = new InteractionRequest();
+        request.setTargetType("PORTFOLIO");
+
+        doThrow(new RuntimeException("internal interaction details"))
+                .when(interactionService)
+                .toggleLike(eq(actor.getId()), eq(portfolio.getId()), any());
+
+        mockMvc.perform(post("/api/v1/interactions/{targetId}/like", portfolio.getId())
+                        .header("X-User-Id", actor.getId().toString())
+                        .header("X-Request-Id", "interaction-fallback-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "interaction-fallback-1"))
+                .andExpect(jsonPath("$.code").value("interaction_request_failed"))
+                .andExpect(jsonPath("$.message").value("Interaction request failed"))
+                .andExpect(jsonPath("$.requestId").value("interaction-fallback-1"));
     }
 }

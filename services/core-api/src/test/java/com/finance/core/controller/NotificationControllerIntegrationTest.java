@@ -6,15 +6,17 @@ import com.finance.core.domain.Notification;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.dto.InteractionRequest;
 import com.finance.core.repository.*;
-import com.finance.core.service.BinanceService;
 import com.finance.core.security.JwtTokenService;
+import com.finance.core.service.BinanceService;
+import com.finance.core.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.concurrent.TimeUnit;
@@ -22,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -52,6 +55,9 @@ class NotificationControllerIntegrationTest {
 
         @MockitoBean
         private BinanceService binanceService;
+
+        @SpyBean
+        private NotificationService notificationService;
 
         @Autowired
         private JwtTokenService jwtTokenService;
@@ -259,6 +265,32 @@ class NotificationControllerIntegrationTest {
         }
 
         @Test
+        void pagination_WithInvalidPage_ShouldReturnExplicitBadRequestContract() throws Exception {
+                mockMvc.perform(get("/api/v1/notifications")
+                                .header("X-User-Id", userB.getId().toString())
+                                .header("X-Request-Id", "notif-page-err-1")
+                                .param("page", "later"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "notif-page-err-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_notification_page"))
+                                .andExpect(jsonPath("$.message").value("Invalid notification page"))
+                                .andExpect(jsonPath("$.requestId").value("notif-page-err-1"));
+        }
+
+        @Test
+        void pagination_WithInvalidSize_ShouldReturnExplicitBadRequestContract() throws Exception {
+                mockMvc.perform(get("/api/v1/notifications")
+                                .header("X-User-Id", userB.getId().toString())
+                                .header("X-Request-Id", "notif-page-err-2")
+                                .param("size", "0"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "notif-page-err-2"))
+                                .andExpect(jsonPath("$.code").value("invalid_notification_size"))
+                                .andExpect(jsonPath("$.message").value("Invalid notification size"))
+                                .andExpect(jsonPath("$.requestId").value("notif-page-err-2"));
+        }
+
+        @Test
         void markRead_ShouldResetUnreadCount() throws Exception {
                 // Premade notification
                 notificationRepository.save(Notification.builder()
@@ -422,5 +454,21 @@ class NotificationControllerIntegrationTest {
                                 .andExpect(jsonPath("$.code").value("user_not_found"))
                                 .andExpect(jsonPath("$.message").value("User not found"))
                                 .andExpect(jsonPath("$.requestId").value("notif-stream-user-missing-1"));
+        }
+
+        @Test
+        void unreadCount_WhenUnexpectedRuntimeOccurs_ShouldReturnGenericFallbackMessage() throws Exception {
+                doThrow(new RuntimeException("redis details leaked"))
+                                .when(notificationService)
+                                .getUnreadCount(userB.getId());
+
+                mockMvc.perform(get("/api/v1/notifications/unread-count")
+                                .header("X-Request-Id", "notif-fallback-1")
+                                .header("X-User-Id", userB.getId().toString()))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "notif-fallback-1"))
+                                .andExpect(jsonPath("$.code").value("notification_unread_count_failed"))
+                                .andExpect(jsonPath("$.message").value("Failed to load unread notification count"))
+                                .andExpect(jsonPath("$.requestId").value("notif-fallback-1"));
         }
 }

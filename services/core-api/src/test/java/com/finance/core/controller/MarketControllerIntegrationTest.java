@@ -68,6 +68,18 @@ class MarketControllerIntegrationTest {
     }
 
     @Test
+    void getCandles_missingSymbol_shouldReturnCorrelatedMissingRequestParameterContract() throws Exception {
+        mockMvc.perform(get("/api/v1/market/candles")
+                        .header("X-Request-Id", "market-missing-param-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "market-missing-param-1"))
+                .andExpect(jsonPath("$.code").value("missing_request_parameter"))
+                .andExpect(jsonPath("$.message").value("Missing required request parameter"))
+                .andExpect(jsonPath("$.details.parameter").value("symbol"))
+                .andExpect(jsonPath("$.requestId").value("market-missing-param-1"));
+    }
+
+    @Test
     void getCandles_rejectsInvalidRangeWithExplicitContract() throws Exception {
         mockMvc.perform(get("/api/v1/market/candles")
                         .param("symbol", "BTCUSDT")
@@ -104,6 +116,30 @@ class MarketControllerIntegrationTest {
     }
 
     @Test
+    void getCandles_rejectsNonNumericLimitWithExplicitContract() throws Exception {
+        mockMvc.perform(get("/api/v1/market/candles")
+                        .param("symbol", "BTCUSDT")
+                        .param("limit", "many"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().exists("X-Request-Id"))
+                .andExpect(jsonPath("$.code").value("invalid_market_limit"))
+                .andExpect(jsonPath("$.message").value("Invalid market limit"))
+                .andExpect(jsonPath("$.requestId", not(isEmptyOrNullString())));
+    }
+
+    @Test
+    void getCandles_rejectsNonNumericBeforeOpenTimeWithExplicitContract() throws Exception {
+        mockMvc.perform(get("/api/v1/market/candles")
+                        .param("symbol", "BTCUSDT")
+                        .param("beforeOpenTime", "yesterday"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().exists("X-Request-Id"))
+                .andExpect(jsonPath("$.code").value("invalid_market_before_open_time"))
+                .andExpect(jsonPath("$.message").value("Invalid market beforeOpenTime"))
+                .andExpect(jsonPath("$.requestId", not(isEmptyOrNullString())));
+    }
+
+    @Test
     void getCandles_mapsUnsupportedSymbolToExplicitContract() throws Exception {
         when(marketDataFacadeService.getCandles(
                 eq(MarketType.CRYPTO),
@@ -120,6 +156,27 @@ class MarketControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("invalid_market_symbol"))
                 .andExpect(jsonPath("$.message").value("Invalid market symbol"))
                 .andExpect(jsonPath("$.requestId", not(isEmptyOrNullString())));
+    }
+
+    @Test
+    void getCandles_whenUnexpectedValidationRuntimeOccurs_shouldReturnGenericFallbackMessage() throws Exception {
+        when(marketDataFacadeService.getCandles(
+                eq(MarketType.CRYPTO),
+                eq("BTCUSDT"),
+                eq("1D"),
+                eq("1h"),
+                isNull(),
+                isNull()))
+                .thenThrow(new IllegalArgumentException("market internals leaked"));
+
+        mockMvc.perform(get("/api/v1/market/candles")
+                        .param("symbol", "BTCUSDT")
+                        .header("X-Request-Id", "market-fallback-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "market-fallback-1"))
+                .andExpect(jsonPath("$.code").value("market_request_failed"))
+                .andExpect(jsonPath("$.message").value("Market request failed"))
+                .andExpect(jsonPath("$.requestId").value("market-fallback-1"));
     }
 
     @Test

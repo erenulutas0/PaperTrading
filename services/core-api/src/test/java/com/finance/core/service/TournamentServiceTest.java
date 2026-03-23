@@ -95,6 +95,48 @@ class TournamentServiceTest {
             assertEquals(Tournament.Status.ACTIVE, t.getStatus());
             assertEquals(0, new BigDecimal("50000").compareTo(t.getStartingBalance()));
         }
+
+        @Test
+        void missingName_throwsExplicitRequestException() {
+            RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> tournamentService.createTournament(
+                            "   ",
+                            "A test",
+                            new BigDecimal("100000"),
+                            LocalDateTime.now().plusHours(1),
+                            LocalDateTime.now().plusDays(7)));
+
+            assertEquals("Tournament name is required", exception.getMessage());
+            verify(tournamentRepository, never()).save(any());
+        }
+
+        @Test
+        void invalidSchedule_throwsExplicitRequestException() {
+            RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> tournamentService.createTournament(
+                            "Test Cup",
+                            "A test",
+                            new BigDecimal("100000"),
+                            LocalDateTime.now().plusDays(2),
+                            LocalDateTime.now().plusDays(1)));
+
+            assertEquals("Tournament end time must be after start time", exception.getMessage());
+            verify(tournamentRepository, never()).save(any());
+        }
+
+        @Test
+        void invalidStartingBalance_throwsExplicitRequestException() {
+            RuntimeException exception = assertThrows(RuntimeException.class,
+                    () -> tournamentService.createTournament(
+                            "Test Cup",
+                            "A test",
+                            BigDecimal.ZERO,
+                            LocalDateTime.now().plusHours(1),
+                            LocalDateTime.now().plusDays(7)));
+
+            assertEquals("Tournament starting balance must be greater than 0", exception.getMessage());
+            verify(tournamentRepository, never()).save(any());
+        }
     }
 
     @Nested

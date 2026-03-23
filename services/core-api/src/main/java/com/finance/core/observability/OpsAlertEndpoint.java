@@ -1,6 +1,8 @@
 package com.finance.core.observability;
 
 import com.finance.core.config.OpsAlertingProperties;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
@@ -18,21 +20,33 @@ import java.util.UUID;
 @Endpoint(id = "opsalerts")
 public class OpsAlertEndpoint {
 
+    private static final String ALERT_METRIC = "app.ops.alerts.total";
     private static final String DEFAULT_COMPONENT = "ops-manual";
     private static final String DEFAULT_MESSAGE = "Manual ops alert validation";
 
     private final OpsAlertPublisher opsAlertPublisher;
     private final OpsAlertingProperties properties;
+    private final MeterRegistry meterRegistry;
 
-    public OpsAlertEndpoint(OpsAlertPublisher opsAlertPublisher, OpsAlertingProperties properties) {
+    public OpsAlertEndpoint(
+            OpsAlertPublisher opsAlertPublisher,
+            OpsAlertingProperties properties,
+            MeterRegistry meterRegistry) {
         this.opsAlertPublisher = opsAlertPublisher;
         this.properties = properties;
+        this.meterRegistry = meterRegistry;
     }
 
     @ReadOperation
     public Map<String, Object> opsAlertStatus() {
         Map<String, Object> payload = basePayload();
         payload.put("cooldownSeconds", properties.getCooldown() == null ? 0 : properties.getCooldown().getSeconds());
+        payload.put("totalAlertCount", sumCounters(null, null));
+        payload.put("logSentCount", sumCounters("log", "sent"));
+        payload.put("logSuppressedCount", sumCounters("log", "suppressed"));
+        payload.put("webhookSentCount", sumCounters("webhook", "sent"));
+        payload.put("webhookSuppressedCount", sumCounters("webhook", "suppressed"));
+        payload.put("webhookFailedCount", sumCounters("webhook", "failed"));
         return payload;
     }
 
@@ -91,6 +105,24 @@ public class OpsAlertEndpoint {
 
     private boolean hasWebhookUrl() {
         return StringUtils.hasText(properties.getWebhookUrl());
+    }
+
+    private double sumCounters(@Nullable String channel, @Nullable String result) {
+        return meterRegistry.find(ALERT_METRIC)
+                .counters()
+                .stream()
+                .filter(counter -> matchesTag(counter, "channel", channel))
+                .filter(counter -> matchesTag(counter, "result", result))
+                .mapToDouble(Counter::count)
+                .sum();
+    }
+
+    private boolean matchesTag(Counter counter, String tagKey, @Nullable String expectedValue) {
+        if (!StringUtils.hasText(expectedValue)) {
+            return true;
+        }
+        String actualValue = counter.getId().getTag(tagKey);
+        return expectedValue.equalsIgnoreCase(actualValue);
     }
 
     @Nullable

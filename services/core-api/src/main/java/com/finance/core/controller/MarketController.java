@@ -54,22 +54,22 @@ public class MarketController {
             @RequestParam(required = false) String market,
             @RequestParam(defaultValue = "1D") String range,
             @RequestParam(defaultValue = "1h") String interval,
-            @RequestParam(required = false) Long beforeOpenTime,
-            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String beforeOpenTime,
+            @RequestParam(required = false) String limit,
             HttpServletRequest request) {
         try {
+            Long parsedBeforeOpenTime = parseBeforeOpenTime(beforeOpenTime);
+            Integer parsedLimit = parseLimit(limit);
             validateSymbol(symbol);
             validateRange(range);
             validateInterval(interval);
-            validateBeforeOpenTime(beforeOpenTime);
-            validateLimit(limit);
             return ResponseEntity.ok(marketDataFacadeService.getCandles(
                     parseMarketType(market),
                     symbol,
                     range,
                     interval,
-                    beforeOpenTime,
-                    limit));
+                    parsedBeforeOpenTime,
+                    parsedLimit));
         } catch (IllegalArgumentException ex) {
             return handleMarketError(ex, request);
         }
@@ -103,16 +103,36 @@ public class MarketController {
         }
     }
 
-    private void validateBeforeOpenTime(Long beforeOpenTime) {
-        if (beforeOpenTime != null && beforeOpenTime <= 0) {
+    private Long parseBeforeOpenTime(String rawBeforeOpenTime) {
+        if (rawBeforeOpenTime == null || rawBeforeOpenTime.isBlank()) {
+            return null;
+        }
+        final long parsed;
+        try {
+            parsed = Long.parseLong(rawBeforeOpenTime.trim());
+        } catch (NumberFormatException exception) {
             throw new IllegalArgumentException("invalid_market_before_open_time");
         }
+        if (parsed <= 0) {
+            throw new IllegalArgumentException("invalid_market_before_open_time");
+        }
+        return parsed;
     }
 
-    private void validateLimit(Integer limit) {
-        if (limit != null && (limit <= 0 || limit > 1000)) {
+    private Integer parseLimit(String rawLimit) {
+        if (rawLimit == null || rawLimit.isBlank()) {
+            return null;
+        }
+        final int parsed;
+        try {
+            parsed = Integer.parseInt(rawLimit.trim());
+        } catch (NumberFormatException exception) {
             throw new IllegalArgumentException("invalid_market_limit");
         }
+        if (parsed <= 0 || parsed > 1000) {
+            throw new IllegalArgumentException("invalid_market_limit");
+        }
+        return parsed;
     }
 
     private ResponseEntity<ApiErrorResponse> handleMarketError(
@@ -165,7 +185,7 @@ public class MarketController {
             default -> ApiErrorResponses.build(
                     HttpStatus.BAD_REQUEST,
                     "market_request_failed",
-                    ex.getMessage() == null || ex.getMessage().isBlank() ? "Market request failed" : ex.getMessage(),
+                    "Market request failed",
                     null,
                     request);
         };

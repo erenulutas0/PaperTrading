@@ -156,6 +156,28 @@ class LeaderboardControllerIntegrationTest {
         }
 
         @Test
+        void getLeaderboard_withNonNumericPage_ShouldReturnCorrelatedInvalidRequestParameter() throws Exception {
+                mockMvc.perform(get("/api/v1/leaderboards?period=1D&page=abc")
+                                .header("X-Request-Id", "leaderboard-invalid-page-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "leaderboard-invalid-page-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_leaderboard_page"))
+                                .andExpect(jsonPath("$.message").value("Invalid leaderboard page"))
+                                .andExpect(jsonPath("$.requestId").value("leaderboard-invalid-page-1"));
+        }
+
+        @Test
+        void getAccountLeaderboard_withZeroSize_ShouldReturnExplicitBadRequest() throws Exception {
+                mockMvc.perform(get("/api/v1/leaderboards/accounts?period=1W&size=0")
+                                .header("X-Request-Id", "account-leaderboard-invalid-size-1"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "account-leaderboard-invalid-size-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_account_leaderboard_size"))
+                                .andExpect(jsonPath("$.message").value("Invalid account leaderboard size"))
+                                .andExpect(jsonPath("$.requestId").value("account-leaderboard-invalid-size-1"));
+        }
+
+        @Test
         void getAccountLeaderboard_withInvalidDirection_ShouldReturnExplicitBadRequest() throws Exception {
                 mockMvc.perform(get("/api/v1/leaderboards/accounts?period=1W&sortBy=TRUST_SCORE&direction=SIDEWAYS")
                                 .header("X-Request-Id", "account-leaderboard-invalid-direction-1"))

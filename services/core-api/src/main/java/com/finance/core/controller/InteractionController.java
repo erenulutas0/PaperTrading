@@ -8,6 +8,7 @@ import com.finance.core.service.InteractionService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -39,8 +40,12 @@ public class InteractionController {
         } catch (ApiRequestException exception) {
             throw exception;
         } catch (Exception e) {
-            String message = e.getMessage() != null ? e.getMessage() : "Interaction request failed";
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "interaction_request_failed", message, null, httpRequest);
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "interaction_request_failed",
+                    "Interaction request failed",
+                    null,
+                    httpRequest);
         }
     }
 
@@ -55,8 +60,12 @@ public class InteractionController {
         } catch (ApiRequestException exception) {
             throw exception;
         } catch (Exception e) {
-            String message = e.getMessage() != null ? e.getMessage() : "Interaction request failed";
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "interaction_request_failed", message, null, httpRequest);
+            return ApiErrorResponses.build(
+                    HttpStatus.BAD_REQUEST,
+                    "interaction_request_failed",
+                    "Interaction request failed",
+                    null,
+                    httpRequest);
         }
     }
 
@@ -65,8 +74,18 @@ public class InteractionController {
             @PathVariable UUID targetId,
             @RequestParam String type,
             @CurrentUserId(required = false) UUID userId,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(interactionService.getComments(targetId, type, userId, pageable));
+        Pageable effectivePageable = PageableRequestParser.resolvePageable(
+                pageable,
+                page,
+                size,
+                "invalid_interaction_comments_page",
+                "Invalid interaction comments page",
+                "invalid_interaction_comments_size",
+                "Invalid interaction comments size");
+        return ResponseEntity.ok(interactionService.getComments(targetId, type, userId, effectivePageable));
     }
 
     @GetMapping("/{targetId}/likes/count")

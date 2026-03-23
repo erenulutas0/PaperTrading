@@ -4,10 +4,12 @@ import com.finance.core.dto.AccountLeaderboardEntry;
 import com.finance.core.dto.LeaderboardEntry;
 import com.finance.core.service.LeaderboardService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -59,15 +61,18 @@ public class LeaderboardController {
             @RequestParam(defaultValue = "1D") String period,
             @RequestParam(defaultValue = "RETURN_PERCENTAGE") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
         ResponseEntity<?> validationError = validatePortfolioRequest(period, sortBy, direction, httpRequest);
         if (validationError != null) {
             return validationError;
         }
+        Pageable effectivePageable = resolvePageable(pageable, page, size, "leaderboard");
 
         try {
-            return ResponseEntity.ok(leaderboardService.getLeaderboard(period, sortBy, direction, pageable));
+            return ResponseEntity.ok(leaderboardService.getLeaderboard(period, sortBy, direction, effectivePageable));
         } catch (Exception e) {
             log.error("Error getting leaderboard: period={}, sortBy={}, direction={}, error={}",
                     period,
@@ -89,15 +94,18 @@ public class LeaderboardController {
             @RequestParam(defaultValue = "1D") String period,
             @RequestParam(defaultValue = "RETURN_PERCENTAGE") String sortBy,
             @RequestParam(defaultValue = "DESC") String direction,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
         ResponseEntity<?> validationError = validateAccountRequest(period, sortBy, direction, httpRequest);
         if (validationError != null) {
             return validationError;
         }
+        Pageable effectivePageable = resolvePageable(pageable, page, size, "account_leaderboard");
 
         try {
-            return ResponseEntity.ok(leaderboardService.getAccountLeaderboard(period, sortBy, direction, pageable));
+            return ResponseEntity.ok(leaderboardService.getAccountLeaderboard(period, sortBy, direction, effectivePageable));
         } catch (Exception e) {
             log.error("Error getting account leaderboard: period={}, sortBy={}, direction={}, error={}",
                     period,
@@ -178,5 +186,60 @@ public class LeaderboardController {
 
     private ResponseEntity<?> buildBadRequest(String code, String message, HttpServletRequest request) {
         return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, code, message, null, request);
+    }
+
+    private Pageable resolvePageable(Pageable pageable, String rawPage, String rawSize, String prefix) {
+        Integer parsedPage = parsePage(rawPage, prefix);
+        Integer parsedSize = parseSize(rawSize, prefix);
+        if (parsedPage == null && parsedSize == null) {
+            return pageable;
+        }
+        int effectivePage = parsedPage != null ? parsedPage : pageable.getPageNumber();
+        int effectiveSize = parsedSize != null ? parsedSize : pageable.getPageSize();
+        return PageRequest.of(effectivePage, effectiveSize, pageable.getSort());
+    }
+
+    private Integer parsePage(String rawPage, String prefix) {
+        if (rawPage == null || rawPage.isBlank()) {
+            return null;
+        }
+        final int parsed;
+        try {
+            parsed = Integer.parseInt(rawPage.trim());
+        } catch (NumberFormatException exception) {
+            throw invalidPage(prefix);
+        }
+        if (parsed < 0) {
+            throw invalidPage(prefix);
+        }
+        return parsed;
+    }
+
+    private Integer parseSize(String rawSize, String prefix) {
+        if (rawSize == null || rawSize.isBlank()) {
+            return null;
+        }
+        final int parsed;
+        try {
+            parsed = Integer.parseInt(rawSize.trim());
+        } catch (NumberFormatException exception) {
+            throw invalidSize(prefix);
+        }
+        if (parsed < 1 || parsed > 100) {
+            throw invalidSize(prefix);
+        }
+        return parsed;
+    }
+
+    private ApiRequestException invalidPage(String prefix) {
+        return ApiRequestException.badRequest(
+                "invalid_" + prefix + "_page",
+                "Invalid " + prefix.replace('_', ' ') + " page");
+    }
+
+    private ApiRequestException invalidSize(String prefix) {
+        return ApiRequestException.badRequest(
+                "invalid_" + prefix + "_size",
+                "Invalid " + prefix.replace('_', ' ') + " size");
     }
 }

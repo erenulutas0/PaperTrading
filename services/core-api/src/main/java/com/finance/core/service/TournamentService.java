@@ -107,8 +107,27 @@ public class TournamentService {
     public Tournament createTournament(String name, String description,
             BigDecimal startingBalance,
             LocalDateTime startsAt, LocalDateTime endsAt) {
+        if (name == null || name.isBlank()) {
+            throw ApiRequestException.badRequest("tournament_name_required", "Tournament name is required");
+        }
+        if (startsAt == null) {
+            throw ApiRequestException.badRequest("tournament_starts_at_required", "Tournament start time is required");
+        }
+        if (endsAt == null) {
+            throw ApiRequestException.badRequest("tournament_ends_at_required", "Tournament end time is required");
+        }
+        if (startingBalance != null && startingBalance.signum() <= 0) {
+            throw ApiRequestException.badRequest(
+                    "tournament_starting_balance_invalid",
+                    "Tournament starting balance must be greater than 0");
+        }
+        if (!endsAt.isAfter(startsAt)) {
+            throw ApiRequestException.badRequest(
+                    "tournament_schedule_invalid",
+                    "Tournament end time must be after start time");
+        }
         Tournament tournament = Tournament.builder()
-                .name(name)
+                .name(name.trim())
                 .description(description)
                 .startingBalance(startingBalance != null ? startingBalance : new BigDecimal("100000"))
                 .startsAt(startsAt)

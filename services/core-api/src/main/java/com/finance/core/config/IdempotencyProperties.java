@@ -17,4 +17,13 @@ public class IdempotencyProperties {
     private Duration ttl = Duration.ofHours(24);
     private int maxBodyBytes = 65536;
     private Duration cleanupInterval = Duration.ofMinutes(30);
+    private Duration observabilityRefreshInterval = Duration.ofSeconds(30);
+    private boolean alertOnRecovery = true;
+
+    public Duration normalizedObservabilityRefreshInterval() {
+        if (observabilityRefreshInterval == null || observabilityRefreshInterval.isZero() || observabilityRefreshInterval.isNegative()) {
+            return Duration.ofSeconds(30);
+        }
+        return observabilityRefreshInterval;
+    }
 }

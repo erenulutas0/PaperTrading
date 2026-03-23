@@ -301,6 +301,24 @@ Last updated: 2026-03-23
     - delegates to `run_audit_validation_suite.ps1` with a staging-style entrypoint
     - reduces audit redeploy verification to one explicit command instead of ad hoc script selection
 - [x] Re-ran audit staging checklist wrapper locally and verified it delegates cleanly into the audit validation suite
+- [x] Added local audit validation runtime wrapper and market seed support for fresh local backends:
+  - Added:
+    - `infra/load-test/run_audit_validation_local_runtime_check.ps1`
+    - `services/core-api/src/main/java/com/finance/core/observability/MarketPriceSeedEndpoint.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/MarketPriceSeedEndpointIntegrationTest.java`
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/BinanceService.java`
+    - `services/core-api/src/main/resources/application.yml`
+  - Behavior:
+    - local audit wrapper now boots a fresh backend, seeds `BTCUSDT` through `/actuator/marketprices`, and then runs the existing audit validation suite
+    - manual market seeding is property-gated (`APP_MARKET_MANUAL_SEED_ENABLED`) so local audit/trade/analysis smokes can stay deterministic without depending on outbound Binance access
+  - Local validation:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=MarketPriceSeedEndpointIntegrationTest" test`
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_audit_validation_local_runtime_check.ps1`
+  - Passing reports:
+    - `infra/load-test/reports/audit-validation-local-runtime-check-20260324-015035.md`
+    - `infra/load-test/reports/audit-validation-suite-20260324-015110.md`
+    - `infra/load-test/reports/audit-write-capture-smoke-20260324-015111.md`
 - [x] Added runtime log smoke for the portfolio pagination warning cleanup and verified local scheduler-oriented reads stay clean:
   - Added:
     - `infra/load-test/run_portfolio_pagination_warning_smoke.ps1`
@@ -1008,6 +1026,248 @@ Last updated: 2026-03-23
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Hardened portfolio, tournament, and feed pagination query contracts:
+  - Added:
+    - `services/core-api/src/main/java/com/finance/core/web/PageableRequestParser.java`
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/PortfolioController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/TournamentController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/ActivityFeedController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/PortfolioControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/TournamentControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/ActivityFeedControllerIntegrationTest.java`
+  - Behavior:
+    - portfolio list/discover now reject malformed or out-of-range `page` / `size` values with explicit correlated contracts
+    - tournament list/active/leaderboard/trades/badges now reject malformed or out-of-range `page` / `size` values with explicit correlated contracts
+    - feed personalized/global/user-activity reads now reject malformed or out-of-range `page` / `size` values with explicit correlated contracts
+    - tournament trades still allow explicit `limit` override without losing caller-supplied `page`
+  - Local validation:
+    - `PortfolioControllerIntegrationTest`
+    - `TournamentControllerIntegrationTest`
+    - `ActivityFeedControllerIntegrationTest`
+- [x] Hardened framework-level binding and malformed-payload failures into the correlated API contract:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/GlobalExceptionHandler.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/GlobalExceptionHandlerTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/PortfolioControllerIntegrationTest.java`
+  - Behavior:
+    - invalid path/query type conversion now returns `invalid_request_parameter`
+    - missing required request params now return `missing_request_parameter`
+    - malformed JSON bodies now return `invalid_request_payload`
+    - these framework-owned failures now preserve the repo’s correlated `{code,message,details?,requestId}` envelope
+  - Local validation:
+    - `GlobalExceptionHandlerTest`
+    - `MarketControllerIntegrationTest`
+    - `PortfolioControllerIntegrationTest`
+- [x] Hardened leaderboard pagination query contracts:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/LeaderboardController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/LeaderboardControllerIntegrationTest.java`
+  - Behavior:
+    - portfolio leaderboard now rejects malformed or negative `page` values and malformed/out-of-range `size` values with explicit contracts
+    - account leaderboard now rejects malformed or out-of-range `page` / `size` values with explicit contracts
+    - silent pageable resolver fallback no longer decides leaderboard pagination behavior
+  - Local validation:
+    - `LeaderboardControllerIntegrationTest`
+- [x] Hardened account-backed social/workspace pagination query contracts:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/WatchlistController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/NotificationController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/AnalysisPostController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/UserProfileController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketChartNoteController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketTerminalLayoutController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/PortfolioParticipationController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/InteractionController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/WatchlistControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/NotificationControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/AnalysisPostControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/UserProfileControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketChartNoteControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketTerminalLayoutControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/PortfolioParticipationControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/InteractionControllerIntegrationTest.java`
+  - Behavior:
+    - watchlists, watchlist items, alert history, notifications, analysis feeds, followers/following, chart notes, terminal layouts, portfolio participants, and interaction comments now reject malformed or out-of-range `page` / `size` values with explicit correlated contracts
+    - watchlist alert history now also validates underlying `page` / `size` explicitly while preserving the tighter `limit` compatibility cap
+  - Local validation:
+    - `WatchlistControllerIntegrationTest`
+    - `NotificationControllerIntegrationTest`
+    - `AnalysisPostControllerIntegrationTest`
+    - `UserProfileControllerIntegrationTest`
+    - `MarketChartNoteControllerIntegrationTest`
+    - `MarketTerminalLayoutControllerIntegrationTest`
+    - `PortfolioParticipationControllerIntegrationTest`
+    - `InteractionControllerIntegrationTest`
+- [x] Hardened strategy-bot pagination query contracts:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/StrategyBotController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/StrategyBotControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/StrategyBotRunControllerIntegrationTest.java`
+  - Behavior:
+    - strategy-bot owner list, private/public board reads, run history, fills, events, and equity-curve pages now reject malformed or out-of-range `page` / `size` values with explicit correlated contracts
+    - strategy-bot pagination behavior now matches the already-hardened sort/direction/run-mode/lookback filter contracts
+  - Local validation:
+    - `StrategyBotControllerIntegrationTest`
+    - `StrategyBotRunControllerIntegrationTest`
+- [x] Extended idempotency actuator observability with runtime outcome telemetry:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/config/IdempotencyKeyFilter.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/IdempotencyObservabilityService.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/IdempotencyEndpoint.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/IdempotencyEndpointIntegrationTest.java`
+  - Behavior:
+    - `/actuator/idempotency` now exposes runtime counters and last-seen timestamps for `claimed`, `replay`, `conflict`, `in-progress conflict`, cached completed responses, released keys, and oversized-response skips
+    - the idempotency filter now records those outcomes directly instead of leaving the actuator limited to DB row counts and cleanup metadata
+    - endpoint coverage now proves replay/conflict/release/in-progress telemetry in addition to the existing cleanup/count snapshot
+  - Local validation:
+    - `IdempotencyKeyFilterIntegrationTest`
+    - `IdempotencyEndpointIntegrationTest`
+- [x] Added idempotency health component for stale expired-key backlog detection:
+  - Added:
+    - `services/core-api/src/main/java/com/finance/core/observability/IdempotencyHealthIndicator.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/IdempotencyHealthIndicatorTest.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/IdempotencyHealthEndpointIntegrationTest.java`
+  - Behavior:
+    - `/actuator/health/idempotency` now returns `DOWN` when idempotency snapshot collection fails or expired key backlog ages beyond the configured cleanup interval
+    - health details expose cleanup interval, expired backlog age/count, cleanup metadata, and the new runtime replay/conflict/release counters
+    - healthy states stay `UP` while fresh expired rows are still within the cleanup window
+  - Local validation:
+    - `IdempotencyHealthIndicatorTest`
+    - `IdempotencyHealthEndpointIntegrationTest`
+- [x] Added idempotency alert-state evaluation and ops alert publishing:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/config/IdempotencyProperties.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/IdempotencyEndpoint.java`
+    - `services/core-api/src/main/resources/application.yml`
+    - `services/core-api/src/test/java/com/finance/core/observability/IdempotencyEndpointIntegrationTest.java`
+  - Added:
+    - `services/core-api/src/main/java/com/finance/core/observability/IdempotencyAlertingService.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/IdempotencyAlertingServiceTest.java`
+  - Behavior:
+    - stale expired-key backlog and snapshot failures now transition a dedicated idempotency alert state and publish ops alerts once per state change
+    - `/actuator/idempotency` now exposes `alertState` so inspector tooling can see `NONE/WARNING` without inferring it from raw age/count fields
+    - recovery back to a healthy cleanup posture can emit a recovery alert when enabled
+  - Local validation:
+    - `IdempotencyAlertingServiceTest`
+    - `IdempotencyEndpointIntegrationTest`
+- [x] Hardened market, watchlist, and strategy-bot numeric query parsing against framework-generic 400s:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/WatchlistController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/StrategyBotController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/WatchlistControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/StrategyBotControllerIntegrationTest.java`
+  - Behavior:
+    - market candle reads now return explicit `invalid_market_before_open_time` and `invalid_market_limit` even when callers send malformed non-numeric values
+    - watchlist alert-history read/export now return explicit `invalid_watchlist_alert_history_limit` / `invalid_watchlist_alert_history_days` for malformed non-numeric values instead of framework-default 400s
+    - strategy-bot board/discover/detail/export/analytics reads now return explicit `invalid_strategy_bot_board_lookback` for malformed non-numeric `lookbackDays` values instead of framework-default 400s
+  - Local validation:
+    - `MarketControllerIntegrationTest`
+    - `WatchlistControllerIntegrationTest`
+    - `StrategyBotControllerIntegrationTest`
+- [x] Hardened portfolio create, visibility, and history query contracts:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/PortfolioController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/PortfolioControllerIntegrationTest.java`
+  - Behavior:
+    - portfolio create now rejects missing `name`, missing `ownerId`, and overlong `description` with explicit correlated error codes
+    - portfolio visibility updates now reject missing `visibility` with `portfolio_visibility_required` instead of falling through to a null-driven runtime failure
+    - portfolio history now rejects malformed or out-of-range `limit` values with `invalid_portfolio_history_limit` instead of silently ignoring them or letting framework binding decide the contract
+  - Local validation:
+    - `PortfolioControllerIntegrationTest`
+- [x] Hardened tournament create and trade-feed query contracts:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/TournamentService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/TournamentController.java`
+    - `services/core-api/src/test/java/com/finance/core/service/TournamentServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/TournamentControllerIntegrationTest.java`
+  - Behavior:
+    - tournament create now rejects missing `name`, missing `startsAt`, missing `endsAt`, invalid starting balance, and invalid start/end schedule with explicit correlated error codes
+    - tournament trade-feed reads now reject malformed or out-of-range `limit` values with `invalid_tournament_trades_limit`
+    - framework/default query parsing no longer decides the public contract for tournament trade pagination compatibility
+  - Local validation:
+    - `TournamentServiceTest`
+    - `TournamentControllerIntegrationTest`
+- [x] Hardened watchlist alert-history query contracts:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/WatchlistController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/WatchlistControllerIntegrationTest.java`
+  - Behavior:
+    - alert-history read/export now reject invalid `limit`, `days`, and `direction` values with explicit correlated error codes
+    - invalid enum values no longer fall through to framework-generic 400s
+    - read and CSV export paths now share the same filter-validation contract
+  - Local validation:
+    - `WatchlistControllerIntegrationTest`
+- [x] Hardened trade execution and copy-trading failover contracts:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/dto/TradeRequest.java`
+    - `services/core-api/src/main/java/com/finance/core/web/ApiRequestException.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/TradeController.java`
+    - `services/core-api/src/main/java/com/finance/core/service/CopyTradingService.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/TradeControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/CopyTradingServiceTest.java`
+  - Behavior:
+    - invalid trade `quantity`, `leverage`, and `side` now return explicit correlated contracts
+    - sell requests now disambiguate `LONG` vs `SHORT` correctly and require explicit side only when the same symbol has multiple open legs
+    - price-provider runtime failures now return sanitized `trade_price_lookup_failed`
+    - tournament/copy-trading fanout failures no longer roll back the primary trade
+    - copy-trading now skips missing cloned portfolios instead of failing loudly
+  - Local validation:
+    - `TradeControllerIntegrationTest`
+    - `CopyTradingServiceTest`
+    - `PortfolioControllerIntegrationTest`
+    - `AuditLogIntegrationTest`
+- [x] Sanitized the shared generic runtime fallback contract:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/GlobalExceptionHandler.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/GlobalExceptionHandlerTest.java`
+  - Behavior:
+    - generic untyped runtime failures still return `400 bad_request`
+    - raw exception text is no longer echoed; public fallback message is now `Unexpected error`
+  - Local validation:
+    - `GlobalExceptionHandlerTest`
+- [x] Sanitized unexpected market controller fallback messages:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketControllerIntegrationTest.java`
+  - Behavior:
+    - unknown market runtime/provider validation failures now return stable `market_request_failed` messaging instead of echoing raw exception text
+  - Local validation:
+    - `MarketControllerIntegrationTest`
+- [x] Sanitized unexpected strategy-bot controller fallback messages:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/StrategyBotController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/StrategyBotControllerIntegrationTest.java`
+  - Behavior:
+    - unexpected strategy-bot runtime failures now return endpoint-scoped fallback messages instead of echoing raw exception text
+    - validated on both create and run-cancel fallback paths
+  - Local validation:
+    - `StrategyBotControllerIntegrationTest`
+- [x] Hardened fallback contracts for interaction/notification/chart-note/terminal-layout surfaces:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/InteractionController.java`
+    - `services/core-api/src/main/java/com/finance/core/service/InteractionService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/NotificationController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketChartNoteController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketTerminalLayoutController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/InteractionControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/InteractionServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/NotificationControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketChartNoteControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketTerminalLayoutControllerIntegrationTest.java`
+  - Behavior:
+    - unexpected controller fallback paths no longer echo raw runtime exception text back to clients
+    - terminal-layout delete failures now return the correct `market_terminal_layout_delete_failed` fallback code
+    - corrupt portfolio owner ids on interaction targets now return explicit `portfolio_owner_invalid`
+  - Local validation:
+    - `InteractionServiceTest`
+    - `InteractionControllerIntegrationTest`
+    - `NotificationControllerIntegrationTest`
+    - `MarketChartNoteControllerIntegrationTest`
+    - `MarketTerminalLayoutControllerIntegrationTest`
 - [x] Upgraded market workspace into a terminal-style chart surface with interval switching and lazy history loading:
   - Backend candle API now accepts:
     - `symbol`
@@ -1196,10 +1456,38 @@ Last updated: 2026-03-23
     - `infra/load-test/run_idempotency_cleanup_smoke.ps1`
   - Behavior:
     - local smoke seeds an expired idempotency row into Postgres
+    - verifies stale backlog flips `/actuator/idempotency` to `alertState=WARNING`
+    - verifies stale backlog flips `/actuator/health/idempotency` to `DOWN`
     - triggers manual cleanup through actuator
+    - verifies cleanup returns actuator alert/health posture to `NONE` / `UP`
     - verifies live replay semantics still work after purge
   - Coverage:
     - `IdempotencyEndpointIntegrationTest`
+- [x] Added local idempotency cleanup runtime wrapper and rollout-aware smoke diagnostics:
+  - Added:
+    - `infra/load-test/run_idempotency_cleanup_local_runtime_check.ps1`
+  - Updated:
+    - `infra/load-test/run_idempotency_cleanup_smoke.ps1`
+    - `infra/load-test/README.md`
+  - Behavior:
+    - cleanup smoke now fails fast with an explicit rollout note when the target backend does not yet expose `/actuator/idempotency.alertState` and `/actuator/health/idempotency`
+    - local runtime wrapper can boot a temporary backend with health component details enabled and then run the full cleanup smoke automatically
+    - wrapper writes a parent report plus the child cleanup smoke report so local validation does not depend on a manually restarted backend
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_idempotency_cleanup_local_runtime_check.ps1`
+- [x] Extended backend contract smoke with latest idempotency health/alert checks and added a local runtime wrapper:
+  - Updated:
+    - `infra/load-test/run_backend_contract_smoke.ps1`
+    - `infra/load-test/README.md`
+  - Added:
+    - `infra/load-test/run_backend_contract_local_runtime_check.ps1`
+  - Behavior:
+    - backend contract smoke now verifies `/actuator/idempotency` exposes `alertState`
+    - backend contract smoke now verifies `/actuator/health/idempotency` is present and healthy
+    - backend contract smoke now verifies `/actuator/opsalerts` exposes live counter summary fields
+    - local wrapper boots a temporary backend and runs the expanded contract smoke so validation does not depend on a manually restarted local runtime
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_backend_contract_local_runtime_check.ps1`
 - [x] Added local audit write-capture smoke tooling:
   - Added:
     - `infra/load-test/run_audit_write_capture_smoke.ps1`
@@ -2674,8 +2962,10 @@ Last updated: 2026-03-23
     - Spins local webhook receiver and supports chunked POST payload capture
     - Forces feed-latency breach thresholds and triggers `/actuator/feedlatency`
     - Persists markdown validation report + captured payload
+    - Waits for the local webhook listener to bind before triggering the breach and re-checks `/actuator/opsalerts` after payload capture so local runs do not false-fail on startup/settling races
   - Passing report:
     - `infra/load-test/reports/ops-alert-webhook-validation-20260301-195529.md`
+    - `infra/load-test/reports/ops-alert-webhook-validation-20260324-013903.md`
   - Captured payload confirms alert routing fields:
     - `service`, `component=feed-latency`, `severity=CRITICAL`, `alertKey`, `details`
 - [x] Validated `-SkipAppStart` flow in a single-command live-app orchestration:
@@ -2687,6 +2977,8 @@ Last updated: 2026-03-23
   - Passing reports:
     - Orchestrator: `infra/load-test/reports/ops-alert-webhook-skipapp-flow-20260301-210109.md`
     - Inner skip-app validation: `infra/load-test/reports/ops-alert-webhook-validation-20260301-210140.md`
+    - Orchestrator: `infra/load-test/reports/ops-alert-webhook-skipapp-flow-20260324-013825.md`
+    - Inner skip-app validation: `infra/load-test/reports/ops-alert-webhook-validation-20260324-013903.md`
 - [x] Added mixed-profile percentile guardrails/alerts for feed endpoints:
   - New feed latency observability config:
     - `app.feed.observability.enabled`

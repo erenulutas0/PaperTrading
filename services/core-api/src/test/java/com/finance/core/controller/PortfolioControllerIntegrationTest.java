@@ -138,6 +138,31 @@ class PortfolioControllerIntegrationTest {
     }
 
     @Test
+    void listPortfolios_withInvalidPage_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios")
+                        .param("ownerId", ownerId)
+                        .param("page", "later")
+                        .header("X-Request-Id", "portfolio-page-err-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-page-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_portfolio_page"))
+                .andExpect(jsonPath("$.message").value("Invalid portfolio page"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-page-err-1"));
+    }
+
+    @Test
+    void discoverPortfolios_withInvalidSize_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios/discover")
+                        .param("size", "0")
+                        .header("X-Request-Id", "portfolio-page-err-2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-page-err-2"))
+                .andExpect(jsonPath("$.code").value("invalid_portfolio_size"))
+                .andExpect(jsonPath("$.message").value("Invalid portfolio size"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-page-err-2"));
+    }
+
+    @Test
     void getPortfolioHistory_shouldNormalizeLegacyBuyNullRealizedPnlToZero() throws Exception {
         tradeActivityRepository.save(TradeActivity.builder()
                 .portfolioId(portfolio.getId())
@@ -179,6 +204,18 @@ class PortfolioControllerIntegrationTest {
     }
 
     @Test
+    void getPortfolio_withInvalidUuid_shouldReturnCorrelatedInvalidRequestParameterContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios/not-a-uuid")
+                        .header("X-Request-Id", "portfolio-err-11"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-11"))
+                .andExpect(jsonPath("$.code").value("invalid_request_parameter"))
+                .andExpect(jsonPath("$.message").value("Invalid request parameter"))
+                .andExpect(jsonPath("$.details.parameter").value("id"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-11"));
+    }
+
+    @Test
     void deposit_withNonPositiveAmount_shouldReturnUnifiedErrorContract() throws Exception {
         mockMvc.perform(post("/api/v1/portfolios/{id}/deposit", portfolio.getId())
                         .header("X-Request-Id", "portfolio-err-1")
@@ -212,5 +249,107 @@ class PortfolioControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("invalid_visibility"))
                 .andExpect(jsonPath("$.message").value("Invalid visibility value. Use PUBLIC or PRIVATE."))
                 .andExpect(jsonPath("$.requestId").value("portfolio-err-2"));
+    }
+
+    @Test
+    void createPortfolio_withMissingName_shouldReturnExplicitErrorContract() throws Exception {
+        mockMvc.perform(post("/api/v1/portfolios")
+                        .header("X-Request-Id", "portfolio-err-5")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ownerId": "owner-test"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-5"))
+                .andExpect(jsonPath("$.code").value("portfolio_name_required"))
+                .andExpect(jsonPath("$.message").value("Portfolio name is required"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-5"));
+    }
+
+    @Test
+    void createPortfolio_withMalformedJson_shouldReturnInvalidRequestPayloadContract() throws Exception {
+        mockMvc.perform(post("/api/v1/portfolios")
+                        .header("X-Request-Id", "portfolio-err-12")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-12"))
+                .andExpect(jsonPath("$.code").value("invalid_request_payload"))
+                .andExpect(jsonPath("$.message").value("Invalid request payload"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-12"));
+    }
+
+    @Test
+    void createPortfolio_withMissingOwner_shouldReturnExplicitErrorContract() throws Exception {
+        mockMvc.perform(post("/api/v1/portfolios")
+                        .header("X-Request-Id", "portfolio-err-6")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Ownerless Portfolio"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-6"))
+                .andExpect(jsonPath("$.code").value("portfolio_owner_required"))
+                .andExpect(jsonPath("$.message").value("Portfolio owner is required"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-6"));
+    }
+
+    @Test
+    void createPortfolio_withTooLongDescription_shouldReturnExplicitErrorContract() throws Exception {
+        String longDescription = "a".repeat(501);
+
+        mockMvc.perform(post("/api/v1/portfolios")
+                        .header("X-Request-Id", "portfolio-err-7")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Verbose Portfolio",
+                                "ownerId", "owner-test",
+                                "description", longDescription))))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-7"))
+                .andExpect(jsonPath("$.code").value("portfolio_description_too_long"))
+                .andExpect(jsonPath("$.message").value("Portfolio description must be 500 characters or fewer"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-7"));
+    }
+
+    @Test
+    void toggleVisibility_withMissingVisibility_shouldReturnExplicitErrorContract() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/portfolios/{id}/visibility", portfolio.getId())
+                        .header("X-Request-Id", "portfolio-err-8")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-8"))
+                .andExpect(jsonPath("$.code").value("portfolio_visibility_required"))
+                .andExpect(jsonPath("$.message").value("Portfolio visibility is required"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-8"));
+    }
+
+    @Test
+    void getPortfolioHistory_withZeroLimit_shouldReturnExplicitErrorContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios/{id}/history", portfolio.getId())
+                        .param("limit", "0")
+                        .header("X-Request-Id", "portfolio-err-9"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-9"))
+                .andExpect(jsonPath("$.code").value("invalid_portfolio_history_limit"))
+                .andExpect(jsonPath("$.message").value("Portfolio history limit must be an integer between 1 and 100"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-9"));
+    }
+
+    @Test
+    void getPortfolioHistory_withNonNumericLimit_shouldReturnExplicitErrorContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios/{id}/history", portfolio.getId())
+                        .param("limit", "many")
+                        .header("X-Request-Id", "portfolio-err-10"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-err-10"))
+                .andExpect(jsonPath("$.code").value("invalid_portfolio_history_limit"))
+                .andExpect(jsonPath("$.message").value("Portfolio history limit must be an integer between 1 and 100"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-err-10"));
     }
 }

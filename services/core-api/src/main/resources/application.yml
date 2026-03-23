@@ -176,6 +176,8 @@ app:
     enabled: ${APP_IDEMPOTENCY_ENABLED:true}
     ttl: ${APP_IDEMPOTENCY_TTL:PT24H}
     max-body-bytes: ${APP_IDEMPOTENCY_MAX_BODY_BYTES:65536}
+    observability-refresh-interval: ${APP_IDEMPOTENCY_OBSERVABILITY_REFRESH_INTERVAL:PT30S}
+    alert-on-recovery: ${APP_IDEMPOTENCY_ALERT_ON_RECOVERY:true}
   shedlock:
     observability:
       enabled: ${APP_SHEDLOCK_OBSERVABILITY_ENABLED:true}
@@ -188,7 +190,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE:health,info,metrics,shedlock,feedlatency,websocket,websocketcanary,authsessions,idempotency,auditlog,opsalerts,strategybotforwardtests}
+        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE:health,info,metrics,shedlock,feedlatency,websocket,websocketcanary,authsessions,idempotency,auditlog,opsalerts,marketprices,strategybotforwardtests}
   metrics:
     distribution:
       percentiles-histogram:

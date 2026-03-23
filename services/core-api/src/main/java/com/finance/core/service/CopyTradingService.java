@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -67,8 +68,11 @@ public class CopyTradingService {
         if (clonedId == null)
             return;
 
-        Portfolio cloned = portfolioRepository.findById(clonedId)
-                .orElseThrow(() -> new RuntimeException("Cloned portfolio not found"));
+        Portfolio cloned = portfolioRepository.findById(clonedId).orElse(null);
+        if (cloned == null) {
+            log.warn("Skipping copy BUY because cloned portfolio {} was not found", clonedId);
+            return;
+        }
 
         // Determine the trade ratio (Follower Balance / Master Balance prior to trade)
         // Here we assume Master balance before trade is MasterBalance + RequiredMargin.
@@ -193,19 +197,29 @@ public class CopyTradingService {
         if (clonedId == null)
             return;
 
-        Portfolio cloned = portfolioRepository.findById(clonedId)
-                .orElseThrow(() -> new RuntimeException("Cloned portfolio not found"));
-        String symbol = request.getSymbol().toUpperCase();
+        Portfolio cloned = portfolioRepository.findById(clonedId).orElse(null);
+        if (cloned == null) {
+            log.warn("Skipping copy SELL because cloned portfolio {} was not found", clonedId);
+            return;
+        }
+        String symbol = request.getSymbol().toUpperCase(Locale.ROOT);
+        String requestedSide = normalizeRequestedSide(request.getSide());
 
-        Optional<PortfolioItem> existingItem = cloned.getItems().stream()
+        List<PortfolioItem> matchingItems = cloned.getItems().stream()
                 .filter(item -> item.getSymbol().equals(symbol))
-                .findFirst();
+                .filter(item -> requestedSide == null || requestedSide.equals(normalizePersistedSide(item.getSide())))
+                .toList();
 
-        if (existingItem.isEmpty())
+        if (matchingItems.isEmpty()) {
             return; // Follower doesn't have this item
+        }
+        if (requestedSide == null && matchingItems.size() > 1) {
+            log.warn("Skipping copy SELL for cloned portfolio {} because side was ambiguous for symbol {}", clonedId, symbol);
+            return;
+        }
 
-        PortfolioItem item = existingItem.get();
-        String side = item.getSide() != null ? item.getSide().toUpperCase() : "LONG";
+        PortfolioItem item = matchingItems.get(0);
+        String side = normalizePersistedSide(item.getSide());
 
         // How much of the follower's bag to sell?
         // For simplicity: If master sells 50% of their stack, follower should sell 50%.
@@ -256,5 +270,19 @@ public class CopyTradingService {
                 .price(executedPrice)
                 .realizedPnl(pnl)
                 .build());
+    }
+
+    private String normalizeRequestedSide(String rawSide) {
+        if (rawSide == null || rawSide.isBlank()) {
+            return null;
+        }
+        return rawSide.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizePersistedSide(String rawSide) {
+        if (rawSide == null || rawSide.isBlank()) {
+            return "LONG";
+        }
+        return rawSide.trim().toUpperCase(Locale.ROOT);
     }
 }

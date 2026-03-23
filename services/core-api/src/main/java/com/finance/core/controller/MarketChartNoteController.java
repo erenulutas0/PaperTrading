@@ -7,6 +7,7 @@ import com.finance.core.service.MarketChartNoteService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
+import com.finance.core.web.PageableRequestParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -38,12 +39,26 @@ public class MarketChartNoteController {
             @CurrentUserId UUID userId,
             @RequestParam(required = false) MarketType market,
             @RequestParam String symbol,
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String size,
             @PageableDefault(size = 20) Pageable pageable,
             HttpServletRequest httpRequest) {
+        Pageable effectivePageable = PageableRequestParser.resolvePageable(
+                pageable,
+                page,
+                size,
+                "invalid_market_chart_note_page",
+                "Invalid market chart note page",
+                "invalid_market_chart_note_size",
+                "Invalid market chart note size");
         try {
-            return ResponseEntity.ok(marketChartNoteService.getNotes(userId, market, symbol, pageable));
+            return ResponseEntity.ok(marketChartNoteService.getNotes(userId, market, symbol, effectivePageable));
         } catch (RuntimeException exception) {
-            return toChartNoteError(exception, httpRequest, "market_chart_note_read_failed");
+            return toChartNoteError(
+                    exception,
+                    httpRequest,
+                    "market_chart_note_read_failed",
+                    "Failed to load market chart notes");
         }
     }
 
@@ -55,7 +70,11 @@ public class MarketChartNoteController {
         try {
             return ResponseEntity.ok(marketChartNoteService.createNote(userId, request));
         } catch (RuntimeException exception) {
-            return toChartNoteError(exception, httpRequest, "market_chart_note_create_failed");
+            return toChartNoteError(
+                    exception,
+                    httpRequest,
+                    "market_chart_note_create_failed",
+                    "Failed to create market chart note");
         }
     }
 
@@ -68,7 +87,11 @@ public class MarketChartNoteController {
         try {
             return ResponseEntity.ok(marketChartNoteService.updateNote(userId, noteId, request));
         } catch (RuntimeException exception) {
-            return toChartNoteError(exception, httpRequest, "market_chart_note_update_failed");
+            return toChartNoteError(
+                    exception,
+                    httpRequest,
+                    "market_chart_note_update_failed",
+                    "Failed to update market chart note");
         }
     }
 
@@ -81,22 +104,26 @@ public class MarketChartNoteController {
             marketChartNoteService.deleteNote(userId, noteId);
             return ResponseEntity.ok().build();
         } catch (RuntimeException exception) {
-            return toChartNoteError(exception, httpRequest, "market_chart_note_delete_failed");
+            return toChartNoteError(
+                    exception,
+                    httpRequest,
+                    "market_chart_note_delete_failed",
+                    "Failed to delete market chart note");
         }
     }
 
     private ResponseEntity<?> toChartNoteError(
             RuntimeException exception,
             HttpServletRequest httpRequest,
-            String fallbackCode) {
+            String fallbackCode,
+            String fallbackMessage) {
         if (exception instanceof ApiRequestException apiRequestException) {
             throw apiRequestException;
         }
-        String message = exception.getMessage() != null ? exception.getMessage() : "";
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,
                 fallbackCode,
-                message,
+                fallbackMessage,
                 null,
                 httpRequest);
     }

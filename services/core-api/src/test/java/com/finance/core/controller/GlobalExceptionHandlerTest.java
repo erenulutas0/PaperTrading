@@ -7,8 +7,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -17,7 +21,7 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Test
-    void handleRuntime_keepsGenericRuntimeNotFoundTextInBadRequestBucket() {
+    void handleRuntime_keepsGenericRuntimeNotFoundTextInBadRequestBucketWithoutLeakingMessage() {
         HttpServletRequest request = requestWithId("global-runtime-1");
 
         ResponseEntity<ApiErrorResponse> response = handler.handleRuntime(
@@ -26,7 +30,7 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertEquals("bad_request", response.getBody().code());
-        assertEquals("Ghost portfolio not found somewhere", response.getBody().message());
+        assertEquals("Unexpected error", response.getBody().message());
         assertEquals("global-runtime-1", response.getBody().requestId());
     }
 
@@ -42,6 +46,57 @@ class GlobalExceptionHandlerTest {
         assertEquals("user_not_found", response.getBody().code());
         assertEquals("User not found", response.getBody().message());
         assertEquals("global-runtime-2", response.getBody().requestId());
+    }
+
+    @Test
+    void handleMethodArgumentTypeMismatch_returnsCorrelatedInvalidRequestParameterContract() {
+        HttpServletRequest request = requestWithId("global-runtime-3");
+
+        ResponseEntity<ApiErrorResponse> response = handler.handleMethodArgumentTypeMismatch(
+                new MethodArgumentTypeMismatchException("abc", Integer.class, "page", null, new NumberFormatException()),
+                request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("invalid_request_parameter", response.getBody().code());
+        assertEquals("Invalid request parameter", response.getBody().message());
+        assertEquals("global-runtime-3", response.getBody().requestId());
+        assertInstanceOf(java.util.Map.class, response.getBody().details());
+        java.util.Map<?, ?> details = (java.util.Map<?, ?>) response.getBody().details();
+        assertEquals("page", details.get("parameter"));
+        assertEquals("abc", details.get("value"));
+        assertEquals("Integer", details.get("expectedType"));
+    }
+
+    @Test
+    void handleMissingServletRequestParameter_returnsCorrelatedMissingParameterContract() {
+        HttpServletRequest request = requestWithId("global-runtime-4");
+
+        ResponseEntity<ApiErrorResponse> response = handler.handleMissingServletRequestParameter(
+                new MissingServletRequestParameterException("symbol", "String"),
+                request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("missing_request_parameter", response.getBody().code());
+        assertEquals("Missing required request parameter", response.getBody().message());
+        assertEquals("global-runtime-4", response.getBody().requestId());
+        assertInstanceOf(java.util.Map.class, response.getBody().details());
+        java.util.Map<?, ?> details = (java.util.Map<?, ?>) response.getBody().details();
+        assertEquals("symbol", details.get("parameter"));
+        assertEquals("String", details.get("expectedType"));
+    }
+
+    @Test
+    void handleHttpMessageNotReadable_returnsCorrelatedInvalidPayloadContract() {
+        HttpServletRequest request = requestWithId("global-runtime-5");
+
+        ResponseEntity<ApiErrorResponse> response = handler.handleHttpMessageNotReadable(
+                new HttpMessageNotReadableException("bad json"),
+                request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("invalid_request_payload", response.getBody().code());
+        assertEquals("Invalid request payload", response.getBody().message());
+        assertEquals("global-runtime-5", response.getBody().requestId());
     }
 
     private HttpServletRequest requestWithId(String requestId) {
