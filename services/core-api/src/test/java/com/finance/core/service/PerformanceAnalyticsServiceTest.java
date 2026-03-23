@@ -10,6 +10,7 @@ import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.PortfolioSnapshotRepository;
 import com.finance.core.repository.TradeActivityRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -307,6 +309,17 @@ class PerformanceAnalyticsServiceTest {
 
         assertEquals(80.0, (double) result.get("predictionWinRate"), 0.001);
         verify(analysisPostRepository, never()).countByAuthorIdAndOutcomeAndDeletedFalse(eq(viewerId), any());
+    }
+
+    @Test
+    void getRiskMetrics_missingPortfolio_throwsTypedNotFound() {
+        when(portfolioRepository.existsById(portfolioId)).thenReturn(false);
+
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
+                () -> analyticsService.getRiskMetrics(portfolioId));
+
+        assertEquals("analytics_portfolio_not_found", exception.code());
+        assertEquals("Analytics portfolio not found", exception.getMessage());
     }
 
     private PortfolioSnapshot createSnapshot(BigDecimal equity) {

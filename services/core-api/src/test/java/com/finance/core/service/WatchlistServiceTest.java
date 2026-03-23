@@ -6,6 +6,7 @@ import com.finance.core.dto.MarketInstrumentResponse;
 import com.finance.core.repository.UserRepository;
 import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -84,9 +85,10 @@ class WatchlistServiceTest {
         void throwsWhenUserDoesNotExist() {
             when(userRepository.existsById(userId)).thenReturn(false);
 
-            RuntimeException exception = assertThrows(RuntimeException.class,
+            ApiRequestException exception = assertThrows(ApiRequestException.class,
                     () -> watchlistService.createWatchlist(userId, "Crypto Watch"));
 
+            assertEquals("user_not_found", exception.code());
             assertEquals("User not found", exception.getMessage());
         }
     }
@@ -110,7 +112,9 @@ class WatchlistServiceTest {
             stubExistingUser(otherUserId);
             when(watchlistRepository.findByIdAndUserId(watchlistId, otherUserId)).thenReturn(Optional.empty());
 
-            assertThrows(RuntimeException.class, () -> watchlistService.deleteWatchlist(watchlistId, otherUserId));
+            ApiRequestException exception = assertThrows(ApiRequestException.class,
+                    () -> watchlistService.deleteWatchlist(watchlistId, otherUserId));
+            assertEquals("watchlist_not_found", exception.code());
         }
     }
 
@@ -144,8 +148,9 @@ class WatchlistServiceTest {
             stubExistingUser(otherUserId);
             when(watchlistRepository.findByIdAndUserId(watchlistId, otherUserId)).thenReturn(Optional.empty());
 
-            assertThrows(RuntimeException.class,
+            ApiRequestException exception = assertThrows(ApiRequestException.class,
                     () -> watchlistService.addItem(watchlistId, otherUserId, "BTCUSDT", null, null, null));
+            assertEquals("watchlist_not_found", exception.code());
         }
     }
 
@@ -187,8 +192,9 @@ class WatchlistServiceTest {
             stubExistingUser(otherUserId);
             when(watchlistItemRepository.findByIdAndWatchlistUserId(itemId, otherUserId)).thenReturn(Optional.empty());
 
-            assertThrows(RuntimeException.class,
+            ApiRequestException exception = assertThrows(ApiRequestException.class,
                     () -> watchlistService.updateAlerts(itemId, otherUserId, new BigDecimal("1"), new BigDecimal("2")));
+            assertEquals("watchlist_item_not_found", exception.code());
         }
     }
 
@@ -217,7 +223,9 @@ class WatchlistServiceTest {
             stubExistingUser(otherUserId);
             when(watchlistItemRepository.findByIdAndWatchlistUserId(itemId, otherUserId)).thenReturn(Optional.empty());
 
-            assertThrows(RuntimeException.class, () -> watchlistService.removeItem(itemId, otherUserId));
+            ApiRequestException exception = assertThrows(ApiRequestException.class,
+                    () -> watchlistService.removeItem(itemId, otherUserId));
+            assertEquals("watchlist_item_not_found", exception.code());
         }
     }
 
@@ -255,6 +263,16 @@ class WatchlistServiceTest {
             assertEquals("ETHUSDT", result.get(1).get("symbol"));
             assertEquals(3200.0, result.get(1).get("currentPrice"));
             assertEquals(-1.75, result.get(1).get("changePercent24h"));
+        }
+
+        @Test
+        void getEnrichedItems_requiresExistingUser() {
+            when(userRepository.existsById(userId)).thenReturn(false);
+
+            ApiRequestException exception = assertThrows(ApiRequestException.class,
+                    () -> watchlistService.getEnrichedItems(watchlistId, userId));
+
+            assertEquals("user_not_found", exception.code());
         }
     }
 }

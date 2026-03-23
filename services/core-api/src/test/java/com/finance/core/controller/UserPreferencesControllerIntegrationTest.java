@@ -5,6 +5,7 @@ import com.finance.core.dto.UpdateTerminalPreferencesRequest;
 import com.finance.core.dto.UserPreferencesResponse;
 import com.finance.core.service.BinanceService;
 import com.finance.core.service.UserPreferencesService;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -97,7 +98,7 @@ class UserPreferencesControllerIntegrationTest {
     @Test
     void getPreferences_withUnknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
         when(userPreferencesService.getPreferences(any(UUID.class)))
-                .thenThrow(new RuntimeException("User not found"));
+                .thenThrow(ApiRequestException.notFound("user_not_found", "User not found"));
 
         mockMvc.perform(get("/api/v1/users/me/preferences")
                         .header("X-Request-Id", "prefs-missing-user-1")
@@ -163,7 +164,7 @@ class UserPreferencesControllerIntegrationTest {
     @Test
     void updateLeaderboardPreferences_withUnknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
         when(userPreferencesService.updateLeaderboardPreferences(any(UUID.class), any(UpdateLeaderboardPreferencesRequest.class)))
-                .thenThrow(new RuntimeException("User not found"));
+                .thenThrow(ApiRequestException.notFound("user_not_found", "User not found"));
 
         mockMvc.perform(put("/api/v1/users/me/preferences/leaderboard")
                         .header("X-Request-Id", "prefs-leaderboard-missing-user-1")
@@ -179,7 +180,7 @@ class UserPreferencesControllerIntegrationTest {
     @Test
     void updateLeaderboardPreferences_withInvalidPeriod_shouldReturnExplicitBadRequestContract() throws Exception {
         when(userPreferencesService.updateLeaderboardPreferences(any(UUID.class), any(UpdateLeaderboardPreferencesRequest.class)))
-                .thenThrow(new RuntimeException("Invalid user preferences period"));
+                .thenThrow(ApiRequestException.badRequest("invalid_user_preferences_period", "Invalid user preferences period"));
 
         mockMvc.perform(put("/api/v1/users/me/preferences/leaderboard")
                         .header("X-Request-Id", "prefs-leaderboard-invalid-period-1")
@@ -286,7 +287,7 @@ class UserPreferencesControllerIntegrationTest {
     @Test
     void updateTerminalPreferences_withUnknownUser_shouldReturnExplicitNotFoundContract() throws Exception {
         when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
-                .thenThrow(new RuntimeException("User not found"));
+                .thenThrow(ApiRequestException.notFound("user_not_found", "User not found"));
 
         mockMvc.perform(put("/api/v1/users/me/preferences/terminal")
                         .header("X-Request-Id", "prefs-terminal-missing-user-1")
@@ -302,7 +303,7 @@ class UserPreferencesControllerIntegrationTest {
     @Test
     void updateTerminalPreferences_withInvalidScannerSort_shouldReturnExplicitBadRequestContract() throws Exception {
         when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
-                .thenThrow(new RuntimeException("Invalid user preferences scanner sort"));
+                .thenThrow(ApiRequestException.badRequest("invalid_user_preferences_scanner_sort", "Invalid user preferences scanner sort"));
 
         mockMvc.perform(put("/api/v1/users/me/preferences/terminal")
                         .header("X-Request-Id", "prefs-terminal-invalid-scanner-sort-1")
@@ -319,7 +320,9 @@ class UserPreferencesControllerIntegrationTest {
     @Test
     void updateTerminalPreferences_withCompareBasketLimit_shouldReturnExplicitConflictContract() throws Exception {
         when(userPreferencesService.updateTerminalPreferences(any(UUID.class), any(UpdateTerminalPreferencesRequest.class)))
-                .thenThrow(new RuntimeException("Compare basket limit reached"));
+                .thenThrow(ApiRequestException.conflict(
+                        "user_preferences_compare_basket_limit_reached",
+                        "Compare basket limit reached"));
 
         mockMvc.perform(put("/api/v1/users/me/preferences/terminal")
                         .header("X-Request-Id", "prefs-terminal-basket-limit-1")

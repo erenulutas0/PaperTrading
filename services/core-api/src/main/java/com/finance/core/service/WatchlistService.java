@@ -5,6 +5,7 @@ import com.finance.core.domain.WatchlistItem;
 import com.finance.core.repository.UserRepository;
 import com.finance.core.repository.WatchlistItemRepository;
 import com.finance.core.repository.WatchlistRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -57,7 +58,7 @@ public class WatchlistService {
     public void deleteWatchlist(UUID watchlistId, UUID userId) {
         ensureUserExists(userId);
         Watchlist watchlist = watchlistRepository.findByIdAndUserId(watchlistId, userId)
-                .orElseThrow(() -> new RuntimeException("Watchlist not found or not owned by user"));
+                .orElseThrow(() -> ApiRequestException.notFound("watchlist_not_found", "Watchlist not found"));
         watchlistRepository.delete(watchlist);
         log.info("Watchlist {} deleted by user {}", watchlistId, userId);
     }
@@ -68,7 +69,7 @@ public class WatchlistService {
             BigDecimal alertAbove, BigDecimal alertBelow, String notes) {
         ensureUserExists(userId);
         Watchlist watchlist = watchlistRepository.findByIdAndUserId(watchlistId, userId)
-                .orElseThrow(() -> new RuntimeException("Watchlist not found or not owned by user"));
+                .orElseThrow(() -> ApiRequestException.notFound("watchlist_not_found", "Watchlist not found"));
 
         WatchlistItem item = WatchlistItem.builder()
                 .watchlist(watchlist)
@@ -88,7 +89,7 @@ public class WatchlistService {
     public void removeItem(UUID itemId, UUID userId) {
         ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
-                .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("watchlist_item_not_found", "Watchlist item not found"));
         watchlistItemRepository.delete(item);
     }
 
@@ -97,7 +98,7 @@ public class WatchlistService {
     public WatchlistItem updateAlerts(UUID itemId, UUID userId, BigDecimal alertAbove, BigDecimal alertBelow) {
         ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
-                .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("watchlist_item_not_found", "Watchlist item not found"));
 
         item.setAlertPriceAbove(alertAbove);
         item.setAlertPriceBelow(alertBelow);
@@ -119,7 +120,7 @@ public class WatchlistService {
     public Page<Map<String, Object>> getEnrichedItemsPage(UUID watchlistId, UUID userId, Pageable pageable) {
         ensureUserExists(userId);
         Watchlist watchlist = watchlistRepository.findByIdAndUserId(watchlistId, userId)
-                .orElseThrow(() -> new RuntimeException("Watchlist not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("watchlist_not_found", "Watchlist not found"));
 
         Page<WatchlistItem> itemsPage = pageable.isPaged()
                 ? watchlistItemRepository.findByWatchlistIdOrderByAddedAtAsc(watchlist.getId(), pageable)
@@ -146,7 +147,7 @@ public class WatchlistService {
 
     private void ensureUserExists(UUID userId) {
         if (userId == null || !userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 }

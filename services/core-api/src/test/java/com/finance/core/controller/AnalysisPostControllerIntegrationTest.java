@@ -242,6 +242,28 @@ class AnalysisPostControllerIntegrationTest {
                 }
 
                 @Test
+                void getPost_orphanAuthor_returnsExplicitNotFoundContract() throws Exception {
+                        AnalysisPost orphanPost = postRepository.save(AnalysisPost.builder()
+                                        .authorId(UUID.randomUUID())
+                                        .title("Orphan Analysis")
+                                        .content("Content")
+                                        .instrumentSymbol("BTCUSDT")
+                                        .direction(AnalysisPost.Direction.BULLISH)
+                                        .priceAtCreation(BigDecimal.valueOf(50000))
+                                        .outcome(AnalysisPost.Outcome.PENDING)
+                                        .deleted(false)
+                                        .build());
+
+                        mockMvc.perform(get("/api/v1/analysis-posts/{postId}", orphanPost.getId())
+                                        .header("X-Request-Id", "analysis-read-err-2"))
+                                        .andExpect(status().isNotFound())
+                                        .andExpect(header().string("X-Request-Id", "analysis-read-err-2"))
+                                        .andExpect(jsonPath("$.code").value("analysis_post_author_not_found"))
+                                        .andExpect(jsonPath("$.message").value("Analysis post author not found"))
+                                        .andExpect(jsonPath("$.requestId").value("analysis-read-err-2"));
+                }
+
+                @Test
                 void getFeed_returnsAllPosts() throws Exception {
                         createSamplePost();
                         createSamplePost();

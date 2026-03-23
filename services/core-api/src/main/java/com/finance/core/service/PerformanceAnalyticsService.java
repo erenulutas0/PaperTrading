@@ -10,6 +10,7 @@ import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.PortfolioSnapshotRepository;
 import com.finance.core.repository.TradeActivityRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -929,7 +930,9 @@ public class PerformanceAnalyticsService {
 
     private Portfolio loadPortfolioOrThrow(UUID portfolioId) {
         return portfolioRepository.findWithItemsById(portfolioId)
-                .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+                .orElseThrow(() -> ApiRequestException.notFound(
+                        "analytics_portfolio_not_found",
+                        "Analytics portfolio not found"));
     }
 
     private Map<String, Object> buildRiskMetrics(UUID portfolioId) {
@@ -944,7 +947,9 @@ public class PerformanceAnalyticsService {
 
     private void ensurePortfolioExists(UUID portfolioId) {
         if (!portfolioRepository.existsById(portfolioId)) {
-            throw new RuntimeException("Portfolio not found");
+            throw ApiRequestException.notFound(
+                    "analytics_portfolio_not_found",
+                    "Analytics portfolio not found");
         }
     }
 

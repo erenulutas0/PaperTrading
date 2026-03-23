@@ -282,7 +282,7 @@ public class BinanceService extends TextWebSocketHandler {
     private String normalizeTrackedSymbol(String symbol) {
         String normalized = symbol == null ? "" : symbol.trim().toUpperCase();
         if (!TRACKED_SYMBOLS.contains(normalized)) {
-            throw new IllegalArgumentException("Unsupported symbol: " + symbol);
+            throw new IllegalArgumentException("invalid_market_symbol");
         }
         return normalized;
     }
@@ -290,7 +290,7 @@ public class BinanceService extends TextWebSocketHandler {
     private String normalizeInterval(String interval) {
         String normalized = interval == null ? "1h" : interval.trim().toLowerCase();
         if (!SUPPORTED_INTERVALS.contains(normalized)) {
-            throw new IllegalArgumentException("Unsupported interval: " + interval);
+            throw new IllegalArgumentException("invalid_market_interval");
         }
         return normalized;
     }
@@ -312,7 +312,7 @@ public class BinanceService extends TextWebSocketHandler {
             case "1h" -> 60;
             case "4h" -> 240;
             case "1d" -> 1440;
-            default -> throw new IllegalArgumentException("Unsupported interval: " + interval);
+            default -> throw new IllegalArgumentException("invalid_market_interval");
         };
 
         int rangeMinutes = switch (normalizedRange) {

@@ -8,6 +8,7 @@ import com.finance.core.dto.UpdateLeaderboardPreferencesRequest;
 import com.finance.core.dto.UserPreferencesResponse;
 import com.finance.core.repository.UserPreferenceRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -164,7 +165,7 @@ public class UserPreferencesService {
 
     private void ensureUserExists(UUID userId) {
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 
@@ -268,7 +269,9 @@ public class UserPreferencesService {
             return "";
         }
         if (rawBaskets.size() > MAX_COMPARE_BASKETS) {
-            throw new RuntimeException("Compare basket limit reached");
+            throw ApiRequestException.conflict(
+                    "user_preferences_compare_basket_limit_reached",
+                    "Compare basket limit reached");
         }
         List<UserPreferencesResponse.CompareBasket> normalized = new ArrayList<>();
         for (UpdateTerminalPreferencesRequest.CompareBasket basket : rawBaskets) {
@@ -307,7 +310,9 @@ public class UserPreferencesService {
             return "";
         }
         if (rawViews.size() > MAX_SCANNER_VIEWS) {
-            throw new RuntimeException("Scanner view limit reached");
+            throw ApiRequestException.conflict(
+                    "user_preferences_scanner_view_limit_reached",
+                    "Scanner view limit reached");
         }
         List<UserPreferencesResponse.ScannerView> normalized = new ArrayList<>();
         for (UpdateTerminalPreferencesRequest.ScannerView view : rawViews) {
@@ -415,7 +420,9 @@ public class UserPreferencesService {
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
             case "1D", "1W", "1M", "ALL" -> normalized;
-            default -> throw new RuntimeException("Invalid user preferences period");
+            default -> throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_period",
+                    "Invalid user preferences period");
         };
     }
 
@@ -429,7 +436,9 @@ public class UserPreferencesService {
             case "PROFIT_LOSS", "PROFIT" -> "PROFIT_LOSS";
             case "WIN_RATE", "WINRATE", "WIN" -> "WIN_RATE";
             case "TRUST_SCORE", "TRUST", "TRUSTSCORE" -> "TRUST_SCORE";
-            default -> throw new RuntimeException("Invalid user preferences sort");
+            default -> throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_sort",
+                    "Invalid user preferences sort");
         };
     }
 
@@ -441,7 +450,9 @@ public class UserPreferencesService {
         return switch (normalized) {
             case "ASC", "ASCENDING", "UP" -> "ASC";
             case "DESC", "DESCENDING", "DOWN" -> "DESC";
-            default -> throw new RuntimeException("Invalid user preferences direction");
+            default -> throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_direction",
+                    "Invalid user preferences direction");
         };
     }
 
@@ -451,7 +462,9 @@ public class UserPreferencesService {
         }
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
         if (!SUPPORTED_TERMINAL_MARKETS.contains(normalized)) {
-            throw new RuntimeException("Invalid user preferences terminal market");
+            throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_terminal_market",
+                    "Invalid user preferences terminal market");
         }
         return normalized;
     }
@@ -462,7 +475,9 @@ public class UserPreferencesService {
         }
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
         if (!SUPPORTED_TERMINAL_RANGES.contains(normalized)) {
-            throw new RuntimeException("Invalid user preferences terminal range");
+            throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_terminal_range",
+                    "Invalid user preferences terminal range");
         }
         return normalized;
     }
@@ -473,7 +488,9 @@ public class UserPreferencesService {
         }
         String trimmed = raw.trim();
         if (!SUPPORTED_TERMINAL_INTERVALS.contains(trimmed)) {
-            throw new RuntimeException("Invalid user preferences terminal interval");
+            throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_terminal_interval",
+                    "Invalid user preferences terminal interval");
         }
         return trimmed;
     }
@@ -481,7 +498,9 @@ public class UserPreferencesService {
     private String parseRequestedScannerQuickFilter(String raw) {
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
         if (!SUPPORTED_SCANNER_FILTERS.contains(normalized)) {
-            throw new RuntimeException("Invalid user preferences scanner filter");
+            throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_scanner_filter",
+                    "Invalid user preferences scanner filter");
         }
         return normalized;
     }
@@ -489,7 +508,9 @@ public class UserPreferencesService {
     private String parseRequestedScannerSortMode(String raw) {
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
         if (!SUPPORTED_SCANNER_SORTS.contains(normalized)) {
-            throw new RuntimeException("Invalid user preferences scanner sort");
+            throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_scanner_sort",
+                    "Invalid user preferences scanner sort");
         }
         return normalized;
     }

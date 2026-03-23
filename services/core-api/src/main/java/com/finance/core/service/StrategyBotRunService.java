@@ -38,6 +38,7 @@ import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -100,7 +101,7 @@ public class StrategyBotRunService {
     public StrategyBotRunResponse getRun(UUID botId, UUID runId, UUID userId) {
         strategyBotService.getOwnedBotEntity(botId, userId);
         return toResponse(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found")));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_run_not_found", "Strategy bot run not found")));
     }
 
     @Transactional(readOnly = true)
@@ -197,7 +198,7 @@ public class StrategyBotRunService {
                         botId,
                         Portfolio.Visibility.PUBLIC,
                         StrategyBot.Status.DRAFT)
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_not_found", "Strategy bot not found"));
         AppUser owner = userRepository.findById(bot.getUserId()).orElse(null);
         Portfolio linkedPortfolio = bot.getLinkedPortfolioId() == null
                 ? null
@@ -244,10 +245,10 @@ public class StrategyBotRunService {
                         botId,
                         Portfolio.Visibility.PUBLIC,
                         StrategyBot.Status.DRAFT)
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_not_found", "Strategy bot not found"));
         StrategyBotRun run = strategyBotRunRepository.findById(runId)
                 .filter(candidate -> candidate.getStrategyBotId().equals(bot.getId()))
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_run_not_found", "Strategy bot run not found"));
         AppUser owner = userRepository.findById(bot.getUserId()).orElse(null);
         Portfolio linkedPortfolio = bot.getLinkedPortfolioId() == null
                 ? null
@@ -1195,7 +1196,7 @@ public class StrategyBotRunService {
         try {
             return StrategyBotRun.RunMode.valueOf(runMode.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid strategy bot board run mode");
+            throw ApiRequestException.badRequest("invalid_strategy_bot_board_run_mode", "Invalid strategy bot board run mode");
         }
     }
 
@@ -1204,7 +1205,7 @@ public class StrategyBotRunService {
             return null;
         }
         if (lookbackDays <= 0) {
-            throw new IllegalArgumentException("Strategy bot board lookback days must be positive");
+            throw ApiRequestException.badRequest("invalid_strategy_bot_board_lookback", "Strategy bot board lookback days must be positive");
         }
         return lookbackDays;
     }
@@ -1219,7 +1220,7 @@ public class StrategyBotRunService {
                  "TOTAL_RUNS",
                  "TOTAL_SIMULATED_TRADES",
                  "LATEST_REQUESTED_AT" -> normalizedSort;
-            default -> throw new IllegalArgumentException("Invalid strategy bot board sort");
+            default -> throw ApiRequestException.badRequest("invalid_strategy_bot_board_sort", "Invalid strategy bot board sort");
         };
     }
 
@@ -1233,7 +1234,7 @@ public class StrategyBotRunService {
         if ("DESC".equalsIgnoreCase(direction)) {
             return "DESC";
         }
-        throw new IllegalArgumentException("Invalid strategy bot board direction");
+        throw ApiRequestException.badRequest("invalid_strategy_bot_board_direction", "Invalid strategy bot board direction");
     }
 
     private String normalizeSearchQuery(String query) {
@@ -1399,7 +1400,7 @@ public class StrategyBotRunService {
             case "TOTAL_RUNS" -> Comparator.comparing(StrategyBotBoardEntryResponse::getTotalRuns, ascending ? Comparator.naturalOrder() : Comparator.reverseOrder());
             case "TOTAL_SIMULATED_TRADES" -> Comparator.comparing(StrategyBotBoardEntryResponse::getTotalSimulatedTrades, ascending ? Comparator.naturalOrder() : Comparator.reverseOrder());
             case "LATEST_REQUESTED_AT" -> Comparator.comparing(StrategyBotBoardEntryResponse::getLatestRequestedAt, nullableDateTimeComparator(ascending));
-            default -> throw new IllegalArgumentException("Invalid strategy bot board sort");
+            default -> throw ApiRequestException.badRequest("invalid_strategy_bot_board_sort", "Invalid strategy bot board sort");
         };
 
         return comparator
@@ -1526,19 +1527,27 @@ public class StrategyBotRunService {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
         if (run.getStatus() != StrategyBotRun.Status.RUNNING && run.getStatus() != StrategyBotRun.Status.COMPLETED) {
-            throw new IllegalStateException("Strategy bot run must be RUNNING or COMPLETED before reconciliation");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_run_reconciliation_not_ready",
+                    "Strategy bot run must be RUNNING or COMPLETED before reconciliation");
         }
 
         RunReconciliationState state = buildRunReconciliationState(bot, run);
         StrategyBotRunReconciliationResponse plan = state.response();
         if (!plan.getWarnings().isEmpty()) {
-            throw new IllegalStateException("Strategy bot reconciliation requires manual cleanup");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_reconciliation_manual_cleanup_required",
+                    "Strategy bot reconciliation requires manual cleanup");
         }
         if (plan.isTargetPositionOpen() && plan.getTargetQuantity().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalStateException("Strategy bot reconciliation target quantity is invalid");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_reconciliation_target_invalid",
+                    "Strategy bot reconciliation target quantity is invalid");
         }
         if (plan.isTargetPositionOpen() && plan.getTargetLastPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalStateException("Strategy bot reconciliation target price is unavailable");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_reconciliation_target_price_unavailable",
+                    "Strategy bot reconciliation target price is unavailable");
         }
         if (plan.isPortfolioAligned()) {
             return plan;
@@ -1664,11 +1673,11 @@ public class StrategyBotRunService {
 
     private RunReconciliationState buildRunReconciliationState(StrategyBot bot, StrategyBotRun run) {
         if (bot.getLinkedPortfolioId() == null) {
-            throw new IllegalStateException("Strategy bot has no linked portfolio");
+            throw ApiRequestException.conflict("strategy_bot_linked_portfolio_required", "Strategy bot has no linked portfolio");
         }
 
         Portfolio linkedPortfolio = portfolioRepository.findById(bot.getLinkedPortfolioId())
-                .orElseThrow(() -> new IllegalArgumentException("Linked portfolio not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("linked_portfolio_not_found", "Linked portfolio not found"));
         JsonNode summary = parseJson(run.getSummary());
 
         boolean targetPositionOpen = summary.path("positionOpen").asBoolean(false);
@@ -1757,14 +1766,16 @@ public class StrategyBotRunService {
     public StrategyBotRunResponse requestRun(UUID botId, UUID userId, StrategyBotRunRequest request) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         if (bot.getStatus() != StrategyBot.Status.READY) {
-            throw new IllegalStateException("Strategy bot must be READY before requesting a run");
+            throw ApiRequestException.conflict("strategy_bot_not_ready", "Strategy bot must be READY before requesting a run");
         }
 
         StrategyBotRun.RunMode runMode = resolveRunMode(request != null ? request.getRunMode() : null);
         LocalDate fromDate = request != null ? request.getFromDate() : null;
         LocalDate toDate = request != null ? request.getToDate() : null;
         if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
-            throw new IllegalArgumentException("Run start date must be on or before end date");
+            throw ApiRequestException.badRequest(
+                    "strategy_bot_run_date_range_invalid",
+                    "Run start date must be on or before end date");
         }
 
         BigDecimal requestedInitialCapital = request != null ? request.getInitialCapital() : null;
@@ -1799,10 +1810,10 @@ public class StrategyBotRunService {
     public StrategyBotRunResponse executeRun(UUID botId, UUID runId, UUID userId) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun run = strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_run_not_found", "Strategy bot run not found"));
 
         if (run.getStatus() != StrategyBotRun.Status.QUEUED) {
-            throw new IllegalStateException("Strategy bot run must be QUEUED before execution");
+            throw ApiRequestException.conflict("strategy_bot_run_not_queued", "Strategy bot run must be QUEUED before execution");
         }
 
         StrategyBotRuleEngineService.RuleCompilation compilation = strategyBotRuleEngineService.compile(
@@ -1811,14 +1822,18 @@ public class StrategyBotRunService {
                 bot.getStopLossPercent(),
                 bot.getTakeProfitPercent());
         if (!compilation.executionEngineReady()) {
-            throw new IllegalStateException("Strategy bot run is not executable by current engine");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_run_not_executable",
+                    "Strategy bot run is not executable by current engine");
         }
 
         if (run.getRunMode() == StrategyBotRun.RunMode.FORWARD_TEST) {
             return startForwardTestRun(bot, run, userId);
         }
         if (run.getRunMode() != StrategyBotRun.RunMode.BACKTEST) {
-            throw new IllegalStateException("Only backtest execution is currently supported");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_run_mode_not_supported",
+                    "Only backtest execution is currently supported");
         }
 
         return executeBacktestRun(bot, run, userId);
@@ -1828,7 +1843,7 @@ public class StrategyBotRunService {
     public StrategyBotRunResponse refreshForwardTestRun(UUID botId, UUID runId, UUID userId) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun run = strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_run_not_found", "Strategy bot run not found"));
         StrategyBotRun.Status previousStatus = run.getStatus();
         RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, false);
         StrategyBotRun saved = strategyBotRunRepository.save(run);
@@ -1847,10 +1862,12 @@ public class StrategyBotRunService {
     public StrategyBotRunResponse cancelRun(UUID botId, UUID runId, UUID userId) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun run = strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_run_not_found", "Strategy bot run not found"));
         StrategyBotRun.Status previousStatus = run.getStatus();
         if (previousStatus != StrategyBotRun.Status.QUEUED && previousStatus != StrategyBotRun.Status.RUNNING) {
-            throw new IllegalStateException("Strategy bot run must be QUEUED or RUNNING before cancellation");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_run_not_cancellable",
+                    "Strategy bot run must be QUEUED or RUNNING before cancellation");
         }
 
         LocalDateTime cancelledAt = LocalDateTime.now();
@@ -1940,16 +1957,22 @@ public class StrategyBotRunService {
                                                                StrategyBotRun run,
                                                                boolean allowQueuedStart) {
         if (run.getRunMode() != StrategyBotRun.RunMode.FORWARD_TEST) {
-            throw new IllegalStateException("Only forward-test refresh is currently supported");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_run_refresh_mode_not_supported",
+                    "Only forward-test refresh is currently supported");
         }
         if (run.getStatus() == StrategyBotRun.Status.QUEUED) {
             if (!allowQueuedStart) {
-                throw new IllegalStateException("Strategy bot forward-test run must be RUNNING before refresh");
+                throw ApiRequestException.conflict(
+                        "strategy_bot_forward_test_not_running",
+                        "Strategy bot forward-test run must be RUNNING before refresh");
             }
             run.setStatus(StrategyBotRun.Status.RUNNING);
             run.setStartedAt(LocalDateTime.now());
         } else if (run.getStatus() != StrategyBotRun.Status.RUNNING) {
-            throw new IllegalStateException("Strategy bot forward-test run must be RUNNING before refresh");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_forward_test_not_running",
+                    "Strategy bot forward-test run must be RUNNING before refresh");
         }
 
         List<MarketCandleResponse> candles = loadBacktestCandles(bot, run);
@@ -1972,13 +1995,13 @@ public class StrategyBotRunService {
     private BigDecimal resolveInitialCapital(StrategyBot bot, BigDecimal requestedInitialCapital) {
         if (requestedInitialCapital != null) {
             if (requestedInitialCapital.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("Initial capital must be positive");
+                throw ApiRequestException.badRequest("strategy_bot_initial_capital_invalid", "Initial capital must be positive");
             }
             return requestedInitialCapital;
         }
         if (bot.getLinkedPortfolioId() != null) {
             Portfolio portfolio = portfolioRepository.findById(bot.getLinkedPortfolioId())
-                    .orElseThrow(() -> new IllegalArgumentException("Linked portfolio not found"));
+                    .orElseThrow(() -> ApiRequestException.notFound("linked_portfolio_not_found", "Linked portfolio not found"));
             return portfolio.getBalance();
         }
         return new BigDecimal("100000");
@@ -1991,7 +2014,7 @@ public class StrategyBotRunService {
         try {
             return StrategyBotRun.RunMode.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid strategy bot run mode");
+            throw ApiRequestException.badRequest("invalid_strategy_bot_run_mode", "Invalid strategy bot run mode");
         }
     }
 
@@ -2101,7 +2124,9 @@ public class StrategyBotRunService {
         } catch (Exception ex) {
             rawCandles = buildSyntheticCryptoCandlesIfEnabled(bot, run, marketType, normalizedTimeframe, ex);
             if (rawCandles.isEmpty()) {
-                throw new IllegalStateException("Strategy bot market data unavailable");
+                throw ApiRequestException.conflict(
+                        "strategy_bot_run_market_data_unavailable",
+                        "Strategy bot market data unavailable");
             }
         }
 
@@ -2126,7 +2151,9 @@ public class StrategyBotRunService {
         }
 
         if (filtered.size() < 20) {
-            throw new IllegalStateException("Not enough candles to execute strategy bot run");
+            throw ApiRequestException.conflict(
+                    "strategy_bot_run_market_data_unavailable",
+                    "Not enough candles to execute strategy bot run");
         }
         return filtered;
     }
@@ -2232,7 +2259,7 @@ public class StrategyBotRunService {
         try {
             return MarketType.valueOf(market == null ? "CRYPTO" : market.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid strategy bot market");
+            throw ApiRequestException.badRequest("invalid_strategy_bot_market", "Invalid strategy bot market");
         }
     }
 
@@ -2508,7 +2535,7 @@ public class StrategyBotRunService {
         try {
             return strategyBotRuleEngineService.evaluate(rules, candles, positionContext);
         } catch (IllegalArgumentException ex) {
-            if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("not enough candles")) {
+            if (StrategyBotRuleEngineService.INSUFFICIENT_CANDLES_CODE.equals(ex.getMessage())) {
                 return new StrategyBotRuleEngineService.SignalEvaluation(false, List.of(), List.of(), List.of());
             }
             throw ex;
@@ -2669,12 +2696,12 @@ public class StrategyBotRunService {
     private StrategyBotRun getOwnedRunEntity(UUID botId, UUID runId, UUID userId) {
         strategyBotService.getOwnedBotEntity(botId, userId);
         return strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_run_not_found", "Strategy bot run not found"));
     }
 
     private void ensureUserExists(UUID userId) {
         if (userId == null || !userRepository.existsById(userId)) {
-            throw new IllegalArgumentException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 
@@ -2702,7 +2729,7 @@ public class StrategyBotRunService {
     private StrategyBotRunReconciliationResponse safeBuildRunReconciliation(StrategyBot bot, StrategyBotRun run) {
         try {
             return buildRunReconciliationState(bot, run).response();
-        } catch (IllegalArgumentException | IllegalStateException ex) {
+        } catch (ApiRequestException | IllegalArgumentException | IllegalStateException ex) {
             return null;
         }
     }

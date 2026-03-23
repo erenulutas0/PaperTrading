@@ -5,6 +5,7 @@ import com.finance.core.domain.Notification;
 import com.finance.core.domain.event.NotificationEvent;
 import com.finance.core.repository.NotificationRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -194,8 +195,9 @@ class NotificationServiceTest {
         UUID missingUserId = UUID.randomUUID();
         when(userRepository.existsById(missingUserId)).thenReturn(false);
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> notificationService.getUnreadCount(missingUserId));
+        ApiRequestException exception = assertThrows(ApiRequestException.class, () -> notificationService.getUnreadCount(missingUserId));
 
+        assertEquals("user_not_found", exception.code());
         assertEquals("User not found", exception.getMessage());
         verify(notificationRepository, never()).countByUserIdAndReadFalse(missingUserId);
     }

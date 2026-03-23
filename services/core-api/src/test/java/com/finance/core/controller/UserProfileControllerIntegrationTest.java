@@ -197,6 +197,30 @@ class UserProfileControllerIntegrationTest {
                                 .andExpect(jsonPath("$.requestId").value("follow-err-2"));
         }
 
+        @Test
+        void follow_missingFollower_returnsNotFound() throws Exception {
+                mockMvc.perform(post("/api/v1/users/{userId}/follow", userBob.getId())
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-Request-Id", "follow-err-4"))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "follow-err-4"))
+                                .andExpect(jsonPath("$.code").value("follower_not_found"))
+                                .andExpect(jsonPath("$.message").value("Follower not found"))
+                                .andExpect(jsonPath("$.requestId").value("follow-err-4"));
+        }
+
+        @Test
+        void follow_missingTargetUser_returnsNotFound() throws Exception {
+                mockMvc.perform(post("/api/v1/users/{userId}/follow", UUID.randomUUID())
+                                .header("X-User-Id", userAlice.getId().toString())
+                                .header("X-Request-Id", "follow-err-5"))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "follow-err-5"))
+                                .andExpect(jsonPath("$.code").value("user_not_found"))
+                                .andExpect(jsonPath("$.message").value("User to follow not found"))
+                                .andExpect(jsonPath("$.requestId").value("follow-err-5"));
+        }
+
         // ===== UNFOLLOW =====
 
         @Test

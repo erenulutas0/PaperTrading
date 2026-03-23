@@ -2,6 +2,7 @@ package com.finance.core.service;
 
 import com.finance.core.domain.*;
 import com.finance.core.repository.*;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -142,19 +143,17 @@ public class TournamentService {
     /** User joins a tournament — creates a fresh portfolio for them */
     @Transactional
     public Map<String, Object> joinTournament(UUID tournamentId, UUID userId) {
-        Tournament tournament = tournamentRepository.findById(tournamentId)
-                .orElseThrow(() -> new RuntimeException("Tournament not found"));
+        Tournament tournament = loadRequiredTournament(tournamentId);
 
         if (tournament.getStatus() != Tournament.Status.ACTIVE) {
-            throw new RuntimeException("Tournament is not active. Status: " + tournament.getStatus());
+            throw ApiRequestException.conflict("tournament_not_active", "Tournament is not active. Status: " + tournament.getStatus());
         }
 
         if (participantRepository.existsByTournamentIdAndUserId(tournamentId, userId)) {
-            throw new RuntimeException("Already joined this tournament");
+            throw ApiRequestException.conflict("tournament_already_joined", "Already joined this tournament");
         }
 
-        AppUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        AppUser user = loadRequiredUser(userId);
 
         // Create a fresh tournament portfolio
         Portfolio tournamentPortfolio = Portfolio.builder()
@@ -175,7 +174,7 @@ public class TournamentService {
         try {
             participantRepository.saveAndFlush(participant);
         } catch (DataIntegrityViolationException ex) {
-            throw new RuntimeException("Already joined this tournament", ex);
+            throw ApiRequestException.conflict("tournament_already_joined", "Already joined this tournament");
         }
 
         // Award "First Tournament" badge if this is user's first tournament
@@ -209,8 +208,7 @@ public class TournamentService {
 
     /** Get live tournament leaderboard with real-time equity calculations */
     public List<Map<String, Object>> getTournamentLeaderboard(UUID tournamentId) {
-        Tournament tournament = tournamentRepository.findById(tournamentId)
-                .orElseThrow(() -> new RuntimeException("Tournament not found"));
+        Tournament tournament = loadRequiredTournament(tournamentId);
 
         List<TournamentParticipant> participants = participantRepository.findByTournamentId(tournamentId);
         if (participants.isEmpty())
@@ -384,5 +382,15 @@ public class TournamentService {
     /** Get badges for a user (paged) */
     public Page<Badge> getUserBadges(UUID userId, Pageable pageable) {
         return badgeRepository.findByUserIdOrderByEarnedAtDesc(userId, pageable);
+    }
+
+    private Tournament loadRequiredTournament(UUID tournamentId) {
+        return tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> ApiRequestException.notFound("tournament_not_found", "Tournament not found"));
+    }
+
+    private AppUser loadRequiredUser(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> ApiRequestException.notFound("user_not_found", "User not found"));
     }
 }

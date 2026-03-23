@@ -7,6 +7,7 @@ import com.finance.core.dto.WatchlistAlertEventResponse;
 import com.finance.core.repository.UserRepository;
 import com.finance.core.repository.WatchlistAlertEventRepository;
 import com.finance.core.repository.WatchlistItemRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -56,7 +57,7 @@ public class WatchlistAlertHistoryService {
             WatchlistAlertDirection direction) {
         ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
-                .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("watchlist_item_not_found", "Watchlist item not found"));
 
         int safeLimit = Math.max(1, Math.min(limit, 50));
         List<WatchlistAlertEvent> events = findEvents(item.getId(), safeLimit, days, direction);
@@ -72,7 +73,7 @@ public class WatchlistAlertHistoryService {
             WatchlistAlertDirection direction) {
         ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
-                .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("watchlist_item_not_found", "Watchlist item not found"));
 
         PageRequest effectivePageable = PageRequest.of(
                 pageable.getPageNumber(),
@@ -93,7 +94,7 @@ public class WatchlistAlertHistoryService {
             WatchlistAlertDirection direction) {
         ensureUserExists(userId);
         WatchlistItem item = watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)
-                .orElseThrow(() -> new RuntimeException("Watchlist item not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("watchlist_item_not_found", "Watchlist item not found"));
 
         List<WatchlistAlertEvent> events = findEvents(item.getId(), 1000, days, direction);
         StringBuilder csv = new StringBuilder();
@@ -191,7 +192,7 @@ public class WatchlistAlertHistoryService {
 
     private void ensureUserExists(UUID userId) {
         if (userId == null || !userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 }

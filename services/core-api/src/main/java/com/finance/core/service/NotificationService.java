@@ -5,6 +5,7 @@ import com.finance.core.domain.Notification;
 import com.finance.core.domain.event.NotificationEvent;
 import com.finance.core.repository.NotificationRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -169,7 +170,7 @@ public class NotificationService {
 
     public void ensureUserExists(UUID userId) {
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 }

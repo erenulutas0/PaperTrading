@@ -989,11 +989,22 @@ Last updated: 2026-03-23
   - validation:
     - `StrategyBotRunServiceTest`
     - `StrategyBotRunControllerIntegrationTest`
-- [ ] Define agentic trade-bot guardrails before any LLM runtime integration:
-  - prompt/action audit logging
-  - tool/market-data sandbox
-  - bounded action schema (`buy/sell/hold`, size caps, stop updates)
-  - model-provider abstraction instead of hard-coding a single vendor/model
+- [x] Define agentic trade-bot guardrails before any LLM runtime integration:
+  - Added:
+    - `infra/strategy-bot-agentic-guardrails.md`
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotAgentModelProvider.java`
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotAgentActionValidator.java`
+    - `services/core-api/src/main/java/com/finance/core/dto/StrategyBotAgentActionType.java`
+    - `services/core-api/src/main/java/com/finance/core/dto/StrategyBotAgentToolScope.java`
+    - `services/core-api/src/main/java/com/finance/core/dto/StrategyBotAgentActionProposal.java`
+    - `services/core-api/src/main/java/com/finance/core/dto/StrategyBotAgentDecisionContext.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotAgentActionValidatorTest.java`
+  - Guardrails now define:
+    - prompt/action audit metadata requirements
+    - bounded tool/market-data sandbox scopes
+    - bounded action schema (`BUY/SELL/HOLD/UPDATE_STOPS`)
+    - provider abstraction so future LLM runtime is not coupled to a single vendor/model
+    - server-side validation against bot risk caps and position state before any proposal can be accepted
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
@@ -1542,11 +1553,152 @@ Last updated: 2026-03-23
     - `JwtAuthenticationFilter`
   - Behavior:
     - every request now gets/echoes `X-Request-Id`
-    - exception handler responses and JWT reject responses now use a shared JSON contract
-    - high-traffic auth controller manual error bodies no longer return raw strings
-  - Coverage:
-    - `AuthControllerIntegrationTest`
-    - `JwtAuthenticationFilterStrictModeIntegrationTest`
+- [x] Hardened market data controller query contracts into explicit correlated API errors:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketController.java`
+  - Added:
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketControllerIntegrationTest.java`
+  - Behavior:
+    - `/api/v1/market/prices` and `/api/v1/market/instruments` now reject invalid `market` values with explicit `invalid_market_type`
+    - `/api/v1/market/candles` now rejects blank `symbol`, unsupported `range`/`interval`, invalid `beforeOpenTime`, and non-positive or oversized `limit` values with explicit machine-readable codes
+    - unsupported provider symbols are normalized into `invalid_market_symbol` instead of leaking generic runtime `bad_request` messages
+  - Validation:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=MarketControllerIntegrationTest" test`
+- [x] Added a reusable typed API request exception for explicit controller-local validation paths:
+  - Added:
+    - `services/core-api/src/main/java/com/finance/core/web/ApiRequestException.java`
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/GlobalExceptionHandler.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/AuditOpsController.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/AnalyticsController.java`
+  - Behavior:
+    - invalid audit filters now throw typed request exceptions instead of generic runtime messages that get reparsed into API codes
+    - invalid analytics export `format` now uses the same typed request-exception path
+    - CSV/download routes can still force JSON error envelopes without relying on message-substring matching
+  - Validation:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=AuditOpsControllerIntegrationTest,AnalyticsControllerIntegrationTest,MarketControllerIntegrationTest,StrategyBotAgentActionValidatorTest" test`
+- [x] Extended the typed API exception path into portfolio participation service/controller flow:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/PortfolioParticipationService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/PortfolioParticipationController.java`
+    - `services/core-api/src/main/java/com/finance/core/web/ApiRequestException.java`
+  - Validation:
+    - duplicate join, missing portfolio, missing user, and leave-without-participation now use typed `conflict/notFound` exceptions instead of controller message parsing
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=PortfolioParticipationControllerIntegrationTest,AuditOpsControllerIntegrationTest,AnalyticsControllerIntegrationTest,MarketControllerIntegrationTest,StrategyBotAgentActionValidatorTest" test`
+- [x] Extended the typed API exception path into social follow and tournament join flows:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/UserProfileService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/UserProfileController.java`
+    - `services/core-api/src/main/java/com/finance/core/service/TournamentService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/TournamentController.java`
+  - Validation:
+    - follow/unfollow and tournament join/leaderboard not-found/conflict paths now use typed exceptions instead of controller message parsing
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=UserProfileControllerIntegrationTest,TournamentControllerIntegrationTest,PortfolioParticipationControllerIntegrationTest,AuditOpsControllerIntegrationTest,AnalyticsControllerIntegrationTest,MarketControllerIntegrationTest,StrategyBotAgentActionValidatorTest" test`
+- [x] Extended the typed API exception path into activity-feed account-backed reads:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/ActivityFeedService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/ActivityFeedController.java`
+  - Validation:
+    - personalized feed and explicit user-activity reads now use typed not-found exceptions instead of controller message parsing
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=ActivityFeedControllerIntegrationTest,UserProfileControllerIntegrationTest,TournamentControllerIntegrationTest,PortfolioParticipationControllerIntegrationTest" test`
+- [x] Extended the typed API exception path into analysis-post create/delete/read/account-backed flows:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/AnalysisPostService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/AnalysisPostController.java`
+    - `services/core-api/src/main/java/com/finance/core/web/ApiRequestException.java`
+  - Validation:
+    - invalid direction, missing market data, invalid target-price direction, orphan requester/author, missing post, and delete authorization/conflict paths now use typed exceptions instead of controller message parsing
+    - `services/core-api/src/test/java/com/finance/core/service/AnalysisPostServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/AnalysisPostControllerIntegrationTest.java`
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=AnalysisPostServiceTest,AnalysisPostControllerIntegrationTest" test`
+- [x] Extended the typed API exception path into user-preferences read/write flows:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/UserPreferencesService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/UserPreferencesController.java`
+  - Validation:
+    - missing-user, invalid leaderboard/terminal/scanner lens writes, and compare-basket/scanner-view limit conflicts now use typed exceptions instead of controller message parsing
+    - `services/core-api/src/test/java/com/finance/core/service/UserPreferencesServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/UserPreferencesControllerIntegrationTest.java`
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=AnalysisPostServiceTest,AnalysisPostControllerIntegrationTest,UserPreferencesServiceTest,UserPreferencesControllerIntegrationTest" test`
+- [x] Extended the typed API exception path into watchlist CRUD and alert-history flows:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/WatchlistService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/WatchlistAlertHistoryService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/WatchlistController.java`
+  - Validation:
+    - missing-user, missing-watchlist, missing-watchlist-item, and owner-scoped alert-history/export paths now use typed exceptions instead of controller message parsing
+    - `services/core-api/src/test/java/com/finance/core/service/WatchlistServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/WatchlistAlertHistoryServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/WatchlistControllerIntegrationTest.java`
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=WatchlistServiceTest,WatchlistAlertHistoryServiceTest,WatchlistControllerIntegrationTest" test`
+- [x] Extended the typed API exception path into interaction like/comment flows:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/InteractionService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/InteractionController.java`
+  - Validation:
+    - invalid target type, empty/oversized comment, orphan actor, and missing portfolio/post/comment paths now use typed exceptions instead of controller message parsing
+    - `services/core-api/src/test/java/com/finance/core/service/InteractionServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/InteractionControllerIntegrationTest.java`
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=InteractionServiceTest,InteractionControllerIntegrationTest" test`
+- [x] Removed the last analytics missing-portfolio message-parse fallback:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/PerformanceAnalyticsService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/AnalyticsController.java`
+    - `services/core-api/src/test/java/com/finance/core/service/PerformanceAnalyticsServiceTest.java`
+  - Validation:
+    - `analytics_portfolio_not_found` now originates from typed service exceptions instead of controller substring matching
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=AnalyticsControllerIntegrationTest,PerformanceAnalyticsServiceTest" test`
+- [x] Extended the typed API exception path into strategy-bot CRUD, board/discover, and run-state flows:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotRunService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/StrategyBotController.java`
+  - Validation:
+    - missing-user/bot/linked-portfolio, invalid payload/filter/run inputs, and execute/refresh/cancel/reconciliation state conflicts now originate from typed service exceptions instead of controller message parsing
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=StrategyBotControllerIntegrationTest,StrategyBotRunControllerIntegrationTest" test`
+- [x] Extended the typed API exception path into market chart-note and terminal-layout account surfaces:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/MarketChartNoteService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketChartNoteController.java`
+    - `services/core-api/src/main/java/com/finance/core/service/MarketTerminalLayoutService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketTerminalLayoutController.java`
+    - `services/core-api/src/test/java/com/finance/core/service/MarketChartNoteServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/MarketTerminalLayoutServiceTest.java`
+  - Validation:
+    - missing-user, missing-note/layout, note body/symbol validation, and layout limit/name validation now use typed exceptions instead of controller message parsing
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=MarketChartNoteServiceTest,MarketChartNoteControllerIntegrationTest,MarketTerminalLayoutServiceTest,MarketTerminalLayoutControllerIntegrationTest" test`
+- [x] Extended the typed API exception path into notification account-backed reads and stream-token checks:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/NotificationService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/NotificationController.java`
+    - `services/core-api/src/test/java/com/finance/core/service/NotificationServiceTest.java`
+  - Validation:
+    - notification missing-user paths now use typed service exceptions instead of controller message parsing
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=NotificationServiceTest,NotificationControllerIntegrationTest,MarketChartNoteServiceTest,MarketChartNoteControllerIntegrationTest,MarketTerminalLayoutServiceTest,MarketTerminalLayoutControllerIntegrationTest" test`
+- [x] Standardized provider-facing market validation onto explicit `invalid_market_*` codes:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/BinanceService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/YahooBistMarketDataService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketController.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketControllerIntegrationTest.java`
+  - Validation:
+    - market-provider unsupported symbol/range/interval paths no longer rely on controller substring matching
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=MarketControllerIntegrationTest" test`
+- [x] Removed the last large strategy-bot controller message-normalization fallback:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/StrategyBotController.java`
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotRunService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotRuleEngineService.java`
+  - Validation:
+    - strategy-bot public contracts now flow through typed service exceptions instead of controller substring parsing, while rule-engine warmup handling no longer depends on free-text `"not enough candles"` checks
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=StrategyBotControllerIntegrationTest,StrategyBotRunControllerIntegrationTest" test`
+- [x] Removed the last shared generic `not_found` message heuristic from the global runtime fallback:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/GlobalExceptionHandler.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/GlobalExceptionHandlerTest.java`
+  - Validation:
+    - generic runtime text containing `"not found"` no longer masquerades as a missing-resource contract, while typed `ApiRequestException.notFound(...)` still preserves explicit `404` behavior
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=GlobalExceptionHandlerTest,StrategyBotControllerIntegrationTest,StrategyBotRunControllerIntegrationTest" test`
 - [x] Migrated core load/smoke operations scripts from legacy header auth to Bearer auth:
   - Updated:
     - `infra/load-test/lightweight_baseline.ps1`

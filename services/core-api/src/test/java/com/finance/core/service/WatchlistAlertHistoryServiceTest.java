@@ -5,6 +5,7 @@ import com.finance.core.domain.WatchlistItem;
 import com.finance.core.repository.UserRepository;
 import com.finance.core.repository.WatchlistAlertEventRepository;
 import com.finance.core.repository.WatchlistItemRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,7 +50,7 @@ class WatchlistAlertHistoryServiceTest {
     void getRecentHistoryPage_requiresExistingUser() {
         when(userRepository.existsById(userId)).thenReturn(false);
 
-        RuntimeException exception = assertThrows(RuntimeException.class,
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> watchlistAlertHistoryService.getRecentHistoryPage(
                         itemId,
                         userId,
@@ -57,6 +58,7 @@ class WatchlistAlertHistoryServiceTest {
                         null,
                         WatchlistAlertDirection.ABOVE));
 
+        assertEquals("user_not_found", exception.code());
         assertEquals("User not found", exception.getMessage());
         verifyNoInteractions(watchlistItemRepository);
     }
@@ -65,13 +67,14 @@ class WatchlistAlertHistoryServiceTest {
     void exportHistoryCsv_requiresExistingUser() {
         when(userRepository.existsById(userId)).thenReturn(false);
 
-        RuntimeException exception = assertThrows(RuntimeException.class,
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> watchlistAlertHistoryService.exportHistoryCsv(
                         itemId,
                         userId,
                         null,
                         null));
 
+        assertEquals("user_not_found", exception.code());
         assertEquals("User not found", exception.getMessage());
         verifyNoInteractions(watchlistItemRepository);
     }
@@ -81,7 +84,7 @@ class WatchlistAlertHistoryServiceTest {
         when(userRepository.existsById(userId)).thenReturn(true);
         when(watchlistItemRepository.findByIdAndWatchlistUserId(itemId, userId)).thenReturn(Optional.empty());
 
-        RuntimeException exception = assertThrows(RuntimeException.class,
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> watchlistAlertHistoryService.getRecentHistoryPage(
                         itemId,
                         userId,
@@ -89,6 +92,7 @@ class WatchlistAlertHistoryServiceTest {
                         null,
                         null));
 
+        assertEquals("watchlist_item_not_found", exception.code());
         assertEquals("Watchlist item not found", exception.getMessage());
     }
 }

@@ -6,6 +6,7 @@ import com.finance.core.dto.AnalysisPostRequest;
 import com.finance.core.dto.AnalysisPostResponse;
 import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -195,9 +196,10 @@ class AnalysisPostServiceTest {
                                         .direction("SIDEWAYS")
                                         .build();
 
-                        RuntimeException ex = assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.createPost(authorId, request));
-                        assertTrue(ex.getMessage().contains("Invalid direction"));
+                        assertEquals("invalid_analysis_direction", ex.code());
+                        assertEquals("Invalid analysis direction", ex.getMessage());
                 }
 
                 @Test
@@ -212,8 +214,9 @@ class AnalysisPostServiceTest {
                                         .direction("BULLISH")
                                         .build();
 
-                        RuntimeException ex = assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.createPost(authorId, request));
+                        assertEquals("analysis_market_data_unavailable", ex.code());
                         assertTrue(ex.getMessage().contains("No market data"));
                 }
 
@@ -230,8 +233,9 @@ class AnalysisPostServiceTest {
                                         .targetPrice(BigDecimal.valueOf(40000)) // below current
                                         .build();
 
-                        RuntimeException ex = assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.createPost(authorId, request));
+                        assertEquals("invalid_analysis_target_price", ex.code());
                         assertTrue(ex.getMessage().contains("BULLISH target price must be above"));
                 }
 
@@ -248,8 +252,9 @@ class AnalysisPostServiceTest {
                                         .targetPrice(BigDecimal.valueOf(60000)) // above current
                                         .build();
 
-                        RuntimeException ex = assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.createPost(authorId, request));
+                        assertEquals("invalid_analysis_target_price", ex.code());
                         assertTrue(ex.getMessage().contains("BEARISH target price must be below"));
                 }
 
@@ -264,8 +269,9 @@ class AnalysisPostServiceTest {
                                         .direction("BULLISH")
                                         .build();
 
-                        assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.createPost(UUID.randomUUID(), request));
+                        assertEquals("user_not_found", ex.code());
                 }
 
                 @Test
@@ -326,8 +332,9 @@ class AnalysisPostServiceTest {
                         UUID postId = UUID.randomUUID();
                         when(userRepository.existsById(authorId)).thenReturn(false);
 
-                        RuntimeException ex = assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.deletePost(postId, authorId));
+                        assertEquals("user_not_found", ex.code());
                         assertEquals("User not found", ex.getMessage());
                         verify(postRepository, never()).findById(any());
                 }
@@ -343,8 +350,9 @@ class AnalysisPostServiceTest {
                                         .build();
                         when(postRepository.findById(postId)).thenReturn(Optional.of(post));
 
-                        RuntimeException ex = assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.deletePost(postId, otherId));
+                        assertEquals("analysis_post_delete_forbidden", ex.code());
                         assertTrue(ex.getMessage().contains("Only the author"));
                 }
 
@@ -358,8 +366,9 @@ class AnalysisPostServiceTest {
                                         .build();
                         when(postRepository.findById(postId)).thenReturn(Optional.of(post));
 
-                        RuntimeException ex = assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.deletePost(postId, authorId));
+                        assertEquals("analysis_post_already_deleted", ex.code());
                         assertTrue(ex.getMessage().contains("already deleted"));
                 }
 
@@ -367,8 +376,9 @@ class AnalysisPostServiceTest {
                 void deletePost_notFound_throws() {
                         when(postRepository.findById(any())).thenReturn(Optional.empty());
 
-                        assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.deletePost(UUID.randomUUID(), authorId));
+                        assertEquals("analysis_post_not_found", ex.code());
                 }
         }
 
@@ -437,6 +447,29 @@ class AnalysisPostServiceTest {
                         assertEquals("BTCUSDT", response.getInstrumentSymbol());
                         assertEquals("BULLISH", response.getDirection());
                 }
+
+                @Test
+                void getPost_missingAuthor_throwsTypedNotFound() {
+                        UUID postId = UUID.randomUUID();
+                        AnalysisPost post = AnalysisPost.builder()
+                                        .id(postId)
+                                        .authorId(authorId)
+                                        .title("BTC Analysis")
+                                        .content("Content here")
+                                        .instrumentSymbol("BTCUSDT")
+                                        .direction(AnalysisPost.Direction.BULLISH)
+                                        .priceAtCreation(BigDecimal.valueOf(50000))
+                                        .outcome(AnalysisPost.Outcome.PENDING)
+                                        .deleted(false)
+                                        .build();
+
+                        when(postRepository.findById(postId)).thenReturn(Optional.of(post));
+                        when(userRepository.findById(authorId)).thenReturn(Optional.empty());
+
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
+                                        () -> postService.getPost(postId));
+                        assertEquals("analysis_post_author_not_found", ex.code());
+                }
         }
 
         // ==================== FEED & AUTHOR POSTS ====================
@@ -479,6 +512,16 @@ class AnalysisPostServiceTest {
                         assertEquals(1, posts.getTotalElements());
                         assertEquals("My Analysis", posts.getContent().get(0).getTitle());
                 }
+
+                @Test
+                void getPostsByAuthor_missingUser_throwsTypedNotFound() {
+                        Pageable pageable = PageRequest.of(0, 20);
+                        when(userRepository.findById(authorId)).thenReturn(Optional.empty());
+
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
+                                        () -> postService.getPostsByAuthor(authorId, pageable));
+                        assertEquals("user_not_found", ex.code());
+                }
         }
 
         // ==================== AUTHOR STATS ====================
@@ -511,9 +554,10 @@ class AnalysisPostServiceTest {
                 void getAuthorStats_requiresExistingUser() {
                         when(userRepository.existsById(authorId)).thenReturn(false);
 
-                        RuntimeException ex = assertThrows(RuntimeException.class,
+                        ApiRequestException ex = assertThrows(ApiRequestException.class,
                                         () -> postService.getAuthorStats(authorId));
 
+                        assertEquals("user_not_found", ex.code());
                         assertEquals("User not found", ex.getMessage());
                         verify(postRepository, never()).countByAuthorIdAndDeletedFalse(any());
                 }

@@ -5,6 +5,7 @@ import com.finance.core.domain.*;
 import com.finance.core.repository.ActivityEventRepository;
 import com.finance.core.repository.FollowRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -264,7 +265,7 @@ public class ActivityFeedService {
 
     private void ensureUserExists(UUID userId) {
         if (userId == null || !userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 

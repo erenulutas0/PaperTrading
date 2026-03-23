@@ -5,6 +5,7 @@ import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioParticipantRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -42,15 +43,15 @@ public class PortfolioParticipationService {
                 Portfolio original = loadRequiredPortfolio(portfolioId);
 
                 if (original.getVisibility() != Portfolio.Visibility.PUBLIC) {
-                        throw new RuntimeException("Cannot join a private portfolio");
+                        throw ApiRequestException.conflict("portfolio_private", "Cannot join a private portfolio");
                 }
 
                 if (original.getOwnerId().equals(userId.toString())) {
-                        throw new RuntimeException("Cannot join your own portfolio");
+                        throw ApiRequestException.conflict("cannot_join_own_portfolio", "Cannot join your own portfolio");
                 }
 
                 if (participantRepository.existsByPortfolioIdAndUserId(portfolioId, userId)) {
-                        throw new RuntimeException("Already joined this portfolio");
+                        throw ApiRequestException.conflict("portfolio_already_joined", "Already joined this portfolio");
                 }
 
                 AppUser user = loadRequiredUser(userId);
@@ -120,7 +121,7 @@ public class PortfolioParticipationService {
 
                 int deleted = participantRepository.deleteByPortfolioIdAndUserId(portfolioId, userId);
                 if (deleted == 0) {
-                        throw new RuntimeException("Not a participant of this portfolio");
+                        throw ApiRequestException.notFound("portfolio_participation_not_found", "Not a participant of this portfolio");
                 }
 
                 // Publish activity event
@@ -150,12 +151,12 @@ public class PortfolioParticipationService {
 
         private AppUser loadRequiredUser(UUID userId) {
                 return userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("User not found"));
+                                .orElseThrow(() -> ApiRequestException.notFound("user_not_found", "User not found"));
         }
 
         private Portfolio loadRequiredPortfolio(UUID portfolioId) {
                 return portfolioRepository.findById(portfolioId)
-                                .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+                                .orElseThrow(() -> ApiRequestException.notFound("portfolio_not_found", "Portfolio not found"));
         }
 
         private PortfolioParticipant reserveParticipation(UUID portfolioId, UUID userId) {
@@ -166,7 +167,7 @@ public class PortfolioParticipationService {
                 try {
                         return participantRepository.saveAndFlush(participant);
                 } catch (DataIntegrityViolationException ex) {
-                        throw new RuntimeException("Already joined this portfolio", ex);
+                        throw ApiRequestException.conflict("portfolio_already_joined", "Already joined this portfolio");
                 }
         }
 }

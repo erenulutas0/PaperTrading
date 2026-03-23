@@ -3,6 +3,7 @@ package com.finance.core.controller;
 import com.finance.core.dto.MarketTerminalLayoutRequest;
 import com.finance.core.service.MarketTerminalLayoutService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -77,47 +78,10 @@ public class MarketTerminalLayoutController {
             RuntimeException exception,
             HttpServletRequest httpRequest,
             boolean createPath) {
+        if (exception instanceof ApiRequestException apiRequestException) {
+            throw apiRequestException;
+        }
         String message = exception.getMessage() != null ? exception.getMessage() : "";
-        if ("Layout limit reached".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.CONFLICT,
-                    "market_terminal_layout_limit_reached",
-                    message,
-                    null,
-                    httpRequest);
-        }
-        if ("Layout name is required".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_terminal_layout_name_required",
-                    message,
-                    null,
-                    httpRequest);
-        }
-        if ("Layout name exceeds 80 characters".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_terminal_layout_name_too_long",
-                    message,
-                    null,
-                    httpRequest);
-        }
-        if ("Terminal layout not found".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.NOT_FOUND,
-                    "market_terminal_layout_not_found",
-                    message,
-                    null,
-                    httpRequest);
-        }
-        if ("User not found".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.NOT_FOUND,
-                    "user_not_found",
-                    message,
-                    null,
-                    httpRequest);
-        }
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,
                 createPath ? "market_terminal_layout_create_failed" : "market_terminal_layout_update_failed",

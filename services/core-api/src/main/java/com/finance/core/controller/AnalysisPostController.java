@@ -4,6 +4,7 @@ import com.finance.core.dto.AnalysisPostRequest;
 import com.finance.core.dto.AnalysisPostResponse;
 import com.finance.core.service.AnalysisPostService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +16,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 
-import java.util.Locale;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -34,8 +33,10 @@ public class AnalysisPostController {
             HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(postService.createPost(userId, request));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalysisError(exception, "analysis_post_create_failed", "Failed to create analysis post", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "analysis_post_create_failed", "Failed to create analysis post", null, httpRequest);
         }
     }
 
@@ -48,8 +49,10 @@ public class AnalysisPostController {
         try {
             postService.deletePost(postId, userId);
             return ResponseEntity.ok().build();
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalysisError(exception, "analysis_post_delete_failed", "Failed to delete analysis post", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "analysis_post_delete_failed", "Failed to delete analysis post", null, httpRequest);
         }
     }
 
@@ -58,8 +61,10 @@ public class AnalysisPostController {
     public ResponseEntity<?> getPost(@PathVariable UUID postId, HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(postService.getPost(postId));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalysisError(exception, "analysis_post_read_failed", "Failed to read analysis post", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "analysis_post_read_failed", "Failed to read analysis post", null, httpRequest);
         }
     }
 
@@ -70,8 +75,10 @@ public class AnalysisPostController {
             HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(postService.getFeed(pageable));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalysisError(exception, "analysis_post_feed_failed", "Failed to load analysis feed", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "analysis_post_feed_failed", "Failed to load analysis feed", null, httpRequest);
         }
     }
 
@@ -83,8 +90,10 @@ public class AnalysisPostController {
             HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(postService.getPostsByAuthor(userId, pageable));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalysisError(exception, "analysis_post_author_feed_failed", "Failed to load author analysis posts", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "analysis_post_author_feed_failed", "Failed to load author analysis posts", null, httpRequest);
         }
     }
 
@@ -93,42 +102,10 @@ public class AnalysisPostController {
     public ResponseEntity<?> getAuthorStats(@PathVariable UUID userId, HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(postService.getAuthorStats(userId));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalysisError(exception, "analysis_post_stats_failed", "Failed to load analysis author stats", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "analysis_post_stats_failed", "Failed to load analysis author stats", null, httpRequest);
         }
-    }
-
-    private ResponseEntity<?> buildAnalysisError(
-            RuntimeException exception,
-            String fallbackCode,
-            String fallbackMessage,
-            HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
-        String normalized = message.toLowerCase(Locale.ROOT);
-        if (normalized.contains("user not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "user_not_found", "User not found", null, request);
-        }
-        if (normalized.contains("post not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "analysis_post_not_found", "Analysis post not found", null, request);
-        }
-        if (normalized.contains("author not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "analysis_post_author_not_found", "Analysis post author not found", null, request);
-        }
-        if (normalized.contains("only the author can delete")) {
-            return ApiErrorResponses.build(HttpStatus.FORBIDDEN, "analysis_post_delete_forbidden", "Only the author can delete their post", null, request);
-        }
-        if (normalized.contains("already deleted")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "analysis_post_already_deleted", "Analysis post already deleted", null, request);
-        }
-        if (normalized.contains("invalid direction")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_analysis_direction", "Invalid analysis direction", null, request);
-        }
-        if (normalized.contains("no market data")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "analysis_market_data_unavailable", message, null, request);
-        }
-        if (normalized.contains("target price must be above") || normalized.contains("target price must be below")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_analysis_target_price", message, null, request);
-        }
-        return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);
     }
 }

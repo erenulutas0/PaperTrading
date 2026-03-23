@@ -6,6 +6,7 @@ import com.finance.core.dto.UpdateLeaderboardPreferencesRequest;
 import com.finance.core.dto.UserPreferencesResponse;
 import com.finance.core.repository.UserPreferenceRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -160,9 +161,10 @@ class UserPreferencesServiceTest {
                         .build())
                 .build();
 
-        RuntimeException exception = assertThrows(RuntimeException.class,
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> userPreferencesService.updateLeaderboardPreferences(userId, request));
 
+        assertEquals("invalid_user_preferences_period", exception.code());
         assertEquals("Invalid user preferences period", exception.getMessage());
     }
 
@@ -178,9 +180,10 @@ class UserPreferencesServiceTest {
                 .range("2Y")
                 .build();
 
-        RuntimeException exception = assertThrows(RuntimeException.class,
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> userPreferencesService.updateTerminalPreferences(userId, request));
 
+        assertEquals("invalid_user_preferences_terminal_range", exception.code());
         assertEquals("Invalid user preferences terminal range", exception.getMessage());
     }
 
@@ -202,9 +205,10 @@ class UserPreferencesServiceTest {
                         .toList())
                 .build();
 
-        RuntimeException exception = assertThrows(RuntimeException.class,
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> userPreferencesService.updateTerminalPreferences(userId, request));
 
+        assertEquals("user_preferences_compare_basket_limit_reached", exception.code());
         assertEquals("Compare basket limit reached", exception.getMessage());
     }
 
@@ -226,9 +230,22 @@ class UserPreferencesServiceTest {
                                 .build()))
                 .build();
 
-        RuntimeException exception = assertThrows(RuntimeException.class,
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> userPreferencesService.updateTerminalPreferences(userId, request));
 
+        assertEquals("invalid_user_preferences_scanner_sort", exception.code());
         assertEquals("Invalid user preferences scanner sort", exception.getMessage());
+    }
+
+    @Test
+    void getPreferences_withUnknownUser_shouldThrowTypedNotFound() {
+        UUID userId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+        when(userRepository.existsById(userId)).thenReturn(false);
+
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
+                () -> userPreferencesService.getPreferences(userId));
+
+        assertEquals("user_not_found", exception.code());
+        assertEquals("User not found", exception.getMessage());
     }
 }

@@ -3,6 +3,7 @@ package com.finance.core.controller;
 import com.finance.core.security.InvalidRefreshTokenException;
 import com.finance.core.web.ApiErrorResponse;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -45,19 +46,27 @@ public class GlobalExceptionHandler {
         return ApiErrorResponses.build(status, code, message, null, request);
     }
 
+    @ExceptionHandler(ApiRequestException.class)
+    public ResponseEntity<ApiErrorResponse> handleApiRequestException(
+            ApiRequestException ex,
+            HttpServletRequest request) {
+        if (ex.forceJson()) {
+            return ApiErrorResponses.buildJson(ex.status(), ex.code(), ex.getMessage(), ex.details(), request);
+        }
+        return ApiErrorResponses.build(ex.status(), ex.code(), ex.getMessage(), ex.details(), request);
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiErrorResponse> handleRuntime(
             RuntimeException ex,
             HttpServletRequest request) {
-        HttpStatus status = HttpStatus.BAD_REQUEST;
-        String code = "bad_request";
-
         String msg = ex.getMessage();
-        if (msg != null && (msg.toLowerCase().contains("not found"))) {
-            status = HttpStatus.NOT_FOUND;
-            code = "not_found";
-        }
-        return ApiErrorResponses.build(status, code, msg != null ? msg : "Unexpected error", null, request);
+        return ApiErrorResponses.build(
+                HttpStatus.BAD_REQUEST,
+                "bad_request",
+                msg != null ? msg : "Unexpected error",
+                null,
+                request);
     }
 
     @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)

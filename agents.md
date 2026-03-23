@@ -20,7 +20,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
 | Portfolio CRUD | ✅ Done | Create, delete, deposit |
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle |
-| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, account-backed compare-basket presets, and market-provider split preparing delayed BIST100 support |
+| Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + explicit invalid-param contracts for public market query surfaces + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, account-backed compare-basket presets, and market-provider split preparing delayed BIST100 support |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
 | Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) + DB-backed read fallback when Redis leaderboard ranges are unavailable + explicit invalid-param contracts for portfolio/account leaderboard reads |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
@@ -35,10 +35,386 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
 | Trust/Credibility Scores | 🔨 Building | Bayesian multi-signal scoring now blends resolved analysis accuracy, realized trade quality, profitable portfolio ratio, and average portfolio return; experience lift is now evidence-aligned instead of volume-only, profile breakdown/docs are live, and local rollout verification passed |
 | Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; JDBC-backed inspection/export endpoints plus `/dashboard/audit` are live, with staging/runtime verification still pending |
-| Strategy Bots | 🔨 Building | Audited draft CRUD + run journal + backtest/forward-test execution + persisted fills/equity/decision events + account/public analytics and board exports + dashboard builder/workspace with structured entry/exit rule editor, cancellation, reconciliation, and run drilldown |
+| Strategy Bots | 🔨 Building | Audited draft CRUD + run journal + backtest/forward-test execution + persisted fills/equity/decision events + account/public analytics and board exports + dashboard builder/workspace with structured entry/exit rule editor, cancellation, reconciliation, and run drilldown + future agentic runtime guardrails (provider abstraction, bounded action schema, validator foundation, audit requirements) defined before any LLM execution path |
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-23**: **Global Generic Runtime Fallback No Longer Guesses `not_found` From Exception Text**
+  - **Problem observed**:
+    - After the controller/service phase-3 cleanup, the shared `GlobalExceptionHandler(RuntimeException)` fallback still contained one last message heuristic:
+      - if the message text contained `"not found"`, convert the response into generic `404 not_found`
+    - With the main domain surfaces now using:
+      - typed `ApiRequestException`
+      - explicit controller-local validation
+      - `ResponseStatusException`
+    - that heuristic had become more misleading than helpful, because it let untyped runtime text masquerade as a real missing-resource contract.
+  - **Implementation**:
+    - Removed the `"not found"` text heuristic from `GlobalExceptionHandler.handleRuntime(...)`.
+    - Generic uncategorized runtime failures now stay in the generic correlated `400 bad_request` bucket unless they use an explicit typed/status path.
+    - Added `GlobalExceptionHandlerTest` to lock:
+      - generic runtime text containing `"not found"` stays `bad_request`
+      - typed `ApiRequestException.notFound(...)` still produces the expected `404` contract
+  - **Operational impact**:
+    - missing-resource semantics now come from explicit typed/status contracts rather than accidental exception text
+    - the backend’s phase-3 message-drift cleanup is now materially more complete at the shared handler layer as well
+- **2026-03-23**: **Strategy-Bot Controller Fallback Is No Longer A Message-Parsing Contract Layer**
+  - **Problem observed**:
+    - Even after most strategy-bot CRUD/run validations had moved onto typed `ApiRequestException`s, `StrategyBotController.buildBotError(...)` still carried a large substring-matching table.
+    - That meant the bot surface still had one oversized phase-3 drift hotspot where explicit public codes could appear to depend on free-text exception wording, even though the primary service paths had already been hardened.
+    - `StrategyBotRunService.evaluateRulesSafely(...)` also still recognized rule-engine warmup behavior via a free-text `"Not enough candles ..."` check.
+  - **Implementation**:
+    - Replaced the strategy-bot rule-engine insufficient-candle signal with an internal explicit code:
+      - `StrategyBotRuleEngineService.INSUFFICIENT_CANDLES_CODE`
+    - Updated `StrategyBotRunService.evaluateRulesSafely(...)` to react to that explicit code instead of substring matching.
+    - Removed the large message-normalization table from `StrategyBotController.buildBotError(...)`.
+    - `StrategyBotController` now:
+      - rethrows typed `ApiRequestException`s through the shared global handler
+      - uses only the endpoint-scoped fallback code for unexpected non-typed runtime failures such as serialization/internal corruption paths
+    - Revalidated the public contract with targeted controller integration coverage across strategy-bot CRUD, board/discover, and run-state paths.
+  - **Operational impact**:
+    - strategy-bot public validation and run-state contracts now originate from explicit typed service exceptions rather than controller substring parsing
+    - the remaining phase-3 generic-error cleanup is now concentrated in the shared global runtime fallback rather than in large surface-specific controllers
+- **2026-03-23**: **Market Provider Validation No Longer Leaks Free-Text Unsupported-Value Messages Into Controller Normalization**
+  - **Problem observed**:
+    - `MarketController` already returned explicit correlated contracts for invalid query inputs.
+    - One residual phase-3 weakness remained: market providers could still throw free-text messages such as:
+      - `Unsupported symbol: ...`
+      - `Unsupported range: ...`
+      - `Unsupported interval: ...`
+    - The controller had to normalize those messages back into `invalid_market_*` codes with substring matching.
+  - **Implementation**:
+    - Updated `BinanceService` to emit explicit validation codes for invalid tracked symbol and invalid interval paths.
+    - Updated `YahooBistMarketDataService` to emit explicit validation codes for invalid symbol, invalid range, and invalid interval paths.
+    - Simplified `MarketController.resolveMarketErrorCode(...)` so provider-originated market validation now maps by explicit code instead of parsing free-text unsupported-value messages.
+    - Updated `MarketControllerIntegrationTest` to lock the provider-facing `invalid_market_symbol` contract directly.
+  - **Operational impact**:
+    - public market query contracts are now less brittle because provider validation no longer depends on controller substring matching
+    - the remaining phase-3 cleanup hotspot list is narrower and more clearly centered on strategy-bot fallback logic
+- **2026-03-23**: **Strategy-Bot Validation And Run-State Contracts Now Originate In Typed Service Exceptions Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - Strategy-bot APIs had already accumulated a large set of explicit public error codes across:
+      - CRUD
+      - board/discover filters
+      - run request/execute/refresh/cancel/reconciliation paths
+    - Internally, `StrategyBotController` was still reconstructing many of those contracts by parsing exception text from:
+      - `StrategyBotService`
+      - `StrategyBotRunService`
+    - That left the external contract stable but the implementation brittle under message refactors, especially on the fast-growing bot execution surface.
+  - **Implementation**:
+    - Updated `StrategyBotService` to throw typed `ApiRequestException` contracts for:
+      - missing user/bot/linked-portfolio rows
+      - payload/name/market/symbol/timeframe required validation
+      - invalid status and risk-control validation branches
+    - Updated `StrategyBotRunService` to throw typed `ApiRequestException` contracts for:
+      - invalid board/discover filters
+      - missing run/bot/linked portfolio rows
+      - invalid run mode / market / date range / initial capital
+      - execution, refresh, cancellation, and reconciliation state conflicts
+      - market-data unavailable paths
+    - Simplified `StrategyBotController` so typed request exceptions now bypass the legacy message-normalization block through the shared global handler.
+    - Extended targeted strategy-bot controller integration coverage across invalid direction/format/create/run-state paths.
+  - **Operational impact**:
+    - most strategy-bot validation and run-state contracts are now less brittle because stable public codes no longer depend on exact service wording
+    - the remaining legacy normalization block in `StrategyBotController` is now a narrower residual fallback rather than the primary contract path
+- **2026-03-23**: **Chart-Note And Terminal-Layout Contracts Now Flow Through Typed API Exceptions Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - The market workspace already returned explicit contracts for saved chart-note and terminal-layout validation/not-found paths.
+    - Internally, both controllers still rebuilt those responses by parsing raw runtime messages from:
+      - `MarketChartNoteService`
+      - `MarketTerminalLayoutService`
+    - That left account-backed watchlist workspace contracts externally stable but still coupled to exact exception wording.
+  - **Implementation**:
+    - Updated `MarketChartNoteService` to throw typed `ApiRequestException` contracts for:
+      - `user_not_found`
+      - `market_chart_note_not_found`
+      - `market_chart_note_symbol_required`
+      - `market_chart_note_body_required`
+      - `market_chart_note_body_too_long`
+    - Updated `MarketTerminalLayoutService` to throw typed `ApiRequestException` contracts for:
+      - `user_not_found`
+      - `market_terminal_layout_not_found`
+      - `market_terminal_layout_limit_reached`
+      - `market_terminal_layout_name_required`
+      - `market_terminal_layout_name_too_long`
+    - Simplified both controllers so known validation/not-found/limit failures now flow through the shared global typed-exception handler instead of local string matching.
+    - Extended service-level code assertions and kept controller integration coverage green for both surfaces.
+  - **Operational impact**:
+    - saved-note and saved-layout contracts are now less brittle under refactors because their public codes no longer depend on exact exception text
+    - the typed-exception cleanup now also covers the watchlist workspace’s account-backed note/layout tooling
+- **2026-03-23**: **Notification Missing-User Contracts Now Originate In Typed Service Exceptions Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - Notification reads, stream-token issuance, and SSE emitter creation already required a real persisted user.
+    - Internally, `NotificationController` still rebuilt `user_not_found` by parsing generic runtime text from `NotificationService`.
+    - That left the contract externally stable but still exposed to message drift on account-backed notification paths.
+  - **Implementation**:
+    - Updated `NotificationService.ensureUserExists(...)` to throw `ApiRequestException.notFound("user_not_found", ...)`.
+    - Simplified `NotificationController` so known missing-user failures now flow through the shared global typed-exception handler instead of local string matching.
+    - Tightened service-level code assertions while preserving existing integration coverage for unread-count and stream-token missing-user paths.
+  - **Operational impact**:
+    - notification account-backed read and stream-token contracts are now less brittle because `user_not_found` no longer depends on exact service message text
+    - phase-3 typed-exception cleanup now also covers the notification surface end-to-end, not only social/feed/workspace slices
+- **2026-03-23**: **Analytics Portfolio Missing-Resource Contracts Now Originate In The Service Layer Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - `AnalyticsController` had already moved invalid export-format handling onto `ApiRequestException`.
+    - One phase-3 gap remained: `analytics_portfolio_not_found` still depended on parsing `"Portfolio not found"` text coming back from `PerformanceAnalyticsService`.
+    - That left analytics read/export contracts externally stable but still fragile under service-message refactors.
+  - **Implementation**:
+    - Updated `PerformanceAnalyticsService` to throw typed `ApiRequestException.notFound(...)` for analytics portfolio existence checks.
+    - Simplified `AnalyticsController` so missing-portfolio cases now flow through the shared global typed-exception handler.
+    - Added service coverage proving risk-metrics reads return `analytics_portfolio_not_found` from the service layer.
+  - **Operational impact**:
+    - analytics read/export contracts are now less brittle because portfolio missing-resource behavior no longer depends on string matching in the controller
+    - the analytics surface is now fully aligned with the shared typed-exception cleanup path
+- **2026-03-23**: **Interaction Contracts Now Flow Through Typed API Exceptions Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - Interaction write paths already returned explicit contracts for invalid target types, empty/oversized comments, and missing portfolio/post/comment targets.
+    - Internally, `InteractionController` still reconstructed those contracts by parsing generic exception text from `InteractionService`.
+    - That left like/comment behavior externally stable but still tied to exact service wording, and read surfaces like summary/likes/comments could not naturally share the same typed validation path.
+  - **Implementation**:
+    - Updated `InteractionService` to throw typed `ApiRequestException` contracts for:
+      - `interaction_target_type_required`
+      - `interaction_target_type_invalid`
+      - `interaction_comment_empty`
+      - `interaction_comment_too_long`
+      - `user_not_found`
+      - `portfolio_not_found`
+      - `analysis_post_not_found`
+      - `comment_not_found`
+    - Simplified `InteractionController` so known interaction validation/not-found failures now flow through the shared global typed-exception handler instead of local substring matching.
+    - Kept generic `interaction_request_failed` fallback only for unexpected internal runtime paths such as malformed portfolio owner data.
+    - Added targeted coverage for orphan-like actors and typed service-level code assertions.
+  - **Operational impact**:
+    - interaction like/comment contracts are now less brittle under refactors because stable API codes no longer depend on exact exception strings
+    - invalid interaction target types on adjacent read surfaces can now reuse the same typed global handler path
+- **2026-03-23**: **Watchlist Contracts Now Flow Through Typed API Exceptions Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - Watchlist surfaces were already hardened around owner-scoped item lookup and real-user checks.
+    - Internally, however, `WatchlistController` still reconstructed `watchlist_not_found`, `watchlist_item_not_found`, and `user_not_found` by parsing generic runtime text from:
+      - `WatchlistService`
+      - `WatchlistAlertHistoryService`
+    - That kept the external contract stable but left watchlist/account-backed reads and alert-history export paths fragile under service message refactors.
+  - **Implementation**:
+    - Updated `WatchlistService` to throw typed `ApiRequestException.notFound(...)` for:
+      - `user_not_found`
+      - `watchlist_not_found`
+      - `watchlist_item_not_found`
+    - Updated `WatchlistAlertHistoryService` to throw the same typed contracts for missing-user and missing-item paths.
+    - Simplified `WatchlistController` so known watchlist failures now flow through the shared global typed-exception handler instead of local substring parsing.
+    - Extended service tests to assert explicit error codes, not just messages.
+  - **Operational impact**:
+    - watchlist CRUD, owner-scoped item mutation, and alert-history/export contracts are now less brittle under refactors because public codes no longer depend on exact exception wording
+    - phase-3 typed-exception cleanup now covers another account-backed market workspace surface with both JSON and CSV entry points
+- **2026-03-23**: **User Preferences Contracts Now Flow Through Typed API Exceptions Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - Preferences endpoints already exposed explicit contracts for missing-user and invalid write lenses.
+    - Internally, `UserPreferencesController` was still reconstructing those codes by parsing generic runtime text from `UserPreferencesService`.
+    - That left account-backed settings reads and writes externally stable but still tied to exact exception wording for:
+      - `user_not_found`
+      - invalid leaderboard/terminal/scanner lens values
+      - compare-basket and scanner-view limit conflicts
+  - **Implementation**:
+    - Updated `UserPreferencesService` to throw typed `ApiRequestException` contracts for:
+      - `user_not_found`
+      - `invalid_user_preferences_period`
+      - `invalid_user_preferences_sort`
+      - `invalid_user_preferences_direction`
+      - `invalid_user_preferences_terminal_market`
+      - `invalid_user_preferences_terminal_range`
+      - `invalid_user_preferences_terminal_interval`
+      - `invalid_user_preferences_scanner_filter`
+      - `invalid_user_preferences_scanner_sort`
+      - `user_preferences_compare_basket_limit_reached`
+      - `user_preferences_scanner_view_limit_reached`
+    - Simplified `UserPreferencesController` so known preference failures now flow through the shared global typed-exception handler instead of local substring matching.
+    - Added/updated targeted service and controller integration coverage around missing-user, invalid-period, invalid-scanner-sort, and compare-basket-limit paths.
+  - **Operational impact**:
+    - preference read/write contracts are now less brittle under refactors because their public codes no longer depend on message text
+    - phase-3 typed-exception cleanup now covers another account-backed configuration surface with multiple validation/limit branches
+- **2026-03-23**: **Analysis Post Contracts Now Flow Through Typed API Exceptions Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - Analysis-post endpoints already returned the right external error codes for create/delete/read/account-backed paths.
+    - Internally, that contract was still reconstructed by parsing generic runtime text inside `AnalysisPostController`.
+    - The service layer also still emitted plain `RuntimeException` strings for:
+      - invalid direction
+      - missing market data
+      - invalid target-price direction
+      - missing requester/author/post rows
+      - delete authorization/conflict paths
+    - That left the accountability surface externally stable but still vulnerable to message drift during refactors.
+  - **Implementation**:
+    - Updated `AnalysisPostService` to throw typed `ApiRequestException` contracts for:
+      - `user_not_found`
+      - `analysis_post_not_found`
+      - `analysis_post_author_not_found`
+      - `analysis_post_delete_forbidden`
+      - `analysis_post_already_deleted`
+      - `invalid_analysis_direction`
+      - `analysis_market_data_unavailable`
+      - `invalid_analysis_target_price`
+    - Simplified `AnalysisPostController` so known analysis-post domain/validation failures now flow through the shared global typed-exception handler instead of local substring parsing.
+    - Added targeted coverage for:
+      - orphan-author post reads
+      - typed service exceptions on create/delete/stats paths
+  - **Operational impact**:
+    - analysis-post contracts are now less brittle under refactors because public API codes no longer depend on exact exception wording
+    - the phase-3 typed-exception cleanup now covers another high-accountability surface, not only feed/profile/tournament participation flows
+- **2026-03-23**: **Activity Feed Account-Backed Read Errors Now Flow Through Typed API Exceptions**
+  - **Problem observed**:
+    - Personalized feed and user-activity reads had already been hardened to require real persisted users.
+    - Internally, the controller still reconstructed `user_not_found` by parsing generic runtime text from `ActivityFeedService`.
+    - That kept the public contract stable, but the local implementation still carried phase-3 message-drift risk.
+  - **Implementation**:
+    - Updated `ActivityFeedService.ensureUserExists(...)` to throw `ApiRequestException.notFound(...)`.
+    - Simplified `ActivityFeedController` so:
+      - personalized feed
+      - explicit user activity feed
+      now let typed request exceptions flow through the shared global handler.
+    - Kept generic fallback buckets only for unexpected runtime failures.
+  - **Operational impact**:
+    - feed account-backed error contracts no longer depend on exact service message text
+    - the typed-exception cleanup now also covers cache-aware read surfaces, not only write/conflict paths
+- **2026-03-23**: **User Follow And Tournament Join Flows Now Use Typed API Exceptions Instead Of Parsing Service Messages**
+  - **Problem observed**:
+    - After introducing `ApiRequestException`, two other controller/service pairs still depended on message-substring parsing for stable public contracts:
+      - `UserProfileController` / `UserProfileService`
+      - `TournamentController` / `TournamentService`
+    - That left social follow/unfollow and tournament join/leaderboard behavior externally stable but internally tied to fragile service message text.
+  - **Implementation**:
+    - Updated `UserProfileService` to throw typed exceptions for:
+      - self-follow rejection
+      - duplicate follow
+      - missing follower
+      - missing target user
+      - unfollow without relationship
+      - profile read/update missing-user paths
+    - Simplified `UserProfileController` so known follow/unfollow errors now flow through the shared global typed-exception handler.
+    - Updated `TournamentService` to throw typed exceptions for:
+      - missing tournament
+      - inactive tournament join
+      - duplicate join
+      - missing joining user
+      - leaderboard reads on missing tournaments
+    - Simplified `TournamentController` so those known domain failures no longer need local message parsing.
+    - Added integration coverage for:
+      - orphan follower ids
+      - missing follow targets
+      - inactive tournament joins
+      - missing tournament users
+      - missing tournament leaderboard reads
+  - **Operational impact**:
+    - follow/unfollow and tournament contracts are now less brittle under refactors because stable API codes no longer depend on string wording inside the service layer
+    - phase-3 typed-exception cleanup now spans validation-only controllers and real service/controller domain pairs
+- **2026-03-23**: **Portfolio Participation Now Uses Typed API Exceptions Instead Of Controller Message Parsing**
+  - **Problem observed**:
+    - Portfolio participation had already been hardened around duplicate-edge reservation and unified response contracts.
+    - Internally, however, the controller still depended on parsing raw runtime message text from the service layer for:
+      - missing portfolio
+      - missing user
+      - private portfolio join rejection
+      - own-portfolio join rejection
+      - duplicate join
+      - leave without participation
+    - That made the external contract stable, but the internal path still fragile under message refactors.
+  - **Implementation**:
+    - Extended `ApiRequestException` with reusable:
+      - `notFound(...)`
+      - `conflict(...)`
+      factories.
+    - Updated `PortfolioParticipationService` to throw typed exceptions directly for its known domain conflict/not-found paths.
+    - Simplified `PortfolioParticipationController` so known participation errors now bubble through the shared global API exception handler instead of being reconstructed from message substrings.
+    - Added integration coverage for the orphan-user join path.
+  - **Operational impact**:
+    - portfolio join/leave contracts are now less dependent on exact service message wording
+    - the new typed exception primitive is proven viable beyond audit/analytics parsing and can be applied to other controller/service pairs during phase-3 cleanup
+- **2026-03-23**: **Audit And Analytics Controllers Now Use A Shared Typed API Request Exception Instead Of Parsing Runtime Messages**
+  - **Problem observed**:
+    - Several controller slices already returned explicit correlated API errors, but some of them still got there through a weaker internal pattern:
+      - throw generic `RuntimeException`
+      - catch it locally
+      - parse the exception message text back into an API code
+    - The main remaining examples were:
+      - `AuditOpsController`
+      - `AnalyticsController`
+    - That kept phase-3 contract hardening vulnerable to message drift even though the external response shape was already correct.
+  - **Implementation**:
+    - Added `services/core-api/src/main/java/com/finance/core/web/ApiRequestException.java`.
+    - Extended `GlobalExceptionHandler` with a dedicated `ApiRequestException` handler that preserves:
+      - status
+      - code
+      - message
+      - optional forced JSON content type for export routes
+    - Reworked `AuditOpsController` filter parsing so invalid audit inputs now throw typed API request exceptions directly instead of generic runtime messages.
+    - Reworked `AnalyticsController` export-format validation so invalid `format` now throws the same typed API request exception path.
+    - Kept service-failure fallback behavior unchanged for real internal errors.
+  - **Operational impact**:
+    - audit/export and analytics invalid-input contracts are now less fragile under refactors because they no longer depend on substring matching of exception messages
+    - the backend has a reusable phase-3 primitive for future controller-local validation paths, including CSV/download routes that still need JSON error envelopes
+- **2026-03-23**: **Future Agentic Strategy-Bot Runtime Now Has An Explicit Guardrail Foundation Before Any Model Is Wired In**
+  - **Problem observed**:
+    - Strategy bots had already grown into a real paper-execution surface with:
+      - audited CRUD
+      - backtests
+      - forward-test refresh
+      - reconciliation
+      - decision journaling
+    - The remaining open roadmap risk was not missing execution depth but missing boundaries for a future LLM-assisted bot runtime.
+    - Without a defined server-owned action schema, provider abstraction, and validation layer, any later model integration could drift toward:
+      - vendor lock-in
+      - opaque prompts
+      - over-permissive tool access
+      - decisions that bypass the bot's configured risk envelope
+  - **Implementation**:
+    - Added agentic foundation types:
+      - `StrategyBotAgentModelProvider`
+      - `StrategyBotAgentActionType`
+      - `StrategyBotAgentToolScope`
+      - `StrategyBotAgentActionProposal`
+      - `StrategyBotAgentDecisionContext`
+      - `StrategyBotAgentActionValidator`
+    - Added `StrategyBotAgentActionValidatorTest` to lock the bounded action schema.
+    - Added `infra/strategy-bot-agentic-guardrails.md` documenting:
+      - prompt/action audit requirements
+      - allowed tool scopes
+      - provider abstraction rule
+      - rollout prerequisites before any model-backed execution is enabled
+    - The validator currently enforces:
+      - `BUY / SELL / HOLD / UPDATE_STOPS` as the only action surface
+      - size caps against the bot's configured max-position limit
+      - no buy while already in position
+      - no sell/stop updates without an open position
+      - stop/take updates only inside the bot's configured envelope
+      - mandatory provider/model/prompt-version/rationale/tool metadata for auditability
+  - **Operational impact**:
+    - any future LLM-assisted bot feature now has to fit a bounded, server-validated contract instead of inventing a vendor-specific execution path
+    - paper-only accountability remains compatible with later agentic features because proposals can be validated and audit-linked before they influence a run
+- **2026-03-23**: **Market Data Query Surfaces Now Reject Invalid Inputs Explicitly Instead Of Falling Into Generic Runtime Errors**
+  - **Problem observed**:
+    - `MarketController` was still the main public REST surface not using the unified API error helper directly.
+    - Invalid query inputs such as:
+      - unknown `market`
+      - blank candle `symbol`
+      - unsupported `range`
+      - unsupported `interval`
+    - could fall through to the generic runtime handler.
+    - Candle `limit` also still normalized silently inside provider services when callers sent `<= 0` or oversized values, which kept bad input partially hidden instead of contractually rejected.
+  - **Implementation**:
+    - Updated `services/core-api/src/main/java/com/finance/core/controller/MarketController.java`.
+    - Added controller-level validation and explicit correlated `400` contracts for:
+      - `invalid_market_type`
+      - `market_symbol_required`
+      - `invalid_market_symbol`
+      - `invalid_market_range`
+      - `invalid_market_interval`
+      - `invalid_market_before_open_time`
+      - `invalid_market_limit`
+    - Added targeted `MarketControllerIntegrationTest` coverage for:
+      - invalid market reads
+      - candle validation failures
+      - unsupported-symbol mapping
+      - valid request pass-through
+  - **Operational impact**:
+    - public market clients now get stable machine-readable contracts instead of generic `bad_request` drift
+    - invalid candle pagination/history parameters no longer succeed via silent normalization, which makes caller mistakes easier to detect during UI and script rollout
 - **2026-03-23**: **Strategy Bot Workflow Now Has A Structured Rule Builder Instead Of Raw JSON-Only Editing**
   - **Problem observed**:
     - The dashboard bot form already exposed sizing, cooldown, stop-loss, and take-profit controls.

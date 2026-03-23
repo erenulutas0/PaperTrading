@@ -5,6 +5,7 @@ import com.finance.core.domain.Tournament;
 import com.finance.core.service.TournamentService;
 import com.finance.core.repository.TournamentRepository;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
@@ -54,8 +55,10 @@ public class TournamentController {
                     request.getStartsAt(),
                     request.getEndsAt());
             return ResponseEntity.ok(tournament);
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildTournamentError(e, "tournament_create_failed", "Failed to create tournament", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_create_failed", "Failed to create tournament", null, httpRequest);
         }
     }
 
@@ -68,8 +71,10 @@ public class TournamentController {
         try {
             Map<String, Object> result = tournamentService.joinTournament(tournamentId, userId);
             return ResponseEntity.ok(result);
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildTournamentError(e, "tournament_join_failed", "Failed to join tournament", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_join_failed", "Failed to join tournament", null, httpRequest);
         }
     }
 
@@ -97,8 +102,10 @@ public class TournamentController {
             HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(tournamentService.getTournamentLeaderboard(tournamentId, pageable));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildTournamentError(e, "tournament_leaderboard_failed", "Failed to load tournament leaderboard", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_leaderboard_failed", "Failed to load tournament leaderboard", null, httpRequest);
         }
     }
 
@@ -128,8 +135,10 @@ public class TournamentController {
                 effectivePageable = PageRequest.of(pageable.getPageNumber(), limit, pageable.getSort());
             }
             return ResponseEntity.ok(tournamentService.getTournamentTrades(tournamentId, effectivePageable));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildTournamentError(e, "tournament_trades_failed", "Failed to load tournament trades", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "tournament_trades_failed", "Failed to load tournament trades", null, httpRequest);
         }
     }
 
@@ -148,25 +157,5 @@ public class TournamentController {
         private BigDecimal startingBalance;
         private LocalDateTime startsAt;
         private LocalDateTime endsAt;
-    }
-
-    private ResponseEntity<?> buildTournamentError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
-        String normalized = message.toLowerCase();
-
-        if (normalized.contains("tournament not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "tournament_not_found", "Tournament not found", null, request);
-        }
-        if (normalized.contains("already joined this tournament")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "tournament_already_joined", "Already joined this tournament", null, request);
-        }
-        if (normalized.contains("tournament is not active")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "tournament_not_active", message, null, request);
-        }
-        if (normalized.contains("user not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "user_not_found", "User not found", null, request);
-        }
-
-        return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);
     }
 }

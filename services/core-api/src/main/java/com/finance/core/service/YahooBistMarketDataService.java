@@ -129,7 +129,7 @@ public class YahooBistMarketDataService {
     public List<MarketCandleResponse> getCandles(String symbol, String range, String interval, Long beforeOpenTime, Integer limit) {
         String normalizedSymbol = normalizeSymbol(symbol);
         if (!universeService.supportsSymbol(normalizedSymbol)) {
-            throw new IllegalArgumentException("Unsupported BIST100 symbol: " + symbol);
+            throw new IllegalArgumentException("invalid_market_symbol");
         }
         String normalizedInterval = normalizeInterval(interval);
         CandleQuery query = mapQuery(range, normalizedInterval, beforeOpenTime, limit);
@@ -197,7 +197,7 @@ public class YahooBistMarketDataService {
             case "3M" -> "3mo";
             case "6M" -> "6mo";
             case "1Y" -> "1y";
-            default -> throw new IllegalArgumentException("Unsupported range: " + normalizedRange);
+            default -> throw new IllegalArgumentException("invalid_market_range");
         };
         return new CandleQuery(toYahooInterval(interval), yahooRange, null, null);
     }
@@ -206,7 +206,7 @@ public class YahooBistMarketDataService {
         return switch (interval) {
             case "1m", "15m", "30m", "1h", "1d" -> interval;
             case "4h" -> "1h";
-            default -> throw new IllegalArgumentException("Unsupported interval: " + interval);
+            default -> throw new IllegalArgumentException("invalid_market_interval");
         };
     }
 
@@ -218,7 +218,7 @@ public class YahooBistMarketDataService {
             case "1h" -> 3600L;
             case "4h" -> 14400L;
             case "1d" -> 86400L;
-            default -> throw new IllegalArgumentException("Unsupported interval: " + interval);
+            default -> throw new IllegalArgumentException("invalid_market_interval");
         };
     }
 
@@ -236,7 +236,7 @@ public class YahooBistMarketDataService {
     private String normalizeInterval(String interval) {
         String normalized = interval == null ? "1h" : interval.trim().toLowerCase();
         if (!SUPPORTED_INTERVALS.contains(normalized)) {
-            throw new IllegalArgumentException("Unsupported interval: " + interval);
+            throw new IllegalArgumentException("invalid_market_interval");
         }
         return normalized;
     }

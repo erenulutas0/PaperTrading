@@ -9,6 +9,7 @@ import com.finance.core.dto.AnalysisPostRequest;
 import com.finance.core.dto.AnalysisPostResponse;
 import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -49,34 +50,16 @@ public class AnalysisPostService {
     public AnalysisPostResponse createPost(UUID authorId, AnalysisPostRequest request) {
         AppUser author = requireUser(authorId);
 
-        // Validate direction
-        AnalysisPost.Direction direction;
-        try {
-            direction = AnalysisPost.Direction.valueOf(request.getDirection().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid direction. Use: BULLISH, BEARISH, or NEUTRAL");
-        }
+        AnalysisPost.Direction direction = parseDirection(request.getDirection());
 
         // Snapshot current market price
         String symbol = request.getInstrumentSymbol().toUpperCase();
-        Map<String, Double> prices = binanceService.getPrices();
-        Double currentPrice = prices.get(symbol);
-        if (currentPrice == null) {
-            throw new RuntimeException("No market data available for " + symbol);
-        }
+        BigDecimal currentPrice = loadCurrentPrice(symbol);
 
         // Validate target price direction consistency
         if (request.getTargetPrice() != null) {
             BigDecimal target = request.getTargetPrice();
-            BigDecimal current = BigDecimal.valueOf(currentPrice);
-            if (direction == AnalysisPost.Direction.BULLISH && target.compareTo(current) <= 0) {
-                throw new RuntimeException("BULLISH target price must be above current price ("
-                        + current.toPlainString() + ")");
-            }
-            if (direction == AnalysisPost.Direction.BEARISH && target.compareTo(current) >= 0) {
-                throw new RuntimeException("BEARISH target price must be below current price ("
-                        + current.toPlainString() + ")");
-            }
+            validateTargetPrice(direction, target, currentPrice);
         }
 
         // Compute target date from days
@@ -95,7 +78,7 @@ public class AnalysisPostService {
                 .stopPrice(request.getStopPrice())
                 .timeframe(request.getTimeframe())
                 .targetDate(targetDate)
-                .priceAtCreation(BigDecimal.valueOf(currentPrice))
+                .priceAtCreation(currentPrice)
                 .build();
 
         post = postRepository.save(post);
@@ -134,15 +117,14 @@ public class AnalysisPostService {
     @Transactional
     public void deletePost(UUID postId, UUID requesterId) {
         ensureUserExists(requesterId);
-        AnalysisPost post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
+        AnalysisPost post = requirePost(postId);
 
         if (!post.getAuthorId().equals(requesterId)) {
-            throw new RuntimeException("Only the author can delete their post");
+            throw ApiRequestException.forbidden("analysis_post_delete_forbidden", "Only the author can delete their post");
         }
 
         if (post.isDeleted()) {
-            throw new RuntimeException("Post already deleted");
+            throw ApiRequestException.conflict("analysis_post_already_deleted", "Analysis post already deleted");
         }
 
         post.setDeleted(true);
@@ -164,10 +146,11 @@ public class AnalysisPostService {
 
     /** Get a single post by ID */
     public AnalysisPostResponse getPost(UUID postId) {
-        AnalysisPost post = postRepository.findById(postId)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
+        AnalysisPost post = requirePost(postId);
         AppUser author = userRepository.findById(post.getAuthorId())
-                .orElseThrow(() -> new RuntimeException("Author not found"));
+                .orElseThrow(() -> ApiRequestException.notFound(
+                        "analysis_post_author_not_found",
+                        "Analysis post author not found"));
         return toResponse(post, author);
     }
 
@@ -209,12 +192,49 @@ public class AnalysisPostService {
 
     private AppUser requireUser(UUID userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("user_not_found", "User not found"));
     }
 
     private void ensureUserExists(UUID userId) {
         if (userId == null || !userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
+        }
+    }
+
+    private AnalysisPost requirePost(UUID postId) {
+        return postRepository.findById(postId)
+                .orElseThrow(() -> ApiRequestException.notFound("analysis_post_not_found", "Analysis post not found"));
+    }
+
+    private AnalysisPost.Direction parseDirection(String rawDirection) {
+        try {
+            return AnalysisPost.Direction.valueOf(rawDirection.trim().toUpperCase());
+        } catch (RuntimeException exception) {
+            throw ApiRequestException.badRequest("invalid_analysis_direction", "Invalid analysis direction");
+        }
+    }
+
+    private BigDecimal loadCurrentPrice(String symbol) {
+        Map<String, Double> prices = binanceService.getPrices();
+        Double currentPrice = prices.get(symbol);
+        if (currentPrice == null) {
+            throw ApiRequestException.conflict(
+                    "analysis_market_data_unavailable",
+                    "No market data available for " + symbol);
+        }
+        return BigDecimal.valueOf(currentPrice);
+    }
+
+    private void validateTargetPrice(AnalysisPost.Direction direction, BigDecimal target, BigDecimal currentPrice) {
+        if (direction == AnalysisPost.Direction.BULLISH && target.compareTo(currentPrice) <= 0) {
+            throw ApiRequestException.badRequest(
+                    "invalid_analysis_target_price",
+                    "BULLISH target price must be above current price (" + currentPrice.toPlainString() + ")");
+        }
+        if (direction == AnalysisPost.Direction.BEARISH && target.compareTo(currentPrice) >= 0) {
+            throw ApiRequestException.badRequest(
+                    "invalid_analysis_target_price",
+                    "BEARISH target price must be below current price (" + currentPrice.toPlainString() + ")");
         }
     }
 

@@ -16,6 +16,8 @@ import java.util.regex.Pattern;
 @Service
 public class StrategyBotRuleEngineService {
 
+    public static final String INSUFFICIENT_CANDLES_CODE = "strategy_bot_rule_engine_insufficient_candles";
+
     private static final Pattern PRICE_ABOVE_MA = Pattern.compile("^price_above_ma_(\\d+)$");
     private static final Pattern PRICE_BELOW_MA = Pattern.compile("^price_below_ma_(\\d+)$");
     private static final Pattern RSI_ABOVE = Pattern.compile("^rsi_above_([0-9]+(?:\\.[0-9]+)?)$");
@@ -347,7 +349,7 @@ public class StrategyBotRuleEngineService {
 
     private void ensureMinimumCandles(List<MarketCandleResponse> candles, int expected) {
         if (candles == null || candles.size() < expected) {
-            throw new IllegalArgumentException("Not enough candles to evaluate strategy rule");
+            throw new IllegalArgumentException(INSUFFICIENT_CANDLES_CODE);
         }
     }
 

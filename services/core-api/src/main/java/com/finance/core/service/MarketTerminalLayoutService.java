@@ -5,6 +5,7 @@ import com.finance.core.dto.MarketTerminalLayoutRequest;
 import com.finance.core.dto.MarketTerminalLayoutResponse;
 import com.finance.core.repository.MarketTerminalLayoutRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -52,7 +53,9 @@ public class MarketTerminalLayoutService {
     public MarketTerminalLayoutResponse createLayout(UUID userId, MarketTerminalLayoutRequest request) {
         lockUserForLayoutMutation(userId);
         if (marketTerminalLayoutRepository.countByUserId(userId) >= MAX_LAYOUTS_PER_USER) {
-            throw new RuntimeException("Layout limit reached");
+            throw ApiRequestException.conflict(
+                    "market_terminal_layout_limit_reached",
+                    "Layout limit reached");
         }
 
         MarketTerminalLayout layout = marketTerminalLayoutRepository.save(MarketTerminalLayout.builder()
@@ -74,7 +77,9 @@ public class MarketTerminalLayoutService {
     public MarketTerminalLayoutResponse updateLayout(UUID userId, UUID layoutId, MarketTerminalLayoutRequest request) {
         lockUserForLayoutMutation(userId);
         MarketTerminalLayout layout = marketTerminalLayoutRepository.findByIdAndUserId(layoutId, userId)
-                .orElseThrow(() -> new RuntimeException("Terminal layout not found"));
+                .orElseThrow(() -> ApiRequestException.notFound(
+                        "market_terminal_layout_not_found",
+                        "Terminal layout not found"));
 
         layout.setName(normalizeName(request.getName()));
         layout.setWatchlistId(request.getWatchlistId());
@@ -93,28 +98,34 @@ public class MarketTerminalLayoutService {
     public void deleteLayout(UUID userId, UUID layoutId) {
         lockUserForLayoutMutation(userId);
         MarketTerminalLayout layout = marketTerminalLayoutRepository.findByIdAndUserId(layoutId, userId)
-                .orElseThrow(() -> new RuntimeException("Terminal layout not found"));
+                .orElseThrow(() -> ApiRequestException.notFound(
+                        "market_terminal_layout_not_found",
+                        "Terminal layout not found"));
         marketTerminalLayoutRepository.delete(layout);
     }
 
     private void ensureUserExists(UUID userId) {
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 
     private void lockUserForLayoutMutation(UUID userId) {
         userRepository.findByIdForUpdate(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("user_not_found", "User not found"));
     }
 
     private String normalizeName(String raw) {
         if (raw == null || raw.isBlank()) {
-            throw new RuntimeException("Layout name is required");
+            throw ApiRequestException.badRequest(
+                    "market_terminal_layout_name_required",
+                    "Layout name is required");
         }
         String trimmed = raw.trim();
         if (trimmed.length() > 80) {
-            throw new RuntimeException("Layout name exceeds 80 characters");
+            throw ApiRequestException.badRequest(
+                    "market_terminal_layout_name_too_long",
+                    "Layout name exceeds 80 characters");
         }
         return trimmed;
     }

@@ -6,6 +6,7 @@ import com.finance.core.dto.MarketTerminalLayoutRequest;
 import com.finance.core.dto.MarketTerminalLayoutResponse;
 import com.finance.core.repository.MarketTerminalLayoutRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -90,10 +91,11 @@ class MarketTerminalLayoutServiceTest {
         when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
         when(marketTerminalLayoutRepository.countByUserId(userId)).thenReturn(10L);
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> marketTerminalLayoutService.createLayout(userId, MarketTerminalLayoutRequest.builder()
+        ApiRequestException exception = assertThrows(ApiRequestException.class, () -> marketTerminalLayoutService.createLayout(userId, MarketTerminalLayoutRequest.builder()
                 .name("Overflow")
                 .build()));
 
+        assertEquals("market_terminal_layout_limit_reached", exception.code());
         assertEquals("Layout limit reached", exception.getMessage());
         verify(userRepository).findByIdForUpdate(userId);
         verify(marketTerminalLayoutRepository).countByUserId(userId);

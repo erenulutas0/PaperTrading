@@ -2,6 +2,7 @@ package com.finance.core.controller;
 
 import com.finance.core.service.PerformanceAnalyticsService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -31,8 +32,10 @@ public class AnalyticsController {
             HttpServletRequest request) {
         try {
             return ResponseEntity.ok(analyticsService.getFullAnalytics(portfolioId));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalyticsError(exception, "analytics_read_failed", "Failed to load analytics", request);
+            return ApiErrorResponses.build(HttpStatus.INTERNAL_SERVER_ERROR, "analytics_read_failed", "Failed to load analytics", null, request);
         }
     }
 
@@ -43,8 +46,8 @@ public class AnalyticsController {
             @RequestParam(required = false) String curveWindow,
             @RequestParam(required = false) String symbolFilter,
             HttpServletRequest request) {
+        String normalizedFormat = normalizeFormat(format);
         try {
-            String normalizedFormat = normalizeFormat(format);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = analyticsService.buildAnalyticsExportCsv(portfolioId, curveWindow, symbolFilter);
                 return ResponseEntity.ok()
@@ -58,8 +61,10 @@ public class AnalyticsController {
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"analytics-" + portfolioId + ".json\"")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(content);
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalyticsError(exception, "analytics_export_failed", "Failed to export analytics", request);
+            return ApiErrorResponses.build(HttpStatus.INTERNAL_SERVER_ERROR, "analytics_export_failed", "Failed to export analytics", null, request);
         }
     }
 
@@ -68,8 +73,10 @@ public class AnalyticsController {
     public ResponseEntity<?> getRiskMetrics(@PathVariable UUID portfolioId, HttpServletRequest request) {
         try {
             return ResponseEntity.ok(analyticsService.getRiskMetrics(portfolioId));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalyticsError(exception, "analytics_risk_failed", "Failed to load analytics risk metrics", request);
+            return ApiErrorResponses.build(HttpStatus.INTERNAL_SERVER_ERROR, "analytics_risk_failed", "Failed to load analytics risk metrics", null, request);
         }
     }
 
@@ -78,8 +85,10 @@ public class AnalyticsController {
     public ResponseEntity<?> getTradeStats(@PathVariable UUID portfolioId, HttpServletRequest request) {
         try {
             return ResponseEntity.ok(analyticsService.getTradeStats(portfolioId));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalyticsError(exception, "analytics_trades_failed", "Failed to load analytics trade stats", request);
+            return ApiErrorResponses.build(HttpStatus.INTERNAL_SERVER_ERROR, "analytics_trades_failed", "Failed to load analytics trade stats", null, request);
         }
     }
 
@@ -88,32 +97,18 @@ public class AnalyticsController {
     public ResponseEntity<?> getEquityCurve(@PathVariable UUID portfolioId, HttpServletRequest request) {
         try {
             return ResponseEntity.ok(analyticsService.getEquityCurve(portfolioId));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
-            return buildAnalyticsError(exception, "analytics_equity_curve_failed", "Failed to load analytics equity curve", request);
+            return ApiErrorResponses.build(HttpStatus.INTERNAL_SERVER_ERROR, "analytics_equity_curve_failed", "Failed to load analytics equity curve", null, request);
         }
     }
 
     private String normalizeFormat(String format) {
         String normalized = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
         if (!"csv".equals(normalized) && !"json".equals(normalized)) {
-            throw new RuntimeException("Invalid analytics export format");
+            throw ApiRequestException.badRequest("invalid_analytics_export_format", "Invalid analytics export format");
         }
         return normalized;
-    }
-
-    private ResponseEntity<?> buildAnalyticsError(
-            RuntimeException exception,
-            String fallbackCode,
-            String fallbackMessage,
-            HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
-        String normalized = message.toLowerCase(Locale.ROOT);
-        if (normalized.contains("portfolio not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "analytics_portfolio_not_found", "Analytics portfolio not found", null, request);
-        }
-        if (normalized.contains("invalid analytics export format")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_analytics_export_format", "Invalid analytics export format", null, request);
-        }
-        return ApiErrorResponses.build(HttpStatus.INTERNAL_SERVER_ERROR, fallbackCode, fallbackMessage, null, request);
     }
 }

@@ -6,6 +6,7 @@ import com.finance.core.dto.MarketChartNoteResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.repository.MarketChartNoteRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -68,7 +69,9 @@ public class MarketChartNoteService {
     public MarketChartNoteResponse updateNote(UUID userId, UUID noteId, MarketChartNoteRequest request) {
         ensureUserExists(userId);
         MarketChartNote note = marketChartNoteRepository.findByIdAndUserId(noteId, userId)
-                .orElseThrow(() -> new RuntimeException("Chart note not found"));
+                .orElseThrow(() -> ApiRequestException.notFound(
+                        "market_chart_note_not_found",
+                        "Chart note not found"));
 
         note.setBody(normalizeBody(request.getBody()));
         note.setPinned(normalizePinned(request.getPinned(), note.isPinned()));
@@ -79,13 +82,15 @@ public class MarketChartNoteService {
     public void deleteNote(UUID userId, UUID noteId) {
         ensureUserExists(userId);
         MarketChartNote note = marketChartNoteRepository.findByIdAndUserId(noteId, userId)
-                .orElseThrow(() -> new RuntimeException("Chart note not found"));
+                .orElseThrow(() -> ApiRequestException.notFound(
+                        "market_chart_note_not_found",
+                        "Chart note not found"));
         marketChartNoteRepository.delete(note);
     }
 
     private void ensureUserExists(UUID userId) {
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 
@@ -95,18 +100,24 @@ public class MarketChartNoteService {
 
     private String normalizeSymbol(String symbol) {
         if (symbol == null || symbol.isBlank()) {
-            throw new RuntimeException("Symbol is required");
+            throw ApiRequestException.badRequest(
+                    "market_chart_note_symbol_required",
+                    "Symbol is required");
         }
         return symbol.trim().toUpperCase(Locale.ROOT);
     }
 
     private String normalizeBody(String body) {
         if (body == null || body.isBlank()) {
-            throw new RuntimeException("Note body is required");
+            throw ApiRequestException.badRequest(
+                    "market_chart_note_body_required",
+                    "Note body is required");
         }
         String trimmed = body.trim();
         if (trimmed.length() > 2000) {
-            throw new RuntimeException("Note body exceeds 2000 characters");
+            throw ApiRequestException.badRequest(
+                    "market_chart_note_body_too_long",
+                    "Note body exceeds 2000 characters");
         }
         return trimmed;
     }

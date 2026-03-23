@@ -7,6 +7,7 @@ import com.finance.core.dto.WatchlistAlertEventResponse;
 import com.finance.core.service.WatchlistAlertHistoryService;
 import com.finance.core.service.WatchlistService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
@@ -22,7 +23,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -43,8 +43,10 @@ public class WatchlistController {
             HttpServletRequest httpRequest) {
         try {
             return ResponseEntity.ok(watchlistService.getUserWatchlists(userId, pageable));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlists_read_failed", "Failed to load watchlists", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlists_read_failed", "Failed to load watchlists", null, httpRequest);
         }
     }
 
@@ -57,8 +59,10 @@ public class WatchlistController {
         String name = request != null ? request.getName() : null;
         try {
             return ResponseEntity.ok(watchlistService.createWatchlist(userId, name));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlist_create_failed", "Failed to create watchlist", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_create_failed", "Failed to create watchlist", null, httpRequest);
         }
     }
 
@@ -71,8 +75,10 @@ public class WatchlistController {
         try {
             watchlistService.deleteWatchlist(watchlistId, userId);
             return ResponseEntity.ok().build();
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlist_delete_failed", "Failed to delete watchlist", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_delete_failed", "Failed to delete watchlist", null, httpRequest);
         }
     }
 
@@ -94,8 +100,10 @@ public class WatchlistController {
                     request.getAlertPriceBelow(),
                     request.getNotes());
             return ResponseEntity.ok(item);
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlist_add_item_failed", "Failed to add watchlist item", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_add_item_failed", "Failed to add watchlist item", null, httpRequest);
         }
     }
 
@@ -108,8 +116,10 @@ public class WatchlistController {
         try {
             watchlistService.removeItem(itemId, userId);
             return ResponseEntity.ok().build();
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlist_remove_item_failed", "Failed to remove watchlist item", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_remove_item_failed", "Failed to remove watchlist item", null, httpRequest);
         }
     }
 
@@ -124,8 +134,10 @@ public class WatchlistController {
             WatchlistItem updated = watchlistService.updateAlerts(itemId, userId, request.getAlertPriceAbove(),
                     request.getAlertPriceBelow());
             return ResponseEntity.ok(updated);
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlist_update_alerts_failed", "Failed to update watchlist alerts", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_update_alerts_failed", "Failed to update watchlist alerts", null, httpRequest);
         }
     }
 
@@ -139,8 +151,10 @@ public class WatchlistController {
         try {
             Page<Map<String, Object>> items = watchlistService.getEnrichedItemsPage(watchlistId, userId, pageable);
             return ResponseEntity.ok(items);
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlist_items_failed", "Failed to load watchlist items", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_items_failed", "Failed to load watchlist items", null, httpRequest);
         }
     }
 
@@ -159,8 +173,10 @@ public class WatchlistController {
         }
         try {
             return ResponseEntity.ok(watchlistAlertHistoryService.getRecentHistoryPage(itemId, userId, effectivePageable, days, direction));
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlist_alert_history_failed", "Failed to load watchlist alert history", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_alert_history_failed", "Failed to load watchlist alert history", null, httpRequest);
         }
     }
 
@@ -175,13 +191,15 @@ public class WatchlistController {
             byte[] csv = watchlistAlertHistoryService.exportHistoryCsv(itemId, userId, days, direction);
             String filename = direction == null
                     ? "alert-history.csv"
-                    : "alert-history-" + direction.name().toLowerCase(Locale.ROOT) + ".csv";
+                    : "alert-history-" + direction.name().toLowerCase(java.util.Locale.ROOT) + ".csv";
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .contentType(MediaType.parseMediaType("text/csv"))
                     .body(csv);
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildWatchlistError(e, "watchlist_alert_history_export_failed", "Failed to export watchlist alert history", httpRequest);
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "watchlist_alert_history_export_failed", "Failed to export watchlist alert history", null, httpRequest);
         }
     }
 
@@ -202,22 +220,5 @@ public class WatchlistController {
     static class UpdateAlertsRequest {
         private BigDecimal alertPriceAbove;
         private BigDecimal alertPriceBelow;
-    }
-
-    private ResponseEntity<?> buildWatchlistError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
-        String normalized = message.toLowerCase(Locale.ROOT);
-
-        if (normalized.contains("watchlist item not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "watchlist_item_not_found", "Watchlist item not found", null, request);
-        }
-        if (normalized.contains("watchlist not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "watchlist_not_found", "Watchlist not found", null, request);
-        }
-        if (normalized.contains("user not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "user_not_found", "User not found", null, request);
-        }
-
-        return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);
     }
 }

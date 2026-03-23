@@ -5,6 +5,7 @@ import com.finance.core.security.JwtRuntimeProperties;
 import com.finance.core.security.JwtTokenService;
 import com.finance.core.service.NotificationService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -133,15 +134,10 @@ public class NotificationController {
             RuntimeException exception,
             String fallbackCode,
             HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : "";
-        if ("User not found".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.NOT_FOUND,
-                    "user_not_found",
-                    message,
-                    null,
-                    request);
+        if (exception instanceof ApiRequestException apiRequestException) {
+            throw apiRequestException;
         }
+        String message = exception.getMessage() != null ? exception.getMessage() : "";
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,
                 fallbackCode,

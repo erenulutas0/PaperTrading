@@ -12,6 +12,7 @@ import com.finance.core.dto.UserProfileResponse;
 import com.finance.core.repository.FollowRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -43,7 +44,7 @@ public class UserProfileService {
 
         public UserProfileResponse getProfile(UUID userId, UUID requesterId) {
                 AppUser user = userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("User not found"));
+                                .orElseThrow(() -> ApiRequestException.notFound("user_not_found", "User not found"));
 
                 long portfolioCount = portfolioRepository.findByOwnerId(userId.toString()).stream()
                                 .filter(p -> p.getVisibility() == Portfolio.Visibility.PUBLIC ||
@@ -83,7 +84,7 @@ public class UserProfileService {
         @Transactional
         public void updateProfile(UUID userId, UpdateProfileRequest request) {
                 AppUser user = userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("User not found"));
+                                .orElseThrow(() -> ApiRequestException.notFound("user_not_found", "User not found"));
 
                 if (request.getDisplayName() != null)
                         user.setDisplayName(request.getDisplayName());
@@ -99,14 +100,14 @@ public class UserProfileService {
         @Transactional
         public void follow(UUID followerId, UUID followingId) {
                 if (followerId.equals(followingId)) {
-                        throw new RuntimeException("Cannot follow yourself");
+                        throw ApiRequestException.badRequest("cannot_follow_self", "Cannot follow yourself");
                 }
                 if (followRepository.existsByFollowerIdAndFollowingId(followerId, followingId)) {
-                        throw new RuntimeException("Already following");
+                        throw ApiRequestException.conflict("already_following", "Already following");
                 }
 
-                loadRequiredUser(followerId, "Follower not found");
-                loadRequiredUser(followingId, "User to follow not found");
+                loadRequiredUser(followerId, "follower_not_found", "Follower not found");
+                loadRequiredUser(followingId, "user_not_found", "User to follow not found");
 
                 try {
                         followRepository.save(Follow.builder()
@@ -114,12 +115,12 @@ public class UserProfileService {
                                         .followingId(followingId)
                                         .build());
                 } catch (DataIntegrityViolationException ex) {
-                        throw new RuntimeException("Already following", ex);
+                        throw ApiRequestException.conflict("already_following", "Already following");
                 }
 
                 adjustFollowCounters(followerId, followingId, 1);
-                AppUser refreshedFollower = loadRequiredUser(followerId, "Follower not found");
-                AppUser refreshedFollowing = loadRequiredUser(followingId, "User to follow not found");
+                AppUser refreshedFollower = loadRequiredUser(followerId, "follower_not_found", "Follower not found");
+                AppUser refreshedFollowing = loadRequiredUser(followingId, "user_not_found", "User to follow not found");
 
                 // Publish follow event to activity feed
                 activityFeedService.publish(
@@ -154,12 +155,12 @@ public class UserProfileService {
         public void unfollow(UUID followerId, UUID followingId) {
                 int deleted = followRepository.deleteByFollowerIdAndFollowingId(followerId, followingId);
                 if (deleted == 0) {
-                        throw new RuntimeException("Not following this user");
+                        throw ApiRequestException.notFound("follow_not_found", "Not following this user");
                 }
 
                 adjustFollowCounters(followerId, followingId, -1);
-                AppUser follower = loadRequiredUser(followerId, "Follower not found");
-                AppUser following = loadRequiredUser(followingId, "User to unfollow not found");
+                AppUser follower = loadRequiredUser(followerId, "follower_not_found", "Follower not found");
+                AppUser following = loadRequiredUser(followingId, "user_not_found", "User to unfollow not found");
 
                 auditLogService.record(
                                 followerId,
@@ -175,16 +176,17 @@ public class UserProfileService {
 
         private void adjustFollowCounters(UUID followerId, UUID followingId, int delta) {
                 if (userRepository.adjustFollowingCount(followerId, delta) == 0) {
-                        throw new RuntimeException("Follower not found");
+                        throw ApiRequestException.notFound("follower_not_found", "Follower not found");
                 }
                 if (userRepository.adjustFollowerCount(followingId, delta) == 0) {
-                        throw new RuntimeException(delta > 0 ? "User to follow not found" : "User to unfollow not found");
+                        throw ApiRequestException.notFound("user_not_found",
+                                        delta > 0 ? "User to follow not found" : "User to unfollow not found");
                 }
         }
 
-        private AppUser loadRequiredUser(UUID userId, String message) {
+        private AppUser loadRequiredUser(UUID userId, String code, String message) {
                 return userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException(message));
+                                .orElseThrow(() -> ApiRequestException.notFound(code, message));
         }
 
         public Page<UserProfileResponse> getFollowers(UUID userId, UUID requesterId, Pageable pageable) {

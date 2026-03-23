@@ -5,6 +5,7 @@ import com.finance.core.dto.MarketChartNoteResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.service.MarketChartNoteService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -88,47 +89,10 @@ public class MarketChartNoteController {
             RuntimeException exception,
             HttpServletRequest httpRequest,
             String fallbackCode) {
+        if (exception instanceof ApiRequestException apiRequestException) {
+            throw apiRequestException;
+        }
         String message = exception.getMessage() != null ? exception.getMessage() : "";
-        if ("User not found".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.NOT_FOUND,
-                    "user_not_found",
-                    message,
-                    null,
-                    httpRequest);
-        }
-        if ("Chart note not found".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.NOT_FOUND,
-                    "market_chart_note_not_found",
-                    message,
-                    null,
-                    httpRequest);
-        }
-        if ("Symbol is required".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_chart_note_symbol_required",
-                    message,
-                    null,
-                    httpRequest);
-        }
-        if ("Note body is required".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_chart_note_body_required",
-                    message,
-                    null,
-                    httpRequest);
-        }
-        if ("Note body exceeds 2000 characters".equals(message)) {
-            return ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_chart_note_body_too_long",
-                    message,
-                    null,
-                    httpRequest);
-        }
         return ApiErrorResponses.build(
                 HttpStatus.BAD_REQUEST,
                 fallbackCode,

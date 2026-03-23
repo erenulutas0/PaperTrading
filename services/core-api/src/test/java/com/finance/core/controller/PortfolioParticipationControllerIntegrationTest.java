@@ -145,4 +145,16 @@ class PortfolioParticipationControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Not a participant of this portfolio"))
                 .andExpect(jsonPath("$.requestId").value("participation-err-3"));
     }
+
+    @Test
+    void joinPortfolio_missingUser_returnsUnifiedNotFoundContract() throws Exception {
+        mockMvc.perform(post("/api/v1/portfolios/{portfolioId}/join", publicPortfolio.getId())
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-Request-Id", "participation-err-4"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "participation-err-4"))
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"))
+                .andExpect(jsonPath("$.requestId").value("participation-err-4"));
+    }
 }

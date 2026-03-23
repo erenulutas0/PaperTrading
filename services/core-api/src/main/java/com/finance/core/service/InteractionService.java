@@ -14,6 +14,7 @@ import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.InteractionRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -93,10 +94,12 @@ public class InteractionService {
 
         String content = request.getContent() != null ? request.getContent().trim() : "";
         if (content.isEmpty()) {
-            throw new IllegalArgumentException("Comment content cannot be empty");
+            throw ApiRequestException.badRequest("interaction_comment_empty", "Comment content cannot be empty");
         }
         if (content.length() > 1000) {
-            throw new IllegalArgumentException("Comment content cannot exceed 1000 characters");
+            throw ApiRequestException.badRequest(
+                    "interaction_comment_too_long",
+                    "Comment content cannot exceed 1000 characters");
         }
 
         AppUser actor = getActor(actorId);
@@ -168,24 +171,26 @@ public class InteractionService {
 
     private Interaction.TargetType parseTargetType(String typeStr) {
         if (typeStr == null || typeStr.isBlank()) {
-            throw new IllegalArgumentException("Target type is required");
+            throw ApiRequestException.badRequest("interaction_target_type_required", "Target type is required");
         }
         try {
             return Interaction.TargetType.valueOf(typeStr.toUpperCase().trim());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid target type. Use PORTFOLIO, ANALYSIS_POST or COMMENT");
+            throw ApiRequestException.badRequest(
+                    "interaction_target_type_invalid",
+                    "Invalid target type. Use PORTFOLIO, ANALYSIS_POST or COMMENT");
         }
     }
 
     private AppUser getActor(UUID actorId) {
         return userRepository.findById(actorId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("user_not_found", "User not found"));
     }
 
     private TargetMetadata resolveTarget(Interaction.TargetType targetType, UUID targetId) {
         if (targetType == Interaction.TargetType.PORTFOLIO) {
             var portfolio = portfolioRepository.findById(targetId)
-                    .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+                    .orElseThrow(() -> ApiRequestException.notFound("portfolio_not_found", "Portfolio not found"));
             UUID ownerId;
             try {
                 ownerId = UUID.fromString(portfolio.getOwnerId());
@@ -207,7 +212,7 @@ public class InteractionService {
 
         if (targetType == Interaction.TargetType.ANALYSIS_POST) {
             var post = analysisPostRepository.findById(targetId)
-                    .orElseThrow(() -> new RuntimeException("Analysis post not found"));
+                    .orElseThrow(() -> ApiRequestException.notFound("analysis_post_not_found", "Analysis post not found"));
             return new TargetMetadata(
                     post.getAuthorId(),
                     post.getTitle(),
@@ -222,7 +227,7 @@ public class InteractionService {
         }
 
         Interaction comment = interactionRepository.findByIdAndInteractionType(targetId, Interaction.InteractionType.COMMENT)
-                .orElseThrow(() -> new RuntimeException("Comment not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("comment_not_found", "Comment not found"));
         RootTargetMetadata rootTarget = resolveRootTarget(comment);
         return new TargetMetadata(
                 comment.getActorId(),
@@ -240,7 +245,7 @@ public class InteractionService {
     private RootTargetMetadata resolveRootTarget(Interaction comment) {
         if (comment.getTargetType() == Interaction.TargetType.PORTFOLIO) {
             var portfolio = portfolioRepository.findById(comment.getTargetId())
-                    .orElseThrow(() -> new RuntimeException("Portfolio not found"));
+                    .orElseThrow(() -> ApiRequestException.notFound("portfolio_not_found", "Portfolio not found"));
             return new RootTargetMetadata(
                     portfolio.getName(),
                     ActivityEvent.TargetType.PORTFOLIO,
@@ -255,7 +260,7 @@ public class InteractionService {
 
         if (comment.getTargetType() == Interaction.TargetType.ANALYSIS_POST) {
             var post = analysisPostRepository.findById(comment.getTargetId())
-                    .orElseThrow(() -> new RuntimeException("Analysis post not found"));
+                    .orElseThrow(() -> ApiRequestException.notFound("analysis_post_not_found", "Analysis post not found"));
             return new RootTargetMetadata(
                     post.getTitle(),
                     ActivityEvent.TargetType.POST,
@@ -270,7 +275,7 @@ public class InteractionService {
 
         Interaction parentComment = interactionRepository
                 .findByIdAndInteractionType(comment.getTargetId(), Interaction.InteractionType.COMMENT)
-                .orElseThrow(() -> new RuntimeException("Parent comment not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("comment_not_found", "Comment not found"));
         return resolveRootTarget(parentComment);
     }
 

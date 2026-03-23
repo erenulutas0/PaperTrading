@@ -3,11 +3,11 @@ package com.finance.core.controller;
 import com.finance.core.dto.UpdateProfileRequest;
 import com.finance.core.dto.UserProfileResponse;
 import com.finance.core.service.UserProfileService;
-import com.finance.core.web.CurrentUserId;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
+import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -47,8 +47,10 @@ public class UserProfileController {
         try {
             userProfileService.follow(followerId, userId);
             return ResponseEntity.ok().build();
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildFollowError(e, "follow_failed", "Failed to follow user", httpRequest);
+            return ApiErrorResponses.build(org.springframework.http.HttpStatus.BAD_REQUEST, "follow_failed", "Failed to follow user", null, httpRequest);
         }
     }
 
@@ -60,8 +62,10 @@ public class UserProfileController {
         try {
             userProfileService.unfollow(followerId, userId);
             return ResponseEntity.ok().build();
+        } catch (ApiRequestException exception) {
+            throw exception;
         } catch (Exception e) {
-            return buildFollowError(e, "unfollow_failed", "Failed to unfollow user", httpRequest);
+            return ApiErrorResponses.build(org.springframework.http.HttpStatus.BAD_REQUEST, "unfollow_failed", "Failed to unfollow user", null, httpRequest);
         }
     }
 
@@ -79,34 +83,5 @@ public class UserProfileController {
             @CurrentUserId(required = false) UUID requesterId,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(userProfileService.getFollowing(userId, requesterId, pageable));
-    }
-
-    private ResponseEntity<?> buildFollowError(Exception exception, String fallbackCode, String fallbackMessage,
-            HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
-        String normalized = message.toLowerCase();
-
-        if (normalized.contains("cannot follow yourself")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "cannot_follow_self", "Cannot follow yourself", null,
-                    request);
-        }
-        if (normalized.contains("already following")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "already_following", "Already following", null,
-                    request);
-        }
-        if (normalized.contains("follower not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "follower_not_found", "Follower not found", null,
-                    request);
-        }
-        if (normalized.contains("user to follow not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "user_not_found", "User to follow not found", null,
-                    request);
-        }
-        if (normalized.contains("not following this user")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "follow_not_found", "Not following this user", null,
-                    request);
-        }
-
-        return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);
     }
 }

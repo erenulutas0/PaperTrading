@@ -13,6 +13,7 @@ import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -91,7 +92,7 @@ public class StrategyBotService {
         StrategyBot bot = getOwnedBot(botId, userId);
 
         if (request == null) {
-            throw new IllegalArgumentException("Strategy bot payload is required");
+            throw ApiRequestException.badRequest("strategy_bot_payload_required", "Strategy bot payload is required");
         }
         if (request.getLinkedPortfolioId() != null || bot.getLinkedPortfolioId() != null) {
             UUID resolvedPortfolioId = request.getLinkedPortfolioId() != null ? request.getLinkedPortfolioId() : bot.getLinkedPortfolioId();
@@ -164,48 +165,48 @@ public class StrategyBotService {
     private StrategyBot getOwnedBot(UUID botId, UUID userId) {
         ensureUserExists(userId);
         return strategyBotRepository.findByIdAndUserId(botId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Strategy bot not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_not_found", "Strategy bot not found"));
     }
 
     private void ensureUserExists(UUID userId) {
         if (userId == null || !userRepository.existsById(userId)) {
-            throw new IllegalArgumentException("User not found");
+            throw ApiRequestException.notFound("user_not_found", "User not found");
         }
     }
 
     private void validateCreateRequest(StrategyBotRequest request) {
         if (request == null) {
-            throw new IllegalArgumentException("Strategy bot payload is required");
+            throw ApiRequestException.badRequest("strategy_bot_payload_required", "Strategy bot payload is required");
         }
         if (!hasText(request.getName())) {
-            throw new IllegalArgumentException("Strategy bot name is required");
+            throw ApiRequestException.badRequest("strategy_bot_name_required", "Strategy bot name is required");
         }
         if (!hasText(request.getMarket())) {
-            throw new IllegalArgumentException("Strategy bot market is required");
+            throw ApiRequestException.badRequest("strategy_bot_market_required", "Strategy bot market is required");
         }
         if (!hasText(request.getSymbol())) {
-            throw new IllegalArgumentException("Strategy bot symbol is required");
+            throw ApiRequestException.badRequest("strategy_bot_symbol_required", "Strategy bot symbol is required");
         }
         if (!hasText(request.getTimeframe())) {
-            throw new IllegalArgumentException("Strategy bot timeframe is required");
+            throw ApiRequestException.badRequest("strategy_bot_timeframe_required", "Strategy bot timeframe is required");
         }
         if (request.getMaxPositionSizePercent() == null) {
-            throw new IllegalArgumentException("Max position size percent is required");
+            throw ApiRequestException.badRequest("strategy_bot_max_position_size_required", "Max position size percent is required");
         }
     }
 
     private void validateCoreFields(StrategyBot bot) {
         if (!hasText(bot.getName())) {
-            throw new IllegalArgumentException("Strategy bot name is required");
+            throw ApiRequestException.badRequest("strategy_bot_name_required", "Strategy bot name is required");
         }
         if (!hasText(bot.getMarket())) {
-            throw new IllegalArgumentException("Strategy bot market is required");
+            throw ApiRequestException.badRequest("strategy_bot_market_required", "Strategy bot market is required");
         }
         if (!hasText(bot.getSymbol())) {
-            throw new IllegalArgumentException("Strategy bot symbol is required");
+            throw ApiRequestException.badRequest("strategy_bot_symbol_required", "Strategy bot symbol is required");
         }
         if (!hasText(bot.getTimeframe())) {
-            throw new IllegalArgumentException("Strategy bot timeframe is required");
+            throw ApiRequestException.badRequest("strategy_bot_timeframe_required", "Strategy bot timeframe is required");
         }
     }
 
@@ -214,9 +215,9 @@ public class StrategyBotService {
             return;
         }
         Portfolio portfolio = portfolioRepository.findById(linkedPortfolioId)
-                .orElseThrow(() -> new IllegalArgumentException("Linked portfolio not found"));
+                .orElseThrow(() -> ApiRequestException.notFound("linked_portfolio_not_found", "Linked portfolio not found"));
         if (!userId.toString().equals(portfolio.getOwnerId())) {
-            throw new IllegalArgumentException("Linked portfolio not found");
+            throw ApiRequestException.notFound("linked_portfolio_not_found", "Linked portfolio not found");
         }
     }
 
@@ -227,18 +228,20 @@ public class StrategyBotService {
         if (maxPositionSizePercent == null
                 || maxPositionSizePercent.compareTo(BigDecimal.ZERO) <= 0
                 || maxPositionSizePercent.compareTo(new BigDecimal("100")) > 0) {
-            throw new IllegalArgumentException("Max position size percent must be between 0 and 100");
+            throw ApiRequestException.badRequest(
+                    "strategy_bot_max_position_size_invalid",
+                    "Max position size percent must be between 0 and 100");
         }
         if (stopLossPercent != null
                 && (stopLossPercent.compareTo(BigDecimal.ZERO) <= 0
                 || stopLossPercent.compareTo(new BigDecimal("100")) > 0)) {
-            throw new IllegalArgumentException("Stop loss percent must be between 0 and 100");
+            throw ApiRequestException.badRequest("strategy_bot_stop_loss_invalid", "Stop loss percent must be between 0 and 100");
         }
         if (takeProfitPercent != null && takeProfitPercent.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Take profit percent must be positive");
+            throw ApiRequestException.badRequest("strategy_bot_take_profit_invalid", "Take profit percent must be positive");
         }
         if (cooldownMinutes == null || cooldownMinutes < 0) {
-            throw new IllegalArgumentException("Cooldown minutes must be zero or positive");
+            throw ApiRequestException.badRequest("strategy_bot_cooldown_invalid", "Cooldown minutes must be zero or positive");
         }
     }
 
@@ -249,7 +252,7 @@ public class StrategyBotService {
         try {
             return StrategyBot.Status.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid strategy bot status");
+            throw ApiRequestException.badRequest("invalid_strategy_bot_status", "Invalid strategy bot status");
         }
     }
 

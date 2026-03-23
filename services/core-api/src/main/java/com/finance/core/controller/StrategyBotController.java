@@ -15,6 +15,7 @@ import com.finance.core.dto.StrategyBotRunResponse;
 import com.finance.core.service.StrategyBotRunService;
 import com.finance.core.service.StrategyBotService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import com.finance.core.web.CurrentUserId;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -506,125 +507,16 @@ public class StrategyBotController {
     }
 
     private ResponseEntity<?> buildBotError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
-        String normalized = message.toLowerCase(Locale.ROOT);
-
-        if (normalized.contains("user not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "user_not_found", "User not found", null, request);
+        if (exception instanceof ApiRequestException apiRequestException) {
+            throw apiRequestException;
         }
-        if (normalized.contains("strategy bot not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "strategy_bot_not_found", "Strategy bot not found", null, request);
-        }
-        if (normalized.contains("linked portfolio not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "linked_portfolio_not_found", "Linked portfolio not found", null, request);
-        }
-        if (normalized.contains("has no linked portfolio")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_linked_portfolio_required", "Strategy bot has no linked portfolio", null, request);
-        }
-        if (normalized.contains("must be running or completed before reconciliation")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_reconciliation_not_ready", "Strategy bot run must be RUNNING or COMPLETED before reconciliation", null, request);
-        }
-        if (normalized.contains("reconciliation requires manual cleanup")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_reconciliation_manual_cleanup_required", "Strategy bot reconciliation requires manual cleanup", null, request);
-        }
-        if (normalized.contains("target quantity is invalid")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_reconciliation_target_invalid", "Strategy bot reconciliation target quantity is invalid", null, request);
-        }
-        if (normalized.contains("target price is unavailable")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_reconciliation_target_price_unavailable", "Strategy bot reconciliation target price is unavailable", null, request);
-        }
-        if (normalized.contains("invalid strategy bot status")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_status", "Invalid strategy bot status", null, request);
-        }
-        if (normalized.contains("strategy bot payload is required")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_payload_required", "Strategy bot payload is required", null, request);
-        }
-        if (normalized.contains("strategy bot name is required")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_name_required", "Strategy bot name is required", null, request);
-        }
-        if (normalized.contains("strategy bot market is required")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_market_required", "Strategy bot market is required", null, request);
-        }
-        if (normalized.contains("strategy bot symbol is required")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_symbol_required", "Strategy bot symbol is required", null, request);
-        }
-        if (normalized.contains("strategy bot timeframe is required")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_timeframe_required", "Strategy bot timeframe is required", null, request);
-        }
-        if (normalized.contains("max position size percent is required")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_max_position_size_required", "Max position size percent is required", null, request);
-        }
-        if (normalized.contains("max position size percent must be between 0 and 100")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_max_position_size_invalid", "Max position size percent must be between 0 and 100", null, request);
-        }
-        if (normalized.contains("stop loss percent must be between 0 and 100")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_stop_loss_invalid", "Stop loss percent must be between 0 and 100", null, request);
-        }
-        if (normalized.contains("take profit percent must be positive")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_take_profit_invalid", "Take profit percent must be positive", null, request);
-        }
-        if (normalized.contains("cooldown minutes must be zero or positive")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_cooldown_invalid", "Cooldown minutes must be zero or positive", null, request);
-        }
-        if (normalized.contains("invalid strategy bot export format")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_export_format", "Invalid strategy bot export format", null, request);
-        }
-        if (normalized.contains("invalid strategy bot board sort")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_sort", "Invalid strategy bot board sort", null, request);
-        }
-        if (normalized.contains("invalid strategy bot board direction")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_direction", "Invalid strategy bot board direction", null, request);
-        }
-        if (normalized.contains("invalid strategy bot board run mode")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_run_mode", "Invalid strategy bot board run mode", null, request);
-        }
-        if (normalized.contains("strategy bot board lookback days must be positive")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_lookback", "Strategy bot board lookback days must be positive", null, request);
-        }
-        if (normalized.contains("strategy bot run not found")) {
-            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "strategy_bot_run_not_found", "Strategy bot run not found", null, request);
-        }
-        if (normalized.contains("invalid strategy bot run mode")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_run_mode", "Invalid strategy bot run mode", null, request);
-        }
-        if (normalized.contains("run start date must be on or before end date")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_run_date_range_invalid", "Run start date must be on or before end date", null, request);
-        }
-        if (normalized.contains("initial capital must be positive")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_initial_capital_invalid", "Initial capital must be positive", null, request);
-        }
-        if (normalized.contains("invalid strategy bot market")) {
-            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_market", "Invalid strategy bot market", null, request);
-        }
-        if (normalized.contains("must be ready before requesting a run")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_not_ready", "Strategy bot must be READY before requesting a run", null, request);
-        }
-        if (normalized.contains("run is not executable by current engine")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_not_executable", "Strategy bot run is not executable by current engine", null, request);
-        }
-        if (normalized.contains("only backtest execution is currently supported")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_mode_not_supported", "Only backtest execution is currently supported", null, request);
-        }
-        if (normalized.contains("only forward-test refresh is currently supported")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_refresh_mode_not_supported", "Only forward-test refresh is currently supported", null, request);
-        }
-        if (normalized.contains("must be queued before execution")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_not_queued", "Strategy bot run must be QUEUED before execution", null, request);
-        }
-        if (normalized.contains("must be queued or running before cancellation")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_not_cancellable", "Strategy bot run must be QUEUED or RUNNING before cancellation", null, request);
-        }
-        if (normalized.contains("forward-test run must be running before refresh")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_forward_test_not_running", "Strategy bot forward-test run must be RUNNING before refresh", null, request);
-        }
-        if (normalized.contains("strategy bot market data unavailable")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_market_data_unavailable", "Strategy bot market data unavailable", null, request);
-        }
-        if (normalized.contains("not enough candles")) {
-            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_market_data_unavailable", "Not enough candles to execute strategy bot run", null, request);
-        }
-
-        return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);
+        String message = exception.getMessage();
+        return ApiErrorResponses.build(
+                HttpStatus.BAD_REQUEST,
+                fallbackCode,
+                message == null || message.isBlank() ? fallbackMessage : message,
+                null,
+                request);
     }
 
     private String normalizeExportFormat(String format) {
@@ -632,6 +524,6 @@ public class StrategyBotController {
         if ("json".equals(normalizedFormat) || "csv".equals(normalizedFormat)) {
             return normalizedFormat;
         }
-        throw new IllegalArgumentException("Invalid strategy bot export format");
+        throw ApiRequestException.badRequest("invalid_strategy_bot_export_format", "Invalid strategy bot export format");
     }
 }

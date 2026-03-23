@@ -6,6 +6,7 @@ import com.finance.core.dto.MarketChartNoteResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.repository.MarketChartNoteRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -40,8 +41,9 @@ class MarketChartNoteServiceTest {
         UUID userId = UUID.fromString("20000000-0000-0000-0000-000000000001");
         when(userRepository.existsById(userId)).thenReturn(false);
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> marketChartNoteService.createNote(userId, new MarketChartNoteRequest()));
+        ApiRequestException exception = assertThrows(ApiRequestException.class, () -> marketChartNoteService.createNote(userId, new MarketChartNoteRequest()));
 
+        assertEquals("user_not_found", exception.code());
         assertEquals("User not found", exception.getMessage());
         verify(userRepository).existsById(userId);
         verify(marketChartNoteRepository, never()).save(any(MarketChartNote.class));
@@ -87,8 +89,9 @@ class MarketChartNoteServiceTest {
         MarketChartNoteRequest request = new MarketChartNoteRequest();
         request.setBody("updated");
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> marketChartNoteService.updateNote(userId, noteId, request));
+        ApiRequestException exception = assertThrows(ApiRequestException.class, () -> marketChartNoteService.updateNote(userId, noteId, request));
 
+        assertEquals("market_chart_note_not_found", exception.code());
         assertEquals("Chart note not found", exception.getMessage());
         verify(userRepository).existsById(userId);
     }

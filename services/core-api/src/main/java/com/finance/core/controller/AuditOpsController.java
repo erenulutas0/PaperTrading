@@ -4,6 +4,7 @@ import com.finance.core.domain.AuditActionType;
 import com.finance.core.domain.AuditResourceType;
 import com.finance.core.service.AuditLogInspectionService;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -40,8 +41,8 @@ public class AuditOpsController {
             @RequestParam(required = false) String actionType,
             @RequestParam(required = false) String resourceType,
             HttpServletRequest request) {
+        AuditFilters filters = parseFilters(limit, page, days, requestId, requestPath, actorId, actionType, resourceType, false);
         try {
-            AuditFilters filters = parseFilters(limit, page, days, requestId, requestPath, actorId, actionType, resourceType);
             return ResponseEntity.ok(inspectionService.snapshot(
                     filters.limit(),
                     filters.page(),
@@ -52,7 +53,7 @@ public class AuditOpsController {
                     filters.actionType(),
                     filters.resourceType()));
         } catch (Exception ex) {
-            return buildAuditError(ex, "audit_snapshot_failed", "Failed to inspect audit log", request, false);
+            return buildAuditError("audit_snapshot_failed", "Failed to inspect audit log", request, false);
         }
     }
 
@@ -66,8 +67,8 @@ public class AuditOpsController {
             @RequestParam(required = false) String actionType,
             @RequestParam(required = false) String resourceType,
             HttpServletRequest request) {
+        AuditFilters filters = parseFilters(limit, null, days, requestId, requestPath, actorId, actionType, resourceType, true);
         try {
-            AuditFilters filters = parseFilters(limit, null, days, requestId, requestPath, actorId, actionType, resourceType);
             String csv = inspectionService.exportCsv(
                     filters.limit(),
                     filters.days(),
@@ -84,7 +85,7 @@ public class AuditOpsController {
                     .contentType(new MediaType("text", "csv"))
                     .body(csv);
         } catch (Exception ex) {
-            return buildAuditError(ex, "audit_export_failed", "Failed to export audit log", request, true);
+            return buildAuditError("audit_export_failed", "Failed to export audit log", request, true);
         }
     }
 
@@ -99,8 +100,8 @@ public class AuditOpsController {
             @RequestParam(required = false) String actionType,
             @RequestParam(required = false) String resourceType,
             HttpServletRequest request) {
+        AuditFilters filters = parseFilters(limit, page, days, requestId, requestPath, actorId, actionType, resourceType, false);
         try {
-            AuditFilters filters = parseFilters(limit, page, days, requestId, requestPath, actorId, actionType, resourceType);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                             .filename("audit-log-view.json")
@@ -117,7 +118,7 @@ public class AuditOpsController {
                             filters.actionType(),
                             filters.resourceType()));
         } catch (Exception ex) {
-            return buildAuditError(ex, "audit_export_json_failed", "Failed to export audit log view", request, false);
+            return buildAuditError("audit_export_json_failed", "Failed to export audit log view", request, false);
         }
     }
 
@@ -129,52 +130,53 @@ public class AuditOpsController {
             String requestPath,
             String actorId,
             String actionType,
-            String resourceType) {
+            String resourceType,
+            boolean forceJson) {
         return new AuditFilters(
-                parseLimit(limit),
-                parsePage(page),
-                parseDays(days),
+                parseLimit(limit, forceJson),
+                parsePage(page, forceJson),
+                parseDays(days, forceJson),
                 normalizeText(requestId),
                 normalizeText(requestPath),
-                parseActorId(actorId),
-                parseActionType(actionType),
-                parseResourceType(resourceType));
+                parseActorId(actorId, forceJson),
+                parseActionType(actionType, forceJson),
+                parseResourceType(resourceType, forceJson));
     }
 
-    private Integer parseLimit(String raw) {
-        Integer value = parseInteger(raw, "Invalid audit limit");
+    private Integer parseLimit(String raw, boolean forceJson) {
+        Integer value = parseInteger(raw, "invalid_audit_limit", "Invalid audit limit", forceJson);
         if (value == null) {
             return null;
         }
         if (value < 1 || value > MAX_LIMIT) {
-            throw new RuntimeException("Invalid audit limit");
+            throw invalidAuditRequest("invalid_audit_limit", "Invalid audit limit", forceJson);
         }
         return value;
     }
 
-    private Integer parsePage(String raw) {
-        Integer value = parseInteger(raw, "Invalid audit page");
+    private Integer parsePage(String raw, boolean forceJson) {
+        Integer value = parseInteger(raw, "invalid_audit_page", "Invalid audit page", forceJson);
         if (value == null) {
             return null;
         }
         if (value < 0) {
-            throw new RuntimeException("Invalid audit page");
+            throw invalidAuditRequest("invalid_audit_page", "Invalid audit page", forceJson);
         }
         return value;
     }
 
-    private Integer parseDays(String raw) {
-        Integer value = parseInteger(raw, "Invalid audit days");
+    private Integer parseDays(String raw, boolean forceJson) {
+        Integer value = parseInteger(raw, "invalid_audit_days", "Invalid audit days", forceJson);
         if (value == null) {
             return null;
         }
         if (value < 1 || value > MAX_DAYS) {
-            throw new RuntimeException("Invalid audit days");
+            throw invalidAuditRequest("invalid_audit_days", "Invalid audit days", forceJson);
         }
         return value;
     }
 
-    private Integer parseInteger(String raw, String errorMessage) {
+    private Integer parseInteger(String raw, String code, String message, boolean forceJson) {
         String normalized = normalizeText(raw);
         if (normalized == null) {
             return null;
@@ -182,11 +184,11 @@ public class AuditOpsController {
         try {
             return Integer.valueOf(normalized);
         } catch (NumberFormatException exception) {
-            throw new RuntimeException(errorMessage);
+            throw invalidAuditRequest(code, message, forceJson);
         }
     }
 
-    private UUID parseActorId(String raw) {
+    private UUID parseActorId(String raw, boolean forceJson) {
         String normalized = normalizeText(raw);
         if (normalized == null) {
             return null;
@@ -194,11 +196,11 @@ public class AuditOpsController {
         try {
             return UUID.fromString(normalized);
         } catch (IllegalArgumentException exception) {
-            throw new RuntimeException("Invalid audit actor id");
+            throw invalidAuditRequest("invalid_audit_actor_id", "Invalid audit actor id", forceJson);
         }
     }
 
-    private AuditActionType parseActionType(String raw) {
+    private AuditActionType parseActionType(String raw, boolean forceJson) {
         String normalized = normalizeText(raw);
         if (normalized == null) {
             return null;
@@ -206,11 +208,11 @@ public class AuditOpsController {
         try {
             return AuditActionType.valueOf(normalized.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            throw new RuntimeException("Invalid audit action type");
+            throw invalidAuditRequest("invalid_audit_action_type", "Invalid audit action type", forceJson);
         }
     }
 
-    private AuditResourceType parseResourceType(String raw) {
+    private AuditResourceType parseResourceType(String raw, boolean forceJson) {
         String normalized = normalizeText(raw);
         if (normalized == null) {
             return null;
@@ -218,7 +220,7 @@ public class AuditOpsController {
         try {
             return AuditResourceType.valueOf(normalized.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            throw new RuntimeException("Invalid audit resource type");
+            throw invalidAuditRequest("invalid_audit_resource_type", "Invalid audit resource type", forceJson);
         }
     }
 
@@ -231,33 +233,10 @@ public class AuditOpsController {
     }
 
     private ResponseEntity<?> buildAuditError(
-            Exception exception,
             String fallbackCode,
             String fallbackMessage,
             HttpServletRequest request,
             boolean forceJson) {
-        String message = exception.getMessage() == null ? "" : exception.getMessage();
-        String normalized = message.toLowerCase(Locale.ROOT);
-
-        if (normalized.contains("invalid audit limit")) {
-            return buildAuditApiError(HttpStatus.BAD_REQUEST, "invalid_audit_limit", "Invalid audit limit", request, forceJson);
-        }
-        if (normalized.contains("invalid audit page")) {
-            return buildAuditApiError(HttpStatus.BAD_REQUEST, "invalid_audit_page", "Invalid audit page", request, forceJson);
-        }
-        if (normalized.contains("invalid audit days")) {
-            return buildAuditApiError(HttpStatus.BAD_REQUEST, "invalid_audit_days", "Invalid audit days", request, forceJson);
-        }
-        if (normalized.contains("invalid audit actor id")) {
-            return buildAuditApiError(HttpStatus.BAD_REQUEST, "invalid_audit_actor_id", "Invalid audit actor id", request, forceJson);
-        }
-        if (normalized.contains("invalid audit action type")) {
-            return buildAuditApiError(HttpStatus.BAD_REQUEST, "invalid_audit_action_type", "Invalid audit action type", request, forceJson);
-        }
-        if (normalized.contains("invalid audit resource type")) {
-            return buildAuditApiError(HttpStatus.BAD_REQUEST, "invalid_audit_resource_type", "Invalid audit resource type", request, forceJson);
-        }
-
         return buildAuditApiError(HttpStatus.INTERNAL_SERVER_ERROR, fallbackCode, fallbackMessage, request, forceJson);
     }
 
@@ -271,6 +250,12 @@ public class AuditOpsController {
             return ApiErrorResponses.buildJson(status, code, message, null, request);
         }
         return ApiErrorResponses.build(status, code, message, null, request);
+    }
+
+    private ApiRequestException invalidAuditRequest(String code, String message, boolean forceJson) {
+        return forceJson
+                ? ApiRequestException.badRequestJson(code, message)
+                : ApiRequestException.badRequest(code, message);
     }
 
     private record AuditFilters(

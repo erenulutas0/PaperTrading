@@ -10,6 +10,7 @@ import com.finance.core.repository.AnalysisPostRepository;
 import com.finance.core.repository.InteractionRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -143,8 +144,9 @@ class InteractionServiceTest {
         commentRequest.setContent("   ");
         when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
 
-        assertThrows(IllegalArgumentException.class,
+        ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> interactionService.addComment(actorId, targetId, commentRequest));
+        assertEquals("interaction_comment_empty", exception.code());
         verify(interactionRepository, never()).save(any());
     }
 
@@ -152,9 +154,10 @@ class InteractionServiceTest {
     void toggleLike_WithMissingPortfolio_ShouldThrowNotFound() {
         when(portfolioRepository.findById(targetId)).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
+        ApiRequestException ex = assertThrows(ApiRequestException.class,
                 () -> interactionService.toggleLike(actorId, targetId, likeRequest));
 
+        assertEquals("portfolio_not_found", ex.code());
         assertEquals("Portfolio not found", ex.getMessage());
         verify(interactionRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any());
@@ -166,11 +169,26 @@ class InteractionServiceTest {
         when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
         commentRequest.setContent("x".repeat(1001));
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        ApiRequestException ex = assertThrows(ApiRequestException.class,
                 () -> interactionService.addComment(actorId, targetId, commentRequest));
 
+        assertEquals("interaction_comment_too_long", ex.code());
         assertEquals("Comment content cannot exceed 1000 characters", ex.getMessage());
         verify(interactionRepository, never()).save(any());
+    }
+
+    @Test
+    void toggleLike_WithMissingActor_ShouldThrowTypedUserNotFound() {
+        when(interactionRepository.findByActorIdAndTargetTypeAndTargetIdAndInteractionType(
+                actorId, Interaction.TargetType.PORTFOLIO, targetId, Interaction.InteractionType.LIKE))
+                .thenReturn(Optional.empty());
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
+        when(userRepository.findById(actorId)).thenReturn(Optional.empty());
+
+        ApiRequestException ex = assertThrows(ApiRequestException.class,
+                () -> interactionService.toggleLike(actorId, targetId, likeRequest));
+
+        assertEquals("user_not_found", ex.code());
     }
 
     @Test

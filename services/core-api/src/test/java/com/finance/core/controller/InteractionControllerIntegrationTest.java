@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -295,5 +296,22 @@ class InteractionControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("comment_not_found"))
                 .andExpect(jsonPath("$.message").value("Comment not found"))
                 .andExpect(jsonPath("$.requestId").value("interaction-err-4"));
+    }
+
+    @Test
+    void likePortfolio_withUnknownActor_shouldReturnExplicitNotFoundContract() throws Exception {
+        InteractionRequest request = new InteractionRequest();
+        request.setTargetType("PORTFOLIO");
+
+        mockMvc.perform(post("/api/v1/interactions/{targetId}/like", portfolio.getId())
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-Request-Id", "interaction-err-5")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Request-Id", "interaction-err-5"))
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"))
+                .andExpect(jsonPath("$.requestId").value("interaction-err-5"));
     }
 }

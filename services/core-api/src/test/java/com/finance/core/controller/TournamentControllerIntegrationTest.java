@@ -216,4 +216,57 @@ class TournamentControllerIntegrationTest {
                                 .andExpect(jsonPath("$.message").value("Already joined this tournament"))
                                 .andExpect(jsonPath("$.requestId").value("tournament-err-2"));
         }
+
+        @Test
+        void testJoinTournament_inactiveTournament_shouldReturnUnifiedConflictContract() throws Exception {
+                Tournament upcoming = Tournament.builder()
+                                .name("Upcoming Challenge")
+                                .startingBalance(new BigDecimal("50000"))
+                                .status(Tournament.Status.UPCOMING)
+                                .startsAt(LocalDateTime.now().plusDays(1))
+                                .endsAt(LocalDateTime.now().plusDays(2))
+                                .build();
+                upcoming = tournamentRepository.save(upcoming);
+
+                mockMvc.perform(post("/api/v1/tournaments/" + upcoming.getId() + "/join")
+                                .header("X-User-Id", testUser.getId().toString())
+                                .header("X-Request-Id", "tournament-err-3"))
+                                .andExpect(status().isConflict())
+                                .andExpect(header().string("X-Request-Id", "tournament-err-3"))
+                                .andExpect(jsonPath("$.code").value("tournament_not_active"))
+                                .andExpect(jsonPath("$.message").value("Tournament is not active. Status: UPCOMING"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-err-3"));
+        }
+
+        @Test
+        void testJoinTournament_missingUser_shouldReturnUnifiedErrorContract() throws Exception {
+                Tournament active = Tournament.builder()
+                                .name("Missing User Challenge")
+                                .startingBalance(new BigDecimal("50000"))
+                                .status(Tournament.Status.ACTIVE)
+                                .startsAt(LocalDateTime.now().minusDays(1))
+                                .endsAt(LocalDateTime.now().plusDays(1))
+                                .build();
+                active = tournamentRepository.save(active);
+
+                mockMvc.perform(post("/api/v1/tournaments/" + active.getId() + "/join")
+                                .header("X-User-Id", UUID.randomUUID().toString())
+                                .header("X-Request-Id", "tournament-err-4"))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "tournament-err-4"))
+                                .andExpect(jsonPath("$.code").value("user_not_found"))
+                                .andExpect(jsonPath("$.message").value("User not found"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-err-4"));
+        }
+
+        @Test
+        void testLeaderboard_missingTournament_shouldReturnUnifiedErrorContract() throws Exception {
+                mockMvc.perform(get("/api/v1/tournaments/" + UUID.randomUUID() + "/leaderboard")
+                                .header("X-Request-Id", "tournament-err-5"))
+                                .andExpect(status().isNotFound())
+                                .andExpect(header().string("X-Request-Id", "tournament-err-5"))
+                                .andExpect(jsonPath("$.code").value("tournament_not_found"))
+                                .andExpect(jsonPath("$.message").value("Tournament not found"))
+                                .andExpect(jsonPath("$.requestId").value("tournament-err-5"));
+        }
 }
