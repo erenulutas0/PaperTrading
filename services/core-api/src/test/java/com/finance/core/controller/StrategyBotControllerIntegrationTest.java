@@ -6,10 +6,12 @@ import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
+import com.finance.core.domain.StrategyBotRunEvent;
 import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunEventRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.UserRepository;
@@ -65,6 +67,9 @@ class StrategyBotControllerIntegrationTest {
     private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
 
     @Autowired
+    private StrategyBotRunEventRepository strategyBotRunEventRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     private UUID userId;
@@ -72,6 +77,7 @@ class StrategyBotControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        strategyBotRunEventRepository.deleteAll();
         strategyBotRunEquityPointRepository.deleteAll();
         strategyBotRunFillRepository.deleteAll();
         strategyBotRunRepository.deleteAll();
@@ -437,15 +443,34 @@ class StrategyBotControllerIntegrationTest {
                         }
                         """)
                 .build());
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.CANCELLED)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusMinutes(15))
+                .completedAt(LocalDateTime.now().minusMinutes(5))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "phase": "cancelled",
+                          "previousStatus": "QUEUED"
+                        }
+                        """)
+                .build());
 
         mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics")
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.strategyBotId").value(bot.getId().toString()))
-                .andExpect(jsonPath("$.totalRuns").value(3))
+                .andExpect(jsonPath("$.totalRuns").value(4))
                 .andExpect(jsonPath("$.completedRuns").value(2))
                 .andExpect(jsonPath("$.runningRuns").value(1))
-                .andExpect(jsonPath("$.backtestRuns").value(2))
+                .andExpect(jsonPath("$.cancelledRuns").value(1))
+                .andExpect(jsonPath("$.backtestRuns").value(3))
                 .andExpect(jsonPath("$.forwardTestRuns").value(1))
                 .andExpect(jsonPath("$.positiveCompletedRuns").value(1))
                 .andExpect(jsonPath("$.negativeCompletedRuns").value(1))
@@ -456,19 +481,20 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.bestRun.returnPercent").value(10.0))
                 .andExpect(jsonPath("$.worstRun.returnPercent").value(-6.0))
                 .andExpect(jsonPath("$.activeForwardRun.runMode").value("FORWARD_TEST"))
-                .andExpect(jsonPath("$.recentScorecards", hasSize(3)));
+                .andExpect(jsonPath("$.recentScorecards", hasSize(4)));
 
         mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics")
                         .header("X-User-Id", userId.toString())
                         .param("runMode", "BACKTEST")
                         .param("lookbackDays", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalRuns").value(1))
+                .andExpect(jsonPath("$.totalRuns").value(2))
                 .andExpect(jsonPath("$.completedRuns").value(1))
-                .andExpect(jsonPath("$.backtestRuns").value(1))
+                .andExpect(jsonPath("$.backtestRuns").value(2))
                 .andExpect(jsonPath("$.forwardTestRuns").value(0))
+                .andExpect(jsonPath("$.cancelledRuns").value(1))
                 .andExpect(jsonPath("$.avgReturnPercent").value(10.0))
-                .andExpect(jsonPath("$.recentScorecards", hasSize(1)));
+                .andExpect(jsonPath("$.recentScorecards", hasSize(2)));
     }
 
     @Test
@@ -523,6 +549,7 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(header().string("Content-Disposition", containsString(".csv")))
                 .andExpect(content().contentType("text/csv"))
                 .andExpect(content().string(containsString("context,name,Analytics Bot")))
+                .andExpect(content().string(containsString("summary,cancelledRuns,0")))
                 .andExpect(content().string(containsString("recentScorecard,recent")));
 
         mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics/export")
@@ -533,6 +560,7 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.name").value("Analytics Bot"))
                 .andExpect(jsonPath("$.analytics.totalRuns").value(1))
+                .andExpect(jsonPath("$.analytics.cancelledRuns").value(0))
                 .andExpect(jsonPath("$.analytics.recentScorecards", hasSize(1)));
 
         mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/analytics/export")
@@ -677,6 +705,7 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(2)))
                 .andExpect(jsonPath("$.content[0].strategyBotId").value(strongerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].cancelledRuns").value(0))
                 .andExpect(jsonPath("$.content[0].avgReturnPercent").value(7.5))
                 .andExpect(jsonPath("$.content[1].strategyBotId").value(weakerBot.getId().toString()))
                 .andExpect(jsonPath("$.content[1].avgReturnPercent").value(3.25));
@@ -1362,6 +1391,19 @@ class StrategyBotControllerIntegrationTest {
                 .realizedPnl(new BigDecimal("0.00"))
                 .matchedRules("[\"price_above_ma_20\"]")
                 .build());
+        strategyBotRunEventRepository.save(StrategyBotRunEvent.builder()
+                .strategyBotRunId(run.getId())
+                .sequenceNo(1)
+                .openTime(1711000000000L)
+                .phase("ENTRY")
+                .action("ENTERED")
+                .closePrice(new BigDecimal("135.25"))
+                .cashBalance(new BigDecimal("84000.00"))
+                .positionQuantity(new BigDecimal("4.25000000"))
+                .equity(new BigDecimal("100000.00"))
+                .matchedRules("[\"price_above_ma_20\"]")
+                .details("{\"allocatedCapital\":16000.0}")
+                .build());
         strategyBotRunEquityPointRepository.save(StrategyBotRunEquityPoint.builder()
                 .strategyBotRunId(run.getId())
                 .sequenceNo(1)
@@ -1388,6 +1430,9 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.summary.returnPercent").value(9.0))
                 .andExpect(jsonPath("$.summary.tradeCount").value(1))
+                .andExpect(jsonPath("$.events", hasSize(1)))
+                .andExpect(jsonPath("$.events[0].action").value("ENTERED"))
+                .andExpect(jsonPath("$.events[0].details.allocatedCapital").value(16000.0))
                 .andExpect(jsonPath("$.fills", hasSize(1)))
                 .andExpect(jsonPath("$.fills[0].side").value("ENTRY"))
                 .andExpect(jsonPath("$.fills[0].matchedRules[0]").value("price_above_ma_20"))
@@ -1465,6 +1510,19 @@ class StrategyBotControllerIntegrationTest {
                 .realizedPnl(new BigDecimal("0.00"))
                 .matchedRules("[\"price_above_ma_20\"]")
                 .build());
+        strategyBotRunEventRepository.save(StrategyBotRunEvent.builder()
+                .strategyBotRunId(run.getId())
+                .sequenceNo(1)
+                .openTime(1712000000000L)
+                .phase("ENTRY")
+                .action("ENTERED")
+                .closePrice(new BigDecimal("580.00"))
+                .cashBalance(new BigDecimal("98840.00"))
+                .positionQuantity(new BigDecimal("2.00000000"))
+                .equity(new BigDecimal("100000.00"))
+                .matchedRules("[\"price_above_ma_20\"]")
+                .details("{\"allocatedCapital\":1160.0}")
+                .build());
         strategyBotRunEquityPointRepository.save(StrategyBotRunEquityPoint.builder()
                 .strategyBotRunId(run.getId())
                 .sequenceNo(1)
@@ -1479,6 +1537,7 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(header().string("Content-Disposition", containsString("public-strategy-bot-run-" + run.getId() + ".csv")))
                 .andExpect(content().contentType("text/csv"))
                 .andExpect(content().string(containsString("context,botName,Run Export Bot")))
+                .andExpect(content().string(containsString("event,ENTRY,ENTERED")))
                 .andExpect(content().string(containsString("rules,compiledEntryRules")))
                 .andExpect(content().string(containsString("fill,1")));
 
@@ -1490,6 +1549,8 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.botName").value("Run Export Bot"))
                 .andExpect(jsonPath("$.run.runId").value(run.getId().toString()))
                 .andExpect(jsonPath("$.run.summary.returnPercent").value(4.0))
+                .andExpect(jsonPath("$.run.events", hasSize(1)))
+                .andExpect(jsonPath("$.run.events[0].action").value("ENTERED"))
                 .andExpect(jsonPath("$.run.fills", hasSize(1)))
                 .andExpect(jsonPath("$.run.equityCurve", hasSize(1)));
     }

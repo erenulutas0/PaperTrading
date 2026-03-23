@@ -41,6 +41,7 @@ public class PublicStrategyBotRunDetailResponse {
     LocalDateTime requestedAt;
     LocalDateTime startedAt;
     LocalDateTime completedAt;
+    List<StrategyBotRunEventResponse> events;
     List<StrategyBotRunFillResponse> fills;
     List<StrategyBotRunEquityPointResponse> equityCurve;
 }

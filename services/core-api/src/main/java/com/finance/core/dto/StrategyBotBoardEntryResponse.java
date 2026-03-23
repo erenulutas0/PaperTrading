@@ -27,6 +27,7 @@ public class StrategyBotBoardEntryResponse {
     int completedRuns;
     int runningRuns;
     int failedRuns;
+    int cancelledRuns;
     int totalSimulatedTrades;
     int positiveCompletedRuns;
     int negativeCompletedRuns;

@@ -35,9 +35,126 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | File Uploads | ⬜ Planned | Images/charts attached to posts |
 | Trust/Credibility Scores | 🔨 Building | Bayesian multi-signal scoring now blends resolved analysis accuracy, realized trade quality, profitable portfolio ratio, and average portfolio return; experience lift is now evidence-aligned instead of volume-only, profile breakdown/docs are live, and local rollout verification passed |
 | Audit Log | 🔨 Building | Append-only audit rows now persist for trade/portfolio/follow/post/interaction writes; JDBC-backed inspection/export endpoints plus `/dashboard/audit` are live, with staging/runtime verification still pending |
+| Strategy Bots | 🔨 Building | Audited draft CRUD + run journal + backtest/forward-test execution + persisted fills/equity/decision events + account/public analytics and board exports + dashboard builder/workspace with structured entry/exit rule editor, cancellation, reconciliation, and run drilldown |
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-23**: **Strategy Bot Workflow Now Has A Structured Rule Builder Instead Of Raw JSON-Only Editing**
+  - **Problem observed**:
+    - The dashboard bot form already exposed sizing, cooldown, stop-loss, and take-profit controls.
+    - Entry and exit logic, however, still depended on raw JSON textarea editing.
+    - That kept the workflow more operator-hostile than intended because users had to remember exact token strings and JSON shape just to compose supported rules.
+    - The platform direction called for a rule-based builder, but the workspace still behaved like a low-level config editor.
+  - **Implementation**:
+    - Updated `apps/web/app/dashboard/bots/page.tsx`.
+    - Added structured builder panels for:
+      - entry rules
+      - exit rules
+    - The builder now supports the current engine token library directly, including:
+      - moving-average signals
+      - RSI thresholds
+      - breakout/breakdown windows
+      - volume-above-SMA
+      - stop-loss / take-profit exit guards
+      - custom raw tokens when needed
+    - Builder edits stay synchronized with the same persisted JSON payload, and a collapsible raw JSON fallback remains available for advanced/manual editing.
+  - **Operational impact**:
+    - strategy-bot creation is closer to the intended product workflow instead of requiring users to hand-author every rule token
+    - supported rule composition is less error-prone while still preserving an escape hatch for custom or transitional payloads
+- **2026-03-23**: **Strategy Bot Runs Now Persist A Per-Candle Decision Journal Instead Of Only Final Fills And Equity**
+  - **Problem observed**:
+    - Strategy-bot runs already persisted:
+      - fills
+      - equity points
+      - aggregate summary metrics
+    - That was enough to measure outcome quality, but not enough to audit the engine's step-by-step behavior.
+    - Operators could see that a run entered or exited, yet they still could not inspect the intermediate decision path:
+      - waiting for entry
+      - cooldown blocking
+      - holding an open position
+      - forced end-of-window exit
+    - This left the paper-only workflow short of the intended "full audit trail for every bot decision and fill simulation" direction.
+  - **Implementation**:
+    - Added `strategy_bot_run_events` via `V26__create_strategy_bot_run_events_table.sql`.
+    - `StrategyBotRunService.simulateRun(...)` now writes one decision event per evaluated candle with:
+      - `phase`
+      - `action`
+      - cash/equity snapshot
+      - position quantity
+      - matched rules
+      - structured per-event details
+    - Added private run-event read support:
+      - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/events`
+    - Extended public/private run exports and public run detail payloads to include the decision journal.
+    - Updated `/dashboard/bots` run inspection to render the latest audited decision events alongside fills and equity.
+  - **Operational impact**:
+    - strategy-bot runs are now materially more explainable and auditable instead of only outcome-visible
+    - operators can distinguish "no signal", cooldown suppression, active hold, and forced close behavior without digging through raw DB state
+- **2026-03-23**: **Strategy Bot Local Runtime Scheduler Proof Now Rejects Occupied Port Fallbacks**
+  - **Problem observed**:
+    - The local forward-test runtime wrapper tried to stay convenient by silently moving to a random free port when the requested `-ServerPort` was already occupied.
+    - That convenience was misleading for this specific proof because the scheduler uses shared ShedLock rows in the database.
+    - If another backend instance was already running against the same DB, the temporary runtime could boot on a new port yet still miss scheduler ticks because the other instance held the lock.
+    - The result was a false-failing local proof that looked like a scheduler regression even though the real problem was multi-instance local contention.
+  - **Implementation**:
+    - Updated `run_strategy_bot_forward_test_scheduler_local_runtime_check.ps1`.
+    - When the wrapper is responsible for starting the backend, it now requires the requested `-ServerPort` to be free.
+    - The script now fails fast with an explicit message explaining the shared-ShedLock constraint and points operators to:
+      - stop the competing backend
+      - choose a free `-ServerPort`
+      - or use `-SkipAppStart` against the already running instance
+    - Updated load-test README and TODO inventory to reflect the stricter local-proof contract.
+  - **Operational impact**:
+    - local scheduler verification is more deterministic and less likely to report false runtime failures
+    - operators now get a direct explanation when exclusive local ownership of the scheduler proof is missing
+- **2026-03-23**: **Strategy Bot Analytics And Board Summaries Now Count Cancelled Runs Explicitly**
+  - **Problem observed**:
+    - After adding run cancellation, lifecycle state became richer than the reporting layer.
+    - Analytics and board responses still tracked:
+      - `completedRuns`
+      - `runningRuns`
+      - `failedRuns`
+    - But they did not expose `cancelledRuns`, so dashboard summaries could not distinguish an intentionally retired run from a run that never existed.
+  - **Implementation**:
+    - Extended backend DTOs and aggregation/export paths with `cancelledRuns`:
+      - `StrategyBotAnalyticsResponse`
+      - `StrategyBotBoardEntryResponse`
+      - analytics CSV export
+      - board CSV export
+    - Updated targeted backend tests so cancelled runs now participate in:
+      - total/backtest counts
+      - recent scorecard windows
+      - filtered analytics windows when the cancelled run is inside the lookback scope
+    - Updated `apps/web/app/dashboard/bots/page.tsx` so the dashboard now surfaces cancelled totals in:
+      - top-level run summary
+      - analytics live-state context
+      - board run-density cards
+  - **Operational impact**:
+    - cancelled runs are now visible as a first-class operational outcome instead of disappearing into generic totals
+    - dashboard users can distinguish deliberate operator stops from execution failures when reviewing bot activity
+- **2026-03-23**: **Strategy Bot Dashboard Run Journal Now Exposes Cancel Actions For Queued And Running Runs**
+  - **Problem observed**:
+    - Backend run cancellation had been added, but the authenticated dashboard workspace still only exposed:
+      - run request
+      - execute
+      - forward-test refresh
+    - That left the new lifecycle contract effectively script-only for normal users, and cancelled runs also lacked first-class visual treatment in the run journal.
+  - **Implementation**:
+    - Updated `apps/web/app/dashboard/bots/page.tsx`.
+    - The run journal now:
+      - shows `Cancel Run` for `QUEUED` runs
+      - shows `Cancel Run` for `RUNNING` runs
+      - disables conflicting execute/refresh/cancel actions while the targeted request is in flight
+      - renders `CANCELLED` with its own neutral status tone instead of falling through to the queued styling
+    - Run cards now also surface completion/cancellation timestamps when present.
+    - The frontend `StrategyBotRun` typing was expanded to include:
+      - `CANCELLED`
+      - `startedAt`
+      - `completedAt`
+      - cancellation summary metadata
+  - **Operational impact**:
+    - strategy-bot operators can now retire stale queued runs and stop live forward-test runs directly from the dashboard
+    - the frontend lifecycle model now matches the backend contract instead of hiding a supported state transition
 - **2026-03-23**: **Strategy Bot Runs Now Expose An Explicit Cancel Contract Instead Of Leaving `CANCELLED` As A Dead-End Status**
   - **Problem observed**:
     - `StrategyBotRun.Status` already included `CANCELLED`, but the product surface still had no supported way to move a run there.

@@ -7,6 +7,7 @@ import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.StrategyBotRunEquityPointResponse;
+import com.finance.core.dto.StrategyBotRunEventResponse;
 import com.finance.core.dto.StrategyBotRunFillResponse;
 import com.finance.core.dto.StrategyBotResponse;
 import com.finance.core.dto.StrategyBotRunRequest;
@@ -392,6 +393,21 @@ public class StrategyBotController {
             return ResponseEntity.ok(fills);
         } catch (Exception ex) {
             return buildBotError(ex, "strategy_bot_run_fills_failed", "Failed to load strategy bot run fills", request);
+        }
+    }
+
+    @GetMapping("/{botId}/runs/{runId}/events")
+    public ResponseEntity<?> listRunEvents(
+            @PathVariable UUID botId,
+            @PathVariable UUID runId,
+            @CurrentUserId UUID userId,
+            @PageableDefault(size = 100) Pageable pageable,
+            HttpServletRequest request) {
+        try {
+            Page<StrategyBotRunEventResponse> events = strategyBotRunService.getRunEvents(botId, runId, userId, pageable);
+            return ResponseEntity.ok(events);
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_run_events_failed", "Failed to load strategy bot run events", request);
         }
     }
 

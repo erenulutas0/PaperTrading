@@ -13,6 +13,7 @@ import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
+import com.finance.core.domain.StrategyBotRunEvent;
 import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.MarketCandleResponse;
@@ -23,6 +24,7 @@ import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.StrategyBotRunEquityPointResponse;
+import com.finance.core.dto.StrategyBotRunEventResponse;
 import com.finance.core.dto.StrategyBotRunFillResponse;
 import com.finance.core.dto.StrategyBotRunRequest;
 import com.finance.core.dto.StrategyBotRunResponse;
@@ -31,6 +33,7 @@ import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunEventRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
@@ -73,6 +76,7 @@ public class StrategyBotRunService {
     private final PortfolioItemRepository portfolioItemRepository;
     private final StrategyBotRunFillRepository strategyBotRunFillRepository;
     private final StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+    private final StrategyBotRunEventRepository strategyBotRunEventRepository;
     private final TradeActivityRepository tradeActivityRepository;
     private final UserRepository userRepository;
     private final MarketDataFacadeService marketDataFacadeService;
@@ -104,6 +108,13 @@ public class StrategyBotRunService {
         StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
         return strategyBotRunFillRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), pageable)
                 .map(this::toFillResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StrategyBotRunEventResponse> getRunEvents(UUID botId, UUID runId, UUID userId, Pageable pageable) {
+        StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
+        return strategyBotRunEventRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), pageable)
+                .map(this::toEventResponse);
     }
 
     @Transactional(readOnly = true)
@@ -273,6 +284,7 @@ public class StrategyBotRunService {
                 .requestedAt(run.getRequestedAt())
                 .startedAt(run.getStartedAt())
                 .completedAt(run.getCompletedAt())
+                .events(getRunEventRows(run))
                 .fills(getRunFillRows(run))
                 .equityCurve(getRunEquityPointRows(run))
                 .build();
@@ -358,12 +370,41 @@ public class StrategyBotRunService {
         addRunExportSummaryMetric(rows, summary, "maxDrawdownPercent");
         addRunExportSummaryMetric(rows, summary, "winRate");
         addRunExportSummaryMetric(rows, summary, "tradeCount");
+        addRunExportSummaryMetric(rows, summary, "eventCount");
         addRunExportSummaryMetric(rows, summary, "profitFactor");
         addRunExportSummaryMetric(rows, summary, "expectancyPerTrade");
         addRunExportSummaryMetric(rows, summary, "timeInMarketPercent");
         addRunExportSummaryMetric(rows, summary, "lastEvaluatedOpenTime");
         addReasonMetricRows(rows, "entryReason", summary.get("entryReasonCounts"));
         addReasonMetricRows(rows, "exitReason", summary.get("exitReasonCounts"));
+
+        detail.getEvents().forEach(event -> {
+            List<Object> row = new ArrayList<>();
+            row.add("event");
+            row.add(event.getPhase());
+            row.add(event.getAction());
+            row.add(detail.getRunId());
+            row.add(detail.getRunMode());
+            row.add(detail.getStatus());
+            row.add(event.getOpenTime());
+            row.add("");
+            row.add("");
+            row.add(event.getClosePrice());
+            row.add("");
+            row.add("");
+            row.add(event.getPositionQuantity());
+            row.add("");
+            row.add("");
+            row.add(event.getEquity());
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add(writeCompactJson(Map.of(
+                    "cashBalance", event.getCashBalance(),
+                    "matchedRules", event.getMatchedRules(),
+                    "details", event.getDetails())));
+            rows.add(row);
+        });
 
         detail.getFills().forEach(fill -> {
             List<Object> row = new ArrayList<>();
@@ -573,6 +614,7 @@ public class StrategyBotRunService {
         addMetricRow(rows, "summary", "completedRuns", analytics.getCompletedRuns());
         addMetricRow(rows, "summary", "runningRuns", analytics.getRunningRuns());
         addMetricRow(rows, "summary", "failedRuns", analytics.getFailedRuns());
+        addMetricRow(rows, "summary", "cancelledRuns", analytics.getCancelledRuns());
         addMetricRow(rows, "summary", "compilerReadyRuns", analytics.getCompilerReadyRuns());
         addMetricRow(rows, "summary", "positiveCompletedRuns", analytics.getPositiveCompletedRuns());
         addMetricRow(rows, "summary", "negativeCompletedRuns", analytics.getNegativeCompletedRuns());
@@ -736,6 +778,7 @@ public class StrategyBotRunService {
         addMetricRow(rows, "summary", "completedRuns", analytics.getCompletedRuns());
         addMetricRow(rows, "summary", "runningRuns", analytics.getRunningRuns());
         addMetricRow(rows, "summary", "failedRuns", analytics.getFailedRuns());
+        addMetricRow(rows, "summary", "cancelledRuns", analytics.getCancelledRuns());
         addMetricRow(rows, "summary", "compilerReadyRuns", analytics.getCompilerReadyRuns());
         addMetricRow(rows, "summary", "positiveCompletedRuns", analytics.getPositiveCompletedRuns());
         addMetricRow(rows, "summary", "negativeCompletedRuns", analytics.getNegativeCompletedRuns());
@@ -785,6 +828,7 @@ public class StrategyBotRunService {
         payload.put("linkedPortfolioId", bot.getLinkedPortfolioId());
         payload.put("exportedAt", LocalDateTime.now().toString());
         payload.put("run", toResponse(run));
+        payload.put("events", getRunEventRows(run));
         payload.put("fills", getRunFillRows(run));
         payload.put("equityCurve", getRunEquityPointRows(run));
         payload.put("reconciliationPlan", safeBuildRunReconciliation(bot, run));
@@ -803,6 +847,7 @@ public class StrategyBotRunService {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun run = getOwnedRunEntity(botId, runId, userId);
         StrategyBotRunResponse runResponse = toResponse(run);
+        List<StrategyBotRunEventResponse> events = getRunEventRows(run);
         List<StrategyBotRunFillResponse> fills = getRunFillRows(run);
         List<StrategyBotRunEquityPointResponse> equityPoints = getRunEquityPointRows(run);
         StrategyBotRunReconciliationResponse reconciliation = safeBuildRunReconciliation(bot, run);
@@ -855,6 +900,7 @@ public class StrategyBotRunService {
         addRunExportSummaryMetric(rows, runResponse.getSummary(), "phase");
         addRunExportSummaryMetric(rows, runResponse.getSummary(), "executionEngineReady");
         addRunExportSummaryMetric(rows, runResponse.getSummary(), "fillCount");
+        addRunExportSummaryMetric(rows, runResponse.getSummary(), "eventCount");
         addRunExportSummaryMetric(rows, runResponse.getSummary(), "endingEquity");
         addRunExportSummaryMetric(rows, runResponse.getSummary(), "netPnl");
         addRunExportSummaryMetric(rows, runResponse.getSummary(), "returnPercent");
@@ -888,6 +934,34 @@ public class StrategyBotRunService {
         addRunExportMetricRow(rows, "summary", "warnings", joinJsonArray(runResponse.getSummary().path("warnings")));
         addReasonMetricRows(rows, "entryDriver", runResponse.getSummary().path("entryReasonCounts"));
         addReasonMetricRows(rows, "exitDriver", runResponse.getSummary().path("exitReasonCounts"));
+
+        for (StrategyBotRunEventResponse event : events) {
+            List<Object> row = new ArrayList<>();
+            row.add("event");
+            row.add(event.getPhase());
+            row.add(event.getAction());
+            row.add(runResponse.getId());
+            row.add(runResponse.getRunMode());
+            row.add(runResponse.getStatus());
+            row.add(runResponse.getRequestedAt());
+            row.add(runResponse.getStartedAt());
+            row.add(runResponse.getCompletedAt());
+            row.add(event.getOpenTime());
+            row.add(event.getSequenceNo());
+            row.add("");
+            row.add(event.getClosePrice());
+            row.add(event.getPositionQuantity());
+            row.add("");
+            row.add(event.getEquity());
+            row.add("");
+            row.add("");
+            row.add("");
+            row.add(writeCompactJson(Map.of(
+                    "cashBalance", event.getCashBalance(),
+                    "matchedRules", event.getMatchedRules(),
+                    "details", event.getDetails())));
+            rows.add(row);
+        }
 
         for (StrategyBotRunFillResponse fill : fills) {
             List<Object> row = new ArrayList<>();
@@ -1004,6 +1078,7 @@ public class StrategyBotRunService {
                 .completedRuns((int) runs.stream().filter(run -> run.getStatus() == StrategyBotRun.Status.COMPLETED).count())
                 .runningRuns((int) runs.stream().filter(run -> run.getStatus() == StrategyBotRun.Status.RUNNING).count())
                 .failedRuns((int) runs.stream().filter(run -> run.getStatus() == StrategyBotRun.Status.FAILED).count())
+                .cancelledRuns((int) runs.stream().filter(run -> run.getStatus() == StrategyBotRun.Status.CANCELLED).count())
                 .compilerReadyRuns((int) scorecards.stream().filter(scorecard -> Boolean.TRUE.equals(scorecard.getExecutionEngineReady())).count())
                 .positiveCompletedRuns((int) completedScorecards.stream().filter(scorecard -> scorecard.getReturnPercent() != null && scorecard.getReturnPercent() > 0.0).count())
                 .negativeCompletedRuns((int) completedScorecards.stream().filter(scorecard -> scorecard.getReturnPercent() != null && scorecard.getReturnPercent() < 0.0).count())
@@ -1210,6 +1285,7 @@ public class StrategyBotRunService {
                 "completedRuns",
                 "runningRuns",
                 "failedRuns",
+                "cancelledRuns",
                 "totalSimulatedTrades",
                 "avgReturnPercent",
                 "avgNetPnl",
@@ -1295,6 +1371,7 @@ public class StrategyBotRunService {
                 .completedRuns(analytics.getCompletedRuns())
                 .runningRuns(analytics.getRunningRuns())
                 .failedRuns(analytics.getFailedRuns())
+                .cancelledRuns(analytics.getCancelledRuns())
                 .totalSimulatedTrades(analytics.getTotalSimulatedTrades())
                 .positiveCompletedRuns(analytics.getPositiveCompletedRuns())
                 .negativeCompletedRuns(analytics.getNegativeCompletedRuns())
@@ -1347,7 +1424,7 @@ public class StrategyBotRunService {
         row.add(section);
         row.add(key);
         row.add(value == null ? "" : value);
-        while (row.size() < 24) {
+        while (row.size() < 25) {
             row.add("");
         }
         rows.add(row);
@@ -1368,6 +1445,7 @@ public class StrategyBotRunService {
         row.add(entry.getCompletedRuns());
         row.add(entry.getRunningRuns());
         row.add(entry.getFailedRuns());
+        row.add(entry.getCancelledRuns());
         row.add(entry.getTotalSimulatedTrades());
         row.add(entry.getAvgReturnPercent());
         row.add(entry.getAvgNetPnl());
@@ -1999,10 +2077,13 @@ public class StrategyBotRunService {
     private void persistRunOutputs(StrategyBotRun run, RunSimulationSummary summary) {
         strategyBotRunFillRepository.deleteByStrategyBotRunId(run.getId());
         strategyBotRunEquityPointRepository.deleteByStrategyBotRunId(run.getId());
+        strategyBotRunEventRepository.deleteByStrategyBotRunId(run.getId());
         strategyBotRunFillRepository.flush();
         strategyBotRunEquityPointRepository.flush();
+        strategyBotRunEventRepository.flush();
         strategyBotRunFillRepository.saveAll(summary.fillRows());
         strategyBotRunEquityPointRepository.saveAll(summary.equityPoints());
+        strategyBotRunEventRepository.saveAll(summary.eventRows());
     }
 
     private List<MarketCandleResponse> loadBacktestCandles(StrategyBot bot, StrategyBotRun run) {
@@ -2191,16 +2272,24 @@ public class StrategyBotRunService {
         List<Map<String, Object>> equityCurve = new ArrayList<>();
         List<StrategyBotRunFill> fillRows = new ArrayList<>();
         List<StrategyBotRunEquityPoint> equityPointRows = new ArrayList<>();
+        List<StrategyBotRunEvent> eventRows = new ArrayList<>();
         double peakEquity = cash;
         double maxDrawdownPercent = 0.0;
         long lastEntryOpenTime = Long.MIN_VALUE;
         long cooldownMillis = Math.max(bot.getCooldownMinutes(), 0L) * 60_000L;
         int fillSequence = 0;
         int equitySequence = 0;
+        int eventSequence = 0;
 
         for (int i = 0; i < candles.size(); i++) {
             List<MarketCandleResponse> window = candles.subList(0, i + 1);
             MarketCandleResponse candle = candles.get(i);
+            String eventPhase = positionOpen ? "EXIT" : "ENTRY";
+            String eventAction = "WAITING_FOR_ENTRY";
+            List<String> eventMatchedRules = List.of();
+            LinkedHashMap<String, Object> eventDetails = new LinkedHashMap<>();
+            eventDetails.put("candleIndex", i + 1);
+            eventDetails.put("windowSize", window.size());
 
             if (positionOpen) {
                 StrategyBotRuleEngineService.SignalEvaluation exit = evaluateRulesSafely(
@@ -2211,12 +2300,21 @@ public class StrategyBotRunService {
                                 false,
                                 bot.getStopLossPercent(),
                                 bot.getTakeProfitPercent()));
+                eventMatchedRules = exit.matchedRules();
+                if (!exit.warnings().isEmpty()) {
+                    eventDetails.put("warnings", exit.warnings());
+                }
+                if (!exit.unsupportedRules().isEmpty()) {
+                    eventDetails.put("unsupportedRules", exit.unsupportedRules());
+                }
+                boolean forcedExit = closePositionAtEnd && i == candles.size() - 1 && !exit.matched();
                 boolean shouldExit = exit.matched() || (closePositionAtEnd && i == candles.size() - 1);
                 if (shouldExit) {
                     double exitPrice = candle.getClose();
                     double proceeds = quantity * exitPrice;
                     double pnl = proceeds - (quantity * entryPrice);
                     long holdMillis = currentEntryOpenTime == Long.MIN_VALUE ? 0L : Math.max(0L, candle.getOpenTime() - currentEntryOpenTime);
+                    double exitedQuantity = quantity;
                     cash += proceeds;
                     fills.add(fill("EXIT", candle, exitPrice, quantity, pnl, exit.matchedRules()));
                     fillRows.add(fillRow(run.getId(), ++fillSequence, "EXIT", candle, exitPrice, quantity, pnl, exit.matchedRules()));
@@ -2232,28 +2330,70 @@ public class StrategyBotRunService {
                     totalHoldMillis += holdMillis;
                     maxHoldMillis = Math.max(maxHoldMillis, holdMillis);
                     incrementReasonCounts(exitReasonCounts, exit.matchedRules(), closePositionAtEnd && i == candles.size() - 1 ? "end_of_window" : "manual_exit");
+                    eventAction = forcedExit ? "FORCED_EXIT_END_OF_WINDOW" : "EXITED";
+                    eventDetails.put("entryPrice", round(entryPrice));
+                    eventDetails.put("exitPrice", round(exitPrice));
+                    eventDetails.put("positionQuantityBeforeExit", round(exitedQuantity));
+                    eventDetails.put("realizedPnl", round(pnl));
+                    eventDetails.put("holdHours", round(holdMillis / 3_600_000.0));
+                    if (forcedExit) {
+                        eventDetails.put("fallbackReason", "end_of_window");
+                    }
                     positionOpen = false;
                     quantity = 0.0;
                     entryPrice = 0.0;
                     currentEntryOpenTime = Long.MIN_VALUE;
+                } else {
+                    eventAction = "HOLDING_POSITION";
+                    eventDetails.put("entryPrice", round(entryPrice));
+                    eventDetails.put("positionQuantity", round(quantity));
                 }
-            } else if (i > 0 && (lastEntryOpenTime == Long.MIN_VALUE || candle.getOpenTime() - lastEntryOpenTime >= cooldownMillis)) {
-                StrategyBotRuleEngineService.SignalEvaluation entry = evaluateRulesSafely(
-                        parseJson(run.getCompiledEntryRules()),
-                        window,
-                        null);
-                if (entry.matched()) {
-                    double entryCash = cash * bot.getMaxPositionSizePercent().doubleValue() / 100.0;
-                    if (entryCash > 0.0) {
-                        entryPrice = candle.getClose();
-                        quantity = entryCash / entryPrice;
-                        cash -= entryCash;
-                        positionOpen = true;
-                        lastEntryOpenTime = candle.getOpenTime();
-                        currentEntryOpenTime = candle.getOpenTime();
-                        incrementReasonCounts(entryReasonCounts, entry.matchedRules(), "entry_signal");
-                        fills.add(fill("ENTRY", candle, entryPrice, quantity, 0.0, entry.matchedRules()));
-                        fillRows.add(fillRow(run.getId(), ++fillSequence, "ENTRY", candle, entryPrice, quantity, 0.0, entry.matchedRules()));
+            } else {
+                long millisSinceLastEntry = lastEntryOpenTime == Long.MIN_VALUE
+                        ? Long.MAX_VALUE
+                        : Math.max(0L, candle.getOpenTime() - lastEntryOpenTime);
+                boolean cooldownActive = i > 0
+                        && lastEntryOpenTime != Long.MIN_VALUE
+                        && millisSinceLastEntry < cooldownMillis;
+                if (i == 0) {
+                    eventAction = "WAITING_FOR_ENTRY";
+                    eventDetails.put("reason", "warmup");
+                } else if (cooldownActive) {
+                    eventPhase = "COOLDOWN";
+                    eventAction = "COOLDOWN_BLOCKED";
+                    eventDetails.put("cooldownMinutes", Math.max(bot.getCooldownMinutes(), 0L));
+                    eventDetails.put("remainingCooldownMinutes", round((cooldownMillis - millisSinceLastEntry) / 60_000.0));
+                } else {
+                    StrategyBotRuleEngineService.SignalEvaluation entry = evaluateRulesSafely(
+                            parseJson(run.getCompiledEntryRules()),
+                            window,
+                            null);
+                    eventMatchedRules = entry.matchedRules();
+                    if (!entry.warnings().isEmpty()) {
+                        eventDetails.put("warnings", entry.warnings());
+                    }
+                    if (!entry.unsupportedRules().isEmpty()) {
+                        eventDetails.put("unsupportedRules", entry.unsupportedRules());
+                    }
+                    if (entry.matched()) {
+                        double entryCash = cash * bot.getMaxPositionSizePercent().doubleValue() / 100.0;
+                        eventDetails.put("allocatedCapital", round(entryCash));
+                        if (entryCash > 0.0) {
+                            entryPrice = candle.getClose();
+                            quantity = entryCash / entryPrice;
+                            cash -= entryCash;
+                            positionOpen = true;
+                            lastEntryOpenTime = candle.getOpenTime();
+                            currentEntryOpenTime = candle.getOpenTime();
+                            incrementReasonCounts(entryReasonCounts, entry.matchedRules(), "entry_signal");
+                            fills.add(fill("ENTRY", candle, entryPrice, quantity, 0.0, entry.matchedRules()));
+                            fillRows.add(fillRow(run.getId(), ++fillSequence, "ENTRY", candle, entryPrice, quantity, 0.0, entry.matchedRules()));
+                            eventAction = "ENTERED";
+                            eventDetails.put("entryPrice", round(entryPrice));
+                            eventDetails.put("positionQuantity", round(quantity));
+                        } else {
+                            eventAction = "ENTRY_SKIPPED_ZERO_CAPITAL";
+                        }
                     }
                 }
             }
@@ -2272,6 +2412,21 @@ public class StrategyBotRunService {
             }
             equityCurve.add(equityPoint(candle, equity));
             equityPointRows.add(equityPointRow(run.getId(), ++equitySequence, candle, equity));
+            eventDetails.put("positionOpen", positionOpen);
+            if (positionOpen) {
+                eventDetails.put("openEntryPrice", round(entryPrice));
+            }
+            eventRows.add(eventRow(
+                    run.getId(),
+                    ++eventSequence,
+                    candle,
+                    eventPhase,
+                    eventAction,
+                    cash,
+                    quantity,
+                    equity,
+                    eventMatchedRules,
+                    eventDetails));
         }
 
         double startingCapital = run.getEffectiveInitialCapital().doubleValue();
@@ -2324,6 +2479,7 @@ public class StrategyBotRunService {
         payload.put("openEntryPrice", positionOpen ? round(entryPrice) : null);
         payload.put("lastEvaluatedOpenTime", lastEvaluatedOpenTime);
         payload.put("fillCount", fills.size());
+        payload.put("eventCount", eventRows.size());
         payload.put("maxDrawdownPercent", round(maxDrawdownPercent));
         payload.put("candleCount", candles.size());
         payload.put("fills", fills);
@@ -2334,6 +2490,7 @@ public class StrategyBotRunService {
                 payload,
                 fillRows,
                 equityPointRows,
+                eventRows,
                 tradeCount,
                 winCount,
                 lossCount,
@@ -2528,6 +2685,13 @@ public class StrategyBotRunService {
                 .toList();
     }
 
+    private List<StrategyBotRunEventResponse> getRunEventRows(StrategyBotRun run) {
+        return strategyBotRunEventRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), Pageable.unpaged())
+                .stream()
+                .map(this::toEventResponse)
+                .toList();
+    }
+
     private List<StrategyBotRunEquityPointResponse> getRunEquityPointRows(StrategyBotRun run) {
         return strategyBotRunEquityPointRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(run.getId(), Pageable.unpaged())
                 .stream()
@@ -2576,6 +2740,31 @@ public class StrategyBotRunService {
                 .quantity(BigDecimal.valueOf(quantity).setScale(8, RoundingMode.HALF_UP))
                 .realizedPnl(BigDecimal.valueOf(round(realizedPnl)).setScale(2, RoundingMode.HALF_UP))
                 .matchedRules(writeJsonArray(matchedRules))
+                .build();
+    }
+
+    private StrategyBotRunEvent eventRow(UUID runId,
+                                         int sequenceNo,
+                                         MarketCandleResponse candle,
+                                         String phase,
+                                         String action,
+                                         double cashBalance,
+                                         double positionQuantity,
+                                         double equity,
+                                         List<String> matchedRules,
+                                         Map<String, Object> details) {
+        return StrategyBotRunEvent.builder()
+                .strategyBotRunId(runId)
+                .sequenceNo(sequenceNo)
+                .openTime(candle.getOpenTime())
+                .phase(phase)
+                .action(action)
+                .closePrice(BigDecimal.valueOf(candle.getClose()).setScale(8, RoundingMode.HALF_UP))
+                .cashBalance(BigDecimal.valueOf(round(cashBalance)).setScale(2, RoundingMode.HALF_UP))
+                .positionQuantity(BigDecimal.valueOf(positionQuantity).setScale(8, RoundingMode.HALF_UP))
+                .equity(BigDecimal.valueOf(round(equity)).setScale(2, RoundingMode.HALF_UP))
+                .matchedRules(writeJsonArray(matchedRules))
+                .details(writeCompactJson(details))
                 .build();
     }
 
@@ -2629,6 +2818,14 @@ public class StrategyBotRunService {
             return objectMapper.writeValueAsString(values);
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("Failed to serialize strategy bot run matched rules", ex);
+        }
+    }
+
+    private String writeCompactJson(Object payload) {
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Failed to serialize strategy bot run event payload", ex);
         }
     }
 
@@ -2699,6 +2896,23 @@ public class StrategyBotRunService {
                 .build();
     }
 
+    private StrategyBotRunEventResponse toEventResponse(StrategyBotRunEvent row) {
+        return StrategyBotRunEventResponse.builder()
+                .id(row.getId())
+                .strategyBotRunId(row.getStrategyBotRunId())
+                .sequenceNo(row.getSequenceNo())
+                .openTime(row.getOpenTime())
+                .phase(row.getPhase())
+                .action(row.getAction())
+                .closePrice(row.getClosePrice())
+                .cashBalance(row.getCashBalance())
+                .positionQuantity(row.getPositionQuantity())
+                .equity(row.getEquity())
+                .matchedRules(parseJson(row.getMatchedRules()))
+                .details(parseJson(row.getDetails()))
+                .build();
+    }
+
     private StrategyBotRunEquityPointResponse toEquityPointResponse(StrategyBotRunEquityPoint row) {
         return StrategyBotRunEquityPointResponse.builder()
                 .id(row.getId())
@@ -2714,6 +2928,7 @@ public class StrategyBotRunService {
             Map<String, Object> payload,
             List<StrategyBotRunFill> fillRows,
             List<StrategyBotRunEquityPoint> equityPoints,
+            List<StrategyBotRunEvent> eventRows,
             int tradeCount,
             int winCount,
             int lossCount,

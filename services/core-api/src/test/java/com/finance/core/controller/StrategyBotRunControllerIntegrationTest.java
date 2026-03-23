@@ -9,6 +9,7 @@ import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
+import com.finance.core.repository.StrategyBotRunEventRepository;
 import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
@@ -34,6 +35,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -68,6 +70,9 @@ class StrategyBotRunControllerIntegrationTest {
     private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
 
     @Autowired
+    private StrategyBotRunEventRepository strategyBotRunEventRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     @MockitoBean
@@ -78,6 +83,7 @@ class StrategyBotRunControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        strategyBotRunEventRepository.deleteAll();
         strategyBotRunEquityPointRepository.deleteAll();
         strategyBotRunRepository.deleteAll();
         strategyBotRepository.deleteAll();
@@ -266,6 +272,14 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].side").value("ENTRY"))
                 .andExpect(jsonPath("$.content[1].side").value("EXIT"));
 
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/events")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(risingCandles().size())))
+                .andExpect(jsonPath("$.content[*].action", hasItem("ENTERED")))
+                .andExpect(jsonPath("$.content[*].action", hasItem("EXITED")))
+                .andExpect(jsonPath("$.content[0].details.positionOpen").exists());
+
         mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/equity-curve")
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isOk())
@@ -341,6 +355,7 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(header().string("Content-Disposition", containsString(".csv")))
                 .andExpect(content().contentType("text/csv"))
                 .andExpect(content().string(containsString("context,name,Run Export Bot")))
+                .andExpect(content().string(containsString("event,ENTRY,ENTERED")))
                 .andExpect(content().string(containsString("summary,tradeCount,1")))
                 .andExpect(content().string(containsString("reconciliation,targetCashBalance")));
 
@@ -352,6 +367,8 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.name").value("Run Export Bot"))
                 .andExpect(jsonPath("$.run.id").value(runId))
+                .andExpect(jsonPath("$.events", hasSize(risingCandles().size())))
+                .andExpect(jsonPath("$.events[0].phase").exists())
                 .andExpect(jsonPath("$.fills", hasSize(2)))
                 .andExpect(jsonPath("$.equityCurve", hasSize(risingCandles().size())))
                 .andExpect(jsonPath("$.reconciliationPlan.linkedPortfolioId").value(linkedPortfolio.getId().toString()));

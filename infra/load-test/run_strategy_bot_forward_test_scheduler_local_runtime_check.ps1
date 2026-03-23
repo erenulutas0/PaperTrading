@@ -20,14 +20,6 @@ $httpClientHandler = [System.Net.Http.HttpClientHandler]::new()
 $httpClient = [System.Net.Http.HttpClient]::new($httpClientHandler)
 $httpClient.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
 
-function Get-FreeTcpPort {
-  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-  $listener.Start()
-  $port = ($listener.LocalEndpoint).Port
-  $listener.Stop()
-  return $port
-}
-
 function Test-PortOpen {
   param([int]$Port)
 
@@ -157,17 +149,16 @@ $childReportPath = ""
 $childSmokeStatus = "UNKNOWN"
 $baseUrl = "http://localhost:$ServerPort"
 
-if (-not $SkipAppStart -and (Test-PortOpen -Port $ServerPort)) {
-  $requestedPort = $ServerPort
-  $ServerPort = Get-FreeTcpPort
-  $baseUrl = "http://localhost:$ServerPort"
-  $notes.Add("Requested server port $requestedPort was already in use; switched to $ServerPort.") | Out-Null
-}
-
 $healthUrl = "$baseUrl/actuator/health"
 
 try {
   if (-not $SkipAppStart) {
+    if (Test-PortOpen -Port $ServerPort) {
+      $portConflictMessage = "Requested server port $ServerPort is already in use. This local runtime wrapper requires an exclusive backend instance because the strategy-bot forward-test scheduler uses shared ShedLock state; if another backend is already connected to the same database, the temporary runtime can miss ticks and the proof can false-fail. Stop the competing backend, choose a free -ServerPort, or rerun with -SkipAppStart against the already running instance."
+      Assert-Condition -Results $results -Name "Requested Server Port Available" -Condition $false -Detail "port=$ServerPort"
+      throw $portConflictMessage
+    }
+
     $coreApiPath = Resolve-Path $CoreApiDir
     $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
     $mavenUserHome = Join-Path $repoRoot ".m2"

@@ -17,6 +17,7 @@ public class StrategyBotAnalyticsResponse {
     int completedRuns;
     int runningRuns;
     int failedRuns;
+    int cancelledRuns;
     int compilerReadyRuns;
     int positiveCompletedRuns;
     int negativeCompletedRuns;

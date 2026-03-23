@@ -372,6 +372,7 @@ Useful notes:
 - the temporary backend enables deterministic synthetic crypto candles, so the local check does not depend on external Binance REST access
 - the temporary backend also shortens the forward-test refresh interval to keep the scheduler tick observable inside the smoke window
 - the temporary backend enables health component details so the child smoke can validate `/actuator/health/strategyBotForwardTests` directly
+- when the wrapper starts its own backend, the requested `-ServerPort` must be free; it now fails fast on port conflicts instead of silently hopping ports because shared ShedLock state can make parallel local runtimes false-fail the scheduler proof
 - use `-SkipAppStart` if you want to point it at an already running backend on the selected port
 - use `-PreserveAppAfterRun` if you want to inspect the temporary backend after the smoke finishes
 

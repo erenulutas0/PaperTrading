@@ -22,6 +22,37 @@ type BotBoardSavedView = {
     lookbackDays: BotBoardLookback;
     updatedAt: string;
 };
+type RuleOperator = 'all' | 'any';
+type RuleTemplateId =
+    | 'price_above_ma'
+    | 'price_below_ma'
+    | 'rsi_above'
+    | 'rsi_below'
+    | 'breakout_high'
+    | 'breakdown_low'
+    | 'volume_above_sma'
+    | 'stop_loss_hit'
+    | 'take_profit_hit'
+    | 'custom';
+type RuleBuilderScope = 'ENTRY' | 'EXIT';
+type RuleTemplate = {
+    id: RuleTemplateId;
+    label: string;
+    description: string;
+    parameterKind: 'window' | 'threshold' | 'none' | 'custom';
+    defaultValue: string;
+    scope: RuleBuilderScope | 'BOTH';
+};
+type RuleDraft = {
+    templateId: RuleTemplateId;
+    value: string;
+    token: string;
+};
+type ParsedRuleSet = {
+    operator: RuleOperator;
+    rules: RuleDraft[];
+    error: string | null;
+};
 
 type PortfolioOption = { id: string; name: string; balance: number; visibility?: 'PUBLIC' | 'PRIVATE' };
 type StrategyBot = {
@@ -30,9 +61,14 @@ type StrategyBot = {
     maxPositionSizePercent?: number; stopLossPercent?: number; takeProfitPercent?: number; cooldownMinutes?: number; updatedAt: string;
 };
 type StrategyBotRun = {
-    id: string; runMode: RunMode; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'; requestedAt: string;
-    fromDate?: string; toDate?: string; errorMessage?: string | null;
-    summary?: { executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null; avgHoldHours?: number | null; maxHoldHours?: number | null; timeInMarketPercent?: number | null; avgExposurePercent?: number | null; entryReasonCounts?: Record<string, number>; exitReasonCounts?: Record<string, number>; linkedPortfolioId?: string; linkedPortfolioName?: string; linkedPortfolioBalance?: number | null; linkedPortfolioReferenceEquity?: number | null; linkedPortfolioDrift?: number | null; linkedPortfolioDriftPercent?: number | null; linkedPortfolioReconciliationBaseline?: string; linkedPortfolioAligned?: boolean; lastEvaluatedOpenTime?: number | null; positionOpen?: boolean; openQuantity?: number | null; openEntryPrice?: number | null } | null;
+    id: string; runMode: RunMode; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'; requestedAt: string;
+    fromDate?: string; toDate?: string; startedAt?: string | null; completedAt?: string | null; errorMessage?: string | null;
+    summary?: { phase?: string; status?: string; previousStatus?: string; cancelledAt?: string; executionEngineReady?: boolean; unsupportedRules?: string[]; warnings?: string[]; supportedFeatures?: string[]; fills?: unknown[]; equityCurve?: unknown[]; endingEquity?: number; netPnl?: number; returnPercent?: number; tradeCount?: number; eventCount?: number; maxDrawdownPercent?: number; avgWinPnl?: number | null; avgLossPnl?: number | null; profitFactor?: number | null; expectancyPerTrade?: number | null; bestTradePnl?: number | null; worstTradePnl?: number | null; avgHoldHours?: number | null; maxHoldHours?: number | null; timeInMarketPercent?: number | null; avgExposurePercent?: number | null; entryReasonCounts?: Record<string, number>; exitReasonCounts?: Record<string, number>; linkedPortfolioId?: string; linkedPortfolioName?: string; linkedPortfolioBalance?: number | null; linkedPortfolioReferenceEquity?: number | null; linkedPortfolioDrift?: number | null; linkedPortfolioDriftPercent?: number | null; linkedPortfolioReconciliationBaseline?: string; linkedPortfolioAligned?: boolean; lastEvaluatedOpenTime?: number | null; positionOpen?: boolean; openQuantity?: number | null; openEntryPrice?: number | null } | null;
+};
+type StrategyBotRunEvent = {
+    id: string; sequenceNo: number; openTime: number; phase: string; action: string;
+    closePrice: number; cashBalance: number; positionQuantity: number; equity: number;
+    matchedRules: string[]; details?: Record<string, unknown> | null;
 };
 type StrategyBotRunFill = {
     id: string; sequenceNo: number; side: 'ENTRY' | 'EXIT'; openTime: number;
@@ -49,7 +85,7 @@ type StrategyBotRunScorecard = {
     executionEngineReady?: boolean | null; lastEvaluatedOpenTime?: number | null; errorMessage?: string | null;
 };
 type StrategyBotAnalytics = {
-    strategyBotId: string; totalRuns: number; backtestRuns: number; forwardTestRuns: number; completedRuns: number; runningRuns: number; failedRuns: number;
+    strategyBotId: string; totalRuns: number; backtestRuns: number; forwardTestRuns: number; completedRuns: number; runningRuns: number; failedRuns: number; cancelledRuns: number;
     compilerReadyRuns: number; positiveCompletedRuns: number; negativeCompletedRuns: number; totalSimulatedTrades: number;
     avgReturnPercent?: number | null; avgNetPnl?: number | null; avgMaxDrawdownPercent?: number | null; avgWinRate?: number | null; avgTradeCount?: number | null;
     avgProfitFactor?: number | null; avgExpectancyPerTrade?: number | null;
@@ -58,7 +94,7 @@ type StrategyBotAnalytics = {
 };
 type StrategyBotBoardEntry = {
     strategyBotId: string; name: string; status: BotStatus; market: string; symbol: string; timeframe: string; linkedPortfolioId?: string | null;
-    totalRuns: number; completedRuns: number; runningRuns: number; failedRuns: number; totalSimulatedTrades: number; positiveCompletedRuns: number; negativeCompletedRuns: number;
+    totalRuns: number; completedRuns: number; runningRuns: number; failedRuns: number; cancelledRuns: number; totalSimulatedTrades: number; positiveCompletedRuns: number; negativeCompletedRuns: number;
     avgReturnPercent?: number | null; avgNetPnl?: number | null; avgMaxDrawdownPercent?: number | null; avgWinRate?: number | null; avgProfitFactor?: number | null; avgExpectancyPerTrade?: number | null;
     latestRequestedAt?: string | null; bestRun?: StrategyBotRunScorecard | null; latestCompletedRun?: StrategyBotRunScorecard | null; activeForwardRun?: StrategyBotRunScorecard | null;
 };
@@ -72,6 +108,19 @@ type StrategyBotRunReconciliationPlan = {
 const defaultEntryRules = JSON.stringify({ all: ['price_above_ma_20', 'rsi_below_35'] }, null, 2);
 const defaultExitRules = JSON.stringify({ any: ['take_profit_hit', 'stop_loss_hit'] }, null, 2);
 const BOT_BOARD_VIEW_STORAGE_KEY = 'dashboard.strategy-bot.board-views.v1';
+const emptyRuleSetJson = JSON.stringify({ all: [] }, null, 2);
+const ruleTemplates: RuleTemplate[] = [
+    { id: 'price_above_ma', label: 'Price > MA', description: 'Close price crosses above a moving average window.', parameterKind: 'window', defaultValue: '20', scope: 'BOTH' },
+    { id: 'price_below_ma', label: 'Price < MA', description: 'Close price drops below a moving average window.', parameterKind: 'window', defaultValue: '20', scope: 'BOTH' },
+    { id: 'rsi_above', label: 'RSI Above', description: 'Momentum stays above a threshold.', parameterKind: 'threshold', defaultValue: '55', scope: 'BOTH' },
+    { id: 'rsi_below', label: 'RSI Below', description: 'Momentum pulls back below a threshold.', parameterKind: 'threshold', defaultValue: '35', scope: 'BOTH' },
+    { id: 'breakout_high', label: 'Breakout High', description: 'Close breaks above the highest high of a lookback window.', parameterKind: 'window', defaultValue: '20', scope: 'BOTH' },
+    { id: 'breakdown_low', label: 'Breakdown Low', description: 'Close breaks below the lowest low of a lookback window.', parameterKind: 'window', defaultValue: '20', scope: 'BOTH' },
+    { id: 'volume_above_sma', label: 'Volume > SMA', description: 'Volume expands above its moving average.', parameterKind: 'window', defaultValue: '20', scope: 'BOTH' },
+    { id: 'stop_loss_hit', label: 'Stop Loss', description: 'Risk exit uses the bot stop-loss setting.', parameterKind: 'none', defaultValue: '', scope: 'EXIT' },
+    { id: 'take_profit_hit', label: 'Take Profit', description: 'Risk exit uses the bot take-profit setting.', parameterKind: 'none', defaultValue: '', scope: 'EXIT' },
+    { id: 'custom', label: 'Custom Token', description: 'Keep a raw token when the builder library is not enough.', parameterKind: 'custom', defaultValue: '', scope: 'BOTH' },
+];
 const boardComparisonPresets: Array<{
     id: BotBoardPresetId;
     label: string;
@@ -163,6 +212,131 @@ function parseBoardLookback(value: string | null): BotBoardLookback {
     return value === '7' || value === '30' || value === '90' ? value : 'ALL';
 }
 
+function getRuleTemplate(templateId: RuleTemplateId) {
+    return ruleTemplates.find((template) => template.id === templateId) ?? ruleTemplates[ruleTemplates.length - 1];
+}
+
+function ruleTemplatesForScope(scope: RuleBuilderScope) {
+    return ruleTemplates.filter((template) => template.scope === 'BOTH' || template.scope === scope);
+}
+
+function normalizeRuleNumber(raw: string, fallback: string, integerOnly: boolean) {
+    const trimmed = raw.trim();
+    if (!trimmed) return fallback;
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return integerOnly ? String(Math.max(1, Math.round(parsed))) : String(parsed);
+}
+
+function buildRuleToken(templateId: RuleTemplateId, rawValue: string) {
+    const template = getRuleTemplate(templateId);
+    switch (templateId) {
+        case 'price_above_ma':
+            return `price_above_ma_${normalizeRuleNumber(rawValue, template.defaultValue, true)}`;
+        case 'price_below_ma':
+            return `price_below_ma_${normalizeRuleNumber(rawValue, template.defaultValue, true)}`;
+        case 'rsi_above':
+            return `rsi_above_${normalizeRuleNumber(rawValue, template.defaultValue, false)}`;
+        case 'rsi_below':
+            return `rsi_below_${normalizeRuleNumber(rawValue, template.defaultValue, false)}`;
+        case 'breakout_high':
+            return `breakout_high_${normalizeRuleNumber(rawValue, template.defaultValue, true)}`;
+        case 'breakdown_low':
+            return `breakdown_low_${normalizeRuleNumber(rawValue, template.defaultValue, true)}`;
+        case 'volume_above_sma':
+            return `volume_above_sma_${normalizeRuleNumber(rawValue, template.defaultValue, true)}`;
+        case 'stop_loss_hit':
+            return 'stop_loss_hit';
+        case 'take_profit_hit':
+            return 'take_profit_hit';
+        case 'custom':
+            return rawValue.trim().toLowerCase();
+        default:
+            return rawValue.trim().toLowerCase();
+    }
+}
+
+function decodeRuleToken(rawToken: string): RuleDraft {
+    const token = rawToken.trim().toLowerCase();
+    const matchers: Array<[RuleTemplateId, RegExp]> = [
+        ['price_above_ma', /^price_above_ma_(\d+)$/],
+        ['price_below_ma', /^price_below_ma_(\d+)$/],
+        ['rsi_above', /^rsi_above_([0-9]+(?:\.[0-9]+)?)$/],
+        ['rsi_below', /^rsi_below_([0-9]+(?:\.[0-9]+)?)$/],
+        ['breakout_high', /^breakout_high_(\d+)$/],
+        ['breakdown_low', /^breakdown_low_(\d+)$/],
+        ['volume_above_sma', /^volume_above_sma_(\d+)$/],
+    ];
+    for (const [templateId, pattern] of matchers) {
+        const match = token.match(pattern);
+        if (match) {
+            return { templateId, value: match[1], token };
+        }
+    }
+    if (token === 'stop_loss_hit' || token === 'take_profit_hit') {
+        return { templateId: token, value: '', token };
+    }
+    return { templateId: 'custom', value: token, token };
+}
+
+function stringifyRuleSet(operator: RuleOperator, rules: RuleDraft[]) {
+    const serializedRules = rules
+        .map((rule) => buildRuleToken(rule.templateId, rule.value))
+        .filter((token) => !!token);
+    return JSON.stringify({ [operator]: serializedRules }, null, 2);
+}
+
+function parseRuleSetText(raw: string): ParsedRuleSet {
+    try {
+        const parsed = JSON.parse(raw || '{}') as unknown;
+        if (Array.isArray(parsed)) {
+            const stringRules = parsed.filter((item): item is string => typeof item === 'string');
+            return {
+                operator: 'all',
+                rules: stringRules.map(decodeRuleToken),
+                error: stringRules.length !== parsed.length ? 'Builder can only edit string rule tokens. Non-string items were ignored.' : null,
+            };
+        }
+        if (!parsed || typeof parsed !== 'object') {
+            return { operator: 'all', rules: [], error: 'Builder supports { "all": [...] } or { "any": [...] } JSON payloads.' };
+        }
+        const payload = parsed as { all?: unknown; any?: unknown };
+        const hasAll = Array.isArray(payload.all);
+        const hasAny = Array.isArray(payload.any);
+        if (!hasAll && !hasAny) {
+            return { operator: 'all', rules: [], error: 'Builder supports { "all": [...] } or { "any": [...] } JSON payloads.' };
+        }
+        const operator: RuleOperator = hasAll ? 'all' : 'any';
+        const source = (hasAll ? payload.all : payload.any) as unknown[];
+        const stringRules = source.filter((item): item is string => typeof item === 'string');
+        let error: string | null = null;
+        if (hasAll && hasAny) {
+            error = 'Raw JSON contains both "all" and "any". Builder is editing the "all" branch.';
+        } else if (stringRules.length !== source.length) {
+            error = 'Builder can only edit string rule tokens. Non-string items were ignored.';
+        }
+        return {
+            operator,
+            rules: stringRules.map(decodeRuleToken),
+            error,
+        };
+    } catch {
+        return { operator: 'all', rules: [], error: 'Rule JSON is invalid. Fix the raw payload or reset the builder.' };
+    }
+}
+
+function runStatusClasses(status: StrategyBotRun['status'] | StrategyBotRunScorecard['status']) {
+    if (status === 'COMPLETED') return 'bg-emerald-500/15 text-emerald-200';
+    if (status === 'FAILED') return 'bg-red-500/15 text-red-200';
+    if (status === 'RUNNING') return 'bg-cyan-500/15 text-cyan-200';
+    if (status === 'CANCELLED') return 'bg-zinc-500/15 text-zinc-300';
+    return 'bg-amber-500/15 text-amber-200';
+}
+
+function isRunCancellable(status: StrategyBotRun['status']) {
+    return status === 'QUEUED' || status === 'RUNNING';
+}
+
 function resolveActiveBoardPreset(
     sortBy: BotBoardSort,
     direction: 'ASC' | 'DESC',
@@ -244,6 +418,141 @@ function buildSparkline(points: StrategyBotRunEquityPoint[]) {
         .join(' ');
 }
 
+function RuleBuilderPanel({
+    scope,
+    title,
+    description,
+    rawValue,
+    parsed,
+    accentClass,
+    onOperatorChange,
+    onRuleChange,
+    onAddRule,
+    onRemoveRule,
+    onRawChange,
+    onReset,
+}: {
+    scope: RuleBuilderScope;
+    title: string;
+    description: string;
+    rawValue: string;
+    parsed: ParsedRuleSet;
+    accentClass: string;
+    onOperatorChange: (operator: RuleOperator) => void;
+    onRuleChange: (index: number, next: Partial<Pick<RuleDraft, 'templateId' | 'value'>>) => void;
+    onAddRule: (templateId: RuleTemplateId) => void;
+    onRemoveRule: (index: number) => void;
+    onRawChange: (next: string) => void;
+    onReset: () => void;
+}) {
+    const availableTemplates = ruleTemplatesForScope(scope);
+    return (
+        <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">{title}</p>
+                    <p className="mt-2 max-w-xl text-sm text-zinc-400">{description}</p>
+                </div>
+                <label className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
+                    Operator
+                    <select
+                        value={parsed.operator}
+                        onChange={(event) => onOperatorChange(event.target.value as RuleOperator)}
+                        className="bg-transparent text-cyan-100 outline-none"
+                    >
+                        <option value="all">ALL</option>
+                        <option value="any">ANY</option>
+                    </select>
+                </label>
+            </div>
+            {parsed.error && (
+                <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                    <p>{parsed.error}</p>
+                    <button
+                        type="button"
+                        onClick={onReset}
+                        className="mt-3 rounded-full border border-amber-500/20 bg-black/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-50"
+                    >
+                        Reset To Empty Builder
+                    </button>
+                </div>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+                {availableTemplates.map((template) => (
+                    <button
+                        key={`${scope}-${template.id}`}
+                        type="button"
+                        onClick={() => onAddRule(template.id)}
+                        className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] ${accentClass}`}
+                        title={template.description}
+                    >
+                        + {template.label}
+                    </button>
+                ))}
+            </div>
+            <div className="mt-4 space-y-3">
+                {parsed.rules.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-sm text-zinc-500">
+                        No {scope.toLowerCase()} rules configured yet. Add tokens from the builder chips above.
+                    </div>
+                ) : parsed.rules.map((rule, index) => {
+                    const template = getRuleTemplate(rule.templateId);
+                    const tokenPreview = buildRuleToken(rule.templateId, rule.value);
+                    return (
+                        <div key={`${scope}-${index}-${rule.token}`} className="rounded-2xl border border-white/10 bg-zinc-950/60 p-4">
+                            <div className="grid gap-3 xl:grid-cols-[1.2fr_0.6fr_auto]">
+                                <div className="space-y-2">
+                                    <select
+                                        value={rule.templateId}
+                                        onChange={(event) => onRuleChange(index, { templateId: event.target.value as RuleTemplateId })}
+                                        className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/40"
+                                    >
+                                        {availableTemplates.map((option) => (
+                                            <option key={option.id} value={option.id}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-zinc-500">{template.description}</p>
+                                </div>
+                                <div>
+                                    {template.parameterKind === 'none' ? (
+                                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-zinc-500">No parameter</div>
+                                    ) : (
+                                        <input
+                                            value={rule.value}
+                                            onChange={(event) => onRuleChange(index, { value: event.target.value })}
+                                            placeholder={template.parameterKind === 'custom' ? 'custom_token_name' : template.parameterKind === 'window' ? 'Window' : 'Threshold'}
+                                            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/40"
+                                        />
+                                    )}
+                                    <p className="mt-2 text-xs text-zinc-500">Token preview: <span className="font-mono text-zinc-300">{tokenPreview || 'empty'}</span></p>
+                                </div>
+                                <div className="flex items-start justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => onRemoveRule(index)}
+                                        className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-100"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <details className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4" open={!!parsed.error}>
+                <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">Raw JSON Fallback</summary>
+                <p className="mt-3 text-sm text-zinc-500">Builder edits stay synced with raw JSON. Keep this for advanced/custom tokens or direct paste flows.</p>
+                <textarea
+                    value={rawValue}
+                    onChange={(event) => onRawChange(event.target.value)}
+                    className="mt-3 min-h-40 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 font-mono text-xs text-white outline-none focus:border-cyan-500/40"
+                />
+            </details>
+        </div>
+    );
+}
+
 export default function StrategyBotsPage() {
     const router = useRouter();
     const pathname = usePathname();
@@ -256,6 +565,7 @@ export default function StrategyBotsPage() {
     const [requestingRun, setRequestingRun] = useState(false);
     const [executingRunId, setExecutingRunId] = useState<string | null>(null);
     const [refreshingRunId, setRefreshingRunId] = useState<string | null>(null);
+    const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
     const [applyingRunId, setApplyingRunId] = useState<string | null>(null);
     const [exportingFormat, setExportingFormat] = useState<'csv' | 'json' | null>(null);
     const [exportingBoardFormat, setExportingBoardFormat] = useState<'csv' | 'json' | null>(null);
@@ -277,6 +587,7 @@ export default function StrategyBotsPage() {
     const [runs, setRuns] = useState<StrategyBotRun[]>([]);
     const [selectedBotId, setSelectedBotId] = useState(() => searchParams.get('bot') ?? '');
     const [selectedRunId, setSelectedRunId] = useState(() => searchParams.get('run') ?? '');
+    const [selectedRunEvents, setSelectedRunEvents] = useState<StrategyBotRunEvent[]>([]);
     const [selectedRunFills, setSelectedRunFills] = useState<StrategyBotRunFill[]>([]);
     const [selectedRunEquityCurve, setSelectedRunEquityCurve] = useState<StrategyBotRunEquityPoint[]>([]);
     const [selectedRunReconciliation, setSelectedRunReconciliation] = useState<StrategyBotRunReconciliationPlan | null>(null);
@@ -304,6 +615,8 @@ export default function StrategyBotsPage() {
             && view.lookbackDays === boardLookbackDays) ?? null,
         [savedBoardViews, boardSortBy, boardDirection, boardRunMode, boardLookbackDays],
     );
+    const entryRuleSet = useMemo(() => parseRuleSetText(botForm.entryRulesText), [botForm.entryRulesText]);
+    const exitRuleSet = useMemo(() => parseRuleSetText(botForm.exitRulesText), [botForm.exitRulesText]);
 
     useEffect(() => {
         const currentUserId = localStorage.getItem('userId');
@@ -319,6 +632,7 @@ export default function StrategyBotsPage() {
         } else {
             setRuns([]);
             setSelectedRunId('');
+            setSelectedRunEvents([]);
             setSelectedRunFills([]);
             setSelectedRunEquityCurve([]);
             setSelectedBotAnalytics(null);
@@ -330,6 +644,7 @@ export default function StrategyBotsPage() {
             void loadRunOutputs(selectedBotId, selectedRunId);
             void loadRunReconciliation(selectedBotId, selectedRunId);
         } else {
+            setSelectedRunEvents([]);
             setSelectedRunFills([]);
             setSelectedRunEquityCurve([]);
             setSelectedRunReconciliation(null);
@@ -422,12 +737,15 @@ export default function StrategyBotsPage() {
     async function loadRunOutputs(botId: string, runId: string) {
         setOutputsLoading(true);
         try {
-            const [fillsRes, curveRes] = await Promise.all([
+            const [eventsRes, fillsRes, curveRes] = await Promise.all([
+                apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/events?size=500`, { cache: 'no-store' }),
                 apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/fills?size=200`, { cache: 'no-store' }),
                 apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/equity-curve?size=1000`, { cache: 'no-store' }),
             ]);
+            if (!eventsRes.ok) throw new Error(`Failed to load run events (${eventsRes.status})`);
             if (!fillsRes.ok) throw new Error(`Failed to load run fills (${fillsRes.status})`);
             if (!curveRes.ok) throw new Error(`Failed to load run equity curve (${curveRes.status})`);
+            setSelectedRunEvents(extractContent<StrategyBotRunEvent>(await eventsRes.json()));
             setSelectedRunFills(extractContent<StrategyBotRunFill>(await fillsRes.json()));
             setSelectedRunEquityCurve(extractContent<StrategyBotRunEquityPoint>(await curveRes.json()));
         } catch (error) {
@@ -704,6 +1022,47 @@ export default function StrategyBotsPage() {
         setBotForm({ name: '', description: '', linkedPortfolioId: portfolios[0]?.id ?? '', market: 'CRYPTO', symbol: 'BTCUSDT', timeframe: '1h', status: 'DRAFT', maxPositionSizePercent: '20', stopLossPercent: '3', takeProfitPercent: '8', cooldownMinutes: '60', entryRulesText: defaultEntryRules, exitRulesText: defaultExitRules });
     }
 
+    function updateRuleSetField(field: 'entryRulesText' | 'exitRulesText', parsed: ParsedRuleSet, mutate: (current: ParsedRuleSet) => ParsedRuleSet) {
+        const next = mutate(parsed);
+        setBotForm((current) => ({ ...current, [field]: stringifyRuleSet(next.operator, next.rules) }));
+    }
+
+    function changeRuleOperator(field: 'entryRulesText' | 'exitRulesText', parsed: ParsedRuleSet, operator: RuleOperator) {
+        updateRuleSetField(field, parsed, (current) => ({ ...current, operator }));
+    }
+
+    function addRuleDraft(field: 'entryRulesText' | 'exitRulesText', parsed: ParsedRuleSet, templateId: RuleTemplateId) {
+        const template = getRuleTemplate(templateId);
+        updateRuleSetField(field, parsed, (current) => ({
+            ...current,
+            rules: [...current.rules, { templateId, value: template.defaultValue, token: buildRuleToken(templateId, template.defaultValue) }],
+        }));
+    }
+
+    function patchRuleDraft(field: 'entryRulesText' | 'exitRulesText', parsed: ParsedRuleSet, index: number, next: Partial<Pick<RuleDraft, 'templateId' | 'value'>>) {
+        updateRuleSetField(field, parsed, (current) => ({
+            ...current,
+            rules: current.rules.map((rule, ruleIndex) => {
+                if (ruleIndex !== index) return rule;
+                const templateId = next.templateId ?? rule.templateId;
+                const template = getRuleTemplate(templateId);
+                const value = next.value ?? (next.templateId ? template.defaultValue : rule.value);
+                return {
+                    templateId,
+                    value,
+                    token: buildRuleToken(templateId, value),
+                };
+            }),
+        }));
+    }
+
+    function removeRuleDraft(field: 'entryRulesText' | 'exitRulesText', parsed: ParsedRuleSet, index: number) {
+        updateRuleSetField(field, parsed, (current) => ({
+            ...current,
+            rules: current.rules.filter((_, ruleIndex) => ruleIndex !== index),
+        }));
+    }
+
     async function saveBot(event: FormEvent<HTMLFormElement>) {
         event.preventDefault(); setSaving(true); setActionError(null); setNotice(null);
         try {
@@ -777,6 +1136,23 @@ export default function StrategyBotsPage() {
         } catch (error) { setActionError(err(error)); } finally { setRefreshingRunId(null); }
     }
 
+    async function cancelRun(runId: string) {
+        if (!selectedBotId) return;
+        if (!confirm('Cancel this strategy bot run?')) return;
+        setCancellingRunId(runId); setActionError(null); setNotice(null);
+        try {
+            const response = await apiFetch(`/api/v1/strategy-bots/${selectedBotId}/runs/${runId}/cancel`, { method: 'POST' });
+            if (!response.ok) throw new Error(await response.text() || `Run cancel failed (${response.status})`);
+            await loadRuns(selectedBotId);
+            await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
+            await loadBotBoard();
+            setSelectedRunId(runId);
+            await loadRunOutputs(selectedBotId, runId);
+            await loadRunReconciliation(selectedBotId, runId);
+            setNotice('Run cancelled');
+        } catch (error) { setActionError(err(error)); } finally { setCancellingRunId(null); }
+    }
+
     async function applyReconciliation(runId: string) {
         if (!selectedBotId) return;
         setApplyingRunId(runId); setActionError(null); setNotice(null);
@@ -834,7 +1210,11 @@ export default function StrategyBotsPage() {
                 <div className="rounded-2xl border border-white/10 bg-black/35 px-5 py-4 backdrop-blur-xl">
                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Runs</p>
                     <p className="mt-2 text-2xl font-bold text-white">{runs.length}</p>
-                    <p className="mt-1 text-[11px] text-zinc-500">{runs.filter((run) => run.status === 'COMPLETED').length} completed</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                        {runs.filter((run) => run.status === 'COMPLETED').length} completed
+                        {' · '}
+                        {runs.filter((run) => run.status === 'CANCELLED').length} cancelled
+                    </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/35 px-5 py-4 backdrop-blur-xl">
                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Portfolios</p>
@@ -985,7 +1365,11 @@ export default function StrategyBotsPage() {
                                         <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                                             <p className="text-xs uppercase tracking-wide text-zinc-500">Live Forward State</p>
                                             <p className="mt-2 text-lg font-bold text-white">{selectedBotAnalytics.activeForwardRun ? selectedBotAnalytics.activeForwardRun.status : 'Idle'}</p>
-                                            <p className="mt-1 text-xs text-zinc-500">{selectedBotAnalytics.activeForwardRun ? fmtEpoch(selectedBotAnalytics.activeForwardRun.lastEvaluatedOpenTime) : 'No running forward test'}</p>
+                                            <p className="mt-1 text-xs text-zinc-500">
+                                                {selectedBotAnalytics.activeForwardRun
+                                                    ? fmtEpoch(selectedBotAnalytics.activeForwardRun.lastEvaluatedOpenTime)
+                                                    : `${selectedBotAnalytics.cancelledRuns} cancelled · no running forward test`}
+                                            </p>
                                         </div>
                                     </div>
                                 ) : (
@@ -1290,7 +1674,7 @@ export default function StrategyBotsPage() {
                                         <div>{fmtCurrency(entry.avgNetPnl)}</div>
                                         <div>
                                             <p className="font-semibold text-white">{entry.completedRuns} / {entry.totalRuns}</p>
-                                            <p className="mt-1 text-[11px] text-zinc-500">{entry.totalSimulatedTrades} trades</p>
+                                            <p className="mt-1 text-[11px] text-zinc-500">{entry.totalSimulatedTrades} trades · {entry.cancelledRuns} cancelled</p>
                                         </div>
                                         <div>{entry.avgProfitFactor?.toFixed(2) ?? 'N/A'}</div>
                                         <div>
@@ -1341,9 +1725,35 @@ export default function StrategyBotsPage() {
                                 <input value={botForm.takeProfitPercent} onChange={(event) => setBotForm((current) => ({ ...current, takeProfitPercent: event.target.value }))} className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/40" placeholder="Take profit %" />
                                 <input value={botForm.cooldownMinutes} onChange={(event) => setBotForm((current) => ({ ...current, cooldownMinutes: event.target.value }))} className="rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/40" placeholder="Cooldown min" />
                             </div>
-                            <div className="grid gap-4 lg:grid-cols-2">
-                                <textarea value={botForm.entryRulesText} onChange={(event) => setBotForm((current) => ({ ...current, entryRulesText: event.target.value }))} className="min-h-52 rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 font-mono text-xs text-white outline-none focus:border-cyan-500/40" />
-                                <textarea value={botForm.exitRulesText} onChange={(event) => setBotForm((current) => ({ ...current, exitRulesText: event.target.value }))} className="min-h-52 rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 font-mono text-xs text-white outline-none focus:border-cyan-500/40" />
+                            <div className="space-y-4">
+                                <RuleBuilderPanel
+                                    scope="ENTRY"
+                                    title="Entry Rules"
+                                    description="Compose deterministic entry logic from the supported signal library. The builder writes the same JSON payload the backend already stores."
+                                    rawValue={botForm.entryRulesText}
+                                    parsed={entryRuleSet}
+                                    accentClass="border-cyan-500/20 bg-cyan-500/10 text-cyan-100"
+                                    onOperatorChange={(operator) => changeRuleOperator('entryRulesText', entryRuleSet, operator)}
+                                    onRuleChange={(index, next) => patchRuleDraft('entryRulesText', entryRuleSet, index, next)}
+                                    onAddRule={(templateId) => addRuleDraft('entryRulesText', entryRuleSet, templateId)}
+                                    onRemoveRule={(index) => removeRuleDraft('entryRulesText', entryRuleSet, index)}
+                                    onRawChange={(next) => setBotForm((current) => ({ ...current, entryRulesText: next }))}
+                                    onReset={() => setBotForm((current) => ({ ...current, entryRulesText: emptyRuleSetJson }))}
+                                />
+                                <RuleBuilderPanel
+                                    scope="EXIT"
+                                    title="Exit Rules"
+                                    description="Mix indicator exits with stop-loss and take-profit guards. Risk-exit tokens use the numeric controls above."
+                                    rawValue={botForm.exitRulesText}
+                                    parsed={exitRuleSet}
+                                    accentClass="border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+                                    onOperatorChange={(operator) => changeRuleOperator('exitRulesText', exitRuleSet, operator)}
+                                    onRuleChange={(index, next) => patchRuleDraft('exitRulesText', exitRuleSet, index, next)}
+                                    onAddRule={(templateId) => addRuleDraft('exitRulesText', exitRuleSet, templateId)}
+                                    onRemoveRule={(index) => removeRuleDraft('exitRulesText', exitRuleSet, index)}
+                                    onRawChange={(next) => setBotForm((current) => ({ ...current, exitRulesText: next }))}
+                                    onReset={() => setBotForm((current) => ({ ...current, exitRulesText: emptyRuleSetJson }))}
+                                />
                             </div>
                             <div className="flex flex-wrap gap-3">
                                 <button type="submit" disabled={saving || portfolios.length === 0} className="rounded-2xl border border-cyan-500/30 bg-cyan-500/15 px-5 py-3 text-sm font-bold text-cyan-100 disabled:opacity-60">{saving ? 'Saving...' : editingBotId ? 'Update Bot' : 'Create Bot'}</button>
@@ -1446,20 +1856,35 @@ export default function StrategyBotsPage() {
                                         <div>
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <p className="text-lg font-bold text-white">{run.runMode}</p>
-                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${run.status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-200' : run.status === 'FAILED' ? 'bg-red-500/15 text-red-200' : run.status === 'RUNNING' ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-200'}`}>{run.status}</span>
+                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${runStatusClasses(run.status)}`}>{run.status}</span>
                                             </div>
                                             <p className="mt-1 text-xs text-zinc-500">Requested {fmtDate(run.requestedAt)}</p>
+                                            {run.completedAt && (
+                                                <p className="mt-1 text-xs text-zinc-500">
+                                                    {run.status === 'CANCELLED' ? 'Cancelled' : run.status === 'FAILED' ? 'Ended' : 'Completed'} {fmtDate(run.completedAt)}
+                                                </p>
+                                            )}
                                             <p className="mt-2 text-sm text-zinc-400">Window {run.fromDate ?? 'auto'} to {run.toDate ?? 'auto'} | Equity {fmtCurrency(run.summary?.endingEquity)}</p>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                             {run.status === 'QUEUED' && (
-                                                <button type="button" onClick={() => void executeRun(run.id)} disabled={executingRunId === run.id} className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 disabled:opacity-60">
+                                                <button type="button" onClick={() => void executeRun(run.id)} disabled={executingRunId === run.id || cancellingRunId === run.id} className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 disabled:opacity-60">
                                                     {executingRunId === run.id ? 'Executing...' : run.runMode === 'FORWARD_TEST' ? 'Start Forward Test' : 'Execute Backtest'}
                                                 </button>
                                             )}
                                             {run.runMode === 'FORWARD_TEST' && run.status === 'RUNNING' && (
-                                                <button type="button" onClick={() => void refreshRun(run.id)} disabled={refreshingRunId === run.id} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 disabled:opacity-60">
+                                                <button type="button" onClick={() => void refreshRun(run.id)} disabled={refreshingRunId === run.id || cancellingRunId === run.id} className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 disabled:opacity-60">
                                                     {refreshingRunId === run.id ? 'Refreshing...' : 'Refresh Snapshot'}
+                                                </button>
+                                            )}
+                                            {isRunCancellable(run.status) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void cancelRun(run.id)}
+                                                    disabled={cancellingRunId === run.id || executingRunId === run.id || refreshingRunId === run.id}
+                                                    className="rounded-xl border border-zinc-500/20 bg-zinc-500/10 px-3 py-2 text-xs font-semibold text-zinc-200 disabled:opacity-60"
+                                                >
+                                                    {cancellingRunId === run.id ? 'Cancelling...' : 'Cancel Run'}
                                                 </button>
                                             )}
                                             <button type="button" onClick={() => setSelectedRunId(run.id)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200">
@@ -1512,6 +1937,54 @@ export default function StrategyBotsPage() {
                                                                 </div>
                                                             ))}
                                                         </div>
+                                                    )}
+                                                </div>
+                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Decision Journal</p>
+                                                    {outputsLoading ? (
+                                                        <div className="mt-3 h-28 animate-pulse rounded-xl bg-white/5" />
+                                                    ) : selectedRunEvents.length === 0 ? (
+                                                        <p className="mt-3 text-sm text-zinc-500">No persisted decision events yet for this run.</p>
+                                                    ) : (
+                                                        <>
+                                                            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500">
+                                                                <span>{selectedRun?.summary?.eventCount ?? selectedRunEvents.length} audited decisions</span>
+                                                                <span>Showing latest {Math.min(selectedRunEvents.length, 6)}</span>
+                                                            </div>
+                                                            <div className="mt-3 space-y-2">
+                                                                {[...selectedRunEvents].slice(-6).reverse().map((event) => (
+                                                                    <div key={event.id} className="rounded-xl border border-white/5 bg-black/25 px-3 py-3 text-xs text-zinc-300">
+                                                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold tracking-[0.18em] text-zinc-200">{event.phase}</span>
+                                                                                <span className="font-semibold text-cyan-100">{event.action}</span>
+                                                                            </div>
+                                                                            <span>{fmtEpoch(event.openTime)}</span>
+                                                                        </div>
+                                                                        <div className="mt-2 flex flex-wrap gap-3 text-zinc-400">
+                                                                            <span>Close {fmtCurrency(event.closePrice)}</span>
+                                                                            <span>Cash {fmtCurrency(event.cashBalance)}</span>
+                                                                            <span>Qty {event.positionQuantity.toFixed(4)}</span>
+                                                                            <span>Equity {fmtCurrency(event.equity)}</span>
+                                                                        </div>
+                                                                        {event.matchedRules.length > 0 && (
+                                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                                {event.matchedRules.map((rule) => (
+                                                                                    <span key={`${event.id}-${rule}`} className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-100">{rule}</span>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                        {event.details && Object.keys(event.details).length > 0 && (
+                                                                            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
+                                                                                {Object.entries(event.details).slice(0, 3).map(([key, value]) => (
+                                                                                    <span key={`${event.id}-${key}`} className="rounded-full border border-white/5 bg-black/20 px-2 py-1">{key}: {String(value)}</span>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </div>
                                                 <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
@@ -1718,7 +2191,7 @@ export default function StrategyBotsPage() {
                                                         </div>
                                                     </div>
                                                     <div className="mt-3 max-h-56 overflow-auto rounded-xl border border-white/5 bg-black/25 p-3">
-                                                        <pre className="whitespace-pre-wrap text-xs leading-6 text-zinc-300">{pretty({ fills: selectedRunFills, equityCurve: selectedRunEquityCurve, reconciliationPlan: selectedRunReconciliation })}</pre>
+                                                        <pre className="whitespace-pre-wrap text-xs leading-6 text-zinc-300">{pretty({ events: selectedRunEvents, fills: selectedRunFills, equityCurve: selectedRunEquityCurve, reconciliationPlan: selectedRunReconciliation })}</pre>
                                                     </div>
                                                 </div>
                                             </div>

@@ -7,6 +7,7 @@ import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
+import com.finance.core.domain.StrategyBotRunEvent;
 import com.finance.core.domain.StrategyBotRunFill;
 import com.finance.core.domain.AuditActionType;
 import com.finance.core.domain.AuditResourceType;
@@ -20,6 +21,7 @@ import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
+import com.finance.core.repository.StrategyBotRunEventRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
@@ -73,6 +75,8 @@ class StrategyBotRunServiceTest {
     private StrategyBotRunFillRepository strategyBotRunFillRepository;
     @Mock
     private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+    @Mock
+    private StrategyBotRunEventRepository strategyBotRunEventRepository;
     @Mock
     private TradeActivityRepository tradeActivityRepository;
     @Mock
@@ -151,6 +155,7 @@ class StrategyBotRunServiceTest {
         assertThat(response.getSummary().get("tradeCount").asInt()).isEqualTo(1);
         assertThat(response.getSummary().get("winCount").asInt()).isEqualTo(1);
         assertThat(response.getSummary().get("fillCount").asInt()).isEqualTo(2);
+        assertThat(response.getSummary().get("eventCount").asInt()).isEqualTo(risingCandles().size());
         assertThat(response.getSummary().get("endingEquity").asDouble()).isGreaterThan(100000.0);
         assertThat(response.getSummary().get("avgWinPnl").asDouble()).isGreaterThan(0.0);
         assertThat(response.getSummary().get("avgLossPnl").isNull()).isTrue();
@@ -170,6 +175,7 @@ class StrategyBotRunServiceTest {
         assertThat(response.getSummary().get("equityCurve")).hasSize(risingCandles().size());
         verify(strategyBotRunFillRepository).saveAll(any());
         verify(strategyBotRunEquityPointRepository).saveAll(any());
+        verify(strategyBotRunEventRepository).saveAll(any());
 
         ArgumentCaptor<StrategyBotRun> captor = ArgumentCaptor.forClass(StrategyBotRun.class);
         verify(strategyBotRunRepository).save(captor.capture());
@@ -662,17 +668,34 @@ class StrategyBotRunServiceTest {
                         }
                         """)
                 .build();
+        StrategyBotRun cancelledRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.CANCELLED)
+                .requestedAt(LocalDateTime.now().minusMinutes(5))
+                .completedAt(LocalDateTime.now().minusMinutes(1))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .summary("""
+                        {
+                          "phase": "cancelled",
+                          "previousStatus": "QUEUED"
+                        }
+                        """)
+                .build();
 
         when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
         when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId))
-                .thenReturn(List.of(forwardRun, positiveRun, negativeRun));
+                .thenReturn(List.of(cancelledRun, forwardRun, positiveRun, negativeRun));
 
         StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId, "ALL", null);
 
-        assertThat(analytics.getTotalRuns()).isEqualTo(3);
+        assertThat(analytics.getTotalRuns()).isEqualTo(4);
         assertThat(analytics.getCompletedRuns()).isEqualTo(2);
         assertThat(analytics.getRunningRuns()).isEqualTo(1);
-        assertThat(analytics.getBacktestRuns()).isEqualTo(2);
+        assertThat(analytics.getCancelledRuns()).isEqualTo(1);
+        assertThat(analytics.getBacktestRuns()).isEqualTo(3);
         assertThat(analytics.getForwardTestRuns()).isEqualTo(1);
         assertThat(analytics.getPositiveCompletedRuns()).isEqualTo(1);
         assertThat(analytics.getNegativeCompletedRuns()).isEqualTo(1);
@@ -687,7 +710,7 @@ class StrategyBotRunServiceTest {
         assertThat(analytics.getActiveForwardRun().getId()).isEqualTo(forwardRun.getId());
         assertThat(analytics.getEntryDriverTotals()).containsEntry("price_above_ma_3", 4);
         assertThat(analytics.getExitDriverTotals()).containsEntry("take_profit_hit", 2);
-        assertThat(analytics.getRecentScorecards()).hasSize(3);
+        assertThat(analytics.getRecentScorecards()).hasSize(4);
     }
 
     @Test
@@ -750,6 +773,7 @@ class StrategyBotRunServiceTest {
         assertThat(json).contains("\"analytics\"");
         assertThat(csv).contains("context,name,Analytics Bot");
         assertThat(csv).contains("summary,totalRuns,1");
+        assertThat(csv).contains("summary,cancelledRuns,0");
         assertThat(csv).contains("entryDriver,price_above_ma_3,2");
         assertThat(csv).contains("recentScorecard,recent");
     }
@@ -1129,6 +1153,20 @@ class StrategyBotRunServiceTest {
                 .matchedRules("[\"price_above_ma_20\"]")
                 .build();
 
+        StrategyBotRunEvent event = StrategyBotRunEvent.builder()
+                .strategyBotRunId(runId)
+                .sequenceNo(1)
+                .openTime(Instant.now().toEpochMilli())
+                .phase("ENTRY")
+                .action("ENTERED")
+                .closePrice(new BigDecimal("3200.00"))
+                .cashBalance(new BigDecimal("50000.00"))
+                .positionQuantity(new BigDecimal("12.50000000"))
+                .equity(new BigDecimal("100000.00"))
+                .matchedRules("[\"price_above_ma_20\"]")
+                .details("{\"allocatedCapital\":50000.0}")
+                .build();
+
         StrategyBotRunEquityPoint equityPoint = StrategyBotRunEquityPoint.builder()
                 .strategyBotRunId(runId)
                 .sequenceNo(1)
@@ -1141,6 +1179,8 @@ class StrategyBotRunServiceTest {
         when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
         when(strategyBotRunFillRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(eq(runId), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(fill)));
+        when(strategyBotRunEventRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(eq(runId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(event)));
         when(strategyBotRunEquityPointRepository.findByStrategyBotRunIdOrderBySequenceNoAsc(eq(runId), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(equityPoint)));
         when(portfolioRepository.findById(linkedPortfolioId)).thenReturn(Optional.of(Portfolio.builder()
@@ -1159,11 +1199,14 @@ class StrategyBotRunServiceTest {
         var payload = objectMapper.readTree(json);
         assertThat(payload.path("name").asText()).isEqualTo("Run Export Bot");
         assertThat(payload.path("run").path("id").asText()).isEqualTo(runId.toString());
+        assertThat(payload.path("events").size()).isEqualTo(1);
+        assertThat(payload.path("events").get(0).path("action").asText()).isEqualTo("ENTERED");
         assertThat(payload.path("fills").size()).isEqualTo(1);
         assertThat(payload.path("equityCurve").size()).isEqualTo(1);
         assertThat(payload.path("reconciliationPlan").path("linkedPortfolioId").asText()).isEqualTo(linkedPortfolioId.toString());
         assertThat(csv).contains("context,name,Run Export Bot");
         assertThat(csv).contains("summary,tradeCount,1");
+        assertThat(csv).contains("event,ENTRY,ENTERED");
         assertThat(csv).contains("reconciliation,targetCashBalance,101176.47");
         assertThat(csv).contains("ENTRY");
     }

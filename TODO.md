@@ -560,11 +560,26 @@ Last updated: 2026-03-23
     - `strategy_bot_runs.user_id -> users(id) on delete cascade`
   - verification:
     - Flyway + targeted strategy-bot integration suites passed locally
-- [ ] Design paper-only strategy bot workflow:
+- [x] Designed and shipped the baseline paper-only strategy bot workflow:
   - rule-based entry/exit builder
   - stop-loss / take-profit / cooldown / sizing controls
   - server-owned deterministic execution on market snapshots/candles
   - full audit trail for every bot decision and fill simulation
+- [x] Added a structured rule builder to the strategy-bot dashboard workflow:
+  - frontend:
+    - `/dashboard/bots` create/edit form now exposes dedicated builder panels for:
+      - entry rules
+      - exit rules
+    - supported rule templates can be added without hand-writing token strings
+    - builder operator (`all` / `any`) stays synced with persisted JSON
+    - raw JSON fallback remains available for custom/manual payload editing
+  - behavior:
+    - stop-loss and take-profit exit tokens are now surfaced directly in the exit builder instead of being hidden behind raw JSON knowledge
+    - unsupported or non-standard tokens can still be preserved through the raw fallback path
+  - verification:
+    - `npm run lint -- app/dashboard/bots/page.tsx`
+    - `npx tsc --noEmit`
+    - frontend lint still reports only the same pre-existing `react-hooks/exhaustive-deps` warnings on this page
 - [x] Added strategy-bot backend foundation:
   - migration:
     - `V22__create_strategy_bots_table.sql`
@@ -590,8 +605,34 @@ Last updated: 2026-03-23
     - `strategy_bot_reconciliation_target_price_unavailable`
   - tests:
     - `StrategyBotRunControllerIntegrationTest`
-- [ ] Extend strategy-bot live paper execution beyond the current refresh-based forward-test slice:
-  - run recurring scheduler verification against a freshly restarted local/staging runtime
+- [x] Extended strategy-bot live paper execution verification beyond the current refresh-based forward-test slice:
+  - verification tooling:
+    - `run_strategy_bot_forward_test_scheduler_local_runtime_check.ps1`
+    - `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
+  - verification:
+    - recurring scheduler proof passed against a freshly started local runtime via the local wrapper
+    - staging-oriented checklist wrapper path was validated locally against a running backend
+    - direct scheduler smoke and `-SkipAppStart` wrapper revalidation passed against `http://localhost:18085`
+  - operational note:
+    - local one-off proof must own an exclusive backend instance on the selected `-ServerPort`; shared ShedLock state across parallel local runtimes can suppress ticks and invalidate the result
+- [x] Added strategy-bot decision-event journaling across run inspect and exports:
+  - backend:
+    - `V26__create_strategy_bot_run_events_table.sql`
+    - `StrategyBotRunEvent`
+    - `StrategyBotRunEventRepository`
+    - `StrategyBotRunEventResponse`
+    - `GET /api/v1/strategy-bots/{botId}/runs/{runId}/events`
+    - public/private run detail + export payloads now include the decision journal
+  - behavior:
+    - every evaluated candle now persists an audited decision snapshot with phase/action, cash/equity state, matched rules, and structured details
+    - run exports and public discover drilldowns no longer stop at fills/equity when explaining why the engine waited, entered, held, exited, or hit cooldown
+  - frontend:
+    - `/dashboard/bots` selected-run panel now renders a `Decision Journal` card plus raw export preview including event rows
+  - verification:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotRunControllerIntegrationTest,StrategyBotControllerIntegrationTest" test`
+    - `npm run lint -- app/dashboard/bots/page.tsx`
+    - `npx tsc --noEmit`
+    - frontend lint still reports only the same pre-existing `react-hooks/exhaustive-deps` warnings on this page
 - [x] Added strategy-bot analytics/reporting surface:
   - backend:
     - `GET /api/v1/strategy-bots/{botId}/analytics`
@@ -768,6 +809,12 @@ Last updated: 2026-03-23
     - `run_strategy_bot_forward_test_scheduler_smoke.ps1` now verifies `/actuator/health/strategyBotForwardTests` when component details are exposed, otherwise it falls back to actuator alert-state fields
     - smoke reports now include baseline/final health status plus alert-state and last-tick-age output
     - `run_strategy_bot_forward_test_scheduler_local_runtime_check.ps1` now enables health component details for the temporary backend so the dedicated health-path check is exercised locally
+- [x] Hardened strategy-bot local runtime scheduler proof against shared-ShedLock false negatives:
+  - tooling:
+    - `run_strategy_bot_forward_test_scheduler_local_runtime_check.ps1` no longer auto-switches away from an occupied `-ServerPort`
+    - the wrapper now fails fast with an explicit explanation that a fresh local proof requires exclusive ownership of the backend instance or `-SkipAppStart` against the already running target
+  - operational impact:
+    - local scheduler proof no longer reports misleading failures caused by a second backend instance holding the shared scheduler lock in the same database
 - [x] Added strategy-bot forward-test staging checklist wrapper:
   - tooling:
     - `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
@@ -1403,6 +1450,32 @@ Last updated: 2026-03-23
     - `StrategyBotRunControllerIntegrationTest`
     - `StrategyBotRunServiceTest`
     - `RateLimitFilterTest`
+- [x] Wired strategy-bot run cancellation into the dashboard workspace:
+  - Updated:
+    - `apps/web/app/dashboard/bots/page.tsx`
+  - Behavior:
+    - authenticated users can now cancel queued or running bot runs directly from the run journal
+    - run action buttons now avoid overlapping execute/refresh/cancel requests against the same run
+    - `CANCELLED` runs render with explicit visual state and settlement timestamps instead of looking like queued leftovers
+  - Verification:
+    - `npm run lint -- app/dashboard/bots/page.tsx`
+    - current output is clean for this change, with only pre-existing `react-hooks/exhaustive-deps` warnings still present in the page
+- [x] Surfaced cancelled run counts across strategy-bot analytics and board reporting:
+  - Updated:
+    - `StrategyBotAnalyticsResponse`
+    - `StrategyBotBoardEntryResponse`
+    - `StrategyBotRunService`
+    - `StrategyBotControllerIntegrationTest`
+    - `StrategyBotRunServiceTest`
+    - `apps/web/app/dashboard/bots/page.tsx`
+  - Behavior:
+    - analytics and board reads now expose `cancelledRuns` instead of collapsing cancelled lifecycle state into undifferentiated totals
+    - filtered analytics windows now include recent cancelled runs in scope counts while keeping performance averages anchored to completed scorecards only
+    - dashboard summary cards and board rows now show cancelled activity explicitly
+  - Verification:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=StrategyBotControllerIntegrationTest,StrategyBotRunServiceTest" test`
+    - `npm run lint -- app/dashboard/bots/page.tsx`
+    - frontend lint still reports only the same pre-existing `react-hooks/exhaustive-deps` warnings on this page
 - [x] Added endpoint-aware rate-limit profile smoke coverage:
   - Added:
     - `infra/load-test/run_rate_limit_profile_smoke.ps1`
