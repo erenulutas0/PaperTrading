@@ -1,8 +1,10 @@
 package com.finance.core.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.finance.core.domain.AppUser;
 import com.finance.core.domain.AuditActionType;
 import com.finance.core.domain.AuditResourceType;
@@ -1764,6 +1766,32 @@ public class StrategyBotRunService {
     }
 
     @Transactional
+    public StrategyBotRunResponse cancelRun(UUID botId, UUID runId, UUID userId) {
+        StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
+        StrategyBotRun run = strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+        StrategyBotRun.Status previousStatus = run.getStatus();
+        if (previousStatus != StrategyBotRun.Status.QUEUED && previousStatus != StrategyBotRun.Status.RUNNING) {
+            throw new IllegalStateException("Strategy bot run must be QUEUED or RUNNING before cancellation");
+        }
+
+        LocalDateTime cancelledAt = LocalDateTime.now();
+        run.setStatus(StrategyBotRun.Status.CANCELLED);
+        run.setCompletedAt(cancelledAt);
+        run.setErrorMessage(null);
+        run.setSummary(buildCancelledSummary(run, previousStatus, cancelledAt));
+
+        StrategyBotRun saved = strategyBotRunRepository.save(run);
+        auditLogService.record(
+                userId,
+                AuditActionType.STRATEGY_BOT_RUN_CANCELLED,
+                AuditResourceType.STRATEGY_BOT_RUN,
+                saved.getId(),
+                buildCancelledAuditDetails(saved, bot, previousStatus, cancelledAt));
+        return toResponse(saved);
+    }
+
+    @Transactional
     public StrategyBotRun refreshForwardTestRunSystem(UUID runId) {
         StrategyBotRun run = strategyBotRunRepository.findById(runId).orElse(null);
         if (run == null || run.getRunMode() != StrategyBotRun.RunMode.FORWARD_TEST || run.getStatus() != StrategyBotRun.Status.RUNNING) {
@@ -1954,6 +1982,17 @@ public class StrategyBotRunService {
         details.put("returnPercent", summary.returnPercent());
         details.put("maxDrawdownPercent", summary.maxDrawdownPercent());
         details.put("lastEvaluatedOpenTime", summary.lastEvaluatedOpenTime());
+        return details;
+    }
+
+    private Map<String, Object> buildCancelledAuditDetails(StrategyBotRun run,
+                                                           StrategyBot bot,
+                                                           StrategyBotRun.Status previousStatus,
+                                                           LocalDateTime cancelledAt) {
+        LinkedHashMap<String, Object> details = new LinkedHashMap<>(buildAuditDetails(run, bot));
+        details.put("phase", "cancelled");
+        details.put("previousStatus", previousStatus.name());
+        details.put("cancelledAt", cancelledAt);
         return details;
     }
 
@@ -2607,6 +2646,21 @@ public class StrategyBotRunService {
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("Failed to parse strategy bot run payload", ex);
         }
+    }
+
+    private String buildCancelledSummary(StrategyBotRun run,
+                                         StrategyBotRun.Status previousStatus,
+                                         LocalDateTime cancelledAt) {
+        JsonNode existing = parseJson(run.getSummary());
+        ObjectNode summary = existing.isObject()
+                ? ((ObjectNode) existing).deepCopy()
+                : objectMapper.createObjectNode();
+        summary.put("phase", "cancelled");
+        summary.put("status", StrategyBotRun.Status.CANCELLED.name());
+        summary.put("previousStatus", previousStatus.name());
+        summary.put("cancelledAt", cancelledAt.toString());
+        Map<String, Object> payload = objectMapper.convertValue(summary, new TypeReference<>() {});
+        return writeSummary(payload);
     }
 
     private StrategyBotRunResponse toResponse(StrategyBotRun run) {

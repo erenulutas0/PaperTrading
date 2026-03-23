@@ -721,6 +721,61 @@ Last updated: 2026-03-23
     - `StrategyBotForwardTestEndpointIntegrationTest`
   - tooling:
     - `run_strategy_bot_forward_test_scheduler_smoke.ps1` now reports skip deltas and last-skip details alongside success/failure counters
+- [x] Added strategy-bot forward-test scheduler health signaling:
+  - backend:
+    - `StrategyBotForwardTestHealthIndicator`
+    - health component:
+      - `strategyBotForwardTests` under `/actuator/health`
+    - scheduler snapshot now includes `startedAt` so health can distinguish startup grace from stale scheduling
+    - configurable stale threshold:
+      - `app.strategy-bots.forward-test-observability.stale-threshold`
+  - behavior:
+    - `UNKNOWN` while awaiting the first scheduler tick inside the grace window
+    - `UP` when the latest tick is within the stale threshold
+    - `DOWN` when scheduler ticks go stale
+  - tests:
+    - `StrategyBotForwardTestHealthIndicatorTest`
+    - `StrategyBotForwardTestHealthEndpointIntegrationTest`
+    - `StrategyBotForwardTestObservabilityServiceTest`
+- [x] Added independent stale-alert monitoring for strategy-bot forward-test scheduling:
+  - backend:
+    - `StrategyBotForwardTestObservabilityProperties`
+    - `StrategyBotForwardTestAlertingService`
+    - scheduler stale/recovery alerts now come from a separate monitor instead of the scheduler loop itself
+    - shared stale threshold now drives both:
+      - health status
+      - stale alerting
+  - metrics:
+    - `app.strategy.bot.forward_test_scheduler.alert.state`
+    - `app.strategy.bot.forward_test_scheduler.last_tick_age.seconds`
+  - tests:
+    - `StrategyBotForwardTestAlertingServiceTest`
+    - `StrategyBotForwardTestHealthIndicatorTest`
+    - `ScheduledLockAnnotationTest`
+- [x] Enriched strategy-bot forward-test actuator status with alert-state context and health-backed smoke coverage:
+  - backend:
+    - `StrategyBotForwardTestStatusSnapshot`
+    - `/actuator/strategybotforwardtests` now also exposes:
+      - `staleThresholdSeconds`
+      - `alertState`
+      - `lastTickAgeSeconds`
+    - endpoint reads now refresh the alert monitor before returning status, so the snapshot stays aligned with stale-alert semantics
+  - tests:
+    - `StrategyBotForwardTestEndpointIntegrationTest`
+    - `StrategyBotForwardTestHealthEndpointIntegrationTest`
+    - `StrategyBotForwardTestAlertingServiceTest`
+  - tooling:
+    - `run_strategy_bot_forward_test_scheduler_smoke.ps1` now verifies `/actuator/health/strategyBotForwardTests` when component details are exposed, otherwise it falls back to actuator alert-state fields
+    - smoke reports now include baseline/final health status plus alert-state and last-tick-age output
+    - `run_strategy_bot_forward_test_scheduler_local_runtime_check.ps1` now enables health component details for the temporary backend so the dedicated health-path check is exercised locally
+- [x] Added strategy-bot forward-test staging checklist wrapper:
+  - tooling:
+    - `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
+    - verifies target `/actuator/health` before launching scheduler smoke
+    - optionally runs a caller-supplied restart command, waits for health recovery, then launches the smoke
+    - emits one parent report that links the child scheduler smoke proof
+  - verification:
+    - local pass completed against `http://localhost:8080`
 - [x] Added strategy-bot run journal foundation:
   - migration:
     - `V23__create_strategy_bot_runs_table.sql`
@@ -1333,6 +1388,21 @@ Last updated: 2026-03-23
     - bot create/update/run-request callers can now separate malformed input from ownership and execution-state failures more reliably
   - Coverage:
     - `StrategyBotControllerIntegrationTest`
+- [x] Added explicit strategy-bot run cancellation contract:
+  - Updated:
+    - `StrategyBotRunService`
+    - `StrategyBotController`
+    - `AuditActionType`
+    - `RateLimitFilter`
+  - Behavior:
+    - `POST /api/v1/strategy-bots/{botId}/runs/{runId}/cancel` now cancels queued or running bot runs without relying on direct data edits
+    - cancelled runs preserve their existing summary evidence while adding `phase=cancelled`, `previousStatus`, and `cancelledAt`
+    - non-cancellable states now return explicit `strategy_bot_run_not_cancellable`
+    - cancel writes now share the dedicated strategy-bot write bucket and audit trail
+  - Coverage:
+    - `StrategyBotRunControllerIntegrationTest`
+    - `StrategyBotRunServiceTest`
+    - `RateLimitFilterTest`
 - [x] Added endpoint-aware rate-limit profile smoke coverage:
   - Added:
     - `infra/load-test/run_rate_limit_profile_smoke.ps1`

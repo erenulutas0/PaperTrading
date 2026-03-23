@@ -23,6 +23,7 @@ class ScheduledLockAnnotationTest {
             PriceAlertService.class,
             TrustScoreService.class,
             StrategyBotForwardTestSchedulerService.class,
+            com.finance.core.observability.StrategyBotForwardTestAlertingService.class,
             com.finance.core.observability.WebSocketCanaryService.class,
             com.finance.core.observability.IdempotencyObservabilityService.class
     );

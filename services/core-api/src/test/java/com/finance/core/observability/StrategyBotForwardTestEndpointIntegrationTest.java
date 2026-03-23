@@ -33,7 +33,11 @@ class StrategyBotForwardTestEndpointIntegrationTest {
 
         mockMvc.perform(get("/actuator/strategybotforwardtests"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.startedAt").isNotEmpty())
                 .andExpect(jsonPath("$.refreshIntervalSeconds").isNumber())
+                .andExpect(jsonPath("$.staleThresholdSeconds").isNumber())
+                .andExpect(jsonPath("$.alertState").value("NONE"))
+                .andExpect(jsonPath("$.lastTickAgeSeconds").isNumber())
                 .andExpect(jsonPath("$.scheduledTickCount").isNumber())
                 .andExpect(jsonPath("$.lastObservedRunningRunCount").value(2))
                 .andExpect(jsonPath("$.refreshAttemptCount").isNumber())

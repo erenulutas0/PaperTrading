@@ -8,14 +8,14 @@ import org.springframework.stereotype.Component;
 @Endpoint(id = "strategybotforwardtests")
 public class StrategyBotForwardTestEndpoint {
 
-    private final StrategyBotForwardTestObservabilityService service;
+    private final StrategyBotForwardTestAlertingService service;
 
-    public StrategyBotForwardTestEndpoint(StrategyBotForwardTestObservabilityService service) {
+    public StrategyBotForwardTestEndpoint(StrategyBotForwardTestAlertingService service) {
         this.service = service;
     }
 
     @ReadOperation
-    public StrategyBotForwardTestSchedulerSnapshot status() {
-        return service.snapshot();
+    public StrategyBotForwardTestStatusSnapshot status() {
+        return service.statusSnapshot();
     }
 }

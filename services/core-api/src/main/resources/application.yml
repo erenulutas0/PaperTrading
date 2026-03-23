@@ -133,6 +133,10 @@ app:
     forward-test-refresh-interval: ${APP_STRATEGY_BOTS_FORWARD_TEST_REFRESH_INTERVAL:PT30S}
     synthetic-crypto-candles-enabled: ${APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLES_ENABLED:false}
     synthetic-crypto-candle-count: ${APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLE_COUNT:96}
+    forward-test-observability:
+      refresh-interval: ${APP_STRATEGY_BOTS_FORWARD_TEST_OBSERVABILITY_REFRESH_INTERVAL:PT30S}
+      stale-threshold: ${APP_STRATEGY_BOTS_FORWARD_TEST_STALE_THRESHOLD:${APP_STRATEGY_BOTS_FORWARD_TEST_HEALTH_STALE_THRESHOLD:PT2M}}
+      alert-on-recovery: ${APP_STRATEGY_BOTS_FORWARD_TEST_ALERT_ON_RECOVERY:true}
   feed:
     cache:
       redis-ttl: ${APP_FEED_CACHE_REDIS_TTL:PT15S}

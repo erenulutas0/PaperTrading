@@ -8,6 +8,8 @@ import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
 import com.finance.core.domain.StrategyBotRunFill;
+import com.finance.core.domain.AuditActionType;
+import com.finance.core.domain.AuditResourceType;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotBoardEntryResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
@@ -470,6 +472,99 @@ class StrategyBotRunServiceTest {
         assertThat(response.getSummary().get("phase").asText()).isEqualTo("running");
         assertThat(response.getSummary().get("lastEvaluatedOpenTime").asLong()).isGreaterThan(0L);
         assertThat(response.getSummary().get("candleCount").asInt()).isGreaterThanOrEqualTo(24);
+    }
+
+    @Test
+    void cancelRun_shouldMarkQueuedRunCancelledAndAuditIt() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("Cancelable Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{\"all\":[\"price_above_ma_3\"]}")
+                .exitRules("{\"any\":[\"take_profit_hit\"]}")
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .cooldownMinutes(30)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(runId)
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.QUEUED)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .compiledEntryRules(bot.getEntryRules())
+                .compiledExitRules(bot.getExitRules())
+                .summary("{\"phase\":\"queued\",\"executionEngineReady\":true}")
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+        when(strategyBotRunRepository.save(any(StrategyBotRun.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        StrategyBotRunResponse response = strategyBotRunService.cancelRun(botId, runId, userId);
+
+        assertThat(response.getStatus()).isEqualTo("CANCELLED");
+        assertThat(response.getSummary().get("phase").asText()).isEqualTo("cancelled");
+        assertThat(response.getSummary().get("status").asText()).isEqualTo("CANCELLED");
+        assertThat(response.getSummary().get("previousStatus").asText()).isEqualTo("QUEUED");
+        assertThat(response.getSummary().get("executionEngineReady").asBoolean()).isTrue();
+        assertThat(response.getCompletedAt()).isNotNull();
+        verify(auditLogService).record(
+                eq(userId),
+                eq(AuditActionType.STRATEGY_BOT_RUN_CANCELLED),
+                eq(AuditResourceType.STRATEGY_BOT_RUN),
+                eq(runId),
+                any());
+    }
+
+    @Test
+    void cancelRun_shouldRejectCompletedRun() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("Completed Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .cooldownMinutes(30)
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(runId)
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .compiledEntryRules(bot.getEntryRules())
+                .compiledExitRules(bot.getExitRules())
+                .summary("{\"phase\":\"completed\"}")
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
+
+        assertThatThrownBy(() -> strategyBotRunService.cancelRun(botId, runId, userId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("before cancellation");
+        verify(strategyBotRunRepository, never()).save(any(StrategyBotRun.class));
     }
 
     @Test

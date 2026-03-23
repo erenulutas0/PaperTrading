@@ -476,6 +476,19 @@ public class StrategyBotController {
         }
     }
 
+    @PostMapping("/{botId}/runs/{runId}/cancel")
+    public ResponseEntity<?> cancelRun(
+            @PathVariable UUID botId,
+            @PathVariable UUID runId,
+            @CurrentUserId UUID userId,
+            HttpServletRequest request) {
+        try {
+            return ResponseEntity.ok(strategyBotRunService.cancelRun(botId, runId, userId));
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_run_cancel_failed", "Failed to cancel strategy bot run", request);
+        }
+    }
+
     private ResponseEntity<?> buildBotError(Exception exception, String fallbackCode, String fallbackMessage, HttpServletRequest request) {
         String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
         String normalized = message.toLowerCase(Locale.ROOT);
@@ -581,6 +594,9 @@ public class StrategyBotController {
         }
         if (normalized.contains("must be queued before execution")) {
             return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_not_queued", "Strategy bot run must be QUEUED before execution", null, request);
+        }
+        if (normalized.contains("must be queued or running before cancellation")) {
+            return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_run_not_cancellable", "Strategy bot run must be QUEUED or RUNNING before cancellation", null, request);
         }
         if (normalized.contains("forward-test run must be running before refresh")) {
             return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_forward_test_not_running", "Strategy bot forward-test run must be RUNNING before refresh", null, request);

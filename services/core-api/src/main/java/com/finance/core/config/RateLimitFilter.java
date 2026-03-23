@@ -146,7 +146,7 @@ public class RateLimitFilter implements Filter {
                 ("POST".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))) {
             return BucketProfile.ANALYSIS_WRITE;
         }
-        if (path.matches("^/api/v1/strategy-bots(?:$|/[^/]+(?:$|/runs(?:$|/[^/]+(?:/(?:execute|refresh|apply-reconciliation))?)?))$") &&
+        if (path.matches("^/api/v1/strategy-bots(?:$|/[^/]+(?:$|/runs(?:$|/[^/]+(?:/(?:execute|refresh|cancel|apply-reconciliation))?)?))$") &&
                 ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))) {
             return BucketProfile.STRATEGY_BOT_WRITE;
         }

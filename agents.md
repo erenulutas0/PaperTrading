@@ -38,6 +38,126 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-23**: **Strategy Bot Runs Now Expose An Explicit Cancel Contract Instead Of Leaving `CANCELLED` As A Dead-End Status**
+  - **Problem observed**:
+    - `StrategyBotRun.Status` already included `CANCELLED`, but the product surface still had no supported way to move a run there.
+    - That left queued or running runs without a first-class user escape hatch:
+      - stale queued runs could only sit in history
+      - active forward-test runs could only keep refreshing until completion
+      - any manual cleanup would bypass normal audit and rate-limit behavior
+    - The surrounding controller contracts were already being hardened, so leaving cancel as an undocumented enum-only state would keep the run lifecycle inconsistent.
+  - **Implementation**:
+    - Added `POST /api/v1/strategy-bots/{botId}/runs/{runId}/cancel`.
+    - `StrategyBotRunService.cancelRun(...)` now allows cancellation only from:
+      - `QUEUED`
+      - `RUNNING`
+    - Cancellation now:
+      - marks the run `CANCELLED`
+      - stamps `completedAt`
+      - preserves and enriches the existing run summary with:
+        - `phase=cancelled`
+        - `status=CANCELLED`
+        - `previousStatus`
+        - `cancelledAt`
+    - Added explicit controller mapping for `strategy_bot_run_not_cancellable`.
+    - Added `STRATEGY_BOT_RUN_CANCELLED` audit logging and expanded the dedicated strategy-bot write rate-limit profile to include `/cancel`.
+    - Added targeted unit/integration coverage for queued, running, and conflict paths.
+  - **Operational impact**:
+    - abandoned or no-longer-needed strategy-bot runs can now be retired without DB surgery or ambiguous status drift
+    - partial forward-test evidence remains auditable after cancellation instead of being discarded
+    - cancel writes stay inside the same dedicated bot-write throttling and audit trail as the rest of the run lifecycle
+- **2026-03-23**: **Strategy Bot Forward-Test Actuator Snapshot Now Includes Alert State, Not Just Raw Scheduler Counters**
+  - **Problem observed**:
+    - The scheduler observability work had split into three useful but slightly disjoint surfaces:
+      - `/actuator/strategybotforwardtests` for scheduler counters and last-run evidence
+      - `/actuator/health` for current health posture
+      - Micrometer gauges for stale-alert state and last tick age
+    - That left the main strategy-bot actuator snapshot weaker than the nearby auth observability endpoint because operators and smoke tooling still had to combine multiple reads to answer a simple question:
+      - "is the scheduler currently healthy and non-alerting?"
+  - **Implementation**:
+    - Added `StrategyBotForwardTestStatusSnapshot`.
+    - Changed `StrategyBotForwardTestEndpoint` to read through `StrategyBotForwardTestAlertingService`, so endpoint reads refresh alert-state evaluation before returning the latest status payload.
+    - Enriched `/actuator/strategybotforwardtests` with:
+      - `staleThresholdSeconds`
+      - `alertState`
+      - `lastTickAgeSeconds`
+    - Extended health endpoint coverage to hit both:
+      - `/actuator/health`
+      - `/actuator/health/strategyBotForwardTests`
+    - Updated the scheduler smoke script so it now verifies:
+      - the dedicated health component converges to `UP` when the runtime exposes health-component details
+      - otherwise the script falls back to the actuator snapshot's alert-state/tick-age fields instead of failing on `404`
+      - the actuator snapshot returns `alertState=NONE` after a fresh scheduler tick
+    - Updated the local runtime wrapper to enable health-component details for its temporary backend so the dedicated health-path check is exercised in the local proof flow.
+  - **Operational impact**:
+    - one strategy-bot actuator read now carries both execution evidence and current alert posture
+    - smoke tooling no longer has to scrape Micrometer metrics separately just to classify scheduler freshness
+    - local runtime validation remains strict while direct-against-live smoke runs stay resilient to management-health exposure differences
+- **2026-03-23**: **Strategy Bot Forward-Test Runtime Proof Now Has A Staging Checklist Wrapper, Not Just Raw Smoke Scripts**
+  - **Problem observed**:
+    - We already had:
+      - a direct scheduler smoke script
+      - a local one-off runtime wrapper that boots a temporary backend
+    - What still lagged was the staging/operator path:
+      - there was no single wrapper for "target is healthy, optionally restart it, then prove the recurring scheduler still refreshes a live forward-test run"
+    - That meant staging verification depended on manually sequencing multiple steps and child reports.
+  - **Implementation**:
+    - Added `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`.
+    - The wrapper:
+      - verifies `/actuator/health`
+      - optionally runs a caller-supplied restart command
+      - waits for health recovery after restart
+      - delegates to `run_strategy_bot_forward_test_scheduler_smoke.ps1` with staging-friendly polling defaults
+      - emits one parent markdown report linking the child smoke proof
+    - Updated load-test README and TODO inventory to reflect the new staged verification path.
+  - **Operational impact**:
+    - local and staging scheduler verification now have parallel entrypoints instead of only a raw smoke script plus ad hoc operator steps
+    - fresh-restart validation is easier to repeat during rollout checks and post-deploy verification
+- **2026-03-23**: **Strategy Bot Forward-Test Scheduler Staleness Is Now Alerted By An Independent Monitor**
+  - **Problem observed**:
+    - Health and snapshot visibility had already improved, but proactive alerting still lagged:
+      - `/actuator/strategybotforwardtests` exposed the evidence
+      - the `strategyBotForwardTests` health component under `/actuator/health` exposed current health state
+    - Neither of those alone pushes an ops signal when the scheduler quietly stops ticking.
+    - The stale check also should not live inside the scheduler itself, otherwise a stalled scheduler could not detect its own stall.
+  - **Implementation**:
+    - Added `StrategyBotForwardTestObservabilityProperties`.
+    - Added `StrategyBotForwardTestAlertingService` as an independent scheduled monitor with its own ShedLock entry.
+    - The monitor evaluates the latest scheduler snapshot and publishes ops alerts on:
+      - stale transition
+      - recovery transition
+    - Added meters for:
+      - scheduler alert state
+      - last tick age seconds
+    - Reused the same stale-threshold semantics for:
+      - health
+      - stale alerting
+    - Kept startup grace semantics, so alerting does not fire before the first tick is reasonably due.
+  - **Operational impact**:
+    - strategy-bot forward-test scheduling now participates in proactive ops alerting instead of relying only on manual actuator inspection
+    - stale-scheduler detection remains independent from the scheduler loop it is checking
+- **2026-03-23**: **Strategy Bot Forward-Test Scheduler Now Has A Dedicated Health Contract, Not Just A Debug Snapshot**
+  - **Problem observed**:
+    - The scheduler observability work already exposed actuator snapshot data for debugging, but health semantics still lagged:
+      - operators could inspect `/actuator/strategybotforwardtests`
+      - but `/actuator/health` still had no strategy-bot-specific signal for "scheduler is ticking" vs "scheduler has gone stale"
+    - A raw snapshot is useful for smoke tooling, but it is weaker for routine platform health checks and automation.
+  - **Implementation**:
+    - Added `StrategyBotForwardTestHealthIndicator` under the `strategyBotForwardTests` health component.
+    - Extended the scheduler snapshot with `startedAt` so health logic can distinguish:
+      - startup grace before the first tick
+      - truly stale scheduler behavior after the grace window
+    - Added configurable stale threshold:
+      - `app.strategy-bots.forward-test-observability.stale-threshold`
+    - Health behavior now resolves as:
+      - `UNKNOWN` while waiting for the first tick inside the startup grace window
+      - `UP` when the latest tick is within the stale threshold
+      - `DOWN` when the scheduler has not ticked within the stale threshold
+    - Hardened the health indicator detail payload so null refresh/skip metadata no longer breaks `/actuator/health` with a generic `bad_request`.
+    - Added focused health/unit coverage plus actuator health endpoint coverage for the expanded snapshot.
+  - **Operational impact**:
+    - strategy-bot forward-test scheduling can now participate in standard actuator health checks instead of relying only on manual snapshot inspection
+    - startup transients are separated from real stale-scheduler failures, which reduces false-negative health noise
 - **2026-03-23**: **Strategy Bot Forward-Test Scheduler Now Records Skipped Candidates Explicitly**
   - **Problem observed**:
     - The forward-test scheduler observability surface already exposed:

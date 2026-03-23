@@ -191,6 +191,8 @@ try {
       "`$env:APP_STRATEGY_BOTS_FORWARD_TEST_REFRESH_INTERVAL='PT5S'",
       "`$env:APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLES_ENABLED='true'",
       "`$env:APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLE_COUNT='96'",
+      "`$env:MANAGEMENT_ENDPOINT_HEALTH_SHOW_COMPONENTS='always'",
+      "`$env:MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS='always'",
       "`$env:JWT_SECRET='local-dev-secret-change-me-at-least-32-bytes'",
       "`$env:PORT='$ServerPort'",
       "`$env:MAVEN_USER_HOME='$mavenUserHome'",

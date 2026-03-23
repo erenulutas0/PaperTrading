@@ -451,6 +451,85 @@ class StrategyBotRunControllerIntegrationTest {
     }
 
     @Test
+    void cancelRun_shouldCancelQueuedRun() throws Exception {
+        StrategyBot bot = saveBot(
+                "Queued Cancel",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.QUEUED,
+                "{\"phase\":\"queued\",\"executionEngineReady\":true}");
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/cancel")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.summary.phase").value("cancelled"))
+                .andExpect(jsonPath("$.summary.previousStatus").value("QUEUED"))
+                .andExpect(jsonPath("$.summary.executionEngineReady").value(true))
+                .andExpect(jsonPath("$.completedAt").exists());
+    }
+
+    @Test
+    void cancelRun_shouldCancelRunningForwardTestRun() throws Exception {
+        StrategyBot bot = saveBot(
+                "Running Cancel",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+
+        when(marketDataFacadeService.getCandles(MarketType.CRYPTO, "BTCUSDT", "ALL", "1h", null, 500))
+                .thenReturn(risingCandles());
+
+        String runResponse = mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("runMode", "FORWARD_TEST"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String runId = objectMapper.readTree(runResponse).get("id").asText();
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/execute")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RUNNING"));
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + runId + "/cancel")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.summary.phase").value("cancelled"))
+                .andExpect(jsonPath("$.summary.previousStatus").value("RUNNING"))
+                .andExpect(jsonPath("$.summary.lastEvaluatedOpenTime").exists())
+                .andExpect(jsonPath("$.startedAt").exists())
+                .andExpect(jsonPath("$.completedAt").exists());
+    }
+
+    @Test
+    void cancelRun_shouldReturnConflictWhenRunIsNotCancellable() throws Exception {
+        StrategyBot bot = saveBot(
+                "Completed Cancel",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED, "{\"phase\":\"completed\"}");
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/cancel")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_not_cancellable"));
+    }
+
+    @Test
     void executeRun_shouldReturnConflictWhenExecutionEngineIsNotReady() throws Exception {
         StrategyBot bot = saveBot(
                 "Unsupported Rule Execution",

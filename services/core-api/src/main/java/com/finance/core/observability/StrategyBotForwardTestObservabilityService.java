@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class StrategyBotForwardTestObservabilityService {
 
     private final Duration refreshInterval;
+    private final LocalDateTime startedAt = LocalDateTime.now();
     private final AtomicLong scheduledTickCount = new AtomicLong(0);
     private final AtomicInteger lastObservedRunningRunCount = new AtomicInteger(0);
     private final AtomicLong refreshAttemptCount = new AtomicLong(0);
@@ -72,6 +73,7 @@ public class StrategyBotForwardTestObservabilityService {
 
     public StrategyBotForwardTestSchedulerSnapshot snapshot() {
         return new StrategyBotForwardTestSchedulerSnapshot(
+                startedAt,
                 LocalDateTime.now(),
                 refreshInterval.toSeconds(),
                 scheduledTickCount.get(),

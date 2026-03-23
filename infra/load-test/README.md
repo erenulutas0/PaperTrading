@@ -42,6 +42,7 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_audit_write_capture_smoke.ps1`
 - `run_portfolio_pagination_warning_smoke.ps1`
 - `run_strategy_bot_forward_test_scheduler_smoke.ps1`
+- `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
 - `run_rate_limit_profile_smoke.ps1`
 - `run_rate_limit_staging_checklist.ps1`
 - `run_auth_strict_mode_smoke.ps1`
@@ -339,16 +340,23 @@ Run strategy-bot forward-test scheduler smoke against a local backend:
 
 The strategy-bot forward-test scheduler smoke checks:
 - `/actuator/strategybotforwardtests` is exposed and returns a valid baseline snapshot
+- when the runtime exposes health component details, `/actuator/health/strategyBotForwardTests` converges to `UP`
 - register + create linked paper portfolio
 - create a `READY` strategy bot
 - request + execute a `FORWARD_TEST` run
 - observe scheduler tick delta on the actuator snapshot
 - prove the scheduler refreshed the exact target run id
+- verify the actuator snapshot keeps the scheduler alert posture clear (`alertState=NONE`) after a fresh tick
 - verify the refreshed run still exposes live summary fields such as `lastEvaluatedOpenTime`
 
 Useful notes:
 - this smoke is intentionally actuator-backed instead of blind sleeping
 - it relies on the scheduler snapshot delta plus `lastRefreshedRunId` to prove recurring runtime refresh actually happened
+- the scheduler snapshot now also reports:
+  - `staleThresholdSeconds`
+  - `alertState`
+  - `lastTickAgeSeconds`
+- if dedicated health-component details are not exposed by the target runtime, the script falls back to the actuator snapshot's `alertState` + tick-age fields instead of failing on `404`
 - when the scheduler selects a run but reload-time state drift makes it non-refreshable, the snapshot now exposes skip diagnostics (`refreshSkipCount`, `lastSkippedRunId`, `lastSkipReason`) so failures are easier to classify
 - use a poll window comfortably above `app.strategy-bots.forward-test-refresh-interval` if you override that interval locally or in staging
 
@@ -363,8 +371,22 @@ Useful notes:
 - it writes a parent report plus the child scheduler smoke report
 - the temporary backend enables deterministic synthetic crypto candles, so the local check does not depend on external Binance REST access
 - the temporary backend also shortens the forward-test refresh interval to keep the scheduler tick observable inside the smoke window
+- the temporary backend enables health component details so the child smoke can validate `/actuator/health/strategyBotForwardTests` directly
 - use `-SkipAppStart` if you want to point it at an already running backend on the selected port
 - use `-PreserveAppAfterRun` if you want to inspect the temporary backend after the smoke finishes
+
+Run the staging-oriented checklist wrapper against an already running backend:
+
+```powershell
+./infra/load-test/run_strategy_bot_forward_test_scheduler_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Useful notes:
+- this wrapper first verifies `/actuator/health`
+- then it delegates to `run_strategy_bot_forward_test_scheduler_smoke.ps1` with staging-friendly polling defaults
+- if you provide `-RestartCommand`, the wrapper runs that command, waits for health recovery, and only then launches the scheduler smoke
+- use this when you want a single report for "healthy target + optional fresh restart + scheduler recurring proof"
 
 Run a combined audit validation suite against a local or staging backend:
 

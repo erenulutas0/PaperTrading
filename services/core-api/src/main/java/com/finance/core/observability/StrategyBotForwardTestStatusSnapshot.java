@@ -3,10 +3,13 @@ package com.finance.core.observability;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record StrategyBotForwardTestSchedulerSnapshot(
+public record StrategyBotForwardTestStatusSnapshot(
         LocalDateTime startedAt,
         LocalDateTime checkedAt,
         long refreshIntervalSeconds,
+        long staleThresholdSeconds,
+        String alertState,
+        double lastTickAgeSeconds,
         long scheduledTickCount,
         int lastObservedRunningRunCount,
         long refreshAttemptCount,

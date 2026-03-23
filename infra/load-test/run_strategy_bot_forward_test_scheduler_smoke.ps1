@@ -130,6 +130,19 @@ $results = New-Object 'System.Collections.Generic.List[object]'
 $health = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health"
 Assert-Condition -Results $results -Name "Health" -Condition ($health.status -eq 200) -Detail "status=$($health.status)"
 
+$baselineHealthComponent = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health/strategyBotForwardTests"
+$baselineHealthComponentJson = if ($baselineHealthComponent.content) { $baselineHealthComponent.content | ConvertFrom-Json } else { $null }
+$baselineHealthStatus = [string](Get-ObjectPropertyValue -Object $baselineHealthComponentJson -Name "status")
+$baselineHealthDetails = Get-ObjectPropertyValue -Object $baselineHealthComponentJson -Name "details"
+$baselineHealthTickCount = [long](Get-ObjectPropertyValue -Object $baselineHealthDetails -Name "scheduledTickCount")
+$baselineHealthReachable = ($baselineHealthComponent.status -eq 200 -and -not [string]::IsNullOrWhiteSpace($baselineHealthStatus)) -or $baselineHealthComponent.status -eq 404
+$baselineHealthDetail = if ($baselineHealthComponent.status -eq 404) {
+  "status=404, componentStatus=<unavailable>, note=health component details not exposed by runtime"
+} else {
+  "status=$($baselineHealthComponent.status), componentStatus=$baselineHealthStatus, scheduledTickCount=$baselineHealthTickCount"
+}
+Assert-Condition -Results $results -Name "Forward-Test Health Baseline" -Condition $baselineHealthReachable -Detail $baselineHealthDetail
+
 $baselineActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/strategybotforwardtests"
 $baselineJson = if ($baselineActuator.content) { $baselineActuator.content | ConvertFrom-Json } else { $null }
 $baselineTickCount = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "scheduledTickCount")
@@ -137,7 +150,10 @@ $baselineSuccessCount = [long](Get-ObjectPropertyValue -Object $baselineJson -Na
 $baselineFailureCount = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "refreshFailureCount")
 $baselineSkipCount = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "refreshSkipCount")
 $refreshIntervalSeconds = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "refreshIntervalSeconds")
-Assert-Condition -Results $results -Name "Forward-Test Actuator Baseline" -Condition ($baselineActuator.status -eq 200 -and $refreshIntervalSeconds -gt 0) -Detail "status=$($baselineActuator.status), interval=$refreshIntervalSeconds"
+$staleThresholdSeconds = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "staleThresholdSeconds")
+$baselineAlertState = [string](Get-ObjectPropertyValue -Object $baselineJson -Name "alertState")
+$baselineLastTickAgeSeconds = [double](Get-ObjectPropertyValue -Object $baselineJson -Name "lastTickAgeSeconds")
+Assert-Condition -Results $results -Name "Forward-Test Actuator Baseline" -Condition ($baselineActuator.status -eq 200 -and $refreshIntervalSeconds -gt 0 -and $staleThresholdSeconds -gt 0 -and -not [string]::IsNullOrWhiteSpace($baselineAlertState)) -Detail "status=$($baselineActuator.status), interval=$refreshIntervalSeconds, staleThreshold=$staleThresholdSeconds, alertState=$baselineAlertState, lastTickAgeSeconds=$baselineLastTickAgeSeconds"
 
 $registerBody = @{
   username = "bot_forward_$suffix"
@@ -260,9 +276,33 @@ $finalSkipCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Nam
 $finalLastRefreshedRunId = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastRefreshedRunId")
 $lastRefreshAt = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastRefreshAt")
 $lastSkipAt = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastSkipAt")
+$finalAlertState = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "alertState")
+$finalLastTickAgeSeconds = [double](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastTickAgeSeconds")
+$finalStaleThresholdSeconds = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "staleThresholdSeconds")
+
+$finalHealthComponent = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/health/strategyBotForwardTests"
+$finalHealthComponentJson = if ($finalHealthComponent.content) { $finalHealthComponent.content | ConvertFrom-Json } else { $null }
+$finalHealthStatus = [string](Get-ObjectPropertyValue -Object $finalHealthComponentJson -Name "status")
+$finalHealthDetails = Get-ObjectPropertyValue -Object $finalHealthComponentJson -Name "details"
+$finalHealthTickCount = [long](Get-ObjectPropertyValue -Object $finalHealthDetails -Name "scheduledTickCount")
+$healthFallbackClear = ($finalAlertState -eq "NONE" -and $finalLastTickAgeSeconds -le $finalStaleThresholdSeconds)
+$finalHealthConverged = if ($finalHealthComponent.status -eq 200) {
+  $finalHealthStatus -eq "UP"
+} elseif ($finalHealthComponent.status -eq 404) {
+  $healthFallbackClear
+} else {
+  $false
+}
+$finalHealthDetail = if ($finalHealthComponent.status -eq 404) {
+  "status=404, componentStatus=<unavailable>, fallbackAlertState=$finalAlertState, lastTickAgeSeconds=$finalLastTickAgeSeconds, staleThresholdSeconds=$finalStaleThresholdSeconds"
+} else {
+  "status=$($finalHealthComponent.status), componentStatus=$finalHealthStatus, scheduledTickCount=$finalHealthTickCount"
+}
 
 Assert-Condition -Results $results -Name "Scheduler Tick Observed" -Condition $schedulerObserved -Detail "baseline=$baselineTickCount final=$finalTickCount"
 Assert-Condition -Results $results -Name "Target Run Refreshed By Scheduler" -Condition ($targetRunObserved -and ($lastRunStatus -eq "RUNNING" -or $lastRunStatus -eq "COMPLETED")) -Detail "lastRunId=$finalLastRefreshedRunId lastStatus=$lastRunStatus lastError=$lastRunError successDelta=$($finalSuccessCount - $baselineSuccessCount) failureDelta=$($finalFailureCount - $baselineFailureCount) skipDelta=$($finalSkipCount - $baselineSkipCount) lastSkippedRunId=$lastSkippedRunId lastSkipReason=$lastSkipReason"
+Assert-Condition -Results $results -Name "Forward-Test Health Converged" -Condition $finalHealthConverged -Detail $finalHealthDetail
+Assert-Condition -Results $results -Name "Forward-Test Alert State Clear" -Condition $healthFallbackClear -Detail "alertState=$finalAlertState, lastTickAgeSeconds=$finalLastTickAgeSeconds, staleThresholdSeconds=$finalStaleThresholdSeconds"
 
 $runRead = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/strategy-bots/$botId/runs/$runId" -Headers $authHeaders
 $runReadJson = if ($runRead.content) { $runRead.content | ConvertFrom-Json } else { $null }
@@ -297,6 +337,13 @@ $lines += "- Baseline Failure Count: $baselineFailureCount"
 $lines += "- Final Failure Count: $finalFailureCount"
 $lines += "- Baseline Skip Count: $baselineSkipCount"
 $lines += "- Final Skip Count: $finalSkipCount"
+$lines += "- Baseline Health Status: $(if ([string]::IsNullOrWhiteSpace($baselineHealthStatus)) { '<unknown>' } else { $baselineHealthStatus })"
+$lines += "- Final Health Status: $(if ([string]::IsNullOrWhiteSpace($finalHealthStatus)) { '<unknown>' } else { $finalHealthStatus })"
+$lines += "- Baseline Alert State: $(if ([string]::IsNullOrWhiteSpace($baselineAlertState)) { '<unknown>' } else { $baselineAlertState })"
+$lines += "- Final Alert State: $(if ([string]::IsNullOrWhiteSpace($finalAlertState)) { '<unknown>' } else { $finalAlertState })"
+$lines += "- Baseline Last Tick Age Seconds: $baselineLastTickAgeSeconds"
+$lines += "- Final Last Tick Age Seconds: $finalLastTickAgeSeconds"
+$lines += "- Stale Threshold Seconds: $(if ($finalStaleThresholdSeconds -gt 0) { $finalStaleThresholdSeconds } else { $staleThresholdSeconds })"
 $lines += "- Last Refreshed Run Id: $finalLastRefreshedRunId"
 $lines += "- Last Refreshed Run Status: $lastRunStatus"
 $lines += "- Last Skipped Run Id: $(if ([string]::IsNullOrWhiteSpace($lastSkippedRunId)) { '<none>' } else { $lastSkippedRunId })"
