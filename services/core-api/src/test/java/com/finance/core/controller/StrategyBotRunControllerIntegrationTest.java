@@ -3,12 +3,18 @@ package com.finance.core.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
+import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
+import com.finance.core.domain.StrategyBotRun;
+import com.finance.core.domain.StrategyBotRunEquityPoint;
 import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
+import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
+import com.finance.core.repository.UserRepository;
 import com.finance.core.service.MarketDataFacadeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +63,13 @@ class StrategyBotRunControllerIntegrationTest {
 
     @Autowired
     private StrategyBotRunRepository strategyBotRunRepository;
+
+    @Autowired
+    private StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
     @MockitoBean
     private MarketDataFacadeService marketDataFacadeService;
 
@@ -65,11 +78,20 @@ class StrategyBotRunControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        strategyBotRunEquityPointRepository.deleteAll();
         strategyBotRunRepository.deleteAll();
         strategyBotRepository.deleteAll();
         portfolioItemRepository.deleteAll();
         portfolioRepository.deleteAll();
-        userId = UUID.randomUUID();
+        userRepository.deleteAll();
+        AppUser savedUser = userRepository.save(AppUser.builder()
+                .username("strategy-run-owner")
+                .email("strategy-run-owner@example.com")
+                .password("hashed")
+                .displayName("Strategy Run Owner")
+                .trustScore(63.0)
+                .build());
+        userId = savedUser.getId();
         linkedPortfolio = portfolioRepository.save(Portfolio.builder()
                 .name("Run Portfolio")
                 .ownerId(userId.toString())
@@ -382,20 +404,13 @@ class StrategyBotRunControllerIntegrationTest {
 
     @Test
     void executeRun_shouldReturnConflictWhenMarketDataIsUnavailable() throws Exception {
-        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
-                .userId(userId)
-                .linkedPortfolioId(linkedPortfolio.getId())
-                .name("Forward Unavailable")
-                .market("CRYPTO")
-                .symbol("BTCUSDT")
-                .timeframe("1h")
-                .entryRules("{\"all\":[\"price_above_ma_3\"]}")
-                .exitRules("{\"any\":[\"take_profit_hit\"]}")
-                .maxPositionSizePercent(new BigDecimal("50"))
-                .takeProfitPercent(new BigDecimal("2"))
-                .cooldownMinutes(1000000)
-                .status(StrategyBot.Status.READY)
-                .build());
+        StrategyBot bot = saveBot(
+                "Forward Unavailable",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
 
         when(marketDataFacadeService.getCandles(MarketType.CRYPTO, "BTCUSDT", "ALL", "1h", null, 500))
                 .thenThrow(new RuntimeException("I/O error on GET request for market candles"));
@@ -416,6 +431,177 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("strategy_bot_run_market_data_unavailable"))
                 .andExpect(jsonPath("$.message").value("Strategy bot market data unavailable"));
+    }
+
+    @Test
+    void executeRun_shouldReturnConflictWhenRunIsNotQueued() throws Exception {
+        StrategyBot bot = saveBot(
+                "Already Complete",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED, "{}");
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/execute")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_not_queued"));
+    }
+
+    @Test
+    void executeRun_shouldReturnConflictWhenExecutionEngineIsNotReady() throws Exception {
+        StrategyBot bot = saveBot(
+                "Unsupported Rule Execution",
+                "BTCUSDT",
+                "{\"all\":[\"macd_cross\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.QUEUED, "{}");
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/execute")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_not_executable"));
+    }
+
+    @Test
+    void refreshRun_shouldReturnConflictWhenRunModeIsBacktest() throws Exception {
+        StrategyBot bot = saveBot(
+                "Backtest Refresh",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.RUNNING, "{}");
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/refresh")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_refresh_mode_not_supported"));
+    }
+
+    @Test
+    void refreshRun_shouldReturnConflictWhenForwardTestIsNotRunning() throws Exception {
+        StrategyBot bot = saveBot(
+                "Queued Forward Refresh",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.FORWARD_TEST, StrategyBotRun.Status.QUEUED, "{}");
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/refresh")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_forward_test_not_running"));
+    }
+
+    @Test
+    void getRunReconciliation_shouldReturnConflictWhenBotHasNoLinkedPortfolio() throws Exception {
+        StrategyBot bot = saveBot(
+                "No Linked Portfolio",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                null,
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED, "{\"endingEquity\":100000.00}");
+
+        mockMvc.perform(get("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/reconciliation-plan")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_linked_portfolio_required"));
+    }
+
+    @Test
+    void applyRunReconciliation_shouldReturnConflictWhenRunIsNotReady() throws Exception {
+        StrategyBot bot = saveBot(
+                "Queued Reconciliation",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.QUEUED, "{\"endingEquity\":100000.00}");
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/apply-reconciliation")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_reconciliation_not_ready"));
+    }
+
+    @Test
+    void applyRunReconciliation_shouldReturnConflictWhenManualCleanupIsRequired() throws Exception {
+        StrategyBot bot = saveBot(
+                "Manual Cleanup",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED,
+                "{\"endingEquity\":100000.00,\"positionOpen\":false,\"openQuantity\":null,\"openEntryPrice\":null}");
+        portfolioItemRepository.save(PortfolioItem.builder()
+                .portfolio(linkedPortfolio)
+                .symbol("ETHUSDT")
+                .quantity(new BigDecimal("1.00000000"))
+                .averagePrice(new BigDecimal("3000.00"))
+                .side("LONG")
+                .leverage(1)
+                .build());
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/apply-reconciliation")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_reconciliation_manual_cleanup_required"));
+    }
+
+    @Test
+    void applyRunReconciliation_shouldReturnConflictWhenTargetQuantityIsInvalid() throws Exception {
+        StrategyBot bot = saveBot(
+                "Invalid Quantity",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED,
+                "{\"endingEquity\":100000.00,\"positionOpen\":true,\"openQuantity\":0,\"openEntryPrice\":3200.00}");
+        strategyBotRunEquityPointRepository.save(StrategyBotRunEquityPoint.builder()
+                .strategyBotRunId(run.getId())
+                .sequenceNo(1)
+                .openTime(1713000000000L)
+                .closePrice(new BigDecimal("3300.00"))
+                .equity(new BigDecimal("100000.00"))
+                .build());
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/apply-reconciliation")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_reconciliation_target_invalid"));
+    }
+
+    @Test
+    void applyRunReconciliation_shouldReturnConflictWhenTargetPriceIsUnavailable() throws Exception {
+        StrategyBot bot = saveBot(
+                "Invalid Target Price",
+                "BTCUSDT",
+                "{\"all\":[\"price_above_ma_3\"]}",
+                "{\"any\":[\"take_profit_hit\"]}",
+                linkedPortfolio.getId(),
+                StrategyBot.Status.READY);
+        StrategyBotRun run = saveRun(bot, StrategyBotRun.RunMode.BACKTEST, StrategyBotRun.Status.COMPLETED,
+                "{\"endingEquity\":100000.00,\"positionOpen\":true,\"openQuantity\":1.50000000,\"openEntryPrice\":3200.00}");
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs/" + run.getId() + "/apply-reconciliation")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("strategy_bot_reconciliation_target_price_unavailable"));
     }
 
     @Test
@@ -457,6 +643,45 @@ class StrategyBotRunControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.summary.phase").value("completed"));
+    }
+
+    private StrategyBot saveBot(String name,
+                                String symbol,
+                                String entryRules,
+                                String exitRules,
+                                UUID linkedPortfolioId,
+                                StrategyBot.Status status) {
+        return strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolioId)
+                .name(name)
+                .market("CRYPTO")
+                .symbol(symbol)
+                .timeframe("1h")
+                .entryRules(entryRules)
+                .exitRules(exitRules)
+                .maxPositionSizePercent(new BigDecimal("50"))
+                .takeProfitPercent(new BigDecimal("2"))
+                .cooldownMinutes(1000000)
+                .status(status)
+                .build());
+    }
+
+    private StrategyBotRun saveRun(StrategyBot bot,
+                                   StrategyBotRun.RunMode runMode,
+                                   StrategyBotRun.Status status,
+                                   String summary) {
+        return strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(bot.getId())
+                .userId(userId)
+                .linkedPortfolioId(bot.getLinkedPortfolioId())
+                .runMode(runMode)
+                .status(status)
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .compiledEntryRules(bot.getEntryRules())
+                .compiledExitRules(bot.getExitRules())
+                .summary(summary)
+                .build());
     }
 
     private List<MarketCandleResponse> risingCandles() {

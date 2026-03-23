@@ -25,8 +25,10 @@ class StrategyBotForwardTestEndpointIntegrationTest {
 
     @Test
     void shouldExposeStrategyBotForwardTestSchedulerSnapshot() throws Exception {
+        UUID skippedRunId = UUID.randomUUID();
         UUID runId = UUID.randomUUID();
         observabilityService.recordSchedulerTick(2);
+        observabilityService.recordRefreshSkip(skippedRunId, "run_no_longer_refreshable");
         observabilityService.recordRefreshSuccess(runId, StrategyBotRun.Status.RUNNING);
 
         mockMvc.perform(get("/actuator/strategybotforwardtests"))
@@ -36,9 +38,13 @@ class StrategyBotForwardTestEndpointIntegrationTest {
                 .andExpect(jsonPath("$.lastObservedRunningRunCount").value(2))
                 .andExpect(jsonPath("$.refreshAttemptCount").isNumber())
                 .andExpect(jsonPath("$.refreshSuccessCount").isNumber())
+                .andExpect(jsonPath("$.refreshSkipCount").isNumber())
                 .andExpect(jsonPath("$.lastTickAt").isNotEmpty())
                 .andExpect(jsonPath("$.lastRefreshAt").isNotEmpty())
+                .andExpect(jsonPath("$.lastSkipAt").isNotEmpty())
                 .andExpect(jsonPath("$.lastRefreshedRunId").value(runId.toString()))
-                .andExpect(jsonPath("$.lastRefreshedRunStatus").value("RUNNING"));
+                .andExpect(jsonPath("$.lastRefreshedRunStatus").value("RUNNING"))
+                .andExpect(jsonPath("$.lastSkippedRunId").value(skippedRunId.toString()))
+                .andExpect(jsonPath("$.lastSkipReason").value("run_no_longer_refreshable"));
     }
 }

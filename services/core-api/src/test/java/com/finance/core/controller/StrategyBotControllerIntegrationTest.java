@@ -131,6 +131,15 @@ class StrategyBotControllerIntegrationTest {
     }
 
     @Test
+    void listStrategyBots_shouldRejectMissingUser() throws Exception {
+        mockMvc.perform(get("/api/v1/strategy-bots")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"));
+    }
+
+    @Test
     void updateStrategyBot_shouldAllowReadyStatusAndRuleChanges() throws Exception {
         StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
                 .userId(userId)
@@ -189,6 +198,81 @@ class StrategyBotControllerIntegrationTest {
     }
 
     @Test
+    void createStrategyBot_shouldRejectMissingUser() throws Exception {
+        Map<String, Object> request = Map.of(
+                "name", "Ghost Bot",
+                "market", "CRYPTO",
+                "symbol", "SOLUSDT",
+                "timeframe", "15M",
+                "entryRules", Map.of(),
+                "exitRules", Map.of(),
+                "maxPositionSizePercent", 15);
+
+        mockMvc.perform(post("/api/v1/strategy-bots")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"));
+    }
+
+    @Test
+    void createStrategyBot_shouldRejectMissingPayloadAndRequiredFields() throws Exception {
+        mockMvc.perform(post("/api/v1/strategy-bots")
+                        .header("X-User-Id", userId.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("strategy_bot_payload_required"));
+
+        mockMvc.perform(post("/api/v1/strategy-bots")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "market", "CRYPTO",
+                                "symbol", "BTCUSDT",
+                                "timeframe", "1H",
+                                "maxPositionSizePercent", 20))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("strategy_bot_name_required"));
+    }
+
+    @Test
+    void createOrUpdateStrategyBot_shouldRejectInvalidRiskInputs() throws Exception {
+        mockMvc.perform(post("/api/v1/strategy-bots")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "name", "Risk Bot",
+                                "market", "CRYPTO",
+                                "symbol", "BTCUSDT",
+                                "timeframe", "1H",
+                                "maxPositionSizePercent", 120))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("strategy_bot_max_position_size_invalid"));
+
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Cooldown Bot")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(10)
+                .status(StrategyBot.Status.DRAFT)
+                .build());
+
+        mockMvc.perform(put("/api/v1/strategy-bots/" + bot.getId())
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("cooldownMinutes", -1))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("strategy_bot_cooldown_invalid"));
+    }
+
+    @Test
     void deleteStrategyBot_shouldRemoveOwnedBot() throws Exception {
         StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
                 .userId(userId)
@@ -211,6 +295,49 @@ class StrategyBotControllerIntegrationTest {
                         .header("X-User-Id", userId.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("strategy_bot_not_found"));
+    }
+
+    @Test
+    void requestStrategyBotRun_shouldRejectInvalidRunInputs() throws Exception {
+        StrategyBot bot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(userId)
+                .linkedPortfolioId(linkedPortfolio.getId())
+                .name("Runner")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(15)
+                .status(StrategyBot.Status.READY)
+                .build());
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "runMode", "PAPER_LIVE",
+                                "initialCapital", 100000))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_run_mode"));
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "fromDate", "2026-03-10",
+                                "toDate", "2026-03-09"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("strategy_bot_run_date_range_invalid"));
+
+        mockMvc.perform(post("/api/v1/strategy-bots/" + bot.getId() + "/runs")
+                        .header("X-User-Id", userId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "initialCapital", 0))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("strategy_bot_initial_capital_invalid"));
     }
 
     @Test
@@ -577,6 +704,12 @@ class StrategyBotControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/strategy-bots/board")
                         .header("X-User-Id", userId.toString())
+                        .param("direction", "SIDEWAYS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_direction"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
                         .param("runMode", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_run_mode"));
@@ -586,6 +719,15 @@ class StrategyBotControllerIntegrationTest {
                         .param("lookbackDays", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_lookback"));
+    }
+
+    @Test
+    void getStrategyBotBoard_shouldRejectMissingUser() throws Exception {
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", UUID.randomUUID().toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("user_not_found"))
+                .andExpect(jsonPath("$.message").value("User not found"));
     }
 
     @Test
@@ -703,6 +845,22 @@ class StrategyBotControllerIntegrationTest {
                         .param("sortBy", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("direction", "SIDEWAYS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_direction"));
+    }
+
+    @Test
+    void exportStrategyBotBoard_shouldRejectInvalidFormat() throws Exception {
+        mockMvc.perform(get("/api/v1/strategy-bots/board/export")
+                        .header("X-User-Id", userId.toString())
+                        .param("format", "xml"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_export_format"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot export format"));
     }
 
     @Test
@@ -821,6 +979,11 @@ class StrategyBotControllerIntegrationTest {
                         .param("sortBy", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .param("direction", "SIDEWAYS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_direction"));
     }
 
     @Test
@@ -1027,6 +1190,20 @@ class StrategyBotControllerIntegrationTest {
                         .param("sortBy", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/export")
+                        .param("direction", "SIDEWAYS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_direction"));
+    }
+
+    @Test
+    void exportPublicStrategyBotBoard_shouldRejectInvalidFormat() throws Exception {
+        mockMvc.perform(get("/api/v1/strategy-bots/discover/export")
+                        .param("format", "xml"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_strategy_bot_export_format"))
+                .andExpect(jsonPath("$.message").value("Invalid strategy bot export format"));
     }
 
     @Test

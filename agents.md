@@ -38,6 +38,125 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-23**: **Strategy Bot Forward-Test Scheduler Now Records Skipped Candidates Explicitly**
+  - **Problem observed**:
+    - The forward-test scheduler observability surface already exposed:
+      - tick counts
+      - refresh success/failure counts
+      - last refreshed run id/status
+    - One real scheduler race still stayed invisible:
+      - the scheduler could select a run from the current `RUNNING` slice
+      - then `refreshForwardTestRunSystem(...)` could return `null` because the run was no longer refreshable by the time it was reloaded
+    - In that case actuator snapshots and smoke reports could show no success and no failure, which made scheduler drift harder to classify.
+  - **Implementation**:
+    - Extended `StrategyBotForwardTestObservabilityService` and `/actuator/strategybotforwardtests` with:
+      - `refreshSkipCount`
+      - `lastSkipAt`
+      - `lastSkippedRunId`
+      - `lastSkipReason`
+    - `StrategyBotForwardTestSchedulerService` now records an explicit skip when a listed run returns `null` on system refresh.
+    - Added focused coverage for:
+      - null-return skip path
+      - thrown refresh exception path
+      - endpoint snapshot exposure of the new skip fields
+    - Updated the forward-test scheduler smoke script to include skip deltas and last-skip diagnostics in its report output.
+  - **Operational impact**:
+    - forward-test scheduler races no longer look like silent non-events in actuator-backed validation
+    - local/staging smoke failures now reveal whether the scheduler skipped, failed, or actually refreshed the target run
+- **2026-03-23**: **Strategy Bot Ownership Rows Now Enforce Real Users At The Database Layer**
+  - **Problem observed**:
+    - Strategy-bot service/controller paths had already been hardened around persisted-user checks, but the underlying ownership columns still lagged:
+      - `strategy_bots.user_id`
+      - `strategy_bot_runs.user_id`
+    - Because both were still plain UUID columns, orphan bot/run ownership rows could still survive old data or be introduced outside the normal application write path.
+  - **Implementation**:
+    - Added `V25__harden_strategy_bot_user_foreign_keys.sql`.
+    - Deleted orphan ownership rows before enabling strict constraints for:
+      - `strategy_bot_runs`
+      - `strategy_bots`
+    - Added `ON DELETE CASCADE` foreign keys from:
+      - `strategy_bots.user_id -> users(id)`
+      - `strategy_bot_runs.user_id -> users(id)`
+  - **Operational impact**:
+    - strategy-bot ownership is now enforced consistently by both the application layer and Postgres
+    - orphan bot/run ownership rows can no longer be introduced through direct SQL, drifted migrations, or partial rollout state
+- **2026-03-23**: **Strategy Bot Create/Update/Run Validation Paths Now Return Explicit Contracts Instead Of Generic Fallback Errors**
+  - **Problem observed**:
+    - Strategy-bot ownership and export paths were already being hardened, but several caller-validation failures still depended on the generic fallback bucket:
+      - missing bot payload
+      - missing required create fields
+      - invalid risk controls
+      - invalid run date windows
+      - non-positive initial capital
+    - That made bot creation and run-request automation less deterministic than the adjacent hardened controllers.
+  - **Implementation**:
+    - Extended `StrategyBotController` with explicit controller-local mappings for:
+      - `strategy_bot_payload_required`
+      - `strategy_bot_name_required`
+      - `strategy_bot_market_required`
+      - `strategy_bot_symbol_required`
+      - `strategy_bot_timeframe_required`
+      - `strategy_bot_max_position_size_required`
+      - `strategy_bot_max_position_size_invalid`
+      - `strategy_bot_stop_loss_invalid`
+      - `strategy_bot_take_profit_invalid`
+      - `strategy_bot_cooldown_invalid`
+      - `strategy_bot_run_date_range_invalid`
+      - `strategy_bot_initial_capital_invalid`
+      - `invalid_strategy_bot_market`
+    - Added targeted integration coverage for create, update, and run-request validation failures.
+  - **Operational impact**:
+    - strategy-bot clients and scripts can now distinguish malformed input from ownership/runtime failures without parsing generic fallback text
+    - bot draft creation and run-request automation now expose more stable machine-readable failure states
+- **2026-03-23**: **Strategy Bot Board And Discover Reads No Longer Silently Coerce Invalid Direction Inputs**
+  - **Problem observed**:
+    - Strategy-bot board/discover surfaces already rejected invalid sort and run-mode inputs, but `direction` still drifted:
+      - unknown values on list reads
+      - unknown values on public discover reads
+      - unknown values on export reads
+    - could silently normalize to `DESC` instead of telling callers they sent malformed query state.
+  - **Implementation**:
+    - Changed strategy-bot direction normalization to accept only:
+      - `ASC`
+      - `DESC`
+    - Invalid direction values now fail fast with explicit `invalid_strategy_bot_board_direction`.
+    - Updated the comparator path too, so board/discover list reads no longer bypass validation while export reads reject bad input.
+    - Added integration coverage for:
+      - private board
+      - private board export
+      - public discover
+      - public discover export
+  - **Operational impact**:
+    - strategy-bot ranking/export callers now get deterministic machine-readable feedback instead of hidden `DESC` fallback
+    - bot board query semantics are more aligned with the already-hardened leaderboard surface
+- **2026-03-23**: **Strategy Bot Account Paths Now Require Real Users, Reject Invalid Export Formats, And Use A Dedicated Write Rate Limit**
+  - **Problem observed**:
+    - The newer strategy-bot surface still lagged behind the hardened account-backed controllers in three ways:
+      - list/create/board reads could still trust orphan bridged UUIDs instead of proving the user row existed
+      - export endpoints silently normalized unknown `format` values back to JSON
+      - mutating bot/run endpoints still shared the generic write/read rate-limit shape instead of a strategy-bot-specific bucket
+    - That left a realistic path for orphan bot ownership, ambiguous export caller behavior, and heavier execution-style writes competing with unrelated traffic.
+  - **Implementation**:
+    - Added persisted-user guards to:
+      - `StrategyBotService`
+      - `StrategyBotRunService`
+    - Extended `StrategyBotController` to map explicit contracts for:
+      - `user_not_found`
+      - `invalid_strategy_bot_export_format`
+    - Changed all strategy-bot export endpoints to reject non-`json`/`csv` values explicitly instead of falling back to JSON.
+    - Added a dedicated `STRATEGY_BOT_WRITE` bucket profile in `RateLimitFilter` for:
+      - bot create/update/delete
+      - run request
+      - run execute
+      - forward-test refresh
+      - reconciliation apply
+    - Updated run-controller integration coverage to use real persisted users instead of orphan UUIDs.
+    - Updated run-service unit coverage to stub persisted-user checks explicitly where the new guard is not the subject under test.
+    - Added targeted integration and filter coverage.
+  - **Operational impact**:
+    - account-backed strategy-bot surfaces no longer operate as if orphan identities are valid empty users
+    - export callers now get a stable machine-readable contract for malformed format input instead of hidden JSON fallback
+    - bursty bot mutation/execution traffic is less likely to consume the same request budget as normal read paths
 - **2026-03-23**: **Portfolio History And Snapshot Reads Now Reject Unknown Portfolio Ids Explicitly**
   - **Problem observed**:
     - The core portfolio surface already returned explicit `portfolio_not_found` on:

@@ -75,6 +75,12 @@ class RateLimitFilterTest {
                 filter.resolveProfile(request("PUT", "/api/v1/watchlists/items/123/alerts")));
         assertEquals(RateLimitFilter.BucketProfile.ANALYSIS_WRITE,
                 filter.resolveProfile(request("POST", "/api/v1/analysis-posts")));
+        assertEquals(RateLimitFilter.BucketProfile.STRATEGY_BOT_WRITE,
+                filter.resolveProfile(request("POST", "/api/v1/strategy-bots")));
+        assertEquals(RateLimitFilter.BucketProfile.STRATEGY_BOT_WRITE,
+                filter.resolveProfile(request("POST", "/api/v1/strategy-bots/123/runs")));
+        assertEquals(RateLimitFilter.BucketProfile.STRATEGY_BOT_WRITE,
+                filter.resolveProfile(request("POST", "/api/v1/strategy-bots/123/runs/456/execute")));
         assertEquals(RateLimitFilter.BucketProfile.DEFAULT,
                 filter.resolveProfile(request("GET", "/api/v1/leaderboards")));
     }

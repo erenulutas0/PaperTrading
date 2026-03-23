@@ -30,6 +30,7 @@ public class StrategyBotForwardTestSchedulerService {
             try {
                 StrategyBotRun refreshedRun = strategyBotRunService.refreshForwardTestRunSystem(run.getId());
                 if (refreshedRun == null) {
+                    observabilityService.recordRefreshSkip(run.getId(), "run_no_longer_refreshable");
                     continue;
                 }
                 if (refreshedRun.getStatus() == StrategyBotRun.Status.FAILED) {

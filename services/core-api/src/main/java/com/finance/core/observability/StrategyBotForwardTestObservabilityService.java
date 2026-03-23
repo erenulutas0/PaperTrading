@@ -20,10 +20,14 @@ public class StrategyBotForwardTestObservabilityService {
     private final AtomicLong refreshAttemptCount = new AtomicLong(0);
     private final AtomicLong refreshSuccessCount = new AtomicLong(0);
     private final AtomicLong refreshFailureCount = new AtomicLong(0);
+    private final AtomicLong refreshSkipCount = new AtomicLong(0);
     private final AtomicReference<LocalDateTime> lastTickAt = new AtomicReference<>(null);
     private final AtomicReference<LocalDateTime> lastRefreshAt = new AtomicReference<>(null);
+    private final AtomicReference<LocalDateTime> lastSkipAt = new AtomicReference<>(null);
     private final AtomicReference<UUID> lastRefreshedRunId = new AtomicReference<>(null);
     private final AtomicReference<String> lastRefreshedRunStatus = new AtomicReference<>(null);
+    private final AtomicReference<UUID> lastSkippedRunId = new AtomicReference<>(null);
+    private final AtomicReference<String> lastSkipReason = new AtomicReference<>(null);
     private final AtomicReference<String> lastError = new AtomicReference<>(null);
 
     public StrategyBotForwardTestObservabilityService(
@@ -55,6 +59,17 @@ public class StrategyBotForwardTestObservabilityService {
         lastError.set(error);
     }
 
+    public void recordRefreshSkip(UUID runId, String reason) {
+        refreshAttemptCount.incrementAndGet();
+        refreshSkipCount.incrementAndGet();
+        LocalDateTime now = LocalDateTime.now();
+        lastRefreshAt.set(now);
+        lastSkipAt.set(now);
+        lastSkippedRunId.set(runId);
+        lastSkipReason.set(reason);
+        lastError.set(null);
+    }
+
     public StrategyBotForwardTestSchedulerSnapshot snapshot() {
         return new StrategyBotForwardTestSchedulerSnapshot(
                 LocalDateTime.now(),
@@ -64,10 +79,14 @@ public class StrategyBotForwardTestObservabilityService {
                 refreshAttemptCount.get(),
                 refreshSuccessCount.get(),
                 refreshFailureCount.get(),
+                refreshSkipCount.get(),
                 lastTickAt.get(),
                 lastRefreshAt.get(),
+                lastSkipAt.get(),
                 lastRefreshedRunId.get(),
                 lastRefreshedRunStatus.get(),
+                lastSkippedRunId.get(),
+                lastSkipReason.get(),
                 lastError.get()
         );
     }

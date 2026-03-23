@@ -53,7 +53,8 @@ public class RateLimitFilter implements Filter {
         PORTFOLIO_WRITE,
         TRADE_WRITE,
         WATCHLIST_WRITE,
-        ANALYSIS_WRITE
+        ANALYSIS_WRITE,
+        STRATEGY_BOT_WRITE
     }
 
     private final ConcurrentHashMap<String, Bucket> cache = new ConcurrentHashMap<>();
@@ -93,6 +94,9 @@ public class RateLimitFilter implements Filter {
 
     @Value("${app.rate-limit.analysis-write-capacity:18}")
     private int analysisWriteCapacity = 18;
+
+    @Value("${app.rate-limit.strategy-bot-write-capacity:10}")
+    private int strategyBotWriteCapacity = 10;
 
     public RateLimitFilter(JwtTokenService jwtTokenService, AuthSessionService authSessionService) {
         this.jwtTokenService = jwtTokenService;
@@ -141,6 +145,10 @@ public class RateLimitFilter implements Filter {
         if (path.matches("^/api/v1/analysis-posts(?:$|/[^/]+)$") &&
                 ("POST".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))) {
             return BucketProfile.ANALYSIS_WRITE;
+        }
+        if (path.matches("^/api/v1/strategy-bots(?:$|/[^/]+(?:$|/runs(?:$|/[^/]+(?:/(?:execute|refresh|apply-reconciliation))?)?))$") &&
+                ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method))) {
+            return BucketProfile.STRATEGY_BOT_WRITE;
         }
         return BucketProfile.DEFAULT;
     }
@@ -242,6 +250,7 @@ public class RateLimitFilter implements Filter {
             case TRADE_WRITE -> tradeWriteCapacity;
             case WATCHLIST_WRITE -> watchlistWriteCapacity;
             case ANALYSIS_WRITE -> analysisWriteCapacity;
+            case STRATEGY_BOT_WRITE -> strategyBotWriteCapacity;
             case DEFAULT -> defaultCapacity;
         };
 

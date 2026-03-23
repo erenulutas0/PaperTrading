@@ -12,6 +12,7 @@ import com.finance.core.dto.StrategyBotResponse;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
+import com.finance.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,11 +31,13 @@ public class StrategyBotService {
     private final StrategyBotRepository strategyBotRepository;
     private final StrategyBotRunRepository strategyBotRunRepository;
     private final PortfolioRepository portfolioRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public Page<StrategyBotResponse> getUserBots(UUID userId, Pageable pageable) {
+        ensureUserExists(userId);
         return strategyBotRepository.findByUserId(userId, pageable).map(this::toResponse);
     }
 
@@ -50,6 +53,7 @@ public class StrategyBotService {
 
     @Transactional
     public StrategyBotResponse createBot(UUID userId, StrategyBotRequest request) {
+        ensureUserExists(userId);
         validateCreateRequest(request);
         validateLinkedPortfolio(request.getLinkedPortfolioId(), userId);
 
@@ -158,8 +162,15 @@ public class StrategyBotService {
     }
 
     private StrategyBot getOwnedBot(UUID botId, UUID userId) {
+        ensureUserExists(userId);
         return strategyBotRepository.findByIdAndUserId(botId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Strategy bot not found"));
+    }
+
+    private void ensureUserExists(UUID userId) {
+        if (userId == null || !userRepository.existsById(userId)) {
+            throw new IllegalArgumentException("User not found");
+        }
     }
 
     private void validateCreateRequest(StrategyBotRequest request) {

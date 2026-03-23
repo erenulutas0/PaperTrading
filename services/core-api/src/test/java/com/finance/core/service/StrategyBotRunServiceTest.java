@@ -21,6 +21,8 @@ import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
+import com.finance.core.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -47,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,6 +74,8 @@ class StrategyBotRunServiceTest {
     @Mock
     private TradeActivityRepository tradeActivityRepository;
     @Mock
+    private UserRepository userRepository;
+    @Mock
     private MarketDataFacadeService marketDataFacadeService;
     @Mock
     private AuditLogService auditLogService;
@@ -81,6 +86,11 @@ class StrategyBotRunServiceTest {
 
     @InjectMocks
     private StrategyBotRunService strategyBotRunService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(userRepository.existsById(any())).thenReturn(true);
+    }
 
     @Test
     void executeRun_shouldCompleteBacktestAndPersistPerformanceSummary() {

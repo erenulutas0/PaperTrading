@@ -549,6 +549,17 @@ Last updated: 2026-03-23
 - [ ] Re-calibrate feed latency thresholds from one-sprint production telemetry and adjust `APP_FEED_OBSERVABILITY_*` as needed
 - [ ] Configure real ops webhook URL in staging/prod (`APP_ALERTING_WEBHOOK_URL`) and run `run_ops_alert_webhook_staging_checklist.ps1` against the live app
 - [ ] Move auth migration to enforcement mode in staging (`APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`) and resolve any failing clients
+- [x] Roll out DB-level orphan prevention for strategy-bot ownership columns:
+  - migration:
+    - `V25__harden_strategy_bot_user_foreign_keys.sql`
+  - cleanup:
+    - delete orphan `strategy_bot_runs`
+    - delete orphan `strategy_bots`
+  - constraints:
+    - `strategy_bots.user_id -> users(id) on delete cascade`
+    - `strategy_bot_runs.user_id -> users(id) on delete cascade`
+  - verification:
+    - Flyway + targeted strategy-bot integration suites passed locally
 - [ ] Design paper-only strategy bot workflow:
   - rule-based entry/exit builder
   - stop-loss / take-profit / cooldown / sizing controls
@@ -564,6 +575,21 @@ Last updated: 2026-03-23
     - audit log coverage for create/update/delete
   - tests:
     - `StrategyBotControllerIntegrationTest`
+- [x] Lock strategy-bot run state and reconciliation contracts with integration coverage:
+  - execute:
+    - `strategy_bot_run_not_queued`
+    - `strategy_bot_run_not_executable`
+  - refresh:
+    - `strategy_bot_run_refresh_mode_not_supported`
+    - `strategy_bot_forward_test_not_running`
+  - reconciliation:
+    - `strategy_bot_linked_portfolio_required`
+    - `strategy_bot_run_reconciliation_not_ready`
+    - `strategy_bot_reconciliation_manual_cleanup_required`
+    - `strategy_bot_reconciliation_target_invalid`
+    - `strategy_bot_reconciliation_target_price_unavailable`
+  - tests:
+    - `StrategyBotRunControllerIntegrationTest`
 - [ ] Extend strategy-bot live paper execution beyond the current refresh-based forward-test slice:
   - run recurring scheduler verification against a freshly restarted local/staging runtime
 - [x] Added strategy-bot analytics/reporting surface:
@@ -681,6 +707,20 @@ Last updated: 2026-03-23
   - local runtime validation:
     - one-off wrapper now passes against a temporary local backend without internet-backed candle reads
     - scheduler lock name length is guarded against ShedLock schema overflow
+- [x] Extended strategy-bot forward-test scheduler telemetry with explicit skip diagnostics:
+  - backend:
+    - `/actuator/strategybotforwardtests` now exposes:
+      - `refreshSkipCount`
+      - `lastSkipAt`
+      - `lastSkippedRunId`
+      - `lastSkipReason`
+    - scheduler now records a skip when a listed `RUNNING` forward-test run is no longer refreshable at reload time
+  - tests:
+    - `StrategyBotForwardTestSchedulerServiceTest`
+    - `StrategyBotForwardTestObservabilityServiceTest`
+    - `StrategyBotForwardTestEndpointIntegrationTest`
+  - tooling:
+    - `run_strategy_bot_forward_test_scheduler_smoke.ps1` now reports skip deltas and last-skip details alongside success/failure counters
 - [x] Added strategy-bot run journal foundation:
   - migration:
     - `V23__create_strategy_bot_runs_table.sql`
@@ -1259,6 +1299,40 @@ Last updated: 2026-03-23
     - authenticated write buckets continue to prefer stable principal keys where available
   - Coverage:
     - `RateLimitFilterTest`
+- [x] Hardened strategy-bot account/export contracts and isolated bot writes behind a dedicated rate-limit profile:
+  - Updated:
+    - `StrategyBotService`
+    - `StrategyBotRunService`
+    - `StrategyBotController`
+    - `RateLimitFilter`
+    - `application.yml`
+  - Behavior:
+    - account-backed strategy-bot list/create/board paths now require a real persisted user instead of trusting orphan bridged UUIDs
+    - malformed strategy-bot export `format` values now fail fast with explicit `invalid_strategy_bot_export_format` instead of silently falling back to JSON
+    - bot create/update/delete and run request/execute/refresh/reconciliation writes now use a dedicated strategy-bot write bucket instead of the shared default profile
+  - Coverage:
+    - `StrategyBotControllerIntegrationTest`
+    - `StrategyBotRunControllerIntegrationTest`
+    - `StrategyBotRunServiceTest`
+    - `RateLimitFilterTest`
+- [x] Hardened strategy-bot board/discover direction contracts against silent `DESC` fallback:
+  - Updated:
+    - `StrategyBotRunService`
+    - `StrategyBotController`
+  - Behavior:
+    - invalid strategy-bot `direction` query values now return explicit `invalid_strategy_bot_board_direction`
+    - list and export surfaces now share the same validation path, so malformed caller state no longer degrades to a successful descending sort
+  - Coverage:
+    - `StrategyBotControllerIntegrationTest`
+    - `StrategyBotRunControllerIntegrationTest`
+- [x] Hardened strategy-bot create/update/run-request validation paths into explicit API contracts:
+  - Updated:
+    - `StrategyBotController`
+  - Behavior:
+    - missing bot payload, missing required fields, invalid risk settings, invalid run date ranges, and non-positive initial capital now return dedicated machine-readable error codes instead of generic fallback buckets
+    - bot create/update/run-request callers can now separate malformed input from ownership and execution-state failures more reliably
+  - Coverage:
+    - `StrategyBotControllerIntegrationTest`
 - [x] Added endpoint-aware rate-limit profile smoke coverage:
   - Added:
     - `infra/load-test/run_rate_limit_profile_smoke.ps1`

@@ -1035,6 +1035,7 @@ public class StrategyBotRunService {
                                                                      String direction,
                                                                      StrategyBotRun.RunMode scopedRunMode,
                                                                      Integer lookbackDays) {
+        ensureUserExists(userId);
         return strategyBotRepository.findByUserId(userId, Pageable.unpaged())
                 .stream()
                 .map(bot -> toBoardEntry(bot, buildBotAnalytics(bot, userId, scopedRunMode, lookbackDays)))
@@ -1146,7 +1147,16 @@ public class StrategyBotRunService {
     }
 
     private String normalizeBoardDirection(String direction) {
-        return "ASC".equalsIgnoreCase(direction) ? "ASC" : "DESC";
+        if (direction == null || direction.isBlank()) {
+            return "DESC";
+        }
+        if ("ASC".equalsIgnoreCase(direction)) {
+            return "ASC";
+        }
+        if ("DESC".equalsIgnoreCase(direction)) {
+            return "DESC";
+        }
+        throw new IllegalArgumentException("Invalid strategy bot board direction");
     }
 
     private String normalizeSearchQuery(String query) {
@@ -1301,7 +1311,7 @@ public class StrategyBotRunService {
 
     private Comparator<StrategyBotBoardEntryResponse> resolveBoardComparator(String sortBy, String direction) {
         String normalizedSort = normalizeBoardSort(sortBy);
-        boolean ascending = "ASC".equalsIgnoreCase(direction);
+        boolean ascending = "ASC".equals(normalizeBoardDirection(direction));
         Comparator<StrategyBotBoardEntryResponse> comparator = switch (normalizedSort) {
             case "AVG_RETURN" -> Comparator.comparing(StrategyBotBoardEntryResponse::getAvgReturnPercent, nullableDoubleComparator(ascending));
             case "AVG_NET_PNL" -> Comparator.comparing(StrategyBotBoardEntryResponse::getAvgNetPnl, nullableDoubleComparator(ascending));
@@ -2464,6 +2474,12 @@ public class StrategyBotRunService {
         strategyBotService.getOwnedBotEntity(botId, userId);
         return strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Strategy bot run not found"));
+    }
+
+    private void ensureUserExists(UUID userId) {
+        if (userId == null || !userRepository.existsById(userId)) {
+            throw new IllegalArgumentException("User not found");
+        }
     }
 
     private List<StrategyBotRunFillResponse> getRunFillRows(StrategyBotRun run) {

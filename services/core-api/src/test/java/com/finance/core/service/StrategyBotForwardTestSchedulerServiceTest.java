@@ -95,4 +95,60 @@ class StrategyBotForwardTestSchedulerServiceTest {
         verify(observabilityService).recordRefreshFailure(failedRunId, "market data unavailable");
         verify(observabilityService).recordRefreshSuccess(completedRunId, StrategyBotRun.Status.COMPLETED);
     }
+
+    @Test
+    void refreshRunningForwardTests_shouldRecordSkipWhenRunIsNoLongerRefreshable() {
+        UUID runId = UUID.randomUUID();
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(runId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .build();
+
+        when(strategyBotRunRepository.findByRunModeAndStatusOrderByRequestedAtAsc(
+                StrategyBotRun.RunMode.FORWARD_TEST,
+                StrategyBotRun.Status.RUNNING)).thenReturn(List.of(run));
+        when(strategyBotRunService.refreshForwardTestRunSystem(runId)).thenReturn(null);
+
+        schedulerService.refreshRunningForwardTests();
+
+        verify(observabilityService).recordSchedulerTick(1);
+        verify(observabilityService).recordRefreshSkip(runId, "run_no_longer_refreshable");
+        verify(observabilityService, never()).recordRefreshSuccess(eq(runId), eq(StrategyBotRun.Status.RUNNING));
+        verify(observabilityService, never()).recordRefreshFailure(eq(runId), anyString());
+    }
+
+    @Test
+    void refreshRunningForwardTests_shouldRecordThrownRefreshFailureAndContinue() {
+        UUID failedRunId = UUID.randomUUID();
+        UUID completedRunId = UUID.randomUUID();
+        StrategyBotRun failedRun = StrategyBotRun.builder()
+                .id(failedRunId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .build();
+        StrategyBotRun completedRun = StrategyBotRun.builder()
+                .id(completedRunId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .build();
+        StrategyBotRun completedResult = StrategyBotRun.builder()
+                .id(completedRunId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .build();
+
+        when(strategyBotRunRepository.findByRunModeAndStatusOrderByRequestedAtAsc(
+                StrategyBotRun.RunMode.FORWARD_TEST,
+                StrategyBotRun.Status.RUNNING)).thenReturn(List.of(failedRun, completedRun));
+        when(strategyBotRunService.refreshForwardTestRunSystem(failedRunId))
+                .thenThrow(new IllegalStateException("state drift"));
+        when(strategyBotRunService.refreshForwardTestRunSystem(completedRunId)).thenReturn(completedResult);
+
+        schedulerService.refreshRunningForwardTests();
+
+        verify(observabilityService).recordSchedulerTick(2);
+        verify(observabilityService).recordRefreshFailure(failedRunId, "state drift");
+        verify(observabilityService).recordRefreshSuccess(completedRunId, StrategyBotRun.Status.RUNNING);
+    }
 }

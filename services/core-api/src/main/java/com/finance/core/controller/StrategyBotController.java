@@ -38,10 +38,15 @@ public class StrategyBotController {
     private final StrategyBotRunService strategyBotRunService;
 
     @GetMapping
-    public ResponseEntity<Page<StrategyBotResponse>> listBots(
+    public ResponseEntity<?> listBots(
             @CurrentUserId UUID userId,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(strategyBotService.getUserBots(userId, pageable));
+            @PageableDefault(size = 20) Pageable pageable,
+            HttpServletRequest request) {
+        try {
+            return ResponseEntity.ok(strategyBotService.getUserBots(userId, pageable));
+        } catch (Exception ex) {
+            return buildBotError(ex, "strategy_bot_list_failed", "Failed to load strategy bots", request);
+        }
     }
 
     @GetMapping("/discover")
@@ -101,7 +106,7 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "json") String format,
             HttpServletRequest request) {
         try {
-            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            String normalizedFormat = normalizeExportFormat(format);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = strategyBotRunService.buildPublicRunExportCsv(botId, runId);
                 return ResponseEntity.ok()
@@ -130,7 +135,7 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "") String q,
             HttpServletRequest request) {
         try {
-            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            String normalizedFormat = normalizeExportFormat(format);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = strategyBotRunService.buildPublicBotBoardExportCsv(sortBy, direction, runMode, lookbackDays, q);
                 return ResponseEntity.ok()
@@ -157,7 +162,7 @@ public class StrategyBotController {
             @RequestParam(required = false) Integer lookbackDays,
             HttpServletRequest request) {
         try {
-            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            String normalizedFormat = normalizeExportFormat(format);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = strategyBotRunService.buildPublicBotDetailExportCsv(botId, runMode, lookbackDays);
                 return ResponseEntity.ok()
@@ -209,7 +214,7 @@ public class StrategyBotController {
             @RequestParam(required = false) Integer lookbackDays,
             HttpServletRequest request) {
         try {
-            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            String normalizedFormat = normalizeExportFormat(format);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = strategyBotRunService.buildBotBoardExportCsv(userId, sortBy, direction, runMode, lookbackDays);
                 return ResponseEntity.ok()
@@ -264,7 +269,7 @@ public class StrategyBotController {
             @RequestParam(required = false) Integer lookbackDays,
             HttpServletRequest request) {
         try {
-            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            String normalizedFormat = normalizeExportFormat(format);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = strategyBotRunService.buildBotAnalyticsExportCsv(botId, userId, runMode, lookbackDays);
                 return ResponseEntity.ok()
@@ -356,7 +361,7 @@ public class StrategyBotController {
             @RequestParam(defaultValue = "json") String format,
             HttpServletRequest request) {
         try {
-            String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+            String normalizedFormat = normalizeExportFormat(format);
             if ("csv".equals(normalizedFormat)) {
                 byte[] content = strategyBotRunService.buildRunExportCsv(botId, runId, userId);
                 return ResponseEntity.ok()
@@ -475,6 +480,9 @@ public class StrategyBotController {
         String message = exception.getMessage() != null ? exception.getMessage() : fallbackMessage;
         String normalized = message.toLowerCase(Locale.ROOT);
 
+        if (normalized.contains("user not found")) {
+            return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "user_not_found", "User not found", null, request);
+        }
         if (normalized.contains("strategy bot not found")) {
             return ApiErrorResponses.build(HttpStatus.NOT_FOUND, "strategy_bot_not_found", "Strategy bot not found", null, request);
         }
@@ -499,8 +507,44 @@ public class StrategyBotController {
         if (normalized.contains("invalid strategy bot status")) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_status", "Invalid strategy bot status", null, request);
         }
+        if (normalized.contains("strategy bot payload is required")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_payload_required", "Strategy bot payload is required", null, request);
+        }
+        if (normalized.contains("strategy bot name is required")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_name_required", "Strategy bot name is required", null, request);
+        }
+        if (normalized.contains("strategy bot market is required")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_market_required", "Strategy bot market is required", null, request);
+        }
+        if (normalized.contains("strategy bot symbol is required")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_symbol_required", "Strategy bot symbol is required", null, request);
+        }
+        if (normalized.contains("strategy bot timeframe is required")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_timeframe_required", "Strategy bot timeframe is required", null, request);
+        }
+        if (normalized.contains("max position size percent is required")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_max_position_size_required", "Max position size percent is required", null, request);
+        }
+        if (normalized.contains("max position size percent must be between 0 and 100")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_max_position_size_invalid", "Max position size percent must be between 0 and 100", null, request);
+        }
+        if (normalized.contains("stop loss percent must be between 0 and 100")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_stop_loss_invalid", "Stop loss percent must be between 0 and 100", null, request);
+        }
+        if (normalized.contains("take profit percent must be positive")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_take_profit_invalid", "Take profit percent must be positive", null, request);
+        }
+        if (normalized.contains("cooldown minutes must be zero or positive")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_cooldown_invalid", "Cooldown minutes must be zero or positive", null, request);
+        }
+        if (normalized.contains("invalid strategy bot export format")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_export_format", "Invalid strategy bot export format", null, request);
+        }
         if (normalized.contains("invalid strategy bot board sort")) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_sort", "Invalid strategy bot board sort", null, request);
+        }
+        if (normalized.contains("invalid strategy bot board direction")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_direction", "Invalid strategy bot board direction", null, request);
         }
         if (normalized.contains("invalid strategy bot board run mode")) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_board_run_mode", "Invalid strategy bot board run mode", null, request);
@@ -513,6 +557,15 @@ public class StrategyBotController {
         }
         if (normalized.contains("invalid strategy bot run mode")) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_run_mode", "Invalid strategy bot run mode", null, request);
+        }
+        if (normalized.contains("run start date must be on or before end date")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_run_date_range_invalid", "Run start date must be on or before end date", null, request);
+        }
+        if (normalized.contains("initial capital must be positive")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "strategy_bot_initial_capital_invalid", "Initial capital must be positive", null, request);
+        }
+        if (normalized.contains("invalid strategy bot market")) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "invalid_strategy_bot_market", "Invalid strategy bot market", null, request);
         }
         if (normalized.contains("must be ready before requesting a run")) {
             return ApiErrorResponses.build(HttpStatus.CONFLICT, "strategy_bot_not_ready", "Strategy bot must be READY before requesting a run", null, request);
@@ -540,5 +593,13 @@ public class StrategyBotController {
         }
 
         return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, fallbackCode, message, null, request);
+    }
+
+    private String normalizeExportFormat(String format) {
+        String normalizedFormat = format == null ? "json" : format.trim().toLowerCase(Locale.ROOT);
+        if ("json".equals(normalizedFormat) || "csv".equals(normalizedFormat)) {
+            return normalizedFormat;
+        }
+        throw new IllegalArgumentException("Invalid strategy bot export format");
     }
 }

@@ -167,6 +167,7 @@ app:
     trade-write-capacity: ${APP_RATE_LIMIT_TRADE_WRITE_CAPACITY:30}
     watchlist-write-capacity: ${APP_RATE_LIMIT_WATCHLIST_WRITE_CAPACITY:40}
     analysis-write-capacity: ${APP_RATE_LIMIT_ANALYSIS_WRITE_CAPACITY:18}
+    strategy-bot-write-capacity: ${APP_RATE_LIMIT_STRATEGY_BOT_WRITE_CAPACITY:10}
   idempotency:
     enabled: ${APP_IDEMPOTENCY_ENABLED:true}
     ttl: ${APP_IDEMPOTENCY_TTL:PT24H}

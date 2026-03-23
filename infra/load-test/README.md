@@ -349,6 +349,7 @@ The strategy-bot forward-test scheduler smoke checks:
 Useful notes:
 - this smoke is intentionally actuator-backed instead of blind sleeping
 - it relies on the scheduler snapshot delta plus `lastRefreshedRunId` to prove recurring runtime refresh actually happened
+- when the scheduler selects a run but reload-time state drift makes it non-refreshable, the snapshot now exposes skip diagnostics (`refreshSkipCount`, `lastSkippedRunId`, `lastSkipReason`) so failures are easier to classify
 - use a poll window comfortably above `app.strategy-bots.forward-test-refresh-interval` if you override that interval locally or in staging
 
 Run a one-off local runtime wrapper that boots a temporary backend, waits for health, and then executes the same scheduler smoke:

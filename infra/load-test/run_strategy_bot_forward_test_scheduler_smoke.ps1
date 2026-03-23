@@ -135,6 +135,7 @@ $baselineJson = if ($baselineActuator.content) { $baselineActuator.content | Con
 $baselineTickCount = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "scheduledTickCount")
 $baselineSuccessCount = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "refreshSuccessCount")
 $baselineFailureCount = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "refreshFailureCount")
+$baselineSkipCount = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "refreshSkipCount")
 $refreshIntervalSeconds = [long](Get-ObjectPropertyValue -Object $baselineJson -Name "refreshIntervalSeconds")
 Assert-Condition -Results $results -Name "Forward-Test Actuator Baseline" -Condition ($baselineActuator.status -eq 200 -and $refreshIntervalSeconds -gt 0) -Detail "status=$($baselineActuator.status), interval=$refreshIntervalSeconds"
 
@@ -210,6 +211,8 @@ $schedulerObserved = $false
 $targetRunObserved = $false
 $lastRunStatus = ""
 $lastRunError = ""
+$lastSkippedRunId = ""
+$lastSkipReason = ""
 
 for ($attempt = 1; $attempt -le $PollAttempts; $attempt++) {
   Start-Sleep -Seconds $PollIntervalSec
@@ -222,9 +225,12 @@ for ($attempt = 1; $attempt -le $PollAttempts; $attempt++) {
   $tickCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "scheduledTickCount")
   $successCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "refreshSuccessCount")
   $failureCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "refreshFailureCount")
+  $skipCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "refreshSkipCount")
   $lastRefreshedRunId = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastRefreshedRunId")
   $lastRunStatus = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastRefreshedRunStatus")
   $lastRunError = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastError")
+  $lastSkippedRunId = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastSkippedRunId")
+  $lastSkipReason = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastSkipReason")
 
   if ($tickCount -gt $baselineTickCount) {
     $schedulerObserved = $true
@@ -241,16 +247,22 @@ for ($attempt = 1; $attempt -le $PollAttempts; $attempt++) {
   if ($failureCount -gt $baselineFailureCount -and $lastRefreshedRunId -eq $runId) {
     break
   }
+
+  if ($skipCount -gt $baselineSkipCount -and $lastSkippedRunId -eq $runId) {
+    break
+  }
 }
 
 $finalTickCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "scheduledTickCount")
 $finalSuccessCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "refreshSuccessCount")
 $finalFailureCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "refreshFailureCount")
+$finalSkipCount = [long](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "refreshSkipCount")
 $finalLastRefreshedRunId = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastRefreshedRunId")
 $lastRefreshAt = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastRefreshAt")
+$lastSkipAt = [string](Get-ObjectPropertyValue -Object $finalSnapshotJson -Name "lastSkipAt")
 
 Assert-Condition -Results $results -Name "Scheduler Tick Observed" -Condition $schedulerObserved -Detail "baseline=$baselineTickCount final=$finalTickCount"
-Assert-Condition -Results $results -Name "Target Run Refreshed By Scheduler" -Condition ($targetRunObserved -and ($lastRunStatus -eq "RUNNING" -or $lastRunStatus -eq "COMPLETED")) -Detail "lastRunId=$finalLastRefreshedRunId lastStatus=$lastRunStatus lastError=$lastRunError successDelta=$($finalSuccessCount - $baselineSuccessCount) failureDelta=$($finalFailureCount - $baselineFailureCount)"
+Assert-Condition -Results $results -Name "Target Run Refreshed By Scheduler" -Condition ($targetRunObserved -and ($lastRunStatus -eq "RUNNING" -or $lastRunStatus -eq "COMPLETED")) -Detail "lastRunId=$finalLastRefreshedRunId lastStatus=$lastRunStatus lastError=$lastRunError successDelta=$($finalSuccessCount - $baselineSuccessCount) failureDelta=$($finalFailureCount - $baselineFailureCount) skipDelta=$($finalSkipCount - $baselineSkipCount) lastSkippedRunId=$lastSkippedRunId lastSkipReason=$lastSkipReason"
 
 $runRead = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/strategy-bots/$botId/runs/$runId" -Headers $authHeaders
 $runReadJson = if ($runRead.content) { $runRead.content | ConvertFrom-Json } else { $null }
@@ -283,8 +295,13 @@ $lines += "- Baseline Success Count: $baselineSuccessCount"
 $lines += "- Final Success Count: $finalSuccessCount"
 $lines += "- Baseline Failure Count: $baselineFailureCount"
 $lines += "- Final Failure Count: $finalFailureCount"
+$lines += "- Baseline Skip Count: $baselineSkipCount"
+$lines += "- Final Skip Count: $finalSkipCount"
 $lines += "- Last Refreshed Run Id: $finalLastRefreshedRunId"
 $lines += "- Last Refreshed Run Status: $lastRunStatus"
+$lines += "- Last Skipped Run Id: $(if ([string]::IsNullOrWhiteSpace($lastSkippedRunId)) { '<none>' } else { $lastSkippedRunId })"
+$lines += "- Last Skip Reason: $(if ([string]::IsNullOrWhiteSpace($lastSkipReason)) { '<none>' } else { $lastSkipReason })"
+$lines += "- Last Skip At: $(if ([string]::IsNullOrWhiteSpace($lastSkipAt)) { '<none>' } else { $lastSkipAt })"
 $lines += "- Last Error: $(if ([string]::IsNullOrWhiteSpace($lastRunError)) { '<none>' } else { $lastRunError })"
 $lines += ""
 $lines += "| Check | Result | Detail |"
