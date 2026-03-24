@@ -24,6 +24,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -189,6 +190,27 @@ class InteractionServiceTest {
                 () -> interactionService.toggleLike(actorId, targetId, likeRequest));
 
         assertEquals("user_not_found", ex.code());
+    }
+
+    @Test
+    void toggleLike_WithLowercasePortfolioUnderTurkishLocale_ShouldStillResolveTargetType() {
+        likeRequest.setTargetType("portfolio");
+        when(interactionRepository.findByActorIdAndTargetTypeAndTargetIdAndInteractionType(
+                actorId, Interaction.TargetType.PORTFOLIO, targetId, Interaction.InteractionType.LIKE))
+                .thenReturn(Optional.empty());
+        when(userRepository.findById(actorId)).thenReturn(Optional.of(AppUser.builder().id(actorId).username("actor").build()));
+        when(portfolioRepository.findById(targetId)).thenReturn(Optional.of(portfolio("Growth")));
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            interactionService.toggleLike(actorId, targetId, likeRequest);
+        } finally {
+            Locale.setDefault(previous);
+        }
+
+        verify(interactionRepository).save(any(Interaction.class));
+        verify(eventPublisher).publishEvent(any(Object.class));
     }
 
     @Test

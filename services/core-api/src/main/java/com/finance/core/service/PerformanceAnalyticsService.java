@@ -173,10 +173,11 @@ public class PerformanceAnalyticsService {
         Map<String, Integer> symbolCounts = new HashMap<>();
 
         for (TradeActivity trade : trades) {
+            String normalizedTradeType = normalizeTradeType(trade.getType());
             // Type counts
-            if (trade.getType() != null && trade.getType().contains("BUY"))
+            if (normalizedTradeType.startsWith("BUY"))
                 buyCount++;
-            else if (trade.getType() != null && trade.getType().contains("SELL"))
+            else if (normalizedTradeType.startsWith("SELL"))
                 sellCount++;
 
             // Side counts
@@ -487,7 +488,7 @@ public class PerformanceAnalyticsService {
 
         for (PortfolioItem item : items) {
             MarketInstrumentResponse snapshot = instrumentSnapshots.get(
-                    item.getSymbol() != null ? item.getSymbol().toUpperCase() : null);
+                    item.getSymbol() != null ? item.getSymbol().toUpperCase(Locale.ROOT) : null);
             double currentPrice = snapshot != null && snapshot.getCurrentPrice() > 0.0
                     ? snapshot.getCurrentPrice()
                     : item.getAveragePrice().doubleValue();
@@ -545,7 +546,7 @@ public class PerformanceAnalyticsService {
 
         for (PortfolioItem item : items) {
             String symbol = item.getSymbol();
-            MarketInstrumentResponse snapshot = instrumentSnapshots.get(symbol != null ? symbol.toUpperCase() : null);
+            MarketInstrumentResponse snapshot = instrumentSnapshots.get(symbol != null ? symbol.toUpperCase(Locale.ROOT) : null);
             double currentPrice = snapshot != null && snapshot.getCurrentPrice() > 0.0
                     ? snapshot.getCurrentPrice()
                     : item.getAveragePrice().doubleValue();
@@ -876,6 +877,13 @@ public class PerformanceAnalyticsService {
             return null;
         }
         return symbolFilter.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeTradeType(String tradeType) {
+        if (tradeType == null || tradeType.isBlank()) {
+            return "";
+        }
+        return tradeType.trim().toUpperCase(Locale.ROOT);
     }
 
     @SuppressWarnings("unchecked")

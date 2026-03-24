@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -100,7 +101,7 @@ public class PerformanceCalculationService {
         LocalDateTime now = LocalDateTime.now();
         if (period == null)
             period = "1D";
-        switch (period.toUpperCase()) {
+        switch (period.toUpperCase(Locale.ROOT)) {
             case "1W":
                 return now.minusWeeks(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
             case "1M":

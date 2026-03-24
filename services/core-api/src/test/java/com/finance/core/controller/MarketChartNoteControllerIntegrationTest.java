@@ -196,6 +196,20 @@ class MarketChartNoteControllerIntegrationTest {
     }
 
     @Test
+    void listNotes_withInvalidMarket_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/market/chart-notes")
+                        .header("X-User-Id", userId.toString())
+                        .header("X-Request-Id", "chart-note-market-err-1")
+                        .param("market", "FOREX")
+                        .param("symbol", "BTCUSDT"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "chart-note-market-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_market_chart_note_market"))
+                .andExpect(jsonPath("$.message").value("Invalid market chart note market"))
+                .andExpect(jsonPath("$.requestId").value("chart-note-market-err-1"));
+    }
+
+    @Test
     void createNote_withBlankBody_shouldReturnExplicitValidationContract() throws Exception {
         mockMvc.perform(post("/api/v1/market/chart-notes")
                         .header("X-User-Id", userId.toString())

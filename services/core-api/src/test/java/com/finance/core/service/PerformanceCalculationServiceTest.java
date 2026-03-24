@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -182,5 +183,17 @@ class PerformanceCalculationServiceTest {
                 assertNotNull(performanceCalculationService.getStartTimeForPeriod("1D"));
                 assertNotNull(performanceCalculationService.getStartTimeForPeriod("1W"));
                 assertNotNull(performanceCalculationService.getStartTimeForPeriod("ALL"));
+        }
+
+        @Test
+        void testGetStartTime_LocaleSafeUnderTurkishLocale() {
+                Locale previous = Locale.getDefault();
+                Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+                try {
+                        assertNotNull(performanceCalculationService.getStartTimeForPeriod("1w"));
+                        assertNotNull(performanceCalculationService.getStartTimeForPeriod("all"));
+                } finally {
+                        Locale.setDefault(previous);
+                }
         }
 }

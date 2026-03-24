@@ -35,24 +35,24 @@ class StrategyBotAgentActionValidatorTest {
     void validate_rejectsBuyThatExceedsBotCap() {
         StrategyBotAgentDecisionContext context = context(false, "25", "5", "12");
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () ->
+        StrategyBotAgentActionValidator.ValidationException error = assertThrows(StrategyBotAgentActionValidator.ValidationException.class, () ->
                 validator.validate(context, proposalBuilder(StrategyBotAgentActionType.BUY)
                         .sizePercent(new BigDecimal("30"))
                         .build()));
 
-        assertEquals("strategy_bot_agent_buy_size_exceeds_cap", error.getMessage());
+        assertEquals("strategy_bot_agent_buy_size_exceeds_cap", error.code());
     }
 
     @Test
     void validate_rejectsBuyWhenPositionAlreadyOpen() {
         StrategyBotAgentDecisionContext context = context(true, "25", "5", "12");
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () ->
+        StrategyBotAgentActionValidator.ValidationException error = assertThrows(StrategyBotAgentActionValidator.ValidationException.class, () ->
                 validator.validate(context, proposalBuilder(StrategyBotAgentActionType.BUY)
                         .sizePercent(new BigDecimal("10"))
                         .build()));
 
-        assertEquals("strategy_bot_agent_buy_requires_flat_position", error.getMessage());
+        assertEquals("strategy_bot_agent_buy_requires_flat_position", error.code());
     }
 
     @Test
@@ -71,43 +71,43 @@ class StrategyBotAgentActionValidatorTest {
     void validate_rejectsStopUpdateWhenBotHasNoStopLossConfigured() {
         StrategyBotAgentDecisionContext context = context(true, "25", null, "12");
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () ->
+        StrategyBotAgentActionValidator.ValidationException error = assertThrows(StrategyBotAgentActionValidator.ValidationException.class, () ->
                 validator.validate(context, proposalBuilder(StrategyBotAgentActionType.UPDATE_STOPS)
                         .stopLossPercent(new BigDecimal("3"))
                         .build()));
 
-        assertEquals("strategy_bot_agent_stop_loss_not_configured", error.getMessage());
+        assertEquals("strategy_bot_agent_stop_loss_not_configured", error.code());
     }
 
     @Test
     void validate_rejectsSellWithoutOpenPosition() {
         StrategyBotAgentDecisionContext context = context(false, "25", "5", "12");
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () ->
+        StrategyBotAgentActionValidator.ValidationException error = assertThrows(StrategyBotAgentActionValidator.ValidationException.class, () ->
                 validator.validate(context, proposalBuilder(StrategyBotAgentActionType.SELL)
                         .closePercent(new BigDecimal("100"))
                         .build()));
 
-        assertEquals("strategy_bot_agent_sell_requires_open_position", error.getMessage());
+        assertEquals("strategy_bot_agent_sell_requires_open_position", error.code());
     }
 
     @Test
     void validate_rejectsHoldPayloadWithPositionMutationFields() {
         StrategyBotAgentDecisionContext context = context(false, "25", "5", "12");
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () ->
+        StrategyBotAgentActionValidator.ValidationException error = assertThrows(StrategyBotAgentActionValidator.ValidationException.class, () ->
                 validator.validate(context, proposalBuilder(StrategyBotAgentActionType.HOLD)
                         .sizePercent(new BigDecimal("5"))
                         .build()));
 
-        assertEquals("strategy_bot_agent_hold_payload_invalid", error.getMessage());
+        assertEquals("strategy_bot_agent_hold_payload_invalid", error.code());
     }
 
     @Test
     void validate_rejectsMissingAuditMetadata() {
         StrategyBotAgentDecisionContext context = context(false, "25", "5", "12");
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () ->
+        StrategyBotAgentActionValidator.ValidationException error = assertThrows(StrategyBotAgentActionValidator.ValidationException.class, () ->
                 validator.validate(context, new StrategyBotAgentActionProposal(
                         StrategyBotAgentActionType.HOLD,
                         null,
@@ -122,7 +122,7 @@ class StrategyBotAgentActionValidatorTest {
                         "v1",
                         null)));
 
-        assertEquals("strategy_bot_agent_rationale_required", error.getMessage());
+        assertEquals("strategy_bot_agent_rationale_required", error.code());
     }
 
     private StrategyBotAgentDecisionContext context(

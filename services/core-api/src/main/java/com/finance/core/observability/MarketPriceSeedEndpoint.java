@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import com.finance.core.web.ApiRequestException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -57,9 +58,9 @@ public class MarketPriceSeedEndpoint {
             payload.put("seededSymbol", normalizedSymbol);
             payload.put("seededPrice", price);
             return payload;
-        } catch (IllegalArgumentException ex) {
+        } catch (ApiRequestException ex) {
             payload.put("accepted", false);
-            payload.put("error", ex.getMessage());
+            payload.put("error", ex.code());
             return payload;
         }
     }

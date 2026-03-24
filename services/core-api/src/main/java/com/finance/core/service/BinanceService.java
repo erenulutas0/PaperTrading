@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketInstrumentResponse;
+import com.finance.core.web.ApiRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -115,7 +117,7 @@ public class BinanceService extends TextWebSocketHandler {
 
     public String seedTrackedPrice(String symbol, double price) {
         if (price <= 0) {
-            throw new IllegalArgumentException("invalid_market_price");
+            throw ApiRequestException.badRequest("invalid_market_price", "Invalid market price");
         }
         String normalizedSymbol = normalizeTrackedSymbol(symbol);
         prices.put(normalizedSymbol, price);
@@ -299,17 +301,17 @@ public class BinanceService extends TextWebSocketHandler {
     }
 
     private String normalizeTrackedSymbol(String symbol) {
-        String normalized = symbol == null ? "" : symbol.trim().toUpperCase();
+        String normalized = symbol == null ? "" : symbol.trim().toUpperCase(Locale.ROOT);
         if (!TRACKED_SYMBOLS.contains(normalized)) {
-            throw new IllegalArgumentException("invalid_market_symbol");
+            throw ApiRequestException.badRequest("invalid_market_symbol", "Invalid market symbol");
         }
         return normalized;
     }
 
     private String normalizeInterval(String interval) {
-        String normalized = interval == null ? "1h" : interval.trim().toLowerCase();
+        String normalized = interval == null ? "1h" : interval.trim().toLowerCase(Locale.ROOT);
         if (!SUPPORTED_INTERVALS.contains(normalized)) {
-            throw new IllegalArgumentException("invalid_market_interval");
+            throw ApiRequestException.badRequest("invalid_market_interval", "Invalid market interval");
         }
         return normalized;
     }
@@ -319,7 +321,7 @@ public class BinanceService extends TextWebSocketHandler {
             return new CandleQueryConfig(interval, normalizeLimit(limit, 500), beforeOpenTime - 1);
         }
 
-        String normalizedRange = range == null ? "1D" : range.trim().toUpperCase();
+        String normalizedRange = range == null ? "1D" : range.trim().toUpperCase(Locale.ROOT);
         if ("ALL".equals(normalizedRange)) {
             return new CandleQueryConfig(interval, normalizeLimit(limit, 500), null);
         }
@@ -331,7 +333,7 @@ public class BinanceService extends TextWebSocketHandler {
             case "1h" -> 60;
             case "4h" -> 240;
             case "1d" -> 1440;
-            default -> throw new IllegalArgumentException("invalid_market_interval");
+            default -> throw ApiRequestException.badRequest("invalid_market_interval", "Invalid market interval");
         };
 
         int rangeMinutes = switch (normalizedRange) {

@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -63,9 +64,9 @@ public class StrategyBotService {
                 .linkedPortfolioId(request.getLinkedPortfolioId())
                 .name(request.getName().trim())
                 .description(trimToNull(request.getDescription()))
-                .market(request.getMarket().trim().toUpperCase())
-                .symbol(request.getSymbol().trim().toUpperCase())
-                .timeframe(request.getTimeframe().trim().toUpperCase())
+                .market(request.getMarket().trim().toUpperCase(Locale.ROOT))
+                .symbol(request.getSymbol().trim().toUpperCase(Locale.ROOT))
+                .timeframe(request.getTimeframe().trim().toUpperCase(Locale.ROOT))
                 .entryRules(serializeRules(request.getEntryRules()))
                 .exitRules(serializeRules(request.getExitRules()))
                 .maxPositionSizePercent(request.getMaxPositionSizePercent())
@@ -106,13 +107,13 @@ public class StrategyBotService {
             bot.setDescription(trimToNull(request.getDescription()));
         }
         if (hasText(request.getMarket())) {
-            bot.setMarket(request.getMarket().trim().toUpperCase());
+            bot.setMarket(request.getMarket().trim().toUpperCase(Locale.ROOT));
         }
         if (hasText(request.getSymbol())) {
-            bot.setSymbol(request.getSymbol().trim().toUpperCase());
+            bot.setSymbol(request.getSymbol().trim().toUpperCase(Locale.ROOT));
         }
         if (hasText(request.getTimeframe())) {
-            bot.setTimeframe(request.getTimeframe().trim().toUpperCase());
+            bot.setTimeframe(request.getTimeframe().trim().toUpperCase(Locale.ROOT));
         }
         if (request.getEntryRules() != null) {
             bot.setEntryRules(serializeRules(request.getEntryRules()));
@@ -250,7 +251,7 @@ public class StrategyBotService {
             return fallback;
         }
         try {
-            return StrategyBot.Status.valueOf(raw.trim().toUpperCase());
+            return StrategyBot.Status.valueOf(raw.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw ApiRequestException.badRequest("invalid_strategy_bot_status", "Invalid strategy bot status");
         }

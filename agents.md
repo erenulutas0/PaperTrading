@@ -39,6 +39,205 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-24**: **Strategy Bot Agent Guardrails No Longer Encode Validation Semantics In Raw IllegalArgument Messages**
+  - **Problem observed**:
+    - The future agentic strategy-bot runtime already had a bounded action schema and validator foundation.
+    - But `StrategyBotAgentActionValidator` still expressed every guardrail breach as `IllegalArgumentException("code")`.
+    - That keeps downstream orchestration and tests coupled to raw exception text, which is the same class of drift phase-3 has been removing from the main REST surface.
+  - **Implementation**:
+    - Added `StrategyBotAgentActionValidator.ValidationException` with an explicit `code()` accessor.
+    - Switched validator guardrail failures to throw that typed exception instead of bare `IllegalArgumentException("...")`.
+    - Updated `StrategyBotAgentActionValidatorTest` to assert on `error.code()` rather than exception message text.
+  - **Operational impact**:
+    - future agent-runtime orchestration can branch on explicit guardrail codes without depending on message-string stability
+    - validator tests now lock the structured contract instead of incidental exception phrasing
+- **2026-03-24**: **Market Provider Validation Now Preserves Explicit Contracts Through Typed Exceptions**
+  - **Problem observed**:
+    - `MarketController` had already moved to `ApiRequestException` for its own query validation.
+    - But the market provider layer still emitted raw `IllegalArgumentException("invalid_market_*")` for:
+      - unsupported symbols
+      - invalid range / interval branches
+      - manual tracked-price seeding validation
+    - That left public market reads and the local market-price seed actuator vulnerable to drifting into the shared generic runtime fallback if controller handling changed again.
+  - **Implementation**:
+    - Updated `BinanceService` to throw typed `ApiRequestException.badRequest(...)` for:
+      - `invalid_market_price`
+      - `invalid_market_symbol`
+      - `invalid_market_interval`
+    - Updated `YahooBistMarketDataService` to throw typed `ApiRequestException.badRequest(...)` for:
+      - `invalid_market_symbol`
+      - `invalid_market_range`
+      - `invalid_market_interval`
+    - Updated `MarketPriceSeedEndpoint` to consume `ApiRequestException` and surface `ex.code()` instead of relying on exception-message text.
+    - Switched `MarketDataFacadeService` symbol normalization to `Locale.ROOT` so cross-market snapshot requests remain deterministic under Turkish locale too.
+    - Revalidated this slice with:
+      - `MarketControllerIntegrationTest`
+      - `BinanceServiceTest`
+      - `YahooBistMarketDataServiceTest`
+      - `MarketPriceSeedEndpointIntegrationTest`
+  - **Operational impact**:
+    - provider-originated market validation now survives controller/global fallback refactors without losing explicit `invalid_market_*` contracts
+    - local ops seeding tooling now returns stable machine-readable error codes instead of exception-message echoes
+- **2026-03-24**: **Strategy Bot Rule-Engine Insufficient-Candle Handling No Longer Relies On Exception Message Text**
+  - **Problem observed**:
+    - `StrategyBotRunService` intentionally suppresses one specific rule-engine condition during signal evaluation:
+      - insufficient candles for a token like moving-average or RSI checks
+    - That suppression path still keyed off:
+      - `ex.getMessage() == strategy_bot_rule_engine_insufficient_candles`
+    - This is brittle because the contract depends on raw exception text rather than type or explicit domain semantics.
+  - **Implementation**:
+    - Added a typed `StrategyBotRuleEngineService.InsufficientCandlesException`.
+    - `StrategyBotRuleEngineService.ensureMinimumCandles(...)` now throws that typed exception instead of a generic `IllegalArgumentException`.
+    - `StrategyBotRunService.evaluateRulesSafely(...)` now catches the typed exception directly and preserves the previous “no signal match” fallback behavior without parsing exception text.
+    - Added targeted rule-engine coverage for the typed exception path.
+  - **Operational impact**:
+    - strategy-bot execution no longer depends on message-string stability for this suppression branch
+    - future rule-engine refactors can change phrasing without breaking run orchestration behavior
+- **2026-03-24**: **Analytics, Liquidation, And Legacy Trade-History Parsing No Longer Depend On The JVM Locale**
+  - **Problem observed**:
+    - After the earlier locale-hardening slices, a small but real set of portfolio/analytics paths still used bare JVM-default casing:
+      - `PerformanceCalculationService` period parsing
+      - `PerformanceAnalyticsService` symbol-to-snapshot lookup
+      - `LiquidationService` side normalization
+      - `PortfolioController` legacy buy-type detection for null realized-PnL history rows
+    - Under Turkish locale, lower-case values like `all`, `bist100`, `short`, or `buy` could still normalize with dotted `İ`, which risks false period fallback, missing live snapshot joins, wrong liquidation branch selection, or missing historical zero-PnL normalization.
+  - **Implementation**:
+    - Switched those normalization paths to `Locale.ROOT`.
+    - Added targeted regression coverage that temporarily sets the default locale to `tr-TR` and verifies:
+      - lower-case analytics periods still resolve
+      - lower-case `bist100` snapshot lookup still joins correctly
+      - lower-case `short` still liquidates as `SHORT`
+      - lower-case legacy `buy` history rows still normalize null realized PnL to zero
+      - lower-case analytics `sell` trade types still count as sells
+  - **Operational impact**:
+    - portfolio analytics and liquidation behavior are more deterministic across deployment locales
+    - older persisted trade-history rows and lower-case client payloads are less likely to drift under Turkish-hosted runtimes
+- **2026-03-24**: **BIST100 Universe Symbol Parsing No Longer Depends On The JVM Locale**
+  - **Problem observed**:
+    - The BIST provider stack had already been moved behind its own abstraction, but `Bist100UniverseService` still used bare JVM-default uppercasing when:
+      - normalizing seed symbols
+      - parsing dynamic HTML tokens
+    - Under Turkish locale, lower-case `bist100`-style inputs can normalize with dotted `İ`, which risks false symbol mismatches between the seed universe and runtime callers.
+  - **Implementation**:
+    - Switched seed/dynamic symbol normalization to `Locale.ROOT`.
+    - Added a focused `Bist100UniverseServiceTest` that temporarily sets the default locale to `tr-TR` and verifies lower-case `bist100` still normalizes correctly.
+  - **Operational impact**:
+    - BIST100 universe membership checks are more deterministic across deployment locales
+    - provider-side symbol filtering is less likely to drift on Turkish-hosted runtimes
+- **2026-03-24**: **Strategy Bot Run Parsing No Longer Depends On The JVM Locale**
+  - **Problem observed**:
+    - Strategy-bot execution contracts had already been hardened heavily, but `StrategyBotRunService` still had several bare JVM-default casing paths in:
+      - `runMode`
+      - board `runMode` / `sort`
+      - `market`
+      - `symbol`
+      - `timeframe`
+    - Under Turkish locale, lower-case inputs like `bist100` or enum-style values can normalize with dotted `İ`, risking false invalid-mode/market handling or downstream symbol drift.
+  - **Implementation**:
+    - Switched those normalizers to `Locale.ROOT`.
+    - Added focused `StrategyBotRunServiceTest` coverage that temporarily sets the default locale to `tr-TR` and verifies lower-case `forward_test`, `bist100`, and upper-case `1H` still resolve correctly.
+  - **Operational impact**:
+    - strategy-bot run orchestration is now more deterministic across deployment locales
+    - execution and board filters are less likely to diverge from saved bot config due to host-locale quirks
+- **2026-03-24**: **Portfolio Visibility And Watchlist Symbol Parsing No Longer Depend On The JVM Locale**
+  - **Problem observed**:
+    - Two still-user-facing parse paths were using bare JVM-default uppercasing:
+      - `PortfolioController` visibility parsing
+      - `WatchlistService` item symbol normalization
+    - Under Turkish locale, lower-case values like `private` and `bist100` can normalize with dotted `İ`, producing false invalid-visibility failures or persisted symbol drift.
+  - **Implementation**:
+    - Switched both normalization paths to `Locale.ROOT`.
+    - Added targeted regression coverage that temporarily sets the default locale to `tr-TR` and verifies:
+      - portfolio create still accepts lower-case `private`
+      - watchlist add-item still persists `BIST100`
+  - **Operational impact**:
+    - account-facing portfolio and watchlist inputs now behave more deterministically across deployment locales
+    - lower-case client payloads no longer depend on host locale quirks to hit the intended contract branch
+- **2026-03-24**: **Copy-Trading And Interaction Input Normalization No Longer Depends On The JVM Locale**
+  - **Problem observed**:
+    - The phase-3 error-contract work had already tightened `CopyTradingService` and `InteractionService`, but a few user-facing parse paths still used bare JVM-default uppercasing:
+      - copy-trade `symbol`
+      - copy-trade `side`
+      - interaction `targetType`
+    - Under Turkish locale, lower-case values like `bist100` or `portfolio` could normalize with dotted `İ`, causing false symbol drift or invalid target-type parsing.
+  - **Implementation**:
+    - Switched those normalization paths to `Locale.ROOT`.
+    - Added focused regression coverage that temporarily sets the default locale to `tr-TR` and verifies:
+      - copy-buy still persists `BIST100` and `LONG`
+      - interaction like still resolves lower-case `portfolio`
+  - **Operational impact**:
+    - copy-trading fanout and social interaction parsing now behave deterministically across deployment locales
+    - lower-case client inputs no longer depend on host locale quirks to hit the intended branch
+- **2026-03-24**: **Market Provider Query Normalization No Longer Depends On The JVM Locale**
+  - **Problem observed**:
+    - Public market query contracts had already been hardened around explicit controller validation, but provider-side normalization still used bare JVM-default casing in:
+      - `BinanceService`
+      - `YahooBistMarketDataService`
+    - That left tracked symbol, range, interval, and Yahoo ticker normalization vulnerable to locale-specific casing drift, especially under Turkish locale.
+  - **Implementation**:
+    - Switched provider normalization to `Locale.ROOT` for:
+      - tracked symbols
+      - query `range`
+      - query `interval`
+      - BIST symbol to Yahoo ticker conversion
+    - Added focused provider tests that temporarily set the default locale to `tr-TR` and invoke the relevant normalizers through reflection.
+  - **Operational impact**:
+    - market-provider reads are now more deterministic across deployment locales
+    - lower-case or mixed-case market query inputs are less likely to degrade into false unsupported-symbol or unsupported-range paths on Turkish-hosted runtimes
+- **2026-03-24**: **Strategy Bot Field Normalization No Longer Depends On The JVM Locale**
+  - **Problem observed**:
+    - `StrategyBotService` had already been hardened around:
+      - explicit CRUD contracts
+      - linked-portfolio ownership
+      - explicit risk/status validation
+    - Core text normalization still used bare JVM-default uppercasing for:
+      - `market`
+      - `symbol`
+      - `timeframe`
+      - `status`
+    - Under Turkish locale, lower-case market symbols like `bist100` can normalize with dotted `İ`, which risks persisted bot config drift and later lookup mismatches.
+  - **Implementation**:
+    - Switched `StrategyBotService` normalization to `Locale.ROOT` for create/update/status parsing.
+    - Added focused `StrategyBotServiceTest` coverage that temporarily sets the default locale to `tr-TR` and verifies lower-case `bist100` / `thyao` / `1h` still persist as `BIST100` / `THYAO` / `1H`.
+  - **Operational impact**:
+    - strategy-bot config writes now behave deterministically across deployment locales
+    - locale-specific casing quirks are less likely to create stored config drift between authoring and execution paths
+- **2026-03-24**: **Analysis Post Normalization No Longer Depends On The JVM Locale**
+  - **Problem observed**:
+    - `AnalysisPostService` already returned explicit contracts for:
+      - missing users
+      - invalid direction
+      - market-data unavailability
+      - invalid target price
+    - Two normalization steps still depended on bare JVM-default casing:
+      - `instrumentSymbol.toUpperCase()`
+      - `direction.toUpperCase()`
+    - Under Turkish locale, lower-case inputs like `bist100` or `bullish` can normalize with dotted `İ`, which risks false market-data misses or invalid direction parsing.
+  - **Implementation**:
+    - Switched `AnalysisPostService` symbol and direction normalization to `Locale.ROOT`.
+    - Added targeted `AnalysisPostServiceTest` coverage that temporarily sets the default locale to `tr-TR` and verifies lower-case `bist100` / `bullish` still create a valid post.
+  - **Operational impact**:
+    - analysis-post create behavior is now deterministic across deployment locales
+    - user-facing symbol/direction inputs no longer depend on host locale quirks to resolve correctly
+- **2026-03-24**: **Chart Note Market Query Binding No Longer Falls Back To Framework-Generic 400s**
+  - **Problem observed**:
+    - `MarketChartNoteController` had already been hardened around:
+      - owner existence
+      - note ownership
+      - explicit symbol/body validation
+      - explicit page/size validation
+    - One query edge still bypassed the correlated API contract:
+      - `market` was bound directly as `MarketType`
+    - That meant invalid values like `FOREX` could still fail in Spring enum binding before controller-local error normalization ran.
+  - **Implementation**:
+    - Changed `GET /api/v1/market/chart-notes` to accept raw `market` text and parse it explicitly through `MarketType.fromNullable(...)`.
+    - Invalid values now return:
+      - `invalid_market_chart_note_market`
+    - Also switched `MarketType.fromNullable(...)` to `Locale.ROOT` normalization for deterministic casing behavior.
+    - Added integration coverage for invalid `market` plus `requestId` echo.
+  - **Operational impact**:
+    - chart-note read callers now get the same machine-readable contract discipline as the other hardened query surfaces
+    - invalid enum-style query input no longer leaks through as a framework-default `400`
 - **2026-03-24**: **Fresh Local Audit Validation Now Seeds Market Data Through A Property-Gated Actuator Endpoint**
   - **Problem observed**:
     - `run_audit_validation_suite.ps1` already validated:

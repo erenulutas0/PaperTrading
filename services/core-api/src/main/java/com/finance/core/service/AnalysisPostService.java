@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -53,7 +54,7 @@ public class AnalysisPostService {
         AnalysisPost.Direction direction = parseDirection(request.getDirection());
 
         // Snapshot current market price
-        String symbol = request.getInstrumentSymbol().toUpperCase();
+        String symbol = request.getInstrumentSymbol().toUpperCase(Locale.ROOT);
         BigDecimal currentPrice = loadCurrentPrice(symbol);
 
         // Validate target price direction consistency
@@ -208,7 +209,7 @@ public class AnalysisPostService {
 
     private AnalysisPost.Direction parseDirection(String rawDirection) {
         try {
-            return AnalysisPost.Direction.valueOf(rawDirection.trim().toUpperCase());
+            return AnalysisPost.Direction.valueOf(rawDirection.trim().toUpperCase(Locale.ROOT));
         } catch (RuntimeException exception) {
             throw ApiRequestException.badRequest("invalid_analysis_direction", "Invalid analysis direction");
         }

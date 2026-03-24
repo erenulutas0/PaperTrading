@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -182,6 +183,31 @@ class PortfolioControllerIntegrationTest {
     }
 
     @Test
+    void getPortfolioHistory_shouldNormalizeLegacyLowercaseBuyNullRealizedPnlToZeroUnderTurkishLocale() throws Exception {
+        tradeActivityRepository.save(TradeActivity.builder()
+                .portfolioId(portfolio.getId())
+                .symbol("BTCUSDT")
+                .type("buy")
+                .side("LONG")
+                .quantity(BigDecimal.valueOf(0.1))
+                .price(BigDecimal.valueOf(50000))
+                .realizedPnl(null)
+                .build());
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            mockMvc.perform(get("/api/v1/portfolios/{id}/history", portfolio.getId()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content", hasSize(1)))
+                    .andExpect(jsonPath("$.content[0].type").value("buy"))
+                    .andExpect(jsonPath("$.content[0].realizedPnl").value(0));
+        } finally {
+            Locale.setDefault(previous);
+        }
+    }
+
+    @Test
     void getPortfolioHistory_unknownPortfolio_shouldReturnUnifiedErrorContract() throws Exception {
         mockMvc.perform(get("/api/v1/portfolios/{id}/history", java.util.UUID.randomUUID())
                         .header("X-Request-Id", "portfolio-err-3"))
@@ -249,6 +275,27 @@ class PortfolioControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("invalid_visibility"))
                 .andExpect(jsonPath("$.message").value("Invalid visibility value. Use PUBLIC or PRIVATE."))
                 .andExpect(jsonPath("$.requestId").value("portfolio-err-2"));
+    }
+
+    @Test
+    void createPortfolio_withLowercasePrivateUnderTurkishLocale_shouldStillSucceed() throws Exception {
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            mockMvc.perform(post("/api/v1/portfolios")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "name": "Turkish Locale Visibility",
+                                      "ownerId": "owner-test",
+                                      "visibility": "private"
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.visibility").value("PRIVATE"));
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     @Test

@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.Locale;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -183,6 +184,39 @@ class AnalysisPostServiceTest {
 
                         AnalysisPostResponse response = postService.createPost(authorId, request);
                         assertEquals("BTCUSDT", response.getInstrumentSymbol());
+                }
+
+                @Test
+                void createPost_normalizationIsLocaleSafeUnderTurkishLocale() {
+                        when(userRepository.findById(authorId)).thenReturn(Optional.of(author));
+                        when(binanceService.getPrices()).thenReturn(Map.of("BIST100", 9500.0));
+                        when(postRepository.save(any())).thenAnswer(inv -> {
+                                AnalysisPost p = inv.getArgument(0);
+                                p.setId(UUID.randomUUID());
+                                return p;
+                        });
+                        when(postRepository.countByAuthorIdAndDeletedFalse(authorId)).thenReturn(1L);
+                        when(postRepository.countByAuthorIdAndOutcomeAndDeletedFalse(authorId,
+                                        AnalysisPost.Outcome.HIT))
+                                        .thenReturn(0L);
+
+                        AnalysisPostRequest request = AnalysisPostRequest.builder()
+                                        .title("Bist test")
+                                        .content("Content")
+                                        .instrumentSymbol("bist100")
+                                        .direction("bullish")
+                                        .targetPrice(BigDecimal.valueOf(10000))
+                                        .build();
+
+                        Locale previous = Locale.getDefault();
+                        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+                        try {
+                                AnalysisPostResponse response = postService.createPost(authorId, request);
+                                assertEquals("BIST100", response.getInstrumentSymbol());
+                                assertEquals("BULLISH", response.getDirection());
+                        } finally {
+                                Locale.setDefault(previous);
+                        }
                 }
 
                 @Test

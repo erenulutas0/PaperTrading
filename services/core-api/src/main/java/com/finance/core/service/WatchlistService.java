@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -73,7 +74,7 @@ public class WatchlistService {
 
         WatchlistItem item = WatchlistItem.builder()
                 .watchlist(watchlist)
-                .symbol(symbol.toUpperCase())
+                .symbol(symbol.toUpperCase(Locale.ROOT))
                 .alertPriceAbove(alertAbove)
                 .alertPriceBelow(alertBelow)
                 .notes(notes)

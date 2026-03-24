@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -174,7 +175,7 @@ public class InteractionService {
             throw ApiRequestException.badRequest("interaction_target_type_required", "Target type is required");
         }
         try {
-            return Interaction.TargetType.valueOf(typeStr.toUpperCase().trim());
+            return Interaction.TargetType.valueOf(typeStr.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw ApiRequestException.badRequest(
                     "interaction_target_type_invalid",

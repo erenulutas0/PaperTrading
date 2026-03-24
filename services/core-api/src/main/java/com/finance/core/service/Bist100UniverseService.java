@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,7 +75,7 @@ public class Bist100UniverseService {
             }
 
             Set<String> parsed = new LinkedHashSet<>();
-            Matcher matcher = SYMBOL_PATTERN.matcher(html.toUpperCase());
+            Matcher matcher = SYMBOL_PATTERN.matcher(html.toUpperCase(Locale.ROOT));
             while (matcher.find()) {
                 String token = matcher.group();
                 if (seedSymbols.contains(token)) {
@@ -117,6 +118,6 @@ public class Bist100UniverseService {
     }
 
     private String normalizeSymbol(String symbol) {
-        return symbol == null ? "" : symbol.trim().toUpperCase();
+        return symbol == null ? "" : symbol.trim().toUpperCase(Locale.ROOT);
     }
 }

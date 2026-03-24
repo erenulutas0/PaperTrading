@@ -4,6 +4,7 @@ import com.finance.core.dto.MarketType;
 import com.finance.core.service.MarketDataFacadeService;
 import com.finance.core.web.ApiErrorResponse;
 import com.finance.core.web.ApiErrorResponses;
+import com.finance.core.web.ApiRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -32,8 +33,8 @@ public class MarketController {
             HttpServletRequest request) {
         try {
             return ResponseEntity.ok(marketDataFacadeService.getPrices(parseMarketType(market)));
-        } catch (IllegalArgumentException ex) {
-            return handleMarketError(ex, request);
+        } catch (ApiRequestException ex) {
+            return ApiErrorResponses.build(ex.status(), ex.code(), ex.getMessage(), ex.details(), request);
         }
     }
 
@@ -43,8 +44,8 @@ public class MarketController {
             HttpServletRequest request) {
         try {
             return ResponseEntity.ok(marketDataFacadeService.getSupportedInstruments(parseMarketType(market)));
-        } catch (IllegalArgumentException ex) {
-            return handleMarketError(ex, request);
+        } catch (ApiRequestException ex) {
+            return ApiErrorResponses.build(ex.status(), ex.code(), ex.getMessage(), ex.details(), request);
         }
     }
 
@@ -70,8 +71,8 @@ public class MarketController {
                     interval,
                     parsedBeforeOpenTime,
                     parsedLimit));
-        } catch (IllegalArgumentException ex) {
-            return handleMarketError(ex, request);
+        } catch (ApiRequestException ex) {
+            return ApiErrorResponses.build(ex.status(), ex.code(), ex.getMessage(), ex.details(), request);
         }
     }
 
@@ -79,27 +80,27 @@ public class MarketController {
         try {
             return MarketType.fromNullable(market);
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("invalid_market_type");
+            throw ApiRequestException.badRequest("invalid_market_type", "Invalid market type");
         }
     }
 
     private void validateSymbol(String symbol) {
         if (symbol == null || symbol.isBlank()) {
-            throw new IllegalArgumentException("market_symbol_required");
+            throw ApiRequestException.badRequest("market_symbol_required", "Market symbol is required");
         }
     }
 
     private void validateRange(String range) {
         String normalized = range == null ? "1D" : range.trim().toUpperCase(Locale.ROOT);
         if (!SUPPORTED_RANGES.contains(normalized)) {
-            throw new IllegalArgumentException("invalid_market_range");
+            throw ApiRequestException.badRequest("invalid_market_range", "Invalid market range");
         }
     }
 
     private void validateInterval(String interval) {
         String normalized = interval == null ? "1h" : interval.trim().toLowerCase(Locale.ROOT);
         if (!SUPPORTED_INTERVALS.contains(normalized)) {
-            throw new IllegalArgumentException("invalid_market_interval");
+            throw ApiRequestException.badRequest("invalid_market_interval", "Invalid market interval");
         }
     }
 
@@ -111,10 +112,10 @@ public class MarketController {
         try {
             parsed = Long.parseLong(rawBeforeOpenTime.trim());
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("invalid_market_before_open_time");
+            throw ApiRequestException.badRequest("invalid_market_before_open_time", "Invalid market beforeOpenTime");
         }
         if (parsed <= 0) {
-            throw new IllegalArgumentException("invalid_market_before_open_time");
+            throw ApiRequestException.badRequest("invalid_market_before_open_time", "Invalid market beforeOpenTime");
         }
         return parsed;
     }
@@ -127,84 +128,11 @@ public class MarketController {
         try {
             parsed = Integer.parseInt(rawLimit.trim());
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("invalid_market_limit");
+            throw ApiRequestException.badRequest("invalid_market_limit", "Invalid market limit");
         }
         if (parsed <= 0 || parsed > 1000) {
-            throw new IllegalArgumentException("invalid_market_limit");
+            throw ApiRequestException.badRequest("invalid_market_limit", "Invalid market limit");
         }
         return parsed;
-    }
-
-    private ResponseEntity<ApiErrorResponse> handleMarketError(
-            IllegalArgumentException ex,
-            HttpServletRequest request) {
-        String code = resolveMarketErrorCode(ex);
-        return switch (code) {
-            case "invalid_market_type" -> ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    code,
-                    "Invalid market type",
-                    null,
-                    request);
-            case "market_symbol_required" -> ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    code,
-                    "Market symbol is required",
-                    null,
-                    request);
-            case "invalid_market_symbol" -> ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    code,
-                    "Invalid market symbol",
-                    null,
-                    request);
-            case "invalid_market_range" -> ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    code,
-                    "Invalid market range",
-                    null,
-                    request);
-            case "invalid_market_interval" -> ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    code,
-                    "Invalid market interval",
-                    null,
-                    request);
-            case "invalid_market_before_open_time" -> ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    code,
-                    "Invalid market beforeOpenTime",
-                    null,
-                    request);
-            case "invalid_market_limit" -> ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    code,
-                    "Invalid market limit",
-                    null,
-                    request);
-            default -> ApiErrorResponses.build(
-                    HttpStatus.BAD_REQUEST,
-                    "market_request_failed",
-                    "Market request failed",
-                    null,
-                    request);
-        };
-    }
-
-    private String resolveMarketErrorCode(IllegalArgumentException ex) {
-        String message = ex.getMessage();
-        if (message == null || message.isBlank()) {
-            return "market_request_failed";
-        }
-        if (message.equals("invalid_market_type")
-                || message.equals("market_symbol_required")
-                || message.equals("invalid_market_symbol")
-                || message.equals("invalid_market_range")
-                || message.equals("invalid_market_interval")
-                || message.equals("invalid_market_before_open_time")
-                || message.equals("invalid_market_limit")) {
-            return message;
-        }
-        return "market_request_failed";
     }
 }

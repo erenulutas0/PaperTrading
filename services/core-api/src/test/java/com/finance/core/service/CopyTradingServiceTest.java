@@ -23,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -194,6 +195,33 @@ class CopyTradingServiceTest {
             // Should update existing item's average price
             verify(portfolioItemRepository).save(existingItem);
             assertTrue(existingItem.getQuantity().compareTo(new BigDecimal("0.05")) > 0); // quantity increased
+        }
+
+        @Test
+        void lowercaseSymbolAndSide_areLocaleSafeUnderTurkishLocale() {
+            when(participantRepository.findByPortfolioId(eq(originalPortfolioId), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(participant)));
+            when(portfolioRepository.findById(originalPortfolioId)).thenReturn(Optional.of(originalPortfolio));
+            when(portfolioRepository.findById(clonedPortfolioId)).thenReturn(Optional.of(clonedPortfolio));
+
+            TradeRequest request = new TradeRequest();
+            request.setSymbol("bist100");
+            request.setQuantity(new BigDecimal("0.1"));
+            request.setLeverage(2);
+            request.setSide("long");
+
+            Locale previous = Locale.getDefault();
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            try {
+                copyTradingService.replicateBuy(originalPortfolioId, request, new BigDecimal("100"));
+            } finally {
+                Locale.setDefault(previous);
+            }
+
+            ArgumentCaptor<PortfolioItem> itemCaptor = ArgumentCaptor.forClass(PortfolioItem.class);
+            verify(portfolioItemRepository).save(itemCaptor.capture());
+            assertEquals("BIST100", itemCaptor.getValue().getSymbol());
+            assertEquals("LONG", itemCaptor.getValue().getSide());
         }
     }
 

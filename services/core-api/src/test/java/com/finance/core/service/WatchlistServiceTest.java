@@ -143,6 +143,27 @@ class WatchlistServiceTest {
         }
 
         @Test
+        void addsItemWithLocaleSafeSymbolNormalizationUnderTurkishLocale() {
+            stubExistingUser(userId);
+            when(watchlistRepository.findByIdAndUserId(watchlistId, userId)).thenReturn(Optional.of(watchlist));
+            when(watchlistItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            Locale previous = Locale.getDefault();
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+            try {
+                WatchlistItem item = watchlistService.addItem(
+                        watchlistId, userId,
+                        "bist100",
+                        null,
+                        null,
+                        null);
+                assertEquals("BIST100", item.getSymbol());
+            } finally {
+                Locale.setDefault(previous);
+            }
+        }
+
+        @Test
         void throwsForNonOwnedWatchlist() {
             UUID otherUserId = UUID.randomUUID();
             stubExistingUser(otherUserId);

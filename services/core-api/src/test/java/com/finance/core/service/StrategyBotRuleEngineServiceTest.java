@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StrategyBotRuleEngineServiceTest {
 
@@ -83,6 +84,16 @@ class StrategyBotRuleEngineServiceTest {
 
         assertThat(evaluation.matched()).isFalse();
         assertThat(evaluation.unsupportedRules()).containsExactly("macd_cross");
+    }
+
+    @Test
+    void evaluate_shouldThrowTypedInsufficientCandlesException() throws Exception {
+        assertThatThrownBy(() -> service.evaluate(
+                objectMapper.readTree("{\"all\":[\"price_above_ma_3\"]}"),
+                List.of(candle(1, 100, 101, 99, 100, 1000)),
+                null))
+                .isInstanceOf(StrategyBotRuleEngineService.InsufficientCandlesException.class)
+                .hasMessage(StrategyBotRuleEngineService.INSUFFICIENT_CANDLES_CODE);
     }
 
     private List<MarketCandleResponse> bullishCandles() {

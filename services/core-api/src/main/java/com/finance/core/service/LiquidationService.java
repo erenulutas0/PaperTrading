@@ -18,6 +18,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -63,7 +64,7 @@ public class LiquidationService {
                         Integer leverage = item.getLeverage() != null ? item.getLeverage() : 1;
 
                         if (leverage > 1) {
-                            String side = item.getSide() != null ? item.getSide().toUpperCase() : "LONG";
+                            String side = item.getSide() != null ? item.getSide().toUpperCase(Locale.ROOT) : "LONG";
                             boolean isShort = "SHORT".equals(side);
 
                             // Calc Liquidation Price

@@ -18,6 +18,12 @@ public class StrategyBotRuleEngineService {
 
     public static final String INSUFFICIENT_CANDLES_CODE = "strategy_bot_rule_engine_insufficient_candles";
 
+    static final class InsufficientCandlesException extends IllegalArgumentException {
+        InsufficientCandlesException() {
+            super(INSUFFICIENT_CANDLES_CODE);
+        }
+    }
+
     private static final Pattern PRICE_ABOVE_MA = Pattern.compile("^price_above_ma_(\\d+)$");
     private static final Pattern PRICE_BELOW_MA = Pattern.compile("^price_below_ma_(\\d+)$");
     private static final Pattern RSI_ABOVE = Pattern.compile("^rsi_above_([0-9]+(?:\\.[0-9]+)?)$");
@@ -349,7 +355,7 @@ public class StrategyBotRuleEngineService {
 
     private void ensureMinimumCandles(List<MarketCandleResponse> candles, int expected) {
         if (candles == null || candles.size() < expected) {
-            throw new IllegalArgumentException(INSUFFICIENT_CANDLES_CODE);
+            throw new InsufficientCandlesException();
         }
     }
 

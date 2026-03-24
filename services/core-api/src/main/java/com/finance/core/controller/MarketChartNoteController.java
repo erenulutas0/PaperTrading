@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @RestController
@@ -37,7 +38,7 @@ public class MarketChartNoteController {
     @GetMapping
     public ResponseEntity<?> getNotes(
             @CurrentUserId UUID userId,
-            @RequestParam(required = false) MarketType market,
+            @RequestParam(required = false) String market,
             @RequestParam String symbol,
             @RequestParam(required = false) String page,
             @RequestParam(required = false) String size,
@@ -51,8 +52,9 @@ public class MarketChartNoteController {
                 "Invalid market chart note page",
                 "invalid_market_chart_note_size",
                 "Invalid market chart note size");
+        MarketType parsedMarket = parseMarket(market);
         try {
-            return ResponseEntity.ok(marketChartNoteService.getNotes(userId, market, symbol, effectivePageable));
+            return ResponseEntity.ok(marketChartNoteService.getNotes(userId, parsedMarket, symbol, effectivePageable));
         } catch (RuntimeException exception) {
             return toChartNoteError(
                     exception,
@@ -124,7 +126,17 @@ public class MarketChartNoteController {
                 HttpStatus.BAD_REQUEST,
                 fallbackCode,
                 fallbackMessage,
-                null,
-                httpRequest);
+                    null,
+                    httpRequest);
+    }
+
+    private MarketType parseMarket(String rawMarket) {
+        try {
+            return MarketType.fromNullable(rawMarket);
+        } catch (IllegalArgumentException exception) {
+            throw ApiRequestException.badRequest(
+                    "invalid_market_chart_note_market",
+                    "Invalid market chart note market");
+        }
     }
 }

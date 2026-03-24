@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -48,7 +49,7 @@ public class MarketDataFacadeService {
     public Map<String, MarketInstrumentResponse> getInstrumentSnapshots(Collection<String> symbols) {
         List<String> requested = symbols.stream()
                 .filter(symbol -> symbol != null && !symbol.isBlank())
-                .map(String::toUpperCase)
+                .map(symbol -> symbol.toUpperCase(Locale.ROOT))
                 .distinct()
                 .toList();
 

@@ -4,6 +4,7 @@ import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
 import com.finance.core.service.BinanceService;
 import com.finance.core.service.MarketDataFacadeService;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -148,7 +149,7 @@ class MarketControllerIntegrationTest {
                 eq("1h"),
                 isNull(),
                 isNull()))
-                .thenThrow(new IllegalArgumentException("invalid_market_symbol"));
+                .thenThrow(ApiRequestException.badRequest("invalid_market_symbol", "Invalid market symbol"));
 
         mockMvc.perform(get("/api/v1/market/candles").param("symbol", "DOGEUSDT"))
                 .andExpect(status().isBadRequest())
@@ -159,7 +160,7 @@ class MarketControllerIntegrationTest {
     }
 
     @Test
-    void getCandles_whenUnexpectedValidationRuntimeOccurs_shouldReturnGenericFallbackMessage() throws Exception {
+    void getCandles_whenUnexpectedValidationRuntimeOccurs_shouldReturnSharedGenericFallback() throws Exception {
         when(marketDataFacadeService.getCandles(
                 eq(MarketType.CRYPTO),
                 eq("BTCUSDT"),
@@ -174,8 +175,8 @@ class MarketControllerIntegrationTest {
                         .header("X-Request-Id", "market-fallback-1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(header().string("X-Request-Id", "market-fallback-1"))
-                .andExpect(jsonPath("$.code").value("market_request_failed"))
-                .andExpect(jsonPath("$.message").value("Market request failed"))
+                .andExpect(jsonPath("$.code").value("bad_request"))
+                .andExpect(jsonPath("$.message").value("Unexpected error"))
                 .andExpect(jsonPath("$.requestId").value("market-fallback-1"));
     }
 

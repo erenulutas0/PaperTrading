@@ -17,9 +17,11 @@ import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -90,6 +92,29 @@ class LiquidationServiceTest {
 
         verify(portfolioItemRepository, times(1)).delete(leveragedItem);
         verify(tradeActivityRepository, times(1)).save(any(TradeActivity.class));
+    }
+
+    @Test
+    void testShortLiquidation_lowercaseSideIsLocaleSafe() {
+        leveragedItem.setSide("short");
+        when(binanceService.getPrices()).thenReturn(Map.of("BTCUSDT", 11100.0));
+        when(portfolioRepository.findAllIds(PageRequest.of(0, 250)))
+                .thenReturn(new PageImpl<>(java.util.List.of(portfolio.getId()), PageRequest.of(0, 250), 1));
+        when(portfolioRepository.findByIdIn(java.util.List.of(portfolio.getId())))
+                .thenReturn(java.util.List.of(portfolio));
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            liquidationService.monitorLiquidations();
+        } finally {
+            Locale.setDefault(previous);
+        }
+
+        verify(portfolioItemRepository).delete(leveragedItem);
+        var tradeCaptor = org.mockito.ArgumentCaptor.forClass(TradeActivity.class);
+        verify(tradeActivityRepository).save(tradeCaptor.capture());
+        assertEquals("SHORT", tradeCaptor.getValue().getSide());
     }
 
     @Test

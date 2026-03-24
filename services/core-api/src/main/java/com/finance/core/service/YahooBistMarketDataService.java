@@ -3,6 +3,7 @@ package com.finance.core.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketInstrumentResponse;
+import com.finance.core.web.ApiRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -96,7 +98,7 @@ public class YahooBistMarketDataService {
             if (results != null && results.isArray()) {
                 for (JsonNode result : results) {
                     String yahooSymbol = result.path("symbol").asText("");
-                    String symbol = yahooSymbol.replace(".IS", "").toUpperCase();
+                    String symbol = yahooSymbol.replace(".IS", "").toUpperCase(Locale.ROOT);
                     if (!normalizedSymbols.contains(symbol)) {
                         continue;
                     }
@@ -129,7 +131,7 @@ public class YahooBistMarketDataService {
     public List<MarketCandleResponse> getCandles(String symbol, String range, String interval, Long beforeOpenTime, Integer limit) {
         String normalizedSymbol = normalizeSymbol(symbol);
         if (!universeService.supportsSymbol(normalizedSymbol)) {
-            throw new IllegalArgumentException("invalid_market_symbol");
+            throw ApiRequestException.badRequest("invalid_market_symbol", "Invalid market symbol");
         }
         String normalizedInterval = normalizeInterval(interval);
         CandleQuery query = mapQuery(range, normalizedInterval, beforeOpenTime, limit);
@@ -183,7 +185,7 @@ public class YahooBistMarketDataService {
             return new CandleQuery(toYahooInterval(interval), null, period1, period2);
         }
 
-        String normalizedRange = range == null ? "1D" : range.trim().toUpperCase();
+        String normalizedRange = range == null ? "1D" : range.trim().toUpperCase(Locale.ROOT);
         if ("ALL".equals(normalizedRange)) {
             long period2 = Instant.now().getEpochSecond();
             long period1 = Math.max(1L, period2 - (long) normalizeLimit(limit, 500) * secondsPerInterval(interval));
@@ -197,7 +199,7 @@ public class YahooBistMarketDataService {
             case "3M" -> "3mo";
             case "6M" -> "6mo";
             case "1Y" -> "1y";
-            default -> throw new IllegalArgumentException("invalid_market_range");
+            default -> throw ApiRequestException.badRequest("invalid_market_range", "Invalid market range");
         };
         return new CandleQuery(toYahooInterval(interval), yahooRange, null, null);
     }
@@ -206,7 +208,7 @@ public class YahooBistMarketDataService {
         return switch (interval) {
             case "1m", "15m", "30m", "1h", "1d" -> interval;
             case "4h" -> "1h";
-            default -> throw new IllegalArgumentException("invalid_market_interval");
+            default -> throw ApiRequestException.badRequest("invalid_market_interval", "Invalid market interval");
         };
     }
 
@@ -218,7 +220,7 @@ public class YahooBistMarketDataService {
             case "1h" -> 3600L;
             case "4h" -> 14400L;
             case "1d" -> 86400L;
-            default -> throw new IllegalArgumentException("invalid_market_interval");
+            default -> throw ApiRequestException.badRequest("invalid_market_interval", "Invalid market interval");
         };
     }
 
@@ -230,13 +232,13 @@ public class YahooBistMarketDataService {
     }
 
     private String normalizeSymbol(String symbol) {
-        return symbol == null ? "" : symbol.trim().toUpperCase();
+        return symbol == null ? "" : symbol.trim().toUpperCase(Locale.ROOT);
     }
 
     private String normalizeInterval(String interval) {
-        String normalized = interval == null ? "1h" : interval.trim().toLowerCase();
+        String normalized = interval == null ? "1h" : interval.trim().toLowerCase(Locale.ROOT);
         if (!SUPPORTED_INTERVALS.contains(normalized)) {
-            throw new IllegalArgumentException("invalid_market_interval");
+            throw ApiRequestException.badRequest("invalid_market_interval", "Invalid market interval");
         }
         return normalized;
     }

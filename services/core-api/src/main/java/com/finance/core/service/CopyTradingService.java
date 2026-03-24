@@ -105,9 +105,9 @@ public class CopyTradingService {
             return;
         }
 
-        String symbol = request.getSymbol().toUpperCase();
+        String symbol = request.getSymbol().toUpperCase(Locale.ROOT);
         Integer leverage = request.getLeverage() != null && request.getLeverage() > 0 ? request.getLeverage() : 1;
-        String side = request.getSide() != null ? request.getSide().toUpperCase() : "LONG";
+        String side = request.getSide() != null ? request.getSide().toUpperCase(Locale.ROOT) : "LONG";
 
         BigDecimal notionalValue = executedPrice.multiply(copyQty);
         BigDecimal requiredMargin = notionalValue.divide(BigDecimal.valueOf(leverage), 8, RoundingMode.HALF_UP);

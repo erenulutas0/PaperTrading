@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -309,6 +310,94 @@ class PerformanceAnalyticsServiceTest {
 
         assertEquals(80.0, (double) result.get("predictionWinRate"), 0.001);
         verify(analysisPostRepository, never()).countByAuthorIdAndOutcomeAndDeletedFalse(eq(viewerId), any());
+    }
+
+    @Test
+    void getFullAnalytics_shouldResolveLowercaseBistSymbolSnapshotUnderTurkishLocale() {
+        Portfolio portfolio = Portfolio.builder()
+                .id(portfolioId)
+                .name("BIST Alpha")
+                .balance(BigDecimal.valueOf(100000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .ownerId(authorId.toString())
+                .items(List.of(
+                        PortfolioItem.builder()
+                                .symbol("bist100")
+                                .quantity(BigDecimal.ONE)
+                                .averagePrice(BigDecimal.valueOf(9000))
+                                .side("LONG")
+                                .leverage(1)
+                                .build()))
+                .build();
+
+        when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(List.of(
+                createSnapshot(BigDecimal.valueOf(100000)),
+                createSnapshot(BigDecimal.valueOf(101000))));
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(any(), any())).thenReturn(0L);
+        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(List.of());
+        when(marketDataFacadeService.getInstrumentSnapshots(any())).thenReturn(Map.of(
+                "BIST100",
+                MarketInstrumentResponse.builder()
+                        .symbol("BIST100")
+                        .currentPrice(9500.0)
+                        .build()));
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            Map<String, Object> result = analyticsService.getFullAnalytics(portfolioId);
+            Map<String, Object> positionSummary = (Map<String, Object>) result.get("positionSummary");
+            List<Map<String, Object>> topPositions = (List<Map<String, Object>>) positionSummary.get("topPositions");
+            List<Map<String, Object>> riskAttribution = (List<Map<String, Object>>) result.get("riskAttribution");
+
+            assertEquals(9500.0, (double) topPositions.get(0).get("currentPrice"), 0.001);
+            assertEquals(9500.0, (double) riskAttribution.get(0).get("exposure"), 0.001);
+        } finally {
+            Locale.setDefault(previous);
+        }
+    }
+
+    @Test
+    void getFullAnalytics_shouldCountLowercaseSellTradeUnderTurkishLocale() {
+        Portfolio portfolio = Portfolio.builder()
+                .id(portfolioId)
+                .name("Alpha")
+                .balance(BigDecimal.valueOf(100000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .ownerId(authorId.toString())
+                .items(List.of())
+                .build();
+
+        when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(List.of(
+                createSnapshot(BigDecimal.valueOf(100000)),
+                createSnapshot(BigDecimal.valueOf(101000))));
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(any(), any())).thenReturn(0L);
+        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(List.of(
+                TradeActivity.builder()
+                        .portfolioId(portfolioId)
+                        .symbol("BTCUSDT")
+                        .type("sell")
+                        .side("LONG")
+                        .quantity(BigDecimal.ONE)
+                        .price(BigDecimal.valueOf(51000))
+                        .realizedPnl(BigDecimal.valueOf(1500))
+                        .timestamp(LocalDateTime.now().minusMinutes(1))
+                        .build()));
+        when(marketDataFacadeService.getInstrumentSnapshots(any())).thenReturn(Map.of());
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            Map<String, Object> result = analyticsService.getFullAnalytics(portfolioId);
+            Map<String, Object> tradeStats = (Map<String, Object>) result.get("tradeStats");
+
+            assertEquals(0, tradeStats.get("buyCount"));
+            assertEquals(1, tradeStats.get("sellCount"));
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     @Test

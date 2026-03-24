@@ -57,6 +57,7 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.HashMap;
@@ -1194,7 +1195,7 @@ public class StrategyBotRunService {
             return null;
         }
         try {
-            return StrategyBotRun.RunMode.valueOf(runMode.trim().toUpperCase());
+            return StrategyBotRun.RunMode.valueOf(runMode.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw ApiRequestException.badRequest("invalid_strategy_bot_board_run_mode", "Invalid strategy bot board run mode");
         }
@@ -1211,7 +1212,7 @@ public class StrategyBotRunService {
     }
 
     private String normalizeBoardSort(String sortBy) {
-        String normalizedSort = sortBy == null ? "AVG_RETURN" : sortBy.trim().toUpperCase();
+        String normalizedSort = sortBy == null ? "AVG_RETURN" : sortBy.trim().toUpperCase(Locale.ROOT);
         return switch (normalizedSort) {
             case "AVG_RETURN",
                  "AVG_NET_PNL",
@@ -1562,13 +1563,13 @@ public class StrategyBotRunService {
             PortfolioItem targetItem = state.matchingItems().isEmpty()
                     ? PortfolioItem.builder()
                     .portfolio(linkedPortfolio)
-                    .symbol(bot.getSymbol().toUpperCase())
+                    .symbol(bot.getSymbol().toUpperCase(Locale.ROOT))
                     .side("LONG")
                     .leverage(1)
                     .build()
                     : state.matchingItems().get(0);
             targetItem.setPortfolio(linkedPortfolio);
-            targetItem.setSymbol(bot.getSymbol().toUpperCase());
+            targetItem.setSymbol(bot.getSymbol().toUpperCase(Locale.ROOT));
             targetItem.setSide("LONG");
             targetItem.setLeverage(1);
             targetItem.setQuantity(plan.getTargetQuantity());
@@ -1613,7 +1614,7 @@ public class StrategyBotRunService {
         if (quantityDelta.compareTo(quantityTolerance) > 0) {
             tradeActivityRepository.save(TradeActivity.builder()
                     .portfolioId(portfolioId)
-                    .symbol(plan.getSymbol().toUpperCase())
+                    .symbol(plan.getSymbol().toUpperCase(Locale.ROOT))
                     .type("BUY (BOT SYNC)")
                     .side("LONG")
                     .quantity(quantityDelta)
@@ -1631,7 +1632,7 @@ public class StrategyBotRunService {
                     : plan.getTargetAveragePrice();
             tradeActivityRepository.save(TradeActivity.builder()
                     .portfolioId(portfolioId)
-                    .symbol(plan.getSymbol().toUpperCase())
+                    .symbol(plan.getSymbol().toUpperCase(Locale.ROOT))
                     .type("SELL (BOT SYNC)")
                     .side("LONG")
                     .quantity(sellQuantity)
@@ -1646,7 +1647,7 @@ public class StrategyBotRunService {
                 && plan.getTargetAveragePrice().subtract(plan.getCurrentAveragePrice()).abs().compareTo(priceTolerance) >= 0) {
             tradeActivityRepository.save(TradeActivity.builder()
                     .portfolioId(portfolioId)
-                    .symbol(plan.getSymbol().toUpperCase())
+                    .symbol(plan.getSymbol().toUpperCase(Locale.ROOT))
                     .type("REPRICE (BOT SYNC)")
                     .side("LONG")
                     .quantity(targetQuantity)
@@ -1660,7 +1661,7 @@ public class StrategyBotRunService {
         if (plan.getCashDelta().abs().compareTo(priceTolerance) >= 0) {
             tradeActivityRepository.save(TradeActivity.builder()
                     .portfolioId(portfolioId)
-                    .symbol(plan.getSymbol().toUpperCase())
+                    .symbol(plan.getSymbol().toUpperCase(Locale.ROOT))
                     .type("CASH SYNC (BOT)")
                     .side("LONG")
                     .quantity(BigDecimal.ZERO.setScale(8, RoundingMode.HALF_UP))
@@ -2012,7 +2013,7 @@ public class StrategyBotRunService {
             return StrategyBotRun.RunMode.BACKTEST;
         }
         try {
-            return StrategyBotRun.RunMode.valueOf(raw.trim().toUpperCase());
+            return StrategyBotRun.RunMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw ApiRequestException.badRequest("invalid_strategy_bot_run_mode", "Invalid strategy bot run mode");
         }
@@ -2111,7 +2112,7 @@ public class StrategyBotRunService {
 
     private List<MarketCandleResponse> loadBacktestCandles(StrategyBot bot, StrategyBotRun run) {
         MarketType marketType = resolveMarketType(bot.getMarket());
-        String normalizedTimeframe = bot.getTimeframe().toLowerCase();
+        String normalizedTimeframe = bot.getTimeframe().toLowerCase(Locale.ROOT);
         List<MarketCandleResponse> rawCandles;
         try {
             rawCandles = marketDataFacadeService.getCandles(
@@ -2212,7 +2213,7 @@ public class StrategyBotRunService {
     }
 
     private long resolveTimeframeMillis(String timeframe) {
-        return switch (timeframe == null ? "1h" : timeframe.trim().toLowerCase()) {
+        return switch (timeframe == null ? "1h" : timeframe.trim().toLowerCase(Locale.ROOT)) {
             case "1m" -> 60_000L;
             case "5m" -> 300_000L;
             case "15m" -> 900_000L;
@@ -2228,7 +2229,7 @@ public class StrategyBotRunService {
         if (symbol == null) {
             return 100.0;
         }
-        String normalized = symbol.trim().toUpperCase();
+        String normalized = symbol.trim().toUpperCase(Locale.ROOT);
         if (normalized.startsWith("BTC")) {
             return 100_000.0;
         }
@@ -2257,7 +2258,7 @@ public class StrategyBotRunService {
 
     private MarketType resolveMarketType(String market) {
         try {
-            return MarketType.valueOf(market == null ? "CRYPTO" : market.trim().toUpperCase());
+            return MarketType.valueOf(market == null ? "CRYPTO" : market.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw ApiRequestException.badRequest("invalid_strategy_bot_market", "Invalid strategy bot market");
         }
@@ -2534,11 +2535,8 @@ public class StrategyBotRunService {
             StrategyBotRuleEngineService.PositionContext positionContext) {
         try {
             return strategyBotRuleEngineService.evaluate(rules, candles, positionContext);
-        } catch (IllegalArgumentException ex) {
-            if (StrategyBotRuleEngineService.INSUFFICIENT_CANDLES_CODE.equals(ex.getMessage())) {
-                return new StrategyBotRuleEngineService.SignalEvaluation(false, List.of(), List.of(), List.of());
-            }
-            throw ex;
+        } catch (StrategyBotRuleEngineService.InsufficientCandlesException ex) {
+            return new StrategyBotRuleEngineService.SignalEvaluation(false, List.of(), List.of(), List.of());
         }
     }
 

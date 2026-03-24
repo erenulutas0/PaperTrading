@@ -1026,6 +1026,145 @@ Last updated: 2026-03-23
 - [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Replaced raw message-coded agent guardrail failures with a typed strategy-bot validator exception:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotAgentActionValidator.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotAgentActionValidatorTest.java`
+  - Behavior:
+    - agentic strategy-bot guardrail breaches now throw `StrategyBotAgentActionValidator.ValidationException`
+    - downstream code and tests can key off `error.code()` instead of parsing `IllegalArgumentException.getMessage()`
+  - Local validation:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=StrategyBotAgentActionValidatorTest" test`
+- [x] Moved market-provider validation onto typed request exceptions end to end:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/BinanceService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/YahooBistMarketDataService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/MarketDataFacadeService.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/MarketPriceSeedEndpoint.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/BinanceServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/YahooBistMarketDataServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/MarketPriceSeedEndpointIntegrationTest.java`
+  - Behavior:
+    - provider-originated `invalid_market_symbol`, `invalid_market_range`, `invalid_market_interval`, and `invalid_market_price` failures now originate from typed `ApiRequestException`s instead of raw `IllegalArgumentException` message strings
+    - `/actuator/marketprices` now preserves those explicit error codes through its local seed helper path instead of echoing exception text
+    - cross-market snapshot normalization in `MarketDataFacadeService` now uses `Locale.ROOT`
+  - Local validation:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=MarketControllerIntegrationTest,BinanceServiceTest,YahooBistMarketDataServiceTest,MarketPriceSeedEndpointIntegrationTest" test`
+- [x] Removed message-string coupling between strategy-bot rule engine and run execution:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotRuleEngineService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotRunService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotRuleEngineServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotRunServiceTest.java`
+  - Behavior:
+    - insufficient-candle evaluation now uses a typed `InsufficientCandlesException`
+    - `StrategyBotRunService` no longer branches on `ex.getMessage()` to suppress that specific rule-engine condition
+  - Local validation:
+    - `StrategyBotRuleEngineServiceTest`
+    - `StrategyBotRunServiceTest`
+- [x] Hardened analytics, liquidation, and legacy trade-history casing against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/PerformanceCalculationService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/PerformanceAnalyticsService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/LiquidationService.java`
+    - `services/core-api/src/main/java/com/finance/core/controller/PortfolioController.java`
+    - `services/core-api/src/test/java/com/finance/core/service/PerformanceCalculationServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/PerformanceAnalyticsServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/LiquidationServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/PortfolioControllerIntegrationTest.java`
+  - Behavior:
+    - performance period parsing, analytics symbol/trade-type lookup, liquidation side normalization, and legacy trade-history buy detection now use `Locale.ROOT`
+    - lower-case inputs like `all`, `1w`, `bist100`, `short`, `buy`, and `sell` no longer depend on the JVM default locale
+  - Local validation:
+    - `PerformanceCalculationServiceTest`
+    - `PerformanceAnalyticsServiceTest`
+    - `LiquidationServiceTest`
+    - `PortfolioControllerIntegrationTest`
+- [x] Hardened BIST100 universe symbol normalization against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/Bist100UniverseService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/Bist100UniverseServiceTest.java`
+  - Behavior:
+    - seed and dynamic BIST100 symbol normalization now use `Locale.ROOT`
+    - lower-case inputs like `bist100` no longer depend on the JVM default locale
+  - Local validation:
+    - `Bist100UniverseServiceTest`
+- [x] Hardened strategy-bot run normalization against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotRunService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotRunServiceTest.java`
+  - Behavior:
+    - strategy-bot run parsing now uses `Locale.ROOT` for `runMode`, board sort/mode, `market`, `symbol`, and `timeframe`
+    - lower-case inputs like `forward_test`, `bist100`, and `1H` no longer depend on the JVM default locale
+  - Local validation:
+    - `StrategyBotRunServiceTest`
+- [x] Hardened portfolio visibility and watchlist symbol normalization against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/PortfolioController.java`
+    - `services/core-api/src/main/java/com/finance/core/service/WatchlistService.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/PortfolioControllerIntegrationTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/WatchlistServiceTest.java`
+  - Behavior:
+    - portfolio `visibility` parsing now uses `Locale.ROOT`
+    - watchlist item `symbol` normalization now uses `Locale.ROOT`
+    - lower-case inputs like `private` and `bist100` no longer depend on the JVM default locale
+  - Local validation:
+    - `PortfolioControllerIntegrationTest`
+    - `WatchlistServiceTest`
+- [x] Hardened copy-trading and interaction casing normalization against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/CopyTradingService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/InteractionService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/CopyTradingServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/InteractionServiceTest.java`
+  - Behavior:
+    - copy-trade `symbol` and `side` normalization now uses `Locale.ROOT`
+    - interaction `targetType` parsing now uses `Locale.ROOT`
+    - lower-case inputs like `bist100`, `long`, and `portfolio` no longer depend on the JVM default locale
+  - Local validation:
+    - `CopyTradingServiceTest`
+    - `InteractionServiceTest`
+- [x] Hardened market-provider casing normalization against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/BinanceService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/YahooBistMarketDataService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/BinanceServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/YahooBistMarketDataServiceTest.java`
+  - Behavior:
+    - tracked symbol, interval, range, and Yahoo ticker normalization now uses `Locale.ROOT`
+    - lower-case inputs like `bnbusdt`, `bist100`, `all`, and `1H` no longer depend on the JVM default locale
+  - Local validation:
+    - `BinanceServiceTest`
+    - `YahooBistMarketDataServiceTest`
+- [x] Hardened strategy-bot casing normalization against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotServiceTest.java`
+  - Behavior:
+    - `StrategyBotService` now uses `Locale.ROOT` when normalizing `market`, `symbol`, `timeframe`, and `status`
+    - lower-case inputs like `bist100`, `thyao`, and `1h` no longer depend on the JVM default locale
+  - Local validation:
+    - `StrategyBotServiceTest`
+- [x] Hardened analysis-post casing normalization against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/AnalysisPostService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/AnalysisPostServiceTest.java`
+  - Behavior:
+    - `AnalysisPostService` now uses `Locale.ROOT` when normalizing `instrumentSymbol` and `direction`
+    - lower-case inputs like `bist100` / `bullish` no longer depend on the JVM default locale
+  - Local validation:
+    - `AnalysisPostServiceTest`
+- [x] Hardened chart-note market query binding into an explicit correlated contract:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/MarketChartNoteController.java`
+    - `services/core-api/src/main/java/com/finance/core/dto/MarketType.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/MarketChartNoteControllerIntegrationTest.java`
+  - Behavior:
+    - `GET /api/v1/market/chart-notes` no longer relies on framework enum binding for `market`
+    - invalid `market` values now return explicit `invalid_market_chart_note_market` with the standard `{code,message,details,requestId}` envelope instead of a framework-generic `400`
+  - Local validation:
+    - `MarketChartNoteControllerIntegrationTest`
 - [x] Hardened portfolio, tournament, and feed pagination query contracts:
   - Added:
     - `services/core-api/src/main/java/com/finance/core/web/PageableRequestParser.java`

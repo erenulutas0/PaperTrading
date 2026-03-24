@@ -26,6 +26,7 @@ import com.finance.core.repository.StrategyBotRunFillRepository;
 import com.finance.core.repository.StrategyBotRunRepository;
 import com.finance.core.repository.TradeActivityRepository;
 import com.finance.core.repository.UserRepository;
+import com.finance.core.web.ApiRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +47,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -181,6 +183,32 @@ class StrategyBotRunServiceTest {
         verify(strategyBotRunRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(StrategyBotRun.Status.COMPLETED);
         assertThat(captor.getValue().getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void localeSensitiveNormalizers_shouldRemainStableUnderTurkishLocale() {
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            org.junit.jupiter.api.Assertions.assertEquals(
+                    StrategyBotRun.RunMode.FORWARD_TEST,
+                    ReflectionTestUtils.invokeMethod(strategyBotRunService, "resolveRunMode", "forward_test"));
+            org.junit.jupiter.api.Assertions.assertEquals(
+                    StrategyBotRun.RunMode.FORWARD_TEST,
+                    ReflectionTestUtils.invokeMethod(strategyBotRunService, "normalizeBoardRunMode", "forward_test"));
+            org.junit.jupiter.api.Assertions.assertEquals(
+                    MarketType.BIST100,
+                    ReflectionTestUtils.invokeMethod(strategyBotRunService, "resolveMarketType", "bist100"));
+            org.junit.jupiter.api.Assertions.assertEquals(
+                    3_600_000L,
+                    (Long) ReflectionTestUtils.invokeMethod(strategyBotRunService, "resolveTimeframeMillis", "1H"));
+            org.junit.jupiter.api.Assertions.assertEquals(
+                    100.0,
+                    (Double) ReflectionTestUtils.invokeMethod(strategyBotRunService, "baseSyntheticPrice", "bist100"),
+                    0.0);
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     @Test
@@ -361,8 +389,10 @@ class StrategyBotRunServiceTest {
         when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
 
         assertThatThrownBy(() -> strategyBotRunService.executeRun(botId, runId, userId))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("not executable by current engine");
+                .isInstanceOfSatisfying(ApiRequestException.class, ex -> {
+                    assertThat(ex.code()).isEqualTo("strategy_bot_run_not_executable");
+                    assertThat(ex.getMessage()).contains("not executable by current engine");
+                });
     }
 
     @Test
@@ -568,8 +598,10 @@ class StrategyBotRunServiceTest {
         when(strategyBotRunRepository.findByIdAndStrategyBotIdAndUserId(runId, botId, userId)).thenReturn(Optional.of(run));
 
         assertThatThrownBy(() -> strategyBotRunService.cancelRun(botId, runId, userId))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("before cancellation");
+                .isInstanceOfSatisfying(ApiRequestException.class, ex -> {
+                    assertThat(ex.code()).isEqualTo("strategy_bot_run_not_cancellable");
+                    assertThat(ex.getMessage()).contains("before cancellation");
+                });
         verify(strategyBotRunRepository, never()).save(any(StrategyBotRun.class));
     }
 

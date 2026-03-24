@@ -25,22 +25,22 @@ public class StrategyBotAgentActionValidator {
         requireText(proposal.promptVersion(), "strategy_bot_agent_prompt_version_required");
         requireText(proposal.rationale(), "strategy_bot_agent_rationale_required");
         if (proposal.rationale().length() > MAX_RATIONALE_LENGTH) {
-            throw new IllegalArgumentException("strategy_bot_agent_rationale_too_long");
+            throw invalid("strategy_bot_agent_rationale_too_long");
         }
         if (proposal.matchedSignals().size() > MAX_MATCHED_SIGNALS) {
-            throw new IllegalArgumentException("strategy_bot_agent_too_many_signals");
+            throw invalid("strategy_bot_agent_too_many_signals");
         }
         for (String signal : proposal.matchedSignals()) {
             requireText(signal, "strategy_bot_agent_signal_invalid");
             if (signal.length() > MAX_SIGNAL_LENGTH) {
-                throw new IllegalArgumentException("strategy_bot_agent_signal_invalid");
+                throw invalid("strategy_bot_agent_signal_invalid");
             }
         }
         if (proposal.toolScopes().isEmpty()) {
-            throw new IllegalArgumentException("strategy_bot_agent_tool_scope_required");
+            throw invalid("strategy_bot_agent_tool_scope_required");
         }
         if (proposal.toolScopes().size() > MAX_TOOL_SCOPES) {
-            throw new IllegalArgumentException("strategy_bot_agent_tool_scope_too_large");
+            throw invalid("strategy_bot_agent_tool_scope_too_large");
         }
 
         switch (proposal.action()) {
@@ -53,19 +53,19 @@ public class StrategyBotAgentActionValidator {
 
     private void validateBuy(StrategyBotAgentDecisionContext context, StrategyBotAgentActionProposal proposal) {
         if (context.positionOpen()) {
-            throw new IllegalArgumentException("strategy_bot_agent_buy_requires_flat_position");
+            throw invalid("strategy_bot_agent_buy_requires_flat_position");
         }
         requirePercent(proposal.sizePercent(), "strategy_bot_agent_buy_size_required", "strategy_bot_agent_buy_size_invalid");
         rejectIfPresent(proposal.closePercent(), "strategy_bot_agent_buy_close_percent_forbidden");
         if (proposal.sizePercent().compareTo(cap(context)) > 0) {
-            throw new IllegalArgumentException("strategy_bot_agent_buy_size_exceeds_cap");
+            throw invalid("strategy_bot_agent_buy_size_exceeds_cap");
         }
         validateRiskUpdates(context, proposal, true);
     }
 
     private void validateSell(StrategyBotAgentDecisionContext context, StrategyBotAgentActionProposal proposal) {
         if (!context.positionOpen()) {
-            throw new IllegalArgumentException("strategy_bot_agent_sell_requires_open_position");
+            throw invalid("strategy_bot_agent_sell_requires_open_position");
         }
         requirePercent(proposal.closePercent(), "strategy_bot_agent_sell_size_required", "strategy_bot_agent_sell_size_invalid");
         rejectIfPresent(proposal.sizePercent(), "strategy_bot_agent_sell_entry_size_forbidden");
@@ -82,12 +82,12 @@ public class StrategyBotAgentActionValidator {
 
     private void validateStopUpdate(StrategyBotAgentDecisionContext context, StrategyBotAgentActionProposal proposal) {
         if (!context.positionOpen()) {
-            throw new IllegalArgumentException("strategy_bot_agent_stop_update_requires_open_position");
+            throw invalid("strategy_bot_agent_stop_update_requires_open_position");
         }
         rejectIfPresent(proposal.sizePercent(), "strategy_bot_agent_stop_update_payload_invalid");
         rejectIfPresent(proposal.closePercent(), "strategy_bot_agent_stop_update_payload_invalid");
         if (proposal.stopLossPercent() == null && proposal.takeProfitPercent() == null) {
-            throw new IllegalArgumentException("strategy_bot_agent_stop_update_required");
+            throw invalid("strategy_bot_agent_stop_update_required");
         }
         validateRiskUpdates(context, proposal, false);
     }
@@ -97,7 +97,7 @@ public class StrategyBotAgentActionValidator {
             StrategyBotAgentActionProposal proposal,
             boolean allowNoUpdates) {
         if (!allowNoUpdates && proposal.stopLossPercent() == null && proposal.takeProfitPercent() == null) {
-            throw new IllegalArgumentException("strategy_bot_agent_stop_update_required");
+            throw invalid("strategy_bot_agent_stop_update_required");
         }
         if (proposal.stopLossPercent() != null) {
             requireBoundedRisk(
@@ -124,41 +124,45 @@ public class StrategyBotAgentActionValidator {
             String missingConfigCode,
             String exceedsCode) {
         if (proposedValue.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException(invalidCode);
+            throw invalid(invalidCode);
         }
         if (configuredValue == null || configuredValue.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException(missingConfigCode);
+            throw invalid(missingConfigCode);
         }
         if (proposedValue.compareTo(configuredValue) > 0) {
-            throw new IllegalArgumentException(exceedsCode);
+            throw invalid(exceedsCode);
         }
     }
 
     private void requirePercent(BigDecimal value, String missingCode, String invalidCode) {
         if (value == null) {
-            throw new IllegalArgumentException(missingCode);
+            throw invalid(missingCode);
         }
         if (value.compareTo(BigDecimal.ZERO) <= 0 || value.compareTo(HUNDRED) > 0) {
-            throw new IllegalArgumentException(invalidCode);
+            throw invalid(invalidCode);
         }
     }
 
     private void rejectIfPresent(BigDecimal value, String code) {
         if (value != null) {
-            throw new IllegalArgumentException(code);
+            throw invalid(code);
         }
     }
 
     private void require(boolean condition, String code) {
         if (!condition) {
-            throw new IllegalArgumentException(code);
+            throw invalid(code);
         }
     }
 
     private void requireText(String value, String code) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(code);
+            throw invalid(code);
         }
+    }
+
+    private ValidationException invalid(String code) {
+        return new ValidationException(code);
     }
 
     private BigDecimal cap(StrategyBotAgentDecisionContext context) {
@@ -166,5 +170,18 @@ public class StrategyBotAgentActionValidator {
             return HUNDRED;
         }
         return context.maxPositionSizePercent().min(HUNDRED);
+    }
+
+    public static final class ValidationException extends IllegalArgumentException {
+        private final String code;
+
+        private ValidationException(String code) {
+            super(code);
+            this.code = code;
+        }
+
+        public String code() {
+            return code;
+        }
     }
 }

@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -278,7 +279,7 @@ public class PortfolioController {
             return trade.getRealizedPnl();
         }
 
-        String type = trade.getType() != null ? trade.getType().toUpperCase() : "";
+        String type = trade.getType() != null ? trade.getType().toUpperCase(Locale.ROOT) : "";
         if (type.startsWith("BUY")) {
             return BigDecimal.ZERO;
         }
@@ -427,7 +428,7 @@ public class PortfolioController {
             return null;
         }
         try {
-            return Portfolio.Visibility.valueOf(rawVisibility.trim().toUpperCase());
+            return Portfolio.Visibility.valueOf(rawVisibility.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
             throw ApiRequestException.badRequest(
                     "invalid_visibility",
