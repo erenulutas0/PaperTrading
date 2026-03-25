@@ -80,6 +80,7 @@ public class StrategyBotService {
         validateRisk(bot.getMaxPositionSizePercent(), bot.getStopLossPercent(), bot.getTakeProfitPercent(), bot.getCooldownMinutes());
 
         StrategyBot saved = strategyBotRepository.save(bot);
+        invalidateBotReadCaches(saved.getId());
         auditLogService.record(
                 userId,
                 AuditActionType.STRATEGY_BOT_CREATED,
@@ -324,10 +325,11 @@ public class StrategyBotService {
     }
 
     private void invalidateBotReadCaches(UUID botId) {
-        if (botId == null) {
-            return;
+        if (botId != null) {
+            cacheService.deletePattern("strategy-bot:analytics:" + botId + ":*");
+            cacheService.deletePattern("strategy-bot:public-detail:" + botId + ":*");
         }
-        cacheService.deletePattern("strategy-bot:analytics:" + botId + ":*");
-        cacheService.deletePattern("strategy-bot:public-detail:" + botId + ":*");
+        cacheService.deletePattern("strategy-bot:board:*");
+        cacheService.deletePattern("strategy-bot:discover:*");
     }
 }

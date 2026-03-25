@@ -57,6 +57,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.LinkedHashMap;
@@ -76,6 +77,7 @@ import java.util.function.Supplier;
 public class StrategyBotRunService {
     private static final Duration BOT_ANALYTICS_CACHE_TTL = Duration.ofSeconds(30);
     private static final Duration PUBLIC_BOT_DETAIL_CACHE_TTL = Duration.ofSeconds(30);
+    private static final Duration BOT_BOARD_CACHE_TTL = Duration.ofSeconds(15);
     private final StrategyBotRunRepository strategyBotRunRepository;
     private final StrategyBotRepository strategyBotRepository;
     private final StrategyBotService strategyBotService;
@@ -162,6 +164,51 @@ public class StrategyBotRunService {
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
         String normalizedSort = normalizeBoardSort(sortBy);
         String normalizedDirection = normalizeBoardDirection(direction);
+        return getCachedOwnedBotBoardPage(
+                userId,
+                pageable,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays);
+    }
+
+    private Page<StrategyBotBoardEntryResponse> getCachedOwnedBotBoardPage(UUID userId,
+                                                                           Pageable pageable,
+                                                                           String normalizedSort,
+                                                                           String normalizedDirection,
+                                                                           StrategyBotRun.RunMode scopedRunMode,
+                                                                           Integer normalizedLookbackDays) {
+        String cacheKey = ownedBotBoardCacheKey(
+                userId,
+                pageable,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays);
+        CachedBoardPage cached = cacheService.get(cacheKey, String.class)
+                .flatMap(this::readCachedBoardPage)
+                .orElse(null);
+        if (cached != null) {
+            return toCachedBoardPage(cached, pageable);
+        }
+        Page<StrategyBotBoardEntryResponse> page = buildOwnedBotBoardPage(
+                userId,
+                pageable,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays);
+        cacheStrategyBotJson(cacheKey, CachedBoardPage.from(page), BOT_BOARD_CACHE_TTL);
+        return page;
+    }
+
+    private Page<StrategyBotBoardEntryResponse> buildOwnedBotBoardPage(UUID userId,
+                                                                       Pageable pageable,
+                                                                       String normalizedSort,
+                                                                       String normalizedDirection,
+                                                                       StrategyBotRun.RunMode scopedRunMode,
+                                                                       Integer normalizedLookbackDays) {
         if (supportsPagedBoardFastPath(normalizedSort, scopedRunMode, normalizedLookbackDays)) {
             return buildOwnedBotBoardPageFast(
                     userId,
@@ -197,12 +244,58 @@ public class StrategyBotRunService {
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
         String normalizedSort = normalizeBoardSort(sortBy);
         String normalizedDirection = normalizeBoardDirection(direction);
+        String normalizedQuery = normalizeSearchQuery(query);
+        return getCachedPublicBotBoardPage(
+                pageable,
+                normalizedSort,
+                normalizedDirection,
+                normalizedQuery,
+                scopedRunMode,
+                normalizedLookbackDays);
+    }
+
+    private Page<StrategyBotBoardEntryResponse> getCachedPublicBotBoardPage(Pageable pageable,
+                                                                            String normalizedSort,
+                                                                            String normalizedDirection,
+                                                                            String normalizedQuery,
+                                                                            StrategyBotRun.RunMode scopedRunMode,
+                                                                            Integer normalizedLookbackDays) {
+        String cacheKey = publicBotBoardCacheKey(
+                pageable,
+                normalizedSort,
+                normalizedDirection,
+                normalizedQuery,
+                scopedRunMode,
+                normalizedLookbackDays);
+        CachedBoardPage cached = cacheService.get(cacheKey, String.class)
+                .flatMap(this::readCachedBoardPage)
+                .orElse(null);
+        if (cached != null) {
+            return toCachedBoardPage(cached, pageable);
+        }
+        Page<StrategyBotBoardEntryResponse> page = buildPublicBotBoardPage(
+                pageable,
+                normalizedSort,
+                normalizedDirection,
+                normalizedQuery,
+                scopedRunMode,
+                normalizedLookbackDays);
+        cacheStrategyBotJson(cacheKey, CachedBoardPage.from(page), BOT_BOARD_CACHE_TTL);
+        return page;
+    }
+
+    private Page<StrategyBotBoardEntryResponse> buildPublicBotBoardPage(Pageable pageable,
+                                                                        String normalizedSort,
+                                                                        String normalizedDirection,
+                                                                        String normalizedQuery,
+                                                                        StrategyBotRun.RunMode scopedRunMode,
+                                                                        Integer normalizedLookbackDays) {
         if (supportsPagedBoardFastPath(normalizedSort, scopedRunMode, normalizedLookbackDays)) {
             return buildPublicBotBoardPageFast(
                     pageable,
                     normalizedSort,
                     normalizedDirection,
-                    query,
+                    normalizedQuery,
                     scopedRunMode,
                     normalizedLookbackDays);
         }
@@ -211,7 +304,7 @@ public class StrategyBotRunService {
                 normalizedDirection,
                 scopedRunMode,
                 normalizedLookbackDays,
-                query);
+                normalizedQuery);
 
         int start = Math.toIntExact(pageable.getOffset());
         if (start >= entries.size()) {
@@ -309,11 +402,12 @@ public class StrategyBotRunService {
     }
 
     private void invalidateBotReadCaches(UUID botId) {
-        if (botId == null) {
-            return;
+        if (botId != null) {
+            cacheService.deletePattern("strategy-bot:analytics:" + botId + ":*");
+            cacheService.deletePattern("strategy-bot:public-detail:" + botId + ":*");
         }
-        cacheService.deletePattern("strategy-bot:analytics:" + botId + ":*");
-        cacheService.deletePattern("strategy-bot:public-detail:" + botId + ":*");
+        cacheService.deletePattern("strategy-bot:board:*");
+        cacheService.deletePattern("strategy-bot:discover:*");
     }
 
     private String botAnalyticsCacheKey(UUID botId,
@@ -350,6 +444,10 @@ public class StrategyBotRunService {
         return readCachedStrategyBotJson(raw, PublicStrategyBotDetailResponse.class);
     }
 
+    private Optional<CachedBoardPage> readCachedBoardPage(String raw) {
+        return readCachedStrategyBotJson(raw, CachedBoardPage.class);
+    }
+
     private <T> Optional<T> readCachedStrategyBotJson(String raw, Class<T> type) {
         if (raw == null || raw.isBlank()) {
             return Optional.empty();
@@ -367,6 +465,51 @@ public class StrategyBotRunService {
         } catch (JsonProcessingException ignored) {
             // Cache write failure should not fail the primary read path.
         }
+    }
+
+    private Page<StrategyBotBoardEntryResponse> toCachedBoardPage(CachedBoardPage cached, Pageable pageable) {
+        List<StrategyBotBoardEntryResponse> content = cached.content() == null ? List.of() : cached.content();
+        return new PageImpl<>(content, pageable, cached.totalElements());
+    }
+
+    private String ownedBotBoardCacheKey(UUID userId,
+                                         Pageable pageable,
+                                         String normalizedSort,
+                                         String normalizedDirection,
+                                         StrategyBotRun.RunMode scopedRunMode,
+                                         Integer normalizedLookbackDays) {
+        return "strategy-bot:board:owned:user:" + userId
+                + ":page:" + pageable.getPageNumber()
+                + ":size:" + pageable.getPageSize()
+                + ":sort:" + normalizedSort
+                + ":direction:" + normalizedDirection
+                + ":run-mode:" + boardRunModeScopeKey(scopedRunMode)
+                + ":lookback:" + boardLookbackScopeKey(normalizedLookbackDays);
+    }
+
+    private String publicBotBoardCacheKey(Pageable pageable,
+                                          String normalizedSort,
+                                          String normalizedDirection,
+                                          String normalizedQuery,
+                                          StrategyBotRun.RunMode scopedRunMode,
+                                          Integer normalizedLookbackDays) {
+        return "strategy-bot:discover:page:" + pageable.getPageNumber()
+                + ":size:" + pageable.getPageSize()
+                + ":sort:" + normalizedSort
+                + ":direction:" + normalizedDirection
+                + ":run-mode:" + boardRunModeScopeKey(scopedRunMode)
+                + ":lookback:" + boardLookbackScopeKey(normalizedLookbackDays)
+                + ":q:" + cacheKeySegment(normalizedQuery);
+    }
+
+    private String cacheKeySegment(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty()) {
+            return "ALL";
+        }
+        return Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(normalized.getBytes(StandardCharsets.UTF_8));
     }
 
     @Transactional(readOnly = true)
@@ -2028,6 +2171,12 @@ public class StrategyBotRunService {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException ex) {
             return String.valueOf(value);
+        }
+    }
+
+    private record CachedBoardPage(List<StrategyBotBoardEntryResponse> content, long totalElements) {
+        private static CachedBoardPage from(Page<StrategyBotBoardEntryResponse> page) {
+            return new CachedBoardPage(page.getContent(), page.getTotalElements());
         }
     }
 

@@ -39,6 +39,32 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Strategy-Bot Owner Board And Public Discover Now Reuse Cache-Aside Page Snapshots**
+  - **Problem observed**:
+    - After the analytics/detail cache slice, repeated board/discover reads still rebuilt the same visible page cards on every request.
+    - Query-layer paging/sorting was already in place, but hot dashboard/public comparison lenses still repeated:
+      - visible-bot hydration
+      - board snapshot assembly
+      - owner/public card mapping
+  - **Implementation**:
+    - Added cache-aside JSON page snapshots in `StrategyBotRunService` for:
+      - owner board pages
+      - public discover pages
+    - Scoped cache keys by:
+      - owner id when private
+      - page / size
+      - sort / direction
+      - run-mode lens
+      - lookback lens
+      - search query for public discover
+    - Added `@Jacksonized` support to `StrategyBotBoardEntryResponse` so visible card payloads can round-trip through JSON cache snapshots cleanly.
+    - Expanded bot/run mutation invalidation so the existing strategy-bot write paths now also clear:
+      - `strategy-bot:board:*`
+      - `strategy-bot:discover:*`
+    - Bot creation now also clears these broad board/discover snapshots so newly created bots do not wait for TTL expiry.
+  - **Operational impact**:
+    - repeated board/discover page reads are cheaper without introducing a materialized summary table yet
+    - the remaining perf backlog is pushed further toward colder projection/materialization concerns rather than hot visible-page comparison reads
 - **2026-03-26**: **Strategy-Bot Analytics And Public Detail Reads Now Use Cache-Aside JSON Snapshots With Explicit Mutation Invalidation**
   - **Problem observed**:
     - After board/discover fast paths were cleaned up, repeated reads still rebuilt the same heavier per-bot payloads on every request:

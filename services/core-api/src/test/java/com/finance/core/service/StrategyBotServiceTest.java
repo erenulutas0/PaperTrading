@@ -204,5 +204,33 @@ class StrategyBotServiceTest {
 
         verify(cacheService).deletePattern("strategy-bot:analytics:" + botId + ":*");
         verify(cacheService).deletePattern("strategy-bot:public-detail:" + botId + ":*");
+        verify(cacheService).deletePattern("strategy-bot:board:*");
+        verify(cacheService).deletePattern("strategy-bot:discover:*");
+    }
+
+    @Test
+    void createBot_shouldInvalidateBoardAndDiscoverCaches() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(strategyBotRepository.save(any(StrategyBot.class))).thenAnswer(invocation -> {
+            StrategyBot saved = invocation.getArgument(0);
+            saved.setId(botId);
+            return saved;
+        });
+
+        StrategyBotRequest request = new StrategyBotRequest();
+        request.setName("Created Bot");
+        request.setMarket("CRYPTO");
+        request.setSymbol("BTCUSDT");
+        request.setTimeframe("1H");
+        request.setMaxPositionSizePercent(new BigDecimal("25"));
+
+        strategyBotService.createBot(userId, request);
+
+        verify(cacheService).deletePattern("strategy-bot:analytics:" + botId + ":*");
+        verify(cacheService).deletePattern("strategy-bot:public-detail:" + botId + ":*");
+        verify(cacheService).deletePattern("strategy-bot:board:*");
+        verify(cacheService).deletePattern("strategy-bot:discover:*");
     }
 }

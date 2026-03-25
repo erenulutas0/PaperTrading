@@ -65,6 +65,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -196,6 +197,93 @@ class StrategyBotRunServiceTest {
 
         verify(cacheService).deletePattern("strategy-bot:analytics:" + botId + ":*");
         verify(cacheService).deletePattern("strategy-bot:public-detail:" + botId + ":*");
+        verify(cacheService).deletePattern("strategy-bot:board:*");
+        verify(cacheService).deletePattern("strategy-bot:discover:*");
+    }
+
+    @Test
+    void getBotBoard_shouldReuseCachedPageSnapshot() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("Board Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("25"))
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(1))
+                .completedAt(LocalDateTime.now().minusMinutes(30))
+                .summary("""
+                        {
+                          "returnPercent": 3.5,
+                          "netPnl": 3500.0,
+                          "tradeCount": 1
+                        }
+                        """)
+                .build();
+        StrategyBotBoardEntryResponse cachedEntry = StrategyBotBoardEntryResponse.builder()
+                .strategyBotId(botId)
+                .name("Cached Board Bot")
+                .status("READY")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .totalRuns(42)
+                .completedRuns(40)
+                .build();
+        String cachedJson = objectMapper.writeValueAsString(java.util.Map.of(
+                "content", List.of(cachedEntry),
+                "totalElements", 42));
+
+        when(cacheService.get(anyString(), eq(String.class)))
+                .thenReturn(Optional.empty(), Optional.of(cachedJson));
+        when(strategyBotRepository.findOwnedBotIdsOrderByAvgReturnDesc(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(botId), PageRequest.of(0, 10), 1));
+        when(strategyBotRepository.findAllById(List.of(botId))).thenReturn(List.of(bot));
+        when(strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(List.of(botId), "ALL", false, java.time.LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findBestCompletedRunIdsByStrategyBotIdIn(List.of(botId), "ALL", false, java.time.LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findLatestCompletedRunIdsByStrategyBotIdIn(List.of(botId), "ALL", false, java.time.LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findActiveForwardRunIdsByStrategyBotIdIn(List.of(botId), "ALL", false, java.time.LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(List.of(botId), userId))
+                .thenReturn(List.of(run));
+
+        Page<StrategyBotBoardEntryResponse> first = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "AVG_RETURN",
+                "DESC",
+                "ALL",
+                null);
+        Page<StrategyBotBoardEntryResponse> second = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "AVG_RETURN",
+                "DESC",
+                "ALL",
+                null);
+
+        assertThat(first.getContent()).hasSize(1);
+        assertThat(first.getContent().get(0).getName()).isEqualTo("Board Bot");
+        assertThat(second.getContent()).hasSize(1);
+        assertThat(second.getContent().get(0).getName()).isEqualTo("Cached Board Bot");
+        verify(strategyBotRepository, times(1)).findOwnedBotIdsOrderByAvgReturnDesc(eq(userId), any(Pageable.class));
+        verify(cacheService).set(contains("strategy-bot:board:owned:user:" + userId), any(String.class), any(Duration.class));
     }
 
     @Test

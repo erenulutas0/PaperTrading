@@ -2,12 +2,14 @@ package com.finance.core.dto;
 
 import lombok.Builder;
 import lombok.Value;
+import lombok.extern.jackson.Jacksonized;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Value
 @Builder
+@Jacksonized
 public class StrategyBotBoardEntryResponse {
     UUID strategyBotId;
     String description;

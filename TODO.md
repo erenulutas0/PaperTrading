@@ -796,6 +796,21 @@ Last updated: 2026-03-25
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
 ## New Review Findings (2026-03-25)
+- [x] Cache strategy-bot board/discover page reads and invalidate them on bot/run mutations
+  - `StrategyBotRunService` now caches:
+    - owner board page snapshots
+    - public discover page snapshots
+  - cache keys are scoped by:
+    - owner id or public discover lens
+    - page / size
+    - sort / direction
+    - run mode / lookback
+    - public search query
+  - bot/run mutations now clear broad:
+    - `strategy-bot:board:*`
+    - `strategy-bot:discover:*`
+  - Targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest" test`
 - [x] Cache strategy-bot analytics/detail reads and invalidate them on bot/run mutations
   - `StrategyBotRunService` now caches:
     - owner-scoped bot analytics
