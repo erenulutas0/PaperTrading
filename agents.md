@@ -39,6 +39,43 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Strategy-Bot Materialized Summary Persistence Now Preserves Creation Timestamps And Inserts New Window Rows Correctly**
+  - **Problem observed**:
+    - The first fresh local proof for summary precompute surfaced two real persistence bugs instead of a wrapper issue:
+      - all-time summary refresh could overwrite `created_at` with `NULL` on updates
+      - scoped window summary refresh could try `UPDATE` on new rows because embedded-id entities were treated as non-new
+    - Both failures only became obvious once the scheduler was exercised end-to-end on a fresh runtime.
+  - **Implementation**:
+    - `StrategyBotRunService` now preserves existing `createdAt` when rebuilding:
+      - `StrategyBotMaterializedSummary`
+      - `StrategyBotMaterializedWindowSummary`
+    - `StrategyBotMaterializedSummary` and `StrategyBotMaterializedWindowSummary` now implement `Persistable` so brand-new materialized rows insert cleanly while existing rows still update.
+    - Extended `StrategyBotRunServiceTest` with created-at preservation coverage.
+  - **Operational impact**:
+    - summary precompute no longer fails the first time it needs to persist or refresh a materialized window row
+    - the new rollout wrapper is now proving real scheduler behavior instead of tripping over persistence semantics
+- **2026-03-26**: **Strategy-Bot Summary Precompute Now Has A Dedicated Smoke And Fresh Local Runtime Proof**
+  - **Problem observed**:
+    - After exposing `/actuator/strategybotsummaries`, operators could inspect the scheduler state manually, but rollout evidence still depended on ad hoc endpoint probing.
+    - That left a gap between "observability exists" and "the summary-refresh loop has been exercised end-to-end on a fresh runtime".
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_strategy_bot_summary_precompute_smoke.ps1`
+      - `infra/load-test/run_strategy_bot_summary_precompute_local_runtime_check.ps1`
+      - `infra/load-test/run_strategy_bot_summary_precompute_staging_checklist.ps1`
+    - The smoke validates:
+      - `/actuator/strategybotsummaries`
+      - `/actuator/health/strategyBotSummaries` when component details are exposed
+      - fresh active-bot creation via strategy-bot run request
+      - scheduler tick delta plus `lastRefreshedBotCount > 0`
+    - The local wrapper boots a temporary backend with:
+      - short summary-refresh interval
+      - tighter stale threshold
+      - health component details enabled
+      so the proof does not depend on a manually restarted shared backend.
+  - **Operational impact**:
+    - strategy-bot summary precompute now has the same attachable rollout proof shape already used by other background-job slices
+    - local/staging failures are easier to classify as wrapper/runtime drift vs. a genuinely stale summary-refresh loop
 - **2026-03-26**: **Strategy-Bot Summary Precompute Now Exposes A Dedicated Actuator Snapshot And Health Component**
   - **Problem observed**:
     - Background summary precompute reduced cold-read ownership, but once that scheduler existed it still lacked first-class runtime evidence.

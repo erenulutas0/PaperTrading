@@ -4,11 +4,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.domain.Persistable;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -22,7 +24,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class StrategyBotMaterializedWindowSummary {
+public class StrategyBotMaterializedWindowSummary implements Persistable<StrategyBotMaterializedWindowSummaryId> {
 
     @EmbeddedId
     private StrategyBotMaterializedWindowSummaryId id;
@@ -135,5 +137,11 @@ public class StrategyBotMaterializedWindowSummary {
 
     public Integer getLookbackDays() {
         return id == null ? null : id.getLookbackDays();
+    }
+
+    @Transient
+    @Override
+    public boolean isNew() {
+        return createdAt == null;
     }
 }

@@ -4,11 +4,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.domain.Persistable;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -22,7 +24,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class StrategyBotMaterializedSummary {
+public class StrategyBotMaterializedSummary implements Persistable<UUID> {
 
     @Id
     @Column(nullable = false)
@@ -125,4 +127,16 @@ public class StrategyBotMaterializedSummary {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Transient
+    @Override
+    public UUID getId() {
+        return strategyBotId;
+    }
+
+    @Transient
+    @Override
+    public boolean isNew() {
+        return createdAt == null;
+    }
 }

@@ -492,6 +492,54 @@ Useful notes:
 - if you provide `-RestartCommand`, the wrapper runs that command, waits for health recovery, and only then launches the scheduler smoke
 - use this when you want a single report for "healthy target + optional fresh restart + scheduler recurring proof"
 
+Run strategy-bot summary precompute smoke against a local backend:
+
+```powershell
+./infra/load-test/run_strategy_bot_summary_precompute_smoke.ps1 `
+  -BaseUrl "http://localhost:8080"
+```
+
+The strategy-bot summary precompute smoke checks:
+- `/actuator/strategybotsummaries` is exposed and returns a valid baseline snapshot
+- when the runtime exposes health component details, `/actuator/health/strategyBotSummaries` converges to `UP`
+- register + create linked paper portfolio
+- create a `READY` strategy bot
+- request a recent `BACKTEST` run so the bot becomes summary-refresh eligible
+- observe scheduler tick delta on the actuator snapshot
+- prove the scheduler refreshed at least one active bot (`lastRefreshedBotCount > 0`)
+- verify the selected bot detail surface stays readable after the scheduler pass
+
+Useful notes:
+- the default poll window is intentionally long enough for the production-style `app.strategy-bots.summary-refresh-interval` default (`PT15M`)
+- for local proof use the dedicated local runtime wrapper below, which shortens the interval to keep the scheduler tick visible inside a short smoke window
+- if dedicated health-component details are not exposed by the target runtime, the smoke falls back to the actuator snapshot tick/refresh deltas instead of failing on `404`
+
+Run a one-off local runtime wrapper that boots a temporary backend, waits for health, and then executes the same summary precompute smoke:
+
+```powershell
+./infra/load-test/run_strategy_bot_summary_precompute_local_runtime_check.ps1
+```
+
+Useful notes:
+- this wrapper is for local runtime verification when you do not want to manually restart the backend first
+- it writes a parent report plus the child summary-precompute smoke report
+- the temporary backend shortens the summary refresh interval to `PT5S`, narrows the stale threshold, and enables health component details so the child smoke can validate `/actuator/health/strategyBotSummaries` directly
+- use `-SkipAppStart` if you want to point it at an already running backend on the selected port
+- use `-PreserveAppAfterRun` if you want to inspect the temporary backend after the smoke finishes
+
+Run the staging-oriented checklist wrapper against an already running backend:
+
+```powershell
+./infra/load-test/run_strategy_bot_summary_precompute_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Useful notes:
+- this wrapper first verifies `/actuator/health`
+- then it delegates to `run_strategy_bot_summary_precompute_smoke.ps1` with staging-friendly polling defaults
+- if you provide `-RestartCommand`, the wrapper runs that command, waits for health recovery, and only then launches the summary precompute smoke
+- use this when you want a single report for "healthy target + optional fresh restart + summary precompute recurring proof"
+
 Run a combined audit validation suite against a local or staging backend:
 
 ```powershell

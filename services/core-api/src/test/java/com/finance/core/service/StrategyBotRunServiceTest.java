@@ -2860,6 +2860,72 @@ class StrategyBotRunServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void refreshMaterializedSummariesForBots_shouldPreserveCreatedAtOnExistingRows() {
+        UUID botId = UUID.randomUUID();
+        LocalDateTime existingCreatedAt = LocalDateTime.now().minusDays(5);
+
+        StrategyBotMaterializedSummary existingSummary = StrategyBotMaterializedSummary.builder()
+                .strategyBotId(botId)
+                .createdAt(existingCreatedAt)
+                .build();
+
+        when(strategyBotMaterializedSummaryRepository.findByStrategyBotIdIn(List.of(botId)))
+                .thenReturn(List.of(existingSummary));
+        when(strategyBotMaterializedWindowSummaryRepository.findByStrategyBotIdInAndRunModeScopeAndLookbackDays(any(), anyString(), anyInt()))
+                .thenAnswer(invocation -> {
+                    Collection<UUID> botIds = invocation.getArgument(0);
+                    String runModeScope = invocation.getArgument(1);
+                    Integer lookbackDays = invocation.getArgument(2);
+                    if (!botIds.contains(botId)) {
+                        return List.of();
+                    }
+                    return List.of(StrategyBotMaterializedWindowSummary.builder()
+                            .id(StrategyBotMaterializedWindowSummaryId.builder()
+                                    .strategyBotId(botId)
+                                    .runModeScope(runModeScope)
+                                    .lookbackDays(lookbackDays)
+                                    .build())
+                            .createdAt(existingCreatedAt)
+                            .build());
+                });
+        when(strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findBestCompletedRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findWorstCompletedRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findLatestCompletedRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findActiveForwardRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findRecentRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any(), anyInt()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findEntryReasonCountsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findExitReasonCountsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotMaterializedSummaryRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(strategyBotMaterializedWindowSummaryRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ArgumentCaptor<Iterable<StrategyBotMaterializedSummary>> summaryCaptor = ArgumentCaptor.forClass(Iterable.class);
+        ArgumentCaptor<Iterable<StrategyBotMaterializedWindowSummary>> windowCaptor = ArgumentCaptor.forClass(Iterable.class);
+
+        strategyBotRunService.refreshMaterializedSummariesForBots(List.of(botId));
+
+        verify(strategyBotMaterializedSummaryRepository).saveAll(summaryCaptor.capture());
+        verify(strategyBotMaterializedWindowSummaryRepository, times(6)).saveAll(windowCaptor.capture());
+
+        StrategyBotMaterializedSummary savedSummary = summaryCaptor.getValue().iterator().next();
+        assertThat(savedSummary.getCreatedAt()).isEqualTo(existingCreatedAt);
+
+        windowCaptor.getAllValues().forEach(savedBatch -> {
+            StrategyBotMaterializedWindowSummary savedWindow = savedBatch.iterator().next();
+            assertThat(savedWindow.getCreatedAt()).isEqualTo(existingCreatedAt);
+        });
+    }
+
+    @Test
     void buildPublicBotBoardExport_shouldPreferSnapshotAssemblyBeforePublicRawRunFallback() throws Exception {
         UUID ownerId = UUID.randomUUID();
         UUID botId = UUID.randomUUID();

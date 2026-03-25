@@ -2692,6 +2692,12 @@ public class StrategyBotRunService {
         String runModeScope = "ALL";
         boolean lookbackActive = false;
         LocalDateTime lookbackCutoff = resolveBoardLookbackCutoff(null);
+        Map<UUID, StrategyBotMaterializedSummary> existingSummariesByBotId = defaultIfNull(
+                        strategyBotMaterializedSummaryRepository.findByStrategyBotIdIn(botIds))
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, row) -> map.put(row.getStrategyBotId(), row),
+                        LinkedHashMap::putAll);
 
         Map<UUID, StrategyBotRunRepository.BoardAggregateView> aggregateRows = defaultIfNull(
                         strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(
@@ -2756,6 +2762,7 @@ public class StrategyBotRunService {
                 .filter(Objects::nonNull)
                 .map(botId -> {
                     StrategyBotRunRepository.BoardAggregateView aggregate = aggregateRows.get(botId);
+                    StrategyBotMaterializedSummary existingSummary = existingSummariesByBotId.get(botId);
                     return StrategyBotMaterializedSummary.builder()
                             .strategyBotId(botId)
                             .totalRuns(intValue(aggregate == null ? null : aggregate.getTotalRuns()))
@@ -2784,6 +2791,7 @@ public class StrategyBotRunService {
                             .recentRunIds(writeCompactJson(defaultIfNull(recentRunIdsByBot.get(botId))))
                             .entryDriverTotals(writeCompactJson(defaultIfNull(entryReasonTotalsByBot.get(botId))))
                             .exitDriverTotals(writeCompactJson(defaultIfNull(exitReasonTotalsByBot.get(botId))))
+                            .createdAt(existingSummary == null ? null : existingSummary.getCreatedAt())
                             .build();
                 })
                 .toList();
@@ -2799,6 +2807,15 @@ public class StrategyBotRunService {
 
         boolean lookbackActive = true;
         LocalDateTime lookbackCutoff = resolveBoardLookbackCutoff(lookbackDays);
+        Map<UUID, StrategyBotMaterializedWindowSummary> existingSummariesByBotId = defaultIfNull(
+                        strategyBotMaterializedWindowSummaryRepository.findByStrategyBotIdInAndRunModeScopeAndLookbackDays(
+                                botIds,
+                                runModeScope,
+                                lookbackDays))
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, row) -> map.put(row.getStrategyBotId(), row),
+                        LinkedHashMap::putAll);
 
         Map<UUID, StrategyBotRunRepository.BoardAggregateView> aggregateRows = defaultIfNull(
                         strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(
@@ -2863,6 +2880,7 @@ public class StrategyBotRunService {
                 .filter(Objects::nonNull)
                 .map(botId -> {
                     StrategyBotRunRepository.BoardAggregateView aggregate = aggregateRows.get(botId);
+                    StrategyBotMaterializedWindowSummary existingSummary = existingSummariesByBotId.get(botId);
                     return StrategyBotMaterializedWindowSummary.builder()
                             .id(StrategyBotMaterializedWindowSummaryId.builder()
                                     .strategyBotId(botId)
@@ -2895,6 +2913,7 @@ public class StrategyBotRunService {
                             .recentRunIds(writeCompactJson(defaultIfNull(recentRunIdsByBot.get(botId))))
                             .entryDriverTotals(writeCompactJson(defaultIfNull(entryReasonTotalsByBot.get(botId))))
                             .exitDriverTotals(writeCompactJson(defaultIfNull(exitReasonTotalsByBot.get(botId))))
+                            .createdAt(existingSummary == null ? null : existingSummary.getCreatedAt())
                             .build();
                 })
                 .toList();

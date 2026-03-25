@@ -815,6 +815,25 @@ Last updated: 2026-03-26
     - healthy recent refresh
   - targeted verification passed:
     - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotMaterializedSummarySchedulerServiceTest,StrategyBotMaterializedSummaryEndpointIntegrationTest,StrategyBotMaterializedSummaryHealthIndicatorTest,ScheduledLockAnnotationTest,StrategyBotControllerIntegrationTest" test`
+- [x] Add rollout smoke and fresh local runtime proof for strategy-bot summary precompute
+  - Added tooling:
+    - `infra/load-test/run_strategy_bot_summary_precompute_smoke.ps1`
+    - `infra/load-test/run_strategy_bot_summary_precompute_local_runtime_check.ps1`
+    - `infra/load-test/run_strategy_bot_summary_precompute_staging_checklist.ps1`
+  - The smoke now verifies:
+    - `/actuator/strategybotsummaries` baseline health
+    - `/actuator/health/strategyBotSummaries` when component details are exposed
+    - active bot creation plus recent run request
+    - scheduler tick delta
+    - `lastRefreshedBotCount > 0`
+  - local runtime wrapper shortens the summary refresh interval and enables health component details so the proof can pass without a manually restarted shared backend
+  - local wrapper validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_strategy_bot_summary_precompute_local_runtime_check.ps1 -NoFail`
+  - latest local passing report:
+    - `infra/load-test/reports/strategy-bot-summary-precompute-local-runtime-check-20260326-023750.md`
+  - wrapper-driven follow-up fixes closed:
+    - preserve `createdAt` on materialized summary/window refresh updates
+    - mark new window summary rows as insertable instead of merge-only updates
 - [x] Add scheduled precompute for recently active strategy-bot materialized summaries
   - Added `StrategyBotMaterializedSummarySchedulerService`.
   - The scheduler now refreshes:
