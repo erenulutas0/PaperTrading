@@ -39,6 +39,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Recently Active Strategy-Bot Summaries Now Refresh In The Background Instead Of Waiting Only For Cold Reads**
+  - **Problem observed**:
+    - Mutation-driven summary refresh kept persisted rows fresh after writes, but a colder gap still remained:
+      - cache eviction or TTL expiry could still leave the next reader responsible for paying the first projection/materialization rebuild
+      - common scoped windows now had persisted rows, but nothing proactively rewarmed them unless another write happened first
+    - The next step needed to reduce cold-read ownership without turning reads back into hidden write flows.
+  - **Implementation**:
+    - Added `StrategyBotMaterializedSummarySchedulerService`.
+    - Added a recent-activity repository selector on `StrategyBotRunRepository` so background refresh targets the hottest bots first instead of scanning every bot id.
+    - `StrategyBotRunService` now exposes a bounded bulk refresh helper that recomputes:
+      - all-time summaries
+      - `BACKTEST` / `FORWARD_TEST`
+      - `7D` / `30D` / `90D`
+      window summaries
+    - The scheduler runs under ShedLock with configurable:
+      - refresh interval
+      - activity window
+      - batch size
+  - **Operational impact**:
+    - recent strategy-bot cold reads are more likely to hit already-warmed persisted summaries after cache expiry
+    - read paths stay side-effect free because precompute ownership moved to scheduler + mutation flows rather than analytics/export requests
 - **2026-03-26**: **Common Scoped Strategy-Bot Windows Now Prefer Persisted Summary Rows Without Read-Time Writes**
   - **Problem observed**:
     - All-time strategy-bot cold reads already had persisted summaries, but the most common scoped lenses still depended on projection-only cold assembly:

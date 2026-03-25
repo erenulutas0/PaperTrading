@@ -796,6 +796,15 @@ Last updated: 2026-03-26
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
 ## New Review Findings (2026-03-26)
+- [x] Add scheduled precompute for recently active strategy-bot materialized summaries
+  - Added `StrategyBotMaterializedSummarySchedulerService`.
+  - The scheduler now refreshes:
+    - all-time bot materialized summaries
+    - common scoped `BACKTEST/FORWARD_TEST` `7D/30D/90D` window rows
+  - Refresh scope is intentionally bounded to recently active bots instead of all bot ids on every tick.
+  - Cold reads still stay read-only; the precompute layer only warms persisted rows from the background or from write mutations.
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest,StrategyBotMaterializedSummarySchedulerServiceTest,ScheduledLockAnnotationTest" test`
 - [x] Add persisted common-window strategy-bot summaries for scoped `runMode/lookbackDays` cold reads
   - Added Flyway migration `V30__create_strategy_bot_materialized_window_summaries_table.sql` plus:
     - `StrategyBotMaterializedWindowSummary`

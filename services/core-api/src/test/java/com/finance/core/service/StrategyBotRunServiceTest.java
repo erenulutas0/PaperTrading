@@ -65,6 +65,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -2828,6 +2829,34 @@ class StrategyBotRunServiceTest {
 
         verify(strategyBotRunRepository, never()).findBoardAggregatesByStrategyBotIdIn(any(), anyString(), anyBoolean(), any(LocalDateTime.class));
         verify(strategyBotRunRepository, never()).findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId));
+    }
+
+    @Test
+    void refreshMaterializedSummariesForBots_shouldRefreshAllTimeAndCommonWindows() {
+        UUID botId = UUID.randomUUID();
+        when(strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findBestCompletedRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findWorstCompletedRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findLatestCompletedRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findActiveForwardRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findRecentRunIdsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any(), anyInt()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findEntryReasonCountsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findExitReasonCountsByStrategyBotIdIn(any(), anyString(), anyBoolean(), any()))
+                .thenReturn(List.of());
+        when(strategyBotMaterializedSummaryRepository.saveAll(any())).thenReturn(List.of());
+        when(strategyBotMaterializedWindowSummaryRepository.saveAll(any())).thenReturn(List.of());
+
+        strategyBotRunService.refreshMaterializedSummariesForBots(List.of(botId, botId));
+
+        verify(strategyBotMaterializedSummaryRepository).saveAll(any());
+        verify(strategyBotMaterializedWindowSummaryRepository, times(6)).saveAll(any());
     }
 
     @Test

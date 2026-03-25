@@ -131,6 +131,9 @@ app:
       enabled: ${APP_MARKET_WS_ENABLED:true}
   strategy-bots:
     forward-test-refresh-interval: ${APP_STRATEGY_BOTS_FORWARD_TEST_REFRESH_INTERVAL:PT30S}
+    summary-refresh-interval: ${APP_STRATEGY_BOTS_SUMMARY_REFRESH_INTERVAL:PT15M}
+    summary-refresh-activity-window: ${APP_STRATEGY_BOTS_SUMMARY_REFRESH_ACTIVITY_WINDOW:PT168H}
+    summary-refresh-batch-size: ${APP_STRATEGY_BOTS_SUMMARY_REFRESH_BATCH_SIZE:250}
     synthetic-crypto-candles-enabled: ${APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLES_ENABLED:false}
     synthetic-crypto-candle-count: ${APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLE_COUNT:96}
     forward-test-observability:

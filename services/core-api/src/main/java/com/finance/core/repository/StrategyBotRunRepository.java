@@ -32,6 +32,23 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
 
     List<StrategyBotRun> findByRunModeAndStatusOrderByRequestedAtAsc(StrategyBotRun.RunMode runMode, StrategyBotRun.Status status);
 
+    @Query(value = """
+            SELECT recent.strategy_bot_id
+            FROM (
+                SELECT r.strategy_bot_id,
+                       MAX(COALESCE(r.completed_at, r.requested_at)) AS latest_activity_at
+                FROM strategy_bot_runs r
+                WHERE COALESCE(r.completed_at, r.requested_at) >= :activityCutoff
+                GROUP BY r.strategy_bot_id
+                ORDER BY latest_activity_at DESC
+                LIMIT :limit
+            ) recent
+            ORDER BY recent.latest_activity_at DESC, recent.strategy_bot_id
+            """, nativeQuery = true)
+    List<UUID> findRecentlyActiveStrategyBotIds(
+            @Param("activityCutoff") LocalDateTime activityCutoff,
+            @Param("limit") int limit);
+
     void deleteByStrategyBotId(UUID strategyBotId);
 
     @Query(value = """

@@ -63,6 +63,7 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.LinkedHashMap;
@@ -84,6 +85,9 @@ public class StrategyBotRunService {
     private static final Duration PUBLIC_BOT_DETAIL_CACHE_TTL = Duration.ofSeconds(30);
     private static final Duration BOT_BOARD_CACHE_TTL = Duration.ofSeconds(15);
     private static final int MATERIALIZED_RECENT_RUN_LIMIT = 12;
+    private static final List<String> MATERIALIZED_WINDOW_RUN_MODE_SCOPES = List.of(
+            StrategyBotRun.RunMode.BACKTEST.name(),
+            StrategyBotRun.RunMode.FORWARD_TEST.name());
     private static final Set<Integer> MATERIALIZED_WINDOW_LOOKBACK_DAYS = Set.of(7, 30, 90);
     private final StrategyBotRunRepository strategyBotRunRepository;
     private final StrategyBotMaterializedSummaryRepository strategyBotMaterializedSummaryRepository;
@@ -3148,6 +3152,24 @@ public class StrategyBotRunService {
             return;
         }
         refreshMaterializedSummaries(List.of(botId));
+    }
+
+    void refreshMaterializedSummariesForBots(Collection<UUID> botIds) {
+        List<UUID> sanitizedBotIds = (botIds == null ? List.<UUID>of() : botIds)
+                .stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (sanitizedBotIds.isEmpty()) {
+            return;
+        }
+
+        refreshMaterializedSummaries(sanitizedBotIds);
+        for (String runModeScope : MATERIALIZED_WINDOW_RUN_MODE_SCOPES) {
+            for (Integer lookbackDays : MATERIALIZED_WINDOW_LOOKBACK_DAYS) {
+                refreshMaterializedWindowSummaries(sanitizedBotIds, runModeScope, lookbackDays);
+            }
+        }
     }
 
     private void refreshMaterializedWindowSummariesForRun(StrategyBotRun run) {
