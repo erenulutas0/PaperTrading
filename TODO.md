@@ -796,13 +796,14 @@ Last updated: 2026-03-25
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
 ## New Review Findings (2026-03-25)
-- [ ] Rework strategy-bot board/discover aggregation so it scales without unpaged + N+1 analytics assembly
-  - Current risk:
-    - board/discover still assembles page-visible analytics from raw run rows instead of a projection/materialized summary
-    - analytics-heavy ranking still has no precomputed bot-run summary path for colder read workloads
-  - Target:
-    - move board/discover reads toward DB projections or precomputed bot-run summaries
-    - keep page-visible board/discover analytics from reparsing large run sets once summary projections exist
+- [x] Rework strategy-bot board/discover aggregation so it scales without unpaged + N+1 analytics assembly
+  - `StrategyBotRunService` page-visible owner board and public discover fast paths now use:
+    - DB aggregate projections for visible bot ids
+    - DB-selected best/latest/active run ids for scorecard cards
+  - Fast-path response assembly no longer reparses full visible-bot run lists just to populate board/discover cards.
+  - Legacy service tests remain compatible through a run-list fallback path when the new repository projections are not stubbed.
+  - Targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest" test`
 - [x] Add scoped DB-first strategy-bot board/discover fast paths for `TOTAL_SIMULATED_TRADES`
   - `StrategyBotRunService` now pages by bot-id query first for filtered board/discover reads when `runMode` and/or `lookbackDays` is active on:
     - owner board `TOTAL_SIMULATED_TRADES`

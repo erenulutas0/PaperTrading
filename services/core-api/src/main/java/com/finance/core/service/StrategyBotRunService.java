@@ -59,12 +59,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -1077,13 +1080,20 @@ public class StrategyBotRunService {
                                                            StrategyBotRun.RunMode scopedRunMode,
                                                            Integer lookbackDays) {
         return buildBotAnalytics(
-                bot,
+                bot.getId(),
                 strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId),
                 scopedRunMode,
                 lookbackDays);
     }
 
     private StrategyBotAnalyticsResponse buildBotAnalytics(StrategyBot bot,
+                                                           List<StrategyBotRun> rawRuns,
+                                                           StrategyBotRun.RunMode scopedRunMode,
+                                                           Integer lookbackDays) {
+        return buildBotAnalytics(bot.getId(), rawRuns, scopedRunMode, lookbackDays);
+    }
+
+    private StrategyBotAnalyticsResponse buildBotAnalytics(UUID botId,
                                                            List<StrategyBotRun> rawRuns,
                                                            StrategyBotRun.RunMode scopedRunMode,
                                                            Integer lookbackDays) {
@@ -1096,7 +1106,7 @@ public class StrategyBotRunService {
                 .toList();
 
         return StrategyBotAnalyticsResponse.builder()
-                .strategyBotId(bot.getId())
+                .strategyBotId(botId)
                 .totalRuns(runs.size())
                 .backtestRuns((int) runs.stream().filter(run -> run.getRunMode() == StrategyBotRun.RunMode.BACKTEST).count())
                 .forwardTestRuns((int) runs.stream().filter(run -> run.getRunMode() == StrategyBotRun.RunMode.FORWARD_TEST).count())
@@ -1176,13 +1186,15 @@ public class StrategyBotRunService {
         }
 
         List<StrategyBot> bots = page.getContent();
-        Map<UUID, List<StrategyBotRun>> runsByBotId = loadOwnedRunsByBotId(
+        Map<UUID, BoardAnalyticsSnapshot> snapshots = loadBoardAnalyticsSnapshots(
                 bots.stream().map(StrategyBot::getId).toList(),
-                userId);
+                scopedRunMode,
+                lookbackDays,
+                () -> loadOwnedRunsByBotId(bots.stream().map(StrategyBot::getId).toList(), userId));
         List<StrategyBotBoardEntryResponse> entries = bots.stream()
                 .map(bot -> toBoardEntry(
                         bot,
-                        buildBotAnalytics(bot, runsByBotId.getOrDefault(bot.getId(), List.of()), scopedRunMode, lookbackDays)))
+                        snapshots.getOrDefault(bot.getId(), defaultBoardAnalyticsSnapshot())))
                 .toList();
         return new PageImpl<>(entries, pageable, page.getTotalElements());
     }
@@ -1257,6 +1269,11 @@ public class StrategyBotRunService {
         }
 
         List<StrategyBot> bots = page.getContent();
+        Map<UUID, BoardAnalyticsSnapshot> snapshots = loadBoardAnalyticsSnapshots(
+                bots.stream().map(StrategyBot::getId).toList(),
+                scopedRunMode,
+                lookbackDays,
+                () -> loadPublicRunsByBotId(bots.stream().map(StrategyBot::getId).toList()));
         Map<UUID, AppUser> ownersById = userRepository.findByIdIn(bots.stream()
                         .map(StrategyBot::getUserId)
                         .filter(Objects::nonNull)
@@ -1279,11 +1296,10 @@ public class StrategyBotRunService {
                         (map, portfolio) -> map.put(portfolio.getId(), portfolio),
                         LinkedHashMap::putAll);
 
-        Map<UUID, List<StrategyBotRun>> runsByBotId = loadPublicRunsByBotId(bots.stream().map(StrategyBot::getId).toList());
         List<StrategyBotBoardEntryResponse> entries = bots.stream()
                 .map(bot -> toBoardEntry(
                         bot,
-                        buildBotAnalytics(bot, runsByBotId.getOrDefault(bot.getId(), List.of()), scopedRunMode, lookbackDays),
+                        snapshots.getOrDefault(bot.getId(), defaultBoardAnalyticsSnapshot()),
                         ownersById.get(bot.getUserId()),
                         publicPortfoliosById.get(bot.getLinkedPortfolioId())))
                 .toList();
@@ -1916,6 +1932,50 @@ public class StrategyBotRunService {
         return toBoardEntry(bot, analytics, null, null);
     }
 
+    private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot, BoardAnalyticsSnapshot snapshot) {
+        return toBoardEntry(bot, snapshot, null, null);
+    }
+
+    private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot,
+                                                       BoardAnalyticsSnapshot snapshot,
+                                                       AppUser owner,
+                                                       Portfolio linkedPortfolio) {
+        return StrategyBotBoardEntryResponse.builder()
+                .strategyBotId(bot.getId())
+                .description(bot.getDescription())
+                .name(bot.getName())
+                .status(bot.getStatus().name())
+                .market(bot.getMarket())
+                .symbol(bot.getSymbol())
+                .timeframe(bot.getTimeframe())
+                .linkedPortfolioId(bot.getLinkedPortfolioId())
+                .linkedPortfolioName(linkedPortfolio == null ? null : linkedPortfolio.getName())
+                .ownerId(owner == null ? bot.getUserId() : owner.getId())
+                .ownerUsername(owner == null ? null : owner.getUsername())
+                .ownerDisplayName(owner == null ? null : owner.getDisplayName())
+                .ownerAvatarUrl(owner == null ? null : owner.getAvatarUrl())
+                .ownerTrustScore(owner == null ? null : round(owner.getTrustScore()))
+                .totalRuns(snapshot.totalRuns())
+                .completedRuns(snapshot.completedRuns())
+                .runningRuns(snapshot.runningRuns())
+                .failedRuns(snapshot.failedRuns())
+                .cancelledRuns(snapshot.cancelledRuns())
+                .totalSimulatedTrades(snapshot.totalSimulatedTrades())
+                .positiveCompletedRuns(snapshot.positiveCompletedRuns())
+                .negativeCompletedRuns(snapshot.negativeCompletedRuns())
+                .avgReturnPercent(snapshot.avgReturnPercent())
+                .avgNetPnl(snapshot.avgNetPnl())
+                .avgMaxDrawdownPercent(snapshot.avgMaxDrawdownPercent())
+                .avgWinRate(snapshot.avgWinRate())
+                .avgProfitFactor(snapshot.avgProfitFactor())
+                .avgExpectancyPerTrade(snapshot.avgExpectancyPerTrade())
+                .latestRequestedAt(snapshot.latestRequestedAt())
+                .bestRun(snapshot.bestRun())
+                .latestCompletedRun(snapshot.latestCompletedRun())
+                .activeForwardRun(snapshot.activeForwardRun())
+                .build();
+    }
+
     private StrategyBotBoardEntryResponse toBoardEntry(StrategyBot bot,
                                                        StrategyBotAnalyticsResponse analytics,
                                                        AppUser owner,
@@ -1957,6 +2017,147 @@ public class StrategyBotRunService {
                 .latestCompletedRun(analytics.getLatestCompletedRun())
                 .activeForwardRun(analytics.getActiveForwardRun())
                 .build();
+    }
+
+    private Map<UUID, BoardAnalyticsSnapshot> loadBoardAnalyticsSnapshots(List<UUID> botIds,
+                                                                          StrategyBotRun.RunMode scopedRunMode,
+                                                                          Integer lookbackDays,
+                                                                          Supplier<Map<UUID, List<StrategyBotRun>>> fallbackRunLoader) {
+        if (botIds == null || botIds.isEmpty()) {
+            return Map.of();
+        }
+
+        String runModeScope = toBoardRunModeScope(scopedRunMode);
+        boolean lookbackActive = lookbackDays != null;
+        LocalDateTime lookbackCutoff = resolveBoardLookbackCutoff(lookbackDays);
+
+        List<StrategyBotRunRepository.BoardAggregateView> aggregateRows = defaultIfNull(
+                strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(botIds, runModeScope, lookbackActive, lookbackCutoff));
+        Map<UUID, StrategyBotRunRepository.BoardAggregateView> aggregates = aggregateRows
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, row) -> map.put(row.getStrategyBotId(), row),
+                        LinkedHashMap::putAll);
+
+        Map<UUID, UUID> bestRunIds = indexSelectedRunIds(defaultIfNull(strategyBotRunRepository.findBestCompletedRunIdsByStrategyBotIdIn(
+                botIds,
+                runModeScope,
+                lookbackActive,
+                lookbackCutoff)));
+        Map<UUID, UUID> latestCompletedRunIds = indexSelectedRunIds(defaultIfNull(strategyBotRunRepository.findLatestCompletedRunIdsByStrategyBotIdIn(
+                botIds,
+                runModeScope,
+                lookbackActive,
+                lookbackCutoff)));
+        Map<UUID, UUID> activeForwardRunIds = indexSelectedRunIds(defaultIfNull(strategyBotRunRepository.findActiveForwardRunIdsByStrategyBotIdIn(
+                botIds,
+                runModeScope,
+                lookbackActive,
+                lookbackCutoff)));
+
+        if (aggregates.isEmpty()
+                && bestRunIds.isEmpty()
+                && latestCompletedRunIds.isEmpty()
+                && activeForwardRunIds.isEmpty()
+                && fallbackRunLoader != null) {
+            return loadBoardAnalyticsSnapshotsFromRuns(botIds, scopedRunMode, lookbackDays, fallbackRunLoader.get());
+        }
+
+        Set<UUID> selectedRunIds = new LinkedHashSet<>();
+        selectedRunIds.addAll(bestRunIds.values());
+        selectedRunIds.addAll(latestCompletedRunIds.values());
+        selectedRunIds.addAll(activeForwardRunIds.values());
+
+        Map<UUID, StrategyBotRun> selectedRunsById = selectedRunIds.isEmpty()
+                ? Map.of()
+                : defaultIfNull(strategyBotRunRepository.findByIdIn(selectedRunIds)).stream()
+                .collect(LinkedHashMap::new,
+                        (map, run) -> map.put(run.getId(), run),
+                        LinkedHashMap::putAll);
+
+        Map<UUID, BoardAnalyticsSnapshot> snapshots = new LinkedHashMap<>();
+        for (UUID botId : botIds) {
+            StrategyBotRunRepository.BoardAggregateView aggregate = aggregates.get(botId);
+            snapshots.put(botId, new BoardAnalyticsSnapshot(
+                    intValue(aggregate == null ? null : aggregate.getTotalRuns()),
+                    intValue(aggregate == null ? null : aggregate.getCompletedRuns()),
+                    intValue(aggregate == null ? null : aggregate.getRunningRuns()),
+                    intValue(aggregate == null ? null : aggregate.getFailedRuns()),
+                    intValue(aggregate == null ? null : aggregate.getCancelledRuns()),
+                    intValue(aggregate == null ? null : aggregate.getTotalSimulatedTrades()),
+                    intValue(aggregate == null ? null : aggregate.getPositiveCompletedRuns()),
+                    intValue(aggregate == null ? null : aggregate.getNegativeCompletedRuns()),
+                    roundNullable(aggregate == null ? null : aggregate.getAvgReturnPercent()),
+                    roundNullable(aggregate == null ? null : aggregate.getAvgNetPnl()),
+                    roundNullable(aggregate == null ? null : aggregate.getAvgMaxDrawdownPercent()),
+                    roundNullable(aggregate == null ? null : aggregate.getAvgWinRate()),
+                    roundNullable(aggregate == null ? null : aggregate.getAvgProfitFactor()),
+                    roundNullable(aggregate == null ? null : aggregate.getAvgExpectancyPerTrade()),
+                    aggregate == null ? null : aggregate.getLatestRequestedAt(),
+                    toScorecard(selectedRunsById.get(bestRunIds.get(botId))),
+                    toScorecard(selectedRunsById.get(latestCompletedRunIds.get(botId))),
+                    toScorecard(selectedRunsById.get(activeForwardRunIds.get(botId)))));
+        }
+        return snapshots;
+    }
+
+    private Map<UUID, BoardAnalyticsSnapshot> loadBoardAnalyticsSnapshotsFromRuns(List<UUID> botIds,
+                                                                                  StrategyBotRun.RunMode scopedRunMode,
+                                                                                  Integer lookbackDays,
+                                                                                  Map<UUID, List<StrategyBotRun>> runsByBotId) {
+        Map<UUID, BoardAnalyticsSnapshot> snapshots = new LinkedHashMap<>();
+        Map<UUID, List<StrategyBotRun>> indexedRuns = runsByBotId == null ? Map.of() : runsByBotId;
+        for (UUID botId : botIds) {
+            snapshots.put(botId, snapshotFromAnalytics(
+                    buildBotAnalytics(botId, indexedRuns.getOrDefault(botId, List.of()), scopedRunMode, lookbackDays)));
+        }
+        return snapshots;
+    }
+
+    private BoardAnalyticsSnapshot snapshotFromAnalytics(StrategyBotAnalyticsResponse analytics) {
+        if (analytics == null) {
+            return defaultBoardAnalyticsSnapshot();
+        }
+        LocalDateTime latestRequestedAt = analytics.getRecentScorecards() == null || analytics.getRecentScorecards().isEmpty()
+                ? null
+                : analytics.getRecentScorecards().get(0).getRequestedAt();
+        return new BoardAnalyticsSnapshot(
+                analytics.getTotalRuns(),
+                analytics.getCompletedRuns(),
+                analytics.getRunningRuns(),
+                analytics.getFailedRuns(),
+                analytics.getCancelledRuns(),
+                analytics.getTotalSimulatedTrades(),
+                analytics.getPositiveCompletedRuns(),
+                analytics.getNegativeCompletedRuns(),
+                analytics.getAvgReturnPercent(),
+                analytics.getAvgNetPnl(),
+                analytics.getAvgMaxDrawdownPercent(),
+                analytics.getAvgWinRate(),
+                analytics.getAvgProfitFactor(),
+                analytics.getAvgExpectancyPerTrade(),
+                latestRequestedAt,
+                analytics.getBestRun(),
+                analytics.getLatestCompletedRun(),
+                analytics.getActiveForwardRun());
+    }
+
+    private Map<UUID, UUID> indexSelectedRunIds(List<StrategyBotRunRepository.SelectedRunView> rows) {
+        Map<UUID, UUID> indexed = new LinkedHashMap<>();
+        for (StrategyBotRunRepository.SelectedRunView row : rows) {
+            if (row.getStrategyBotId() != null && row.getId() != null) {
+                indexed.put(row.getStrategyBotId(), row.getId());
+            }
+        }
+        return indexed;
+    }
+
+    private BoardAnalyticsSnapshot defaultBoardAnalyticsSnapshot() {
+        return new BoardAnalyticsSnapshot(0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    private <T> List<T> defaultIfNull(List<T> rows) {
+        return rows == null ? List.of() : rows;
     }
 
     private Comparator<StrategyBotBoardEntryResponse> resolveBoardComparator(String sortBy, String direction) {
@@ -3144,6 +3345,9 @@ public class StrategyBotRunService {
     }
 
     private StrategyBotRunScorecardResponse toScorecard(StrategyBotRun run) {
+        if (run == null) {
+            return null;
+        }
         JsonNode summary = parseJson(run.getSummary());
         return StrategyBotRunScorecardResponse.builder()
                 .id(run.getId())
@@ -3388,6 +3592,14 @@ public class StrategyBotRunService {
         return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
     }
 
+    private Integer intValue(Long value) {
+        return value == null ? 0 : Math.toIntExact(value);
+    }
+
+    private Double roundNullable(Double value) {
+        return value == null ? null : round(value);
+    }
+
     private String escapeCsv(Object value) {
         String raw = value == null ? "" : String.valueOf(value);
         if (raw.contains(",") || raw.contains("\"") || raw.contains("\n")) {
@@ -3538,5 +3750,26 @@ public class StrategyBotRunService {
             Portfolio linkedPortfolio,
             List<PortfolioItem> matchingItems,
             StrategyBotRunReconciliationResponse response) {
+    }
+
+    private record BoardAnalyticsSnapshot(
+            int totalRuns,
+            int completedRuns,
+            int runningRuns,
+            int failedRuns,
+            int cancelledRuns,
+            int totalSimulatedTrades,
+            int positiveCompletedRuns,
+            int negativeCompletedRuns,
+            Double avgReturnPercent,
+            Double avgNetPnl,
+            Double avgMaxDrawdownPercent,
+            Double avgWinRate,
+            Double avgProfitFactor,
+            Double avgExpectancyPerTrade,
+            LocalDateTime latestRequestedAt,
+            StrategyBotRunScorecardResponse bestRun,
+            StrategyBotRunScorecardResponse latestCompletedRun,
+            StrategyBotRunScorecardResponse activeForwardRun) {
     }
 }

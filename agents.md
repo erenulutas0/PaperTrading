@@ -39,6 +39,26 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-25**: **Strategy-Bot Board And Discover Page Cards Now Assemble From Aggregate Snapshots Instead Of Visible-Run Reparse**
+  - **Problem observed**:
+    - Earlier fast paths moved sort/paging to the query layer, but the page-visible board/discover cards still batch-loaded raw runs for the visible bots and rebuilt analytics in memory.
+    - That left the remaining local perf hotspot concentrated in card assembly for:
+      - owner board
+      - public discover
+    - It also kept test code coupled to the old raw-run assembly path.
+  - **Implementation**:
+    - Added repository projection queries that return page-visible aggregate metrics per bot id plus selected run ids for:
+      - best completed run
+      - latest completed run
+      - active forward-test run
+    - Updated `StrategyBotRunService` fast paths so visible owner/public board cards now assemble from:
+      - aggregate snapshot rows
+      - selected run scorecards
+      instead of reparsing every visible bot run row.
+    - Kept a fallback path that derives snapshots from raw runs when tests or older call sites only stub the legacy run-list repository methods.
+  - **Operational impact**:
+    - page-visible board/discover card assembly now does materially less work on analytics-heavy lenses
+    - the remaining strategy-bot perf backlog is pushed further toward colder summary/materialization concerns instead of routine visible-page assembly
 - **2026-03-25**: **Strategy-Bot Board And Discover Now Use DB-First Fast Paths For Unfiltered Analytics Sorts And Scoped Activity/Analytics Sorts**
   - **Problem observed**:
     - The earlier board/discover perf cleanup removed owner-side run N+1 loading, but two common ranking lenses still paid unnecessary full-set assembly cost:
