@@ -44,6 +44,8 @@ class CopyTradingServiceTest {
     private TradeActivityRepository tradeActivityRepository;
     @Mock
     private BinanceService binanceService;
+    @Mock
+    private PerformanceAnalyticsService performanceAnalyticsService;
 
     @InjectMocks
     private CopyTradingService copyTradingService;
@@ -121,6 +123,7 @@ class CopyTradingServiceTest {
             // Should record a trade activity
             ArgumentCaptor<TradeActivity> captor = ArgumentCaptor.forClass(TradeActivity.class);
             verify(tradeActivityRepository).save(captor.capture());
+            verify(performanceAnalyticsService).invalidatePortfolioAnalytics(clonedPortfolioId);
             assertEquals("BUY (COPY)", captor.getValue().getType());
             assertEquals("BTCUSDT", captor.getValue().getSymbol());
         }
@@ -293,6 +296,7 @@ class CopyTradingServiceTest {
             // Trade activity should be recorded
             ArgumentCaptor<TradeActivity> captor = ArgumentCaptor.forClass(TradeActivity.class);
             verify(tradeActivityRepository).save(captor.capture());
+            verify(performanceAnalyticsService).invalidatePortfolioAnalytics(clonedPortfolioId);
             assertEquals("SELL (COPY)", captor.getValue().getType());
             assertEquals(0, new BigDecimal("5000").compareTo(captor.getValue().getRealizedPnl()));
         }

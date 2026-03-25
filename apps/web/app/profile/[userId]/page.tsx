@@ -177,6 +177,7 @@ export default function ProfilePage() {
     const [followersLoading, setFollowersLoading] = useState(false);
     const [followingLoading, setFollowingLoading] = useState(false);
     const [connectionActionUserId, setConnectionActionUserId] = useState<string | null>(null);
+    const [shareMessage, setShareMessage] = useState('');
     const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
     const fetchProfile = useCallback(async () => {
@@ -377,6 +378,40 @@ export default function ProfilePage() {
     ];
     const trustPath = buildSeriesPath(trustHistory.map((point) => point.trustScore), 100, 48);
     const winRatePath = buildSeriesPath(trustHistory.map((point) => point.winRate), 100, 48);
+    const publicProfileLink = typeof window !== 'undefined' ? `${window.location.origin}/profile/${profile.id}` : '';
+    const profileSummaryLines = [
+        `${profile.displayName || profile.username} (@${profile.username})`,
+        `Trust Score: ${profile.trustScore !== undefined ? profile.trustScore.toFixed(1) : 'N/A'}`,
+        `Platform Win Rate: ${profile.winRate !== undefined && hasTrustEvidence ? `${profile.winRate.toFixed(1)}%` : 'N/A'}`,
+        `Followers: ${profile.followerCount}`,
+        `Public Portfolios: ${profile.portfolioCount}`,
+        `Member Since: ${new Date(profile.memberSince).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}`,
+        publicProfileLink ? `Profile: ${publicProfileLink}` : '',
+    ].filter(Boolean);
+
+    const copyProfileLink = async () => {
+        if (!publicProfileLink) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(publicProfileLink);
+            setShareMessage('Public profile link copied.');
+        } catch (error) {
+            console.error(error);
+            setShareMessage(publicProfileLink);
+        }
+    };
+
+    const copyProfileSummary = async () => {
+        const summary = profileSummaryLines.join('\n');
+        try {
+            await navigator.clipboard.writeText(summary);
+            setShareMessage('Public profile summary copied.');
+        } catch (error) {
+            console.error(error);
+            setShareMessage(summary);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-background text-foreground">
@@ -453,22 +488,43 @@ export default function ProfilePage() {
                         </div>
 
                         <div className="shrink-0">
-                            {isOwnProfile ? (
-                                <Link href="/profile/edit" className="rounded-full border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground hover:border-primary/30">
-                                    Edit Profile
-                                </Link>
-                            ) : currentUserId ? (
-                                <button
-                                    onClick={handleFollow}
-                                    disabled={followLoading}
-                                    className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${profile.following
-                                        ? 'border border-border bg-accent text-foreground hover:border-destructive/40 hover:text-destructive'
-                                        : 'border border-primary/30 bg-primary/15 text-primary hover:bg-primary/25'
-                                        }`}
-                                >
-                                    {followLoading ? 'Updating...' : profile.following ? 'Following' : 'Follow'}
-                                </button>
-                            ) : null}
+                            <div className="flex flex-col items-start gap-2 md:items-end">
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => void copyProfileLink()}
+                                        className="rounded-full border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground hover:border-primary/30"
+                                    >
+                                        Copy Link
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void copyProfileSummary()}
+                                        className="rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15"
+                                    >
+                                        Copy Summary
+                                    </button>
+                                    {isOwnProfile ? (
+                                        <Link href="/profile/edit" className="rounded-full border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground hover:border-primary/30">
+                                            Edit Profile
+                                        </Link>
+                                    ) : currentUserId ? (
+                                        <button
+                                            onClick={handleFollow}
+                                            disabled={followLoading}
+                                            className={`rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${profile.following
+                                                ? 'border border-border bg-accent text-foreground hover:border-destructive/40 hover:text-destructive'
+                                                : 'border border-primary/30 bg-primary/15 text-primary hover:bg-primary/25'
+                                                }`}
+                                        >
+                                            {followLoading ? 'Updating...' : profile.following ? 'Following' : 'Follow'}
+                                        </button>
+                                    ) : null}
+                                </div>
+                                {shareMessage ? (
+                                    <p className="text-right text-xs text-muted-foreground">{shareMessage}</p>
+                                ) : null}
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -517,6 +573,62 @@ export default function ProfilePage() {
                         </div>
                     </div>
                 </section>
+
+                {profileWorkspaceTab === 'SUMMARY' && (
+                <section className="glass-panel rounded-2xl border border-border/80 p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Public Share Card</p>
+                            <h2 className="mt-2 text-xl font-semibold">Share the accountable profile summary without sending the full dashboard.</h2>
+                            <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+                                This card compresses trust, win rate, audience, and portfolio footprint into a copyable public summary.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => void copyProfileLink()}
+                                className="rounded-full border border-border bg-accent px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary/30"
+                            >
+                                Copy Link
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void copyProfileSummary()}
+                                className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15"
+                            >
+                                Copy Share Card
+                            </button>
+                        </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-xl border border-border bg-background/60 p-4">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Profile</p>
+                            <p className="mt-2 text-lg font-semibold text-foreground">{profile.displayName || profile.username}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">@{profile.username}</p>
+                        </div>
+                        <div className="rounded-xl border border-border bg-background/60 p-4">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Trust</p>
+                            <p className={`mt-2 text-lg font-semibold ${trustScoreColor}`}>
+                                {profile.trustScore !== undefined ? profile.trustScore.toFixed(1) : 'N/A'}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Win rate {profile.winRate !== undefined && hasTrustEvidence ? `${profile.winRate.toFixed(1)}%` : 'N/A'}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-border bg-background/60 p-4">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Audience</p>
+                            <p className="mt-2 text-lg font-semibold text-foreground">{profile.followerCount}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">followers · {profile.followingCount} following</p>
+                        </div>
+                        <div className="rounded-xl border border-border bg-background/60 p-4">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Record</p>
+                            <p className="mt-2 text-lg font-semibold text-foreground">{profile.portfolioCount}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">portfolios · member since {new Date(profile.memberSince).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}</p>
+                        </div>
+                    </div>
+                </section>
+                )}
 
                 {profileWorkspaceTab === 'SUMMARY' && (
                 <section className="grid grid-cols-2 gap-3 md:grid-cols-4">

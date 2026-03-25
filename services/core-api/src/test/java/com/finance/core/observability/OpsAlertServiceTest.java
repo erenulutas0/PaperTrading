@@ -10,9 +10,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -66,5 +68,20 @@ class OpsAlertServiceTest {
 
         verifyNoInteractions(webhookClient);
         assertEquals(1, meterRegistry.getMeters().size());
+    }
+
+    @Test
+    void publish_usesLocaleRootForCriticalSeverityMetricTags() {
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            service.publish("shedlock", OpsAlertSeverity.CRITICAL, "stale-lock", "stale lock detected", Map.of());
+
+            assertNotNull(meterRegistry.find("app.ops.alerts.total")
+                    .tags("component", "shedlock", "severity", "critical", "channel", "log", "result", "sent")
+                    .counter());
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 }

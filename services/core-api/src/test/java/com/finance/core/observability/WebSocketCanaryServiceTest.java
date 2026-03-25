@@ -10,7 +10,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import java.util.Locale;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -169,5 +172,26 @@ class WebSocketCanaryServiceTest {
         );
         assertTrue(output.getOut().contains("WebSocket canary probe raised exception: broker unavailable"));
         assertTrue(!output.getOut().contains("java.lang.IllegalStateException: broker unavailable"));
+    }
+
+    @Test
+    void runCanaryProbe_usesLocaleRootForCriticalTransitionTags() {
+        properties.setWarningConsecutiveFailureThreshold(2);
+        properties.setCriticalFailureThreshold(3);
+        when(canaryClient.probe(any())).thenReturn(new WebSocketCanaryProbeResult(false, true, 15, "timeout"));
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            service.runCanaryProbe();
+            service.runCanaryProbe();
+            service.runCanaryProbe();
+
+            assertNotNull(meterRegistry.find("app.websocket.canary.state.transitions")
+                    .tags("from", "warning", "to", "critical")
+                    .counter());
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 }

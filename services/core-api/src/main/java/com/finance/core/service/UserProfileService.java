@@ -9,6 +9,7 @@ import com.finance.core.domain.Portfolio;
 import com.finance.core.dto.UpdateProfileRequest;
 import com.finance.core.dto.TrustScoreBreakdownResponse;
 import com.finance.core.dto.UserProfileResponse;
+import com.finance.core.dto.UserSuggestionResponse;
 import com.finance.core.repository.FollowRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.UserRepository;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,9 @@ import com.finance.core.domain.event.NotificationEvent;
 
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -197,5 +202,49 @@ public class UserProfileService {
         public Page<UserProfileResponse> getFollowing(UUID userId, UUID requesterId, Pageable pageable) {
                 return followRepository.findByFollowerId(userId, pageable)
                                 .map(f -> getProfile(f.getFollowingId(), requesterId));
+        }
+
+        public List<UserSuggestionResponse> getSuggestedAccounts(UUID requesterId, int limit) {
+                int effectiveLimit = Math.max(1, Math.min(limit, 12));
+                List<AppUser> candidates = userRepository.findSuggestedAccounts(PageRequest.of(0, effectiveLimit * 4));
+                Set<UUID> followedIds = requesterId == null
+                                ? Set.of()
+                                : followRepository.findByFollowerId(requesterId).stream()
+                                                .map(Follow::getFollowingId)
+                                                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+
+                List<AppUser> filteredUsers = candidates.stream()
+                                .filter(user -> requesterId == null || !user.getId().equals(requesterId))
+                                .filter(user -> !followedIds.contains(user.getId()))
+                                .toList();
+                if (filteredUsers.isEmpty()) {
+                        return List.of();
+                }
+
+                Map<String, Integer> publicPortfolioCounts = new HashMap<>();
+                List<Object[]> groupedCounts = portfolioRepository.countByOwnerIdInAndVisibilityGrouped(
+                                filteredUsers.stream().map(user -> user.getId().toString()).toList(),
+                                Portfolio.Visibility.PUBLIC);
+                for (Object[] row : groupedCounts) {
+                        if (row.length >= 2 && row[0] != null && row[1] instanceof Number count) {
+                                publicPortfolioCounts.put(String.valueOf(row[0]), count.intValue());
+                        }
+                }
+
+                return filteredUsers.stream()
+                                .filter(user -> publicPortfolioCounts.getOrDefault(user.getId().toString(), 0) > 0)
+                                .limit(effectiveLimit)
+                                .map(user -> UserSuggestionResponse.builder()
+                                                .id(user.getId())
+                                                .username(user.getUsername())
+                                                .displayName(user.getDisplayName() != null ? user.getDisplayName() : user.getUsername())
+                                                .avatarUrl(user.getAvatarUrl())
+                                                .verified(user.isVerified())
+                                                .followerCount(user.getFollowerCount())
+                                                .portfolioCount(publicPortfolioCounts.getOrDefault(user.getId().toString(), 0))
+                                                .trustScore(user.getTrustScore())
+                                                .following(requesterId != null && followedIds.contains(user.getId()))
+                                                .build())
+                                .toList();
         }
 }

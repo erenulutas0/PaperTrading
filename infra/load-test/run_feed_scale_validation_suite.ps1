@@ -50,6 +50,72 @@ function Add-StepResult {
         }) | Out-Null
 }
 
+function Parse-MarkdownStatus {
+    param([string]$ReportPath)
+
+    if (-not (Test-Path $ReportPath)) {
+        return ""
+    }
+
+    $content = Get-Content -Path $ReportPath -Raw
+    $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+    $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
+    if ($match.Success -and $match.Groups.Count -ge 2) {
+        return $match.Groups[1].Value.Trim()
+    }
+
+    $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
+    if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
+        return $lineMatch.Groups[1].Value.Trim()
+    }
+
+    return ""
+}
+
+function Invoke-ScriptStep {
+    param(
+        [string]$ScriptPath,
+        [hashtable]$Parameters,
+        [string]$ReportPattern,
+        [string]$ReportsDirectory
+    )
+
+    $before = Get-LatestReport -Directory $ReportsDirectory -Pattern $ReportPattern
+    try {
+        & $ScriptPath @Parameters | Out-Null
+
+        $report = Get-LatestReport -Directory $ReportsDirectory -Pattern $ReportPattern
+        if ([string]::IsNullOrWhiteSpace($report)) {
+            return [pscustomobject]@{
+                Status     = "FAILED"
+                Detail     = "report_not_found"
+                ReportPath = ""
+            }
+        }
+
+        $status = Parse-MarkdownStatus -ReportPath $report
+        if ([string]::IsNullOrWhiteSpace($status)) {
+            $status = "PASSED"
+        }
+
+        return [pscustomobject]@{
+            Status     = $status
+            Detail     = "ok"
+            ReportPath = $report
+        }
+    } catch {
+        $report = Get-LatestReport -Directory $ReportsDirectory -Pattern $ReportPattern
+        if ($report -eq $before) {
+            $report = ""
+        }
+        return [pscustomobject]@{
+            Status     = "FAILED"
+            Detail     = $_.Exception.Message
+            ReportPath = $report
+        }
+    }
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $fanoutScript = Join-Path $scriptDir "run_follower_fanout_stress_suite.ps1"
 $recalibrationScript = Join-Path $scriptDir "run_feed_latency_recalibration_checklist.ps1"
@@ -67,52 +133,38 @@ New-Item -Path $resolvedOutputDir -ItemType Directory -Force | Out-Null
 $results = New-Object 'System.Collections.Generic.List[object]'
 
 if (-not $SkipFanoutSuite) {
-    $beforeFanout = Get-LatestReport -Directory $resolvedOutputDir -Pattern "fanout-stress-suite-*.md"
-    $fanoutArgs = @(
-        "-ExecutionPolicy", "Bypass",
-        "-File", $fanoutScript,
-        "-BaseUrl", $BaseUrl,
-        "-FanoutStages"
-    ) + (@($FanoutStages) | ForEach-Object { [string]$_ }) + @(
-        "-SeedEvents", [string]$SeedEvents,
-        "-Concurrency", [string]$Concurrency,
-        "-RequestsPerWorker", [string]$RequestsPerWorker,
-        "-Rounds", [string]$Rounds
-    )
-    if ($NoFail) {
-        $fanoutArgs += "-NoFail"
+    $fanoutParams = @{
+        BaseUrl           = $BaseUrl
+        FanoutStages      = @($FanoutStages)
+        SeedEvents        = $SeedEvents
+        Concurrency       = $Concurrency
+        RequestsPerWorker = $RequestsPerWorker
+        Rounds            = $Rounds
+        NoFail            = $true
     }
-    & powershell @fanoutArgs | Out-Null
-    $fanoutExitCode = $LASTEXITCODE
-    $fanoutReport = Get-LatestReport -Directory $resolvedOutputDir -Pattern "fanout-stress-suite-*.md"
-    if ($fanoutReport -eq $beforeFanout) {
-        $fanoutReport = ""
-    }
-    $fanoutStatus = if ($fanoutExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($fanoutReport)) { "PASSED" } else { "FAILED" }
-    Add-StepResult -Results $results -Name "Follower Fanout Suite" -Status $fanoutStatus -Detail "exit_code=$fanoutExitCode" -ReportPath $fanoutReport
+    $fanoutResult = Invoke-ScriptStep `
+        -ScriptPath $fanoutScript `
+        -Parameters $fanoutParams `
+        -ReportPattern "fanout-stress-suite-*.md" `
+        -ReportsDirectory $resolvedOutputDir
+    Add-StepResult -Results $results -Name "Follower Fanout Suite" -Status $fanoutResult.Status -Detail $fanoutResult.Detail -ReportPath $fanoutResult.ReportPath
 }
 
 if (-not $SkipRecalibration) {
-    $beforeRecalibration = Get-LatestReport -Directory $resolvedOutputDir -Pattern "feed-latency-recalibration-checklist-*.md"
-    $recalibrationArgs = @(
-        "-ExecutionPolicy", "Bypass",
-        "-File", $recalibrationScript,
-        "-ReportsGlob", $ReportsGlob,
-        "-WarningMultiplier", [string]$WarningMultiplier,
-        "-CriticalMultiplier", [string]$CriticalMultiplier,
-        "-Percentile", [string]$Percentile
-    )
-    if ($NoFail) {
-        $recalibrationArgs += "-NoFail"
+    $recalibrationParams = @{
+        ReportsGlob        = $ReportsGlob
+        WarningMultiplier  = $WarningMultiplier
+        CriticalMultiplier = $CriticalMultiplier
+        Percentile         = $Percentile
+        OutputDir          = $OutputDir
+        NoFail             = $true
     }
-    & powershell @recalibrationArgs | Out-Null
-    $recalibrationExitCode = $LASTEXITCODE
-    $recalibrationReport = Get-LatestReport -Directory $resolvedOutputDir -Pattern "feed-latency-recalibration-checklist-*.md"
-    if ($recalibrationReport -eq $beforeRecalibration) {
-        $recalibrationReport = ""
-    }
-    $recalibrationStatus = if ($recalibrationExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($recalibrationReport)) { "PASSED" } else { "FAILED" }
-    Add-StepResult -Results $results -Name "Feed Threshold Recalibration" -Status $recalibrationStatus -Detail "exit_code=$recalibrationExitCode" -ReportPath $recalibrationReport
+    $recalibrationResult = Invoke-ScriptStep `
+        -ScriptPath $recalibrationScript `
+        -Parameters $recalibrationParams `
+        -ReportPattern "feed-latency-recalibration-checklist-*.md" `
+        -ReportsDirectory $resolvedOutputDir
+    Add-StepResult -Results $results -Name "Feed Threshold Recalibration" -Status $recalibrationResult.Status -Detail $recalibrationResult.Detail -ReportPath $recalibrationResult.ReportPath
 }
 
 $failedCount = (@($results | Where-Object { $_.Status -ne "PASSED" })).Count

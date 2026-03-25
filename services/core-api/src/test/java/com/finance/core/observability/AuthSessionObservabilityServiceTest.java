@@ -6,8 +6,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -122,5 +124,34 @@ class AuthSessionObservabilityServiceTest {
                 anyString(),
                 anyMap()
         );
+    }
+
+    @Test
+    void refreshSnapshot_usesLocaleRootForCriticalTransitionTags() {
+        properties.setWarningRefreshCount(1);
+        properties.setCriticalRefreshCount(2);
+        properties.setWarningInvalidCount(500);
+        properties.setCriticalInvalidCount(1000);
+        properties.setWarningInvalidRatio(0.99);
+        properties.setCriticalInvalidRatio(1.0);
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            service.recordRefreshSuccess();
+            service.refreshSnapshot();
+            service.recordRefreshSuccess();
+            service.refreshSnapshot();
+
+            assertNotNull(meterRegistry.find("app.auth.refresh.state.transitions")
+                    .tags("from", "warning", "to", "critical")
+                    .counter());
+            assertEquals(1.0, meterRegistry.find("app.auth.refresh.state.transitions")
+                    .tags("from", "warning", "to", "critical")
+                    .counter()
+                    .count());
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 }

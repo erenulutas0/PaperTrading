@@ -7,6 +7,7 @@ import { apiFetch } from '../../../lib/api-client';
 import { extractContent } from '../../../lib/page';
 
 type Tab = 'OVERVIEW' | 'BOTS' | 'RUNS';
+type RunDetailTab = 'SUMMARY' | 'FILLS' | 'EVENTS' | 'EQUITY' | 'RECONCILIATION' | 'RAW';
 type BotStatus = 'DRAFT' | 'READY' | 'ARCHIVED';
 type RunMode = 'BACKTEST' | 'FORWARD_TEST';
 type BotBoardSort = 'AVG_RETURN' | 'AVG_NET_PNL' | 'TOTAL_RUNS' | 'AVG_WIN_RATE' | 'AVG_PROFIT_FACTOR' | 'LATEST_REQUESTED_AT';
@@ -103,6 +104,11 @@ type StrategyBotRunReconciliationPlan = {
     targetPositionOpen: boolean; targetQuantity: number; targetAveragePrice: number; targetLastPrice: number; targetCashBalance: number; targetEquity: number;
     currentCashBalance: number; currentQuantity: number; currentAveragePrice: number; quantityDelta: number; cashDelta: number;
     cashAligned: boolean; quantityAligned: boolean; portfolioAligned: boolean; extraSymbolCount: number; warnings: string[];
+};
+type SlicePageMeta = {
+    pageNumber: number;
+    totalPages: number;
+    totalElements: number;
 };
 
 const defaultEntryRules = JSON.stringify({ all: ['price_above_ma_20', 'rsi_below_35'] }, null, 2);
@@ -418,6 +424,18 @@ function buildSparkline(points: StrategyBotRunEquityPoint[]) {
         .join(' ');
 }
 
+function readSlicePageMeta(payload: unknown): SlicePageMeta {
+    if (!payload || typeof payload !== 'object') {
+        return { pageNumber: 0, totalPages: 0, totalElements: 0 };
+    }
+    const page = (payload as { page?: { number?: number; totalPages?: number; totalElements?: number } }).page;
+    return {
+        pageNumber: typeof page?.number === 'number' ? page.number : 0,
+        totalPages: typeof page?.totalPages === 'number' ? page.totalPages : 0,
+        totalElements: typeof page?.totalElements === 'number' ? page.totalElements : 0,
+    };
+}
+
 function RuleBuilderPanel({
     scope,
     title,
@@ -570,7 +588,12 @@ export default function StrategyBotsPage() {
     const [exportingFormat, setExportingFormat] = useState<'csv' | 'json' | null>(null);
     const [exportingBoardFormat, setExportingBoardFormat] = useState<'csv' | 'json' | null>(null);
     const [exportingRunFormat, setExportingRunFormat] = useState<'csv' | 'json' | null>(null);
-    const [outputsLoading, setOutputsLoading] = useState(false);
+    const [outputLoadingState, setOutputLoadingState] = useState({ events: false, fills: false, equity: false });
+    const [runDetailTab, setRunDetailTab] = useState<RunDetailTab>('SUMMARY');
+    const [selectedRunEventsLoaded, setSelectedRunEventsLoaded] = useState(false);
+    const [selectedRunFillsLoaded, setSelectedRunFillsLoaded] = useState(false);
+    const [selectedRunEquityCurveLoaded, setSelectedRunEquityCurveLoaded] = useState(false);
+    const [selectedRunReconciliationLoaded, setSelectedRunReconciliationLoaded] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -590,6 +613,9 @@ export default function StrategyBotsPage() {
     const [selectedRunEvents, setSelectedRunEvents] = useState<StrategyBotRunEvent[]>([]);
     const [selectedRunFills, setSelectedRunFills] = useState<StrategyBotRunFill[]>([]);
     const [selectedRunEquityCurve, setSelectedRunEquityCurve] = useState<StrategyBotRunEquityPoint[]>([]);
+    const [selectedRunEventsPageMeta, setSelectedRunEventsPageMeta] = useState<SlicePageMeta>({ pageNumber: 0, totalPages: 0, totalElements: 0 });
+    const [selectedRunFillsPageMeta, setSelectedRunFillsPageMeta] = useState<SlicePageMeta>({ pageNumber: 0, totalPages: 0, totalElements: 0 });
+    const [selectedRunEquityCurvePageMeta, setSelectedRunEquityCurvePageMeta] = useState<SlicePageMeta>({ pageNumber: 0, totalPages: 0, totalElements: 0 });
     const [selectedRunReconciliation, setSelectedRunReconciliation] = useState<StrategyBotRunReconciliationPlan | null>(null);
     const [selectedBotAnalytics, setSelectedBotAnalytics] = useState<StrategyBotAnalytics | null>(null);
     const [editingBotId, setEditingBotId] = useState<string | null>(null);
@@ -599,6 +625,9 @@ export default function StrategyBotsPage() {
     const selectedBot = useMemo(() => bots.find((bot) => bot.id === selectedBotId) ?? null, [bots, selectedBotId]);
     const latestRun = runs[0] ?? null;
     const selectedRun = useMemo(() => runs.find((run) => run.id === selectedRunId) ?? latestRun ?? null, [runs, selectedRunId, latestRun]);
+    const hasMoreRunEvents = selectedRunEventsLoaded && selectedRunEventsPageMeta.pageNumber + 1 < selectedRunEventsPageMeta.totalPages;
+    const hasMoreRunFills = selectedRunFillsLoaded && selectedRunFillsPageMeta.pageNumber + 1 < selectedRunFillsPageMeta.totalPages;
+    const hasMoreRunEquityCurve = selectedRunEquityCurveLoaded && selectedRunEquityCurvePageMeta.pageNumber + 1 < selectedRunEquityCurvePageMeta.totalPages;
     const activeBoardPreset = useMemo(
         () => resolveActiveBoardPreset(boardSortBy, boardDirection, boardRunMode, boardLookbackDays),
         [boardSortBy, boardDirection, boardRunMode, boardLookbackDays],
@@ -633,23 +662,62 @@ export default function StrategyBotsPage() {
             setRuns([]);
             setSelectedRunId('');
             setSelectedRunEvents([]);
+            setSelectedRunEventsLoaded(false);
+            setSelectedRunEventsPageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
             setSelectedRunFills([]);
+            setSelectedRunFillsLoaded(false);
+            setSelectedRunFillsPageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
             setSelectedRunEquityCurve([]);
+            setSelectedRunEquityCurveLoaded(false);
+            setSelectedRunEquityCurvePageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
             setSelectedBotAnalytics(null);
+            setSelectedRunReconciliation(null);
+            setSelectedRunReconciliationLoaded(false);
         }
     }, [selectedBotId, boardRunMode, boardLookbackDays]);
 
     useEffect(() => {
-        if (selectedBotId && selectedRunId) {
-            void loadRunOutputs(selectedBotId, selectedRunId);
-            void loadRunReconciliation(selectedBotId, selectedRunId);
-        } else {
+        if (!selectedBotId || !selectedRunId) {
             setSelectedRunEvents([]);
+            setSelectedRunEventsLoaded(false);
+            setSelectedRunEventsPageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
             setSelectedRunFills([]);
+            setSelectedRunFillsLoaded(false);
+            setSelectedRunFillsPageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
             setSelectedRunEquityCurve([]);
+            setSelectedRunEquityCurveLoaded(false);
+            setSelectedRunEquityCurvePageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
             setSelectedRunReconciliation(null);
+            setSelectedRunReconciliationLoaded(false);
+            return;
         }
-    }, [selectedBotId, selectedRunId]);
+        if (runDetailTab === 'FILLS' && !selectedRunFillsLoaded) {
+            void loadRunFills(selectedBotId, selectedRunId);
+        }
+        if (runDetailTab === 'EVENTS' && !selectedRunEventsLoaded) {
+            void loadRunEvents(selectedBotId, selectedRunId);
+        }
+        if (runDetailTab === 'EQUITY' && !selectedRunEquityCurveLoaded) {
+            void loadRunEquityCurve(selectedBotId, selectedRunId);
+        }
+        if (runDetailTab === 'RECONCILIATION' && !selectedRunReconciliationLoaded) {
+            void loadRunReconciliation(selectedBotId, selectedRunId);
+        }
+        if (runDetailTab === 'RAW') {
+            if (!selectedRunEventsLoaded) {
+                void loadRunEvents(selectedBotId, selectedRunId);
+            }
+            if (!selectedRunFillsLoaded) {
+                void loadRunFills(selectedBotId, selectedRunId);
+            }
+            if (!selectedRunEquityCurveLoaded) {
+                void loadRunEquityCurve(selectedBotId, selectedRunId);
+            }
+            if (!selectedRunReconciliationLoaded) {
+                void loadRunReconciliation(selectedBotId, selectedRunId);
+            }
+        }
+    }, [selectedBotId, selectedRunId, runDetailTab, selectedRunEventsLoaded, selectedRunFillsLoaded, selectedRunEquityCurveLoaded, selectedRunReconciliationLoaded]);
 
     useEffect(() => {
         if (userId) {
@@ -724,44 +792,104 @@ export default function StrategyBotsPage() {
         }
     }
 
+    function resetSelectedRunArtifacts(resetDetailTab = true) {
+        setSelectedRunEvents([]);
+        setSelectedRunEventsLoaded(false);
+        setSelectedRunEventsPageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
+        setSelectedRunFills([]);
+        setSelectedRunFillsLoaded(false);
+        setSelectedRunFillsPageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
+        setSelectedRunEquityCurve([]);
+        setSelectedRunEquityCurveLoaded(false);
+        setSelectedRunEquityCurvePageMeta({ pageNumber: 0, totalPages: 0, totalElements: 0 });
+        setSelectedRunReconciliation(null);
+        setSelectedRunReconciliationLoaded(false);
+        if (resetDetailTab) {
+            setRunDetailTab('SUMMARY');
+        }
+    }
+
+    function selectRun(runId: string, resetDetailTab = true) {
+        resetSelectedRunArtifacts(resetDetailTab);
+        setSelectedRunId(runId);
+    }
+
     async function loadRuns(botId: string) {
         try {
             const response = await apiFetch(`/api/v1/strategy-bots/${botId}/runs?size=20`, { cache: 'no-store' });
             if (!response.ok) throw new Error(`Failed to load bot runs (${response.status})`);
             const nextRuns = extractContent<StrategyBotRun>(await response.json());
             setRuns(nextRuns);
-            setSelectedRunId((current) => current && nextRuns.some((run) => run.id === current) ? current : nextRuns[0]?.id ?? '');
+            setSelectedRunId((current) => {
+                const nextRunId = current && nextRuns.some((run) => run.id === current) ? current : nextRuns[0]?.id ?? '';
+                if (nextRunId !== current) {
+                    resetSelectedRunArtifacts();
+                }
+                return nextRunId;
+            });
         } catch (error) { setActionError(err(error)); }
     }
 
-    async function loadRunOutputs(botId: string, runId: string) {
-        setOutputsLoading(true);
+    async function loadRunEvents(botId: string, runId: string, page = 0, append = false) {
+        setOutputLoadingState((current) => ({ ...current, events: true }));
         try {
-            const [eventsRes, fillsRes, curveRes] = await Promise.all([
-                apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/events?size=500`, { cache: 'no-store' }),
-                apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/fills?size=200`, { cache: 'no-store' }),
-                apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/equity-curve?size=1000`, { cache: 'no-store' }),
-            ]);
+            const eventsRes = await apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/events?page=${page}&size=60`, { cache: 'no-store' });
             if (!eventsRes.ok) throw new Error(`Failed to load run events (${eventsRes.status})`);
-            if (!fillsRes.ok) throw new Error(`Failed to load run fills (${fillsRes.status})`);
-            if (!curveRes.ok) throw new Error(`Failed to load run equity curve (${curveRes.status})`);
-            setSelectedRunEvents(extractContent<StrategyBotRunEvent>(await eventsRes.json()));
-            setSelectedRunFills(extractContent<StrategyBotRunFill>(await fillsRes.json()));
-            setSelectedRunEquityCurve(extractContent<StrategyBotRunEquityPoint>(await curveRes.json()));
+            const payload = await eventsRes.json();
+            const content = extractContent<StrategyBotRunEvent>(payload);
+            setSelectedRunEvents((current) => append ? [...current, ...content] : content);
+            setSelectedRunEventsPageMeta(readSlicePageMeta(payload));
+            setSelectedRunEventsLoaded(true);
         } catch (error) {
             setActionError(err(error));
         } finally {
-            setOutputsLoading(false);
+            setOutputLoadingState((current) => ({ ...current, events: false }));
+        }
+    }
+
+    async function loadRunFills(botId: string, runId: string, page = 0, append = false) {
+        setOutputLoadingState((current) => ({ ...current, fills: true }));
+        try {
+            const fillsRes = await apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/fills?page=${page}&size=40`, { cache: 'no-store' });
+            if (!fillsRes.ok) throw new Error(`Failed to load run fills (${fillsRes.status})`);
+            const payload = await fillsRes.json();
+            const content = extractContent<StrategyBotRunFill>(payload);
+            setSelectedRunFills((current) => append ? [...current, ...content] : content);
+            setSelectedRunFillsPageMeta(readSlicePageMeta(payload));
+            setSelectedRunFillsLoaded(true);
+        } catch (error) {
+            setActionError(err(error));
+        } finally {
+            setOutputLoadingState((current) => ({ ...current, fills: false }));
+        }
+    }
+
+    async function loadRunEquityCurve(botId: string, runId: string, page = 0, append = false) {
+        setOutputLoadingState((current) => ({ ...current, equity: true }));
+        try {
+            const curveRes = await apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/equity-curve?page=${page}&size=120`, { cache: 'no-store' });
+            if (!curveRes.ok) throw new Error(`Failed to load run equity curve (${curveRes.status})`);
+            const payload = await curveRes.json();
+            const content = extractContent<StrategyBotRunEquityPoint>(payload);
+            setSelectedRunEquityCurve((current) => append ? [...current, ...content] : content);
+            setSelectedRunEquityCurvePageMeta(readSlicePageMeta(payload));
+            setSelectedRunEquityCurveLoaded(true);
+        } catch (error) {
+            setActionError(err(error));
+        } finally {
+            setOutputLoadingState((current) => ({ ...current, equity: false }));
         }
     }
 
     async function loadRunReconciliation(botId: string, runId: string) {
         try {
             const response = await apiFetch(`/api/v1/strategy-bots/${botId}/runs/${runId}/reconciliation-plan`, { cache: 'no-store' });
-            if (!response.ok) { setSelectedRunReconciliation(null); return; }
+            if (!response.ok) { setSelectedRunReconciliation(null); setSelectedRunReconciliationLoaded(true); return; }
             setSelectedRunReconciliation(await response.json() as StrategyBotRunReconciliationPlan);
+            setSelectedRunReconciliationLoaded(true);
         } catch {
             setSelectedRunReconciliation(null);
+            setSelectedRunReconciliationLoaded(true);
         }
     }
 
@@ -1101,7 +1229,7 @@ export default function StrategyBotsPage() {
             await loadRuns(selectedBotId);
             await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
-            setSelectedRunId(createdRun.id);
+            selectRun(createdRun.id);
             setNotice('Run queued');
         } catch (error) { setActionError(err(error)); } finally { setRequestingRun(false); }
     }
@@ -1115,7 +1243,7 @@ export default function StrategyBotsPage() {
             await loadRuns(selectedBotId);
             await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
-            setSelectedRunId(runId);
+            selectRun(runId);
             setNotice('Run executed');
         } catch (error) { setActionError(err(error)); } finally { setExecutingRunId(null); }
     }
@@ -1129,9 +1257,7 @@ export default function StrategyBotsPage() {
             await loadRuns(selectedBotId);
             await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
-            setSelectedRunId(runId);
-            await loadRunOutputs(selectedBotId, runId);
-            await loadRunReconciliation(selectedBotId, runId);
+            selectRun(runId, false);
             setNotice('Forward test refreshed');
         } catch (error) { setActionError(err(error)); } finally { setRefreshingRunId(null); }
     }
@@ -1146,9 +1272,7 @@ export default function StrategyBotsPage() {
             await loadRuns(selectedBotId);
             await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
-            setSelectedRunId(runId);
-            await loadRunOutputs(selectedBotId, runId);
-            await loadRunReconciliation(selectedBotId, runId);
+            selectRun(runId, false);
             setNotice('Run cancelled');
         } catch (error) { setActionError(err(error)); } finally { setCancellingRunId(null); }
     }
@@ -1163,7 +1287,7 @@ export default function StrategyBotsPage() {
             await loadRuns(selectedBotId);
             await loadBotAnalytics(selectedBotId, boardRunMode, boardLookbackDays);
             await loadBotBoard();
-            setSelectedRunId(runId);
+            selectRun(runId, false);
             setNotice('Linked portfolio synced to run snapshot');
         } catch (error) { setActionError(err(error)); } finally { setApplyingRunId(null); }
     }
@@ -1887,7 +2011,7 @@ export default function StrategyBotsPage() {
                                                     {cancellingRunId === run.id ? 'Cancelling...' : 'Cancel Run'}
                                                 </button>
                                             )}
-                                            <button type="button" onClick={() => setSelectedRunId(run.id)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200">
+                                            <button type="button" onClick={() => selectRun(run.id)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200">
                                                 {selectedRunId === run.id ? 'Selected' : 'Inspect'}
                                             </button>
                                         </div>
@@ -1916,43 +2040,115 @@ export default function StrategyBotsPage() {
                                                     )}
                                                 </div>
                                                 <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                    <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Run Detail Tabs</p>
+                                                    <p className="mt-3 text-sm text-zinc-300">Heavy journals now load only when their tab is opened.</p>
+                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                        {([
+                                                            ['SUMMARY', 'Summary'],
+                                                            ['FILLS', 'Fills'],
+                                                            ['EVENTS', 'Events'],
+                                                            ['EQUITY', 'Equity'],
+                                                            ['RECONCILIATION', 'Reconciliation'],
+                                                            ['RAW', 'Raw'],
+                                                        ] as Array<[RunDetailTab, string]>).map(([detailTab, label]) => (
+                                                            <button
+                                                                key={detailTab}
+                                                                type="button"
+                                                                onClick={() => setRunDetailTab(detailTab)}
+                                                                className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                                                                    runDetailTab === detailTab
+                                                                        ? 'border-cyan-500/30 bg-cyan-500/15 text-cyan-100'
+                                                                        : 'border-white/10 bg-white/5 text-zinc-400'
+                                                                }`}
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                {runDetailTab === 'SUMMARY' && (
+                                                    <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Run Summary</p>
+                                                        <p className="mt-3 text-sm text-zinc-300">Use the tabs above to open persisted fills, audited decisions, equity points, reconciliation state, or the raw export preview only when needed.</p>
+                                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                            <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                <p className="text-zinc-500">Audited Decisions</p>
+                                                                <p className="mt-1 font-bold text-white">{selectedRun?.summary?.eventCount ?? 0}</p>
+                                                            </div>
+                                                            <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                <p className="text-zinc-500">Persisted Fills</p>
+                                                                <p className="mt-1 font-bold text-white">{selectedRun?.summary?.tradeCount ?? 0}</p>
+                                                            </div>
+                                                            <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                <p className="text-zinc-500">Linked Portfolio</p>
+                                                                <p className="mt-1 font-bold text-white">{selectedRun?.summary?.linkedPortfolioName ?? 'None'}</p>
+                                                            </div>
+                                                            <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
+                                                                <p className="text-zinc-500">Execution Ready</p>
+                                                                <p className="mt-1 font-bold text-white">{selectedRun?.summary?.executionEngineReady ? 'Yes' : 'No'}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {runDetailTab === 'FILLS' && (
+                                                    <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                                                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Persisted Fills</p>
-                                                    {outputsLoading ? (
+                                                    {outputLoadingState.fills && !selectedRunFillsLoaded ? (
                                                         <div className="mt-3 h-24 animate-pulse rounded-xl bg-white/5" />
                                                     ) : selectedRunFills.length === 0 ? (
                                                         <p className="mt-3 text-sm text-zinc-500">No persisted fills yet for this run.</p>
                                                     ) : (
-                                                        <div className="mt-3 space-y-2">
-                                                            {selectedRunFills.slice(0, 6).map((fill) => (
-                                                                <div key={fill.id} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2 text-xs text-zinc-300">
-                                                                    <div className="flex items-center justify-between gap-3">
-                                                                        <span className={`font-bold ${fill.side === 'ENTRY' ? 'text-cyan-200' : 'text-emerald-200'}`}>{fill.side}</span>
-                                                                        <span>{fmtEpoch(fill.openTime)}</span>
+                                                        <>
+                                                            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500">
+                                                                <span>{selectedRunFillsPageMeta.totalElements || selectedRun?.summary?.tradeCount || selectedRunFills.length} persisted fills</span>
+                                                                <span>Loaded {selectedRunFills.length}</span>
+                                                            </div>
+                                                            <div className="mt-3 space-y-2">
+                                                                {selectedRunFills.map((fill) => (
+                                                                    <div key={fill.id} className="rounded-xl border border-white/5 bg-black/25 px-3 py-2 text-xs text-zinc-300">
+                                                                        <div className="flex items-center justify-between gap-3">
+                                                                            <span className={`font-bold ${fill.side === 'ENTRY' ? 'text-cyan-200' : 'text-emerald-200'}`}>{fill.side}</span>
+                                                                            <span>{fmtEpoch(fill.openTime)}</span>
+                                                                        </div>
+                                                                        <div className="mt-2 flex flex-wrap gap-3 text-zinc-400">
+                                                                            <span>Price {fmtCurrency(fill.price)}</span>
+                                                                            <span>Qty {fill.quantity.toFixed(4)}</span>
+                                                                            <span>PnL {fmtCurrency(fill.realizedPnl)}</span>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="mt-2 flex flex-wrap gap-3 text-zinc-400">
-                                                                        <span>Price {fmtCurrency(fill.price)}</span>
-                                                                        <span>Qty {fill.quantity.toFixed(4)}</span>
-                                                                        <span>PnL {fmtCurrency(fill.realizedPnl)}</span>
-                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            {hasMoreRunFills && selectedRun ? (
+                                                                <div className="mt-3 flex justify-end">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => void loadRunFills(selectedBotId, selectedRun.id, selectedRunFillsPageMeta.pageNumber + 1, true)}
+                                                                        disabled={outputLoadingState.fills}
+                                                                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                    >
+                                                                        {outputLoadingState.fills ? 'Loading...' : 'Load More Fills'}
+                                                                    </button>
                                                                 </div>
-                                                            ))}
-                                                        </div>
+                                                            ) : null}
+                                                        </>
                                                     )}
                                                 </div>
-                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                )}
+                                                {runDetailTab === 'EVENTS' && (
+                                                    <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                                                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Decision Journal</p>
-                                                    {outputsLoading ? (
+                                                    {outputLoadingState.events && !selectedRunEventsLoaded ? (
                                                         <div className="mt-3 h-28 animate-pulse rounded-xl bg-white/5" />
                                                     ) : selectedRunEvents.length === 0 ? (
                                                         <p className="mt-3 text-sm text-zinc-500">No persisted decision events yet for this run.</p>
                                                     ) : (
                                                         <>
                                                             <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500">
-                                                                <span>{selectedRun?.summary?.eventCount ?? selectedRunEvents.length} audited decisions</span>
-                                                                <span>Showing latest {Math.min(selectedRunEvents.length, 6)}</span>
+                                                                <span>{selectedRunEventsPageMeta.totalElements || selectedRun?.summary?.eventCount || selectedRunEvents.length} audited decisions</span>
+                                                                <span>Loaded {selectedRunEvents.length}</span>
                                                             </div>
                                                             <div className="mt-3 space-y-2">
-                                                                {[...selectedRunEvents].slice(-6).reverse().map((event) => (
+                                                                {selectedRunEvents.map((event) => (
                                                                     <div key={event.id} className="rounded-xl border border-white/5 bg-black/25 px-3 py-3 text-xs text-zinc-300">
                                                                         <div className="flex flex-wrap items-center justify-between gap-3">
                                                                             <div className="flex flex-wrap items-center gap-2">
@@ -1976,7 +2172,7 @@ export default function StrategyBotsPage() {
                                                                         )}
                                                                         {event.details && Object.keys(event.details).length > 0 && (
                                                                             <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
-                                                                                {Object.entries(event.details).slice(0, 3).map(([key, value]) => (
+                                                                                {Object.entries(event.details).slice(0, 4).map(([key, value]) => (
                                                                                     <span key={`${event.id}-${key}`} className="rounded-full border border-white/5 bg-black/20 px-2 py-1">{key}: {String(value)}</span>
                                                                                 ))}
                                                                             </div>
@@ -1984,9 +2180,22 @@ export default function StrategyBotsPage() {
                                                                     </div>
                                                                 ))}
                                                             </div>
+                                                            {hasMoreRunEvents && selectedRun ? (
+                                                                <div className="mt-3 flex justify-end">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => void loadRunEvents(selectedBotId, selectedRun.id, selectedRunEventsPageMeta.pageNumber + 1, true)}
+                                                                        disabled={outputLoadingState.events}
+                                                                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                    >
+                                                                        {outputLoadingState.events ? 'Loading...' : 'Load More Events'}
+                                                                    </button>
+                                                                </div>
+                                                            ) : null}
                                                         </>
                                                     )}
                                                 </div>
+                                                )}
                                                 <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                                                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Outcome Quality</p>
                                                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -2059,8 +2268,13 @@ export default function StrategyBotsPage() {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                {runDetailTab === 'RECONCILIATION' && (
+                                                    <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                                                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Portfolio Reconciliation</p>
+                                                    {!selectedRunReconciliationLoaded ? (
+                                                        <div className="mt-3 h-32 animate-pulse rounded-xl bg-white/5" />
+                                                    ) : (
+                                                        <>
                                                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                                         <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                             <p className="text-zinc-500">Linked Portfolio</p>
@@ -2124,12 +2338,16 @@ export default function StrategyBotsPage() {
                                                             {selectedRunReconciliation.warnings.join(' | ')}
                                                         </div>
                                                     ) : null}
+                                                        </>
+                                                    )}
                                                 </div>
+                                                )}
                                             </div>
                                             <div className="space-y-4">
-                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                {runDetailTab === 'EQUITY' && (
+                                                    <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                                                     <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Persisted Equity Curve</p>
-                                                    {outputsLoading ? (
+                                                    {outputLoadingState.equity && !selectedRunEquityCurveLoaded ? (
                                                         <div className="mt-3 h-32 animate-pulse rounded-xl bg-white/5" />
                                                     ) : selectedRunEquityCurve.length < 2 ? (
                                                         <p className="mt-3 text-sm text-zinc-500">No persisted equity points yet for this run.</p>
@@ -2162,13 +2380,27 @@ export default function StrategyBotsPage() {
                                                                 </div>
                                                                 <div className="rounded-xl border border-white/5 bg-black/25 p-3 text-xs text-zinc-300">
                                                                     <p className="text-zinc-500">Points</p>
-                                                                    <p className="mt-1 font-bold text-white">{selectedRunEquityCurve.length}</p>
+                                                                    <p className="mt-1 font-bold text-white">{selectedRunEquityCurve.length} / {selectedRunEquityCurvePageMeta.totalElements || selectedRunEquityCurve.length}</p>
                                                                 </div>
                                                             </div>
+                                                            {hasMoreRunEquityCurve && selectedRun ? (
+                                                                <div className="mt-3 flex justify-end">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => void loadRunEquityCurve(selectedBotId, selectedRun.id, selectedRunEquityCurvePageMeta.pageNumber + 1, true)}
+                                                                        disabled={outputLoadingState.equity}
+                                                                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                    >
+                                                                        {outputLoadingState.equity ? 'Loading...' : 'Load More Points'}
+                                                                    </button>
+                                                                </div>
+                                                            ) : null}
                                                         </>
                                                     )}
                                                 </div>
-                                                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                                                )}
+                                                {runDetailTab === 'RAW' && (
+                                                    <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                                         <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">Raw Outputs</p>
                                                         <div className="flex flex-wrap gap-2">
@@ -2190,10 +2422,15 @@ export default function StrategyBotsPage() {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="mt-3 max-h-56 overflow-auto rounded-xl border border-white/5 bg-black/25 p-3">
-                                                        <pre className="whitespace-pre-wrap text-xs leading-6 text-zinc-300">{pretty({ events: selectedRunEvents, fills: selectedRunFills, equityCurve: selectedRunEquityCurve, reconciliationPlan: selectedRunReconciliation })}</pre>
-                                                    </div>
+                                                    {!selectedRunEventsLoaded || !selectedRunFillsLoaded || !selectedRunEquityCurveLoaded || !selectedRunReconciliationLoaded ? (
+                                                        <div className="mt-3 h-40 animate-pulse rounded-xl bg-white/5" />
+                                                    ) : (
+                                                        <div className="mt-3 max-h-56 overflow-auto rounded-xl border border-white/5 bg-black/25 p-3">
+                                                            <pre className="whitespace-pre-wrap text-xs leading-6 text-zinc-300">{pretty({ events: selectedRunEvents, fills: selectedRunFills, equityCurve: selectedRunEquityCurve, reconciliationPlan: selectedRunReconciliation })}</pre>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}

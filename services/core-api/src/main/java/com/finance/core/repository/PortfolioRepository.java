@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -85,4 +86,15 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
 
     @EntityGraph(attributePaths = "items")
     Optional<Portfolio> findWithItemsById(UUID id);
+
+    @Query("""
+            select p.ownerId, count(p)
+            from Portfolio p
+            where p.visibility = :visibility
+              and p.ownerId in :ownerIds
+            group by p.ownerId
+            """)
+    List<Object[]> countByOwnerIdInAndVisibilityGrouped(
+            @Param("ownerIds") Collection<String> ownerIds,
+            @Param("visibility") Portfolio.Visibility visibility);
 }

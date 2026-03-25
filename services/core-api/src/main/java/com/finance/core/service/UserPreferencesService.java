@@ -3,6 +3,7 @@ package com.finance.core.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.UserPreference;
+import com.finance.core.dto.UpdateNotificationPreferencesRequest;
 import com.finance.core.dto.UpdateTerminalPreferencesRequest;
 import com.finance.core.dto.UpdateLeaderboardPreferencesRequest;
 import com.finance.core.dto.UserPreferencesResponse;
@@ -20,6 +21,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,6 +43,11 @@ public class UserPreferencesService {
     private static final Set<String> SUPPORTED_DIRECTIONS = Set.of("ASC", "DESC");
     private static final Set<String> SUPPORTED_TERMINAL_RANGES = Set.of("1D", "1W", "1M", "3M", "6M", "1Y", "ALL");
     private static final Set<String> SUPPORTED_TERMINAL_INTERVALS = Set.of("1m", "15m", "30m", "1h", "4h", "1d");
+    private static final Set<String> SUPPORTED_NOTIFICATION_DIGESTS = Set.of("INSTANT", "DAILY", "OFF");
+    private static final String DEFAULT_NOTIFICATION_DIGEST = "INSTANT";
+    private static final String DEFAULT_QUIET_HOURS_START = "22:00";
+    private static final String DEFAULT_QUIET_HOURS_END = "08:00";
+    private static final Pattern QUIET_HOUR_PATTERN = Pattern.compile("^([01]\\d|2[0-3]):([0-5]\\d)$");
     private static final int MAX_COMPARE_BASKETS = 12;
     private static final int MAX_SCANNER_VIEWS = 12;
     private static final Set<String> SUPPORTED_SCANNER_FILTERS = Set.of("ALL", "GAINERS", "LOSERS", "FAVORITES", "SECTOR");
@@ -136,6 +143,53 @@ public class UserPreferencesService {
         return toResponse(saved);
     }
 
+    @Transactional
+    public UserPreferencesResponse updateNotificationPreferences(
+            UUID userId,
+            UpdateNotificationPreferencesRequest request) {
+        ensureUserExists(userId);
+        UserPreference preferences = userPreferenceRepository.findById(userId)
+                .orElseGet(() -> UserPreference.builder().userId(userId).build());
+
+        if (request != null) {
+            if (request.getInApp() != null) {
+                if (request.getInApp().getSocial() != null) {
+                    preferences.setNotificationInAppSocial(request.getInApp().getSocial());
+                }
+                if (request.getInApp().getWatchlist() != null) {
+                    preferences.setNotificationInAppWatchlist(request.getInApp().getWatchlist());
+                }
+                if (request.getInApp().getTournaments() != null) {
+                    preferences.setNotificationInAppTournaments(request.getInApp().getTournaments());
+                }
+            }
+            if (request.getDigestCadence() != null) {
+                preferences.setNotificationDigestCadence(parseRequestedNotificationDigest(request.getDigestCadence()));
+            }
+            if (request.getQuietHours() != null) {
+                if (request.getQuietHours().getEnabled() != null) {
+                    preferences.setNotificationQuietHoursEnabled(request.getQuietHours().getEnabled());
+                }
+                if (request.getQuietHours().getStart() != null) {
+                    preferences.setNotificationQuietHoursStart(parseRequestedQuietHour(
+                            request.getQuietHours().getStart(),
+                            "invalid_user_preferences_notification_quiet_hours_start",
+                            "Invalid user preferences notification quiet-hours start"));
+                }
+                if (request.getQuietHours().getEnd() != null) {
+                    preferences.setNotificationQuietHoursEnd(parseRequestedQuietHour(
+                            request.getQuietHours().getEnd(),
+                            "invalid_user_preferences_notification_quiet_hours_end",
+                            "Invalid user preferences notification quiet-hours end"));
+                }
+            }
+        }
+
+        UserPreference saved = userPreferenceRepository.save(preferences);
+        log.info("Saved notification preferences for user {}", userId);
+        return toResponse(saved);
+    }
+
     private UserPreferencesResponse toResponse(UserPreference preferences) {
         return UserPreferencesResponse.builder()
                 .leaderboard(UserPreferencesResponse.LeaderboardPreferences.builder()
@@ -159,6 +213,19 @@ public class UserPreferencesService {
                         .favoriteSymbols(deserializeSymbols(preferences.getTerminalFavoriteSymbols()))
                         .compareBaskets(deserializeCompareBaskets(preferences.getTerminalCompareBaskets()))
                         .scannerViews(deserializeScannerViews(preferences.getTerminalScannerViews()))
+                        .build())
+                .notification(UserPreferencesResponse.NotificationPreferences.builder()
+                        .inApp(UserPreferencesResponse.InAppPreferences.builder()
+                                .social(preferences.getNotificationInAppSocial() != null ? preferences.getNotificationInAppSocial() : true)
+                                .watchlist(preferences.getNotificationInAppWatchlist() != null ? preferences.getNotificationInAppWatchlist() : true)
+                                .tournaments(preferences.getNotificationInAppTournaments() != null ? preferences.getNotificationInAppTournaments() : true)
+                                .build())
+                        .digestCadence(normalizeNotificationDigest(preferences.getNotificationDigestCadence()))
+                        .quietHours(UserPreferencesResponse.QuietHoursPreferences.builder()
+                                .enabled(preferences.getNotificationQuietHoursEnabled() != null ? preferences.getNotificationQuietHoursEnabled() : false)
+                                .start(normalizeQuietHour(preferences.getNotificationQuietHoursStart(), DEFAULT_QUIET_HOURS_START))
+                                .end(normalizeQuietHour(preferences.getNotificationQuietHoursEnd(), DEFAULT_QUIET_HOURS_END))
+                                .build())
                         .build())
                 .build();
     }
@@ -413,6 +480,22 @@ public class UserPreferencesService {
         return SUPPORTED_SCANNER_SORTS.contains(normalized) ? normalized : "MOVE_DESC";
     }
 
+    private String normalizeNotificationDigest(String raw) {
+        if (raw == null) {
+            return DEFAULT_NOTIFICATION_DIGEST;
+        }
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return SUPPORTED_NOTIFICATION_DIGESTS.contains(normalized) ? normalized : DEFAULT_NOTIFICATION_DIGEST;
+    }
+
+    private String normalizeQuietHour(String raw, String fallback) {
+        if (raw == null) {
+            return fallback;
+        }
+        String normalized = raw.trim();
+        return QUIET_HOUR_PATTERN.matcher(normalized).matches() ? normalized : fallback;
+    }
+
     private String parseRequestedPeriod(String raw) {
         if (raw == null) {
             return DEFAULT_PERIOD;
@@ -511,6 +594,24 @@ public class UserPreferencesService {
             throw ApiRequestException.badRequest(
                     "invalid_user_preferences_scanner_sort",
                     "Invalid user preferences scanner sort");
+        }
+        return normalized;
+    }
+
+    private String parseRequestedNotificationDigest(String raw) {
+        String normalized = raw == null ? DEFAULT_NOTIFICATION_DIGEST : raw.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_NOTIFICATION_DIGESTS.contains(normalized)) {
+            throw ApiRequestException.badRequest(
+                    "invalid_user_preferences_notification_digest",
+                    "Invalid user preferences notification digest");
+        }
+        return normalized;
+    }
+
+    private String parseRequestedQuietHour(String raw, String code, String message) {
+        String normalized = raw == null ? "" : raw.trim();
+        if (!QUIET_HOUR_PATTERN.matcher(normalized).matches()) {
+            throw ApiRequestException.badRequest(code, message);
         }
         return normalized;
     }

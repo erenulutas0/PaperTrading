@@ -70,7 +70,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             JwtTokenClaims claims;
             try {
                 claims = jwtTokenService.parseAndValidate(token);
-            } catch (IllegalArgumentException e) {
+            } catch (InvalidJwtException e) {
                 recordRequest("bearer", "rejected_invalid_token");
                 reject(response, e.getMessage());
                 return;

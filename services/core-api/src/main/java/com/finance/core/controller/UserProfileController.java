@@ -2,6 +2,7 @@ package com.finance.core.controller;
 
 import com.finance.core.dto.UpdateProfileRequest;
 import com.finance.core.dto.UserProfileResponse;
+import com.finance.core.dto.UserSuggestionResponse;
 import com.finance.core.service.UserProfileService;
 import com.finance.core.web.ApiErrorResponses;
 import com.finance.core.web.ApiRequestException;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -92,6 +94,14 @@ public class UserProfileController {
         return ResponseEntity.ok(userProfileService.getFollowing(userId, requesterId, effectivePageable));
     }
 
+    @GetMapping("/suggestions")
+    public ResponseEntity<List<UserSuggestionResponse>> getSuggestions(
+            @CurrentUserId(required = false) UUID requesterId,
+            @RequestParam(required = false) String limit) {
+        int effectiveLimit = resolveSuggestionLimit(limit);
+        return ResponseEntity.ok(userProfileService.getSuggestedAccounts(requesterId, effectiveLimit));
+    }
+
     private Pageable resolveFollowPageable(Pageable pageable, String rawPage, String rawSize) {
         return PageableRequestParser.resolvePageable(
                 pageable,
@@ -101,5 +111,20 @@ public class UserProfileController {
                 "Invalid user follow page",
                 "invalid_user_follow_size",
                 "Invalid user follow size");
+    }
+
+    private int resolveSuggestionLimit(String rawLimit) {
+        if (rawLimit == null || rawLimit.isBlank()) {
+            return 6;
+        }
+        try {
+            int parsed = Integer.parseInt(rawLimit.trim());
+            if (parsed < 1 || parsed > 12) {
+                throw ApiRequestException.badRequest("invalid_user_suggestion_limit", "Invalid user suggestion limit");
+            }
+            return parsed;
+        } catch (NumberFormatException exception) {
+            throw ApiRequestException.badRequest("invalid_user_suggestion_limit", "Invalid user suggestion limit");
+        }
     }
 }

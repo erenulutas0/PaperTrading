@@ -36,6 +36,8 @@ class LiquidationServiceTest {
     private TradeActivityRepository tradeActivityRepository;
     @Mock
     private BinanceService binanceService;
+    @Mock
+    private PerformanceAnalyticsService performanceAnalyticsService;
 
     @InjectMocks
     private LiquidationService liquidationService;
@@ -76,6 +78,7 @@ class LiquidationServiceTest {
         verify(portfolioItemRepository, times(1)).delete(leveragedItem);
         verify(tradeActivityRepository, times(1)).save(any(TradeActivity.class));
         verify(portfolioRepository, times(1)).save(portfolio);
+        verify(performanceAnalyticsService).invalidatePortfolioAnalytics(portfolio.getId());
     }
 
     @Test
@@ -92,6 +95,7 @@ class LiquidationServiceTest {
 
         verify(portfolioItemRepository, times(1)).delete(leveragedItem);
         verify(tradeActivityRepository, times(1)).save(any(TradeActivity.class));
+        verify(performanceAnalyticsService).invalidatePortfolioAnalytics(portfolio.getId());
     }
 
     @Test

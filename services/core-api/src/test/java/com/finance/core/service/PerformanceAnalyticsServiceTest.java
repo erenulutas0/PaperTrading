@@ -31,6 +31,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +51,8 @@ class PerformanceAnalyticsServiceTest {
 
     @Mock
     private MarketDataFacadeService marketDataFacadeService;
+    @Mock
+    private CacheService cacheService;
 
     @InjectMocks
     private PerformanceAnalyticsService analyticsService;
@@ -61,6 +64,8 @@ class PerformanceAnalyticsServiceTest {
     void setUp() {
         portfolioId = UUID.randomUUID();
         authorId = UUID.randomUUID();
+        lenient().when(cacheService.get(anyString(), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenReturn(Optional.empty());
     }
 
     @Test
@@ -242,6 +247,8 @@ class PerformanceAnalyticsServiceTest {
         assertEquals(104000.0, (double) riskAttribution.get(0).get("exposure"), 0.001);
         assertEquals(100.0, (double) riskAttribution.get(0).get("exposureShare"), 0.001);
         assertEquals(2, pnlTimeline.size());
+        verify(snapshotRepository, times(1)).findByPortfolioIdOrderByTimestampAsc(portfolioId);
+        verify(tradeActivityRepository, times(1)).findByPortfolioIdOrderByTimestampDesc(portfolioId);
     }
 
     @Test
@@ -402,13 +409,99 @@ class PerformanceAnalyticsServiceTest {
 
     @Test
     void getRiskMetrics_missingPortfolio_throwsTypedNotFound() {
-        when(portfolioRepository.existsById(portfolioId)).thenReturn(false);
+        when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.empty());
 
         ApiRequestException exception = assertThrows(ApiRequestException.class,
                 () -> analyticsService.getRiskMetrics(portfolioId));
 
         assertEquals("analytics_portfolio_not_found", exception.code());
         assertEquals("Analytics portfolio not found", exception.getMessage());
+    }
+
+    @Test
+    void getRiskMetrics_shouldReuseSingleSnapshotAndTradeLoad() {
+        Portfolio portfolio = Portfolio.builder()
+                .id(portfolioId)
+                .name("Alpha")
+                .balance(BigDecimal.valueOf(100000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .ownerId(authorId.toString())
+                .items(List.of())
+                .build();
+
+        when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(List.of(
+                createSnapshot(BigDecimal.valueOf(100000)),
+                createSnapshot(BigDecimal.valueOf(125000)),
+                createSnapshot(BigDecimal.valueOf(100000))));
+        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(List.of(
+                TradeActivity.builder()
+                        .portfolioId(portfolioId)
+                        .symbol("BTCUSDT")
+                        .type("SELL")
+                        .side("LONG")
+                        .realizedPnl(BigDecimal.valueOf(1200))
+                        .timestamp(LocalDateTime.now().minusMinutes(2))
+                        .build(),
+                TradeActivity.builder()
+                        .portfolioId(portfolioId)
+                        .symbol("ETHUSDT")
+                        .type("SELL")
+                        .side("LONG")
+                        .realizedPnl(BigDecimal.valueOf(-300))
+                        .timestamp(LocalDateTime.now().minusMinutes(1))
+                        .build()));
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(any(), any())).thenReturn(0L);
+        when(marketDataFacadeService.getInstrumentSnapshots(any())).thenReturn(Map.of());
+
+        Map<String, Object> riskMetrics = analyticsService.getRiskMetrics(portfolioId);
+
+        assertEquals(20.0, (double) riskMetrics.get("maxDrawdown"), 0.001);
+        assertEquals(4.0, (double) riskMetrics.get("profitFactor"), 0.001);
+        verify(portfolioRepository, times(1)).findWithItemsById(portfolioId);
+        verify(snapshotRepository, times(1)).findByPortfolioIdOrderByTimestampAsc(portfolioId);
+        verify(tradeActivityRepository, times(1)).findByPortfolioIdOrderByTimestampDesc(portfolioId);
+    }
+
+    @Test
+    void getFullAnalytics_shouldReuseCachedPayloadOnSubsequentRead() {
+        Portfolio portfolio = Portfolio.builder()
+                .id(portfolioId)
+                .name("Alpha")
+                .balance(BigDecimal.valueOf(100000))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .ownerId(authorId.toString())
+                .items(List.of())
+                .build();
+
+        when(portfolioRepository.findWithItemsById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)).thenReturn(List.of(
+                createSnapshot(BigDecimal.valueOf(100000)),
+                createSnapshot(BigDecimal.valueOf(101000))));
+        when(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)).thenReturn(List.of());
+        when(analysisPostRepository.countByAuthorIdAndOutcomeAndDeletedFalse(any(), any())).thenReturn(0L);
+        when(marketDataFacadeService.getInstrumentSnapshots(any())).thenReturn(Map.of());
+        when(cacheService.get(anyString(), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenReturn(Optional.empty());
+
+        Map<String, Object> firstRead = analyticsService.getFullAnalytics(portfolioId);
+        when(cacheService.get(anyString(), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenReturn(Optional.of(firstRead));
+
+        Map<String, Object> secondRead = analyticsService.getFullAnalytics(portfolioId);
+
+        assertEquals(firstRead.get("predictionWinRate"), secondRead.get("predictionWinRate"));
+        verify(portfolioRepository, times(1)).findWithItemsById(portfolioId);
+        verify(snapshotRepository, times(1)).findByPortfolioIdOrderByTimestampAsc(portfolioId);
+        verify(tradeActivityRepository, times(1)).findByPortfolioIdOrderByTimestampDesc(portfolioId);
+        verify(cacheService, times(1)).set(eq("app:analytics:full:" + portfolioId), any(), any());
+    }
+
+    @Test
+    void invalidatePortfolioAnalytics_shouldDeleteCachedBundle() {
+        analyticsService.invalidatePortfolioAnalytics(portfolioId);
+
+        verify(cacheService).delete("app:analytics:full:" + portfolioId);
     }
 
     private PortfolioSnapshot createSnapshot(BigDecimal equity) {

@@ -66,12 +66,13 @@ function Parse-MarkdownStatus {
   }
 
   $content = Get-Content -Path $ReportPath -Raw
-  $match = [regex]::Match($content, "- Status:\s+\*\*(.+?)\*\*", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+  $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
   if ($match.Success -and $match.Groups.Count -ge 2) {
     return $match.Groups[1].Value.Trim()
   }
 
-  $lineMatch = [regex]::Match($content, "Status:\s+([A-Z_]+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
   if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
     return $lineMatch.Groups[1].Value.Trim()
   }
@@ -83,20 +84,13 @@ function Invoke-ScriptStep {
   param(
     [string]$Name,
     [string]$ScriptPath,
-    [string[]]$Arguments,
+    [hashtable]$Parameters,
     [string]$ReportPattern
   )
 
   $before = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
   try {
-    & powershell -ExecutionPolicy Bypass -File $ScriptPath @Arguments | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-      $report = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
-      if ($report -eq $before) {
-        $report = ""
-      }
-      return New-StepResult -Name $Name -Status "FAILED" -Detail "exit_code=$LASTEXITCODE" -ReportPath $report
-    }
+    & $ScriptPath @Parameters | Out-Null
 
     $report = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
     if ([string]::IsNullOrWhiteSpace($report)) {
@@ -125,23 +119,23 @@ $reportPath = Join-Path $ReportsDir "auth-strict-post-cutover-checklist-$timesta
 $results = New-Object 'System.Collections.Generic.List[object]'
 
 if (-not ($SkipBaseline -and $SkipRelay)) {
-  $transportArgs = @(
-    "-BaseUrl", $BaseUrl,
-    "-BaselineSeedEvents", "$BaselineSeedEvents",
-    "-BaselineConcurrency", "$BaselineConcurrency",
-    "-BaselineRequestsPerWorker", "$BaselineRequestsPerWorker"
-  )
-  if (-not [string]::IsNullOrWhiteSpace($RelayBrokerRestartCommand)) {
-    $transportArgs += @("-RelayBrokerRestartCommand", $RelayBrokerRestartCommand)
+  $transportParams = @{
+    BaseUrl                   = $BaseUrl
+    BaselineSeedEvents        = $BaselineSeedEvents
+    BaselineConcurrency       = $BaselineConcurrency
+    BaselineRequestsPerWorker = $BaselineRequestsPerWorker
+    NoFail                    = $true
   }
-  if ($SkipBaseline) { $transportArgs += "-SkipBaseline" }
-  if ($SkipRelay) { $transportArgs += "-SkipRelay" }
-  $transportArgs += "-NoFail"
+  if (-not [string]::IsNullOrWhiteSpace($RelayBrokerRestartCommand)) {
+    $transportParams["RelayBrokerRestartCommand"] = $RelayBrokerRestartCommand
+  }
+  if ($SkipBaseline) { $transportParams["SkipBaseline"] = $true }
+  if ($SkipRelay) { $transportParams["SkipRelay"] = $true }
 
   $results.Add((Invoke-ScriptStep `
         -Name "Bearer Transport" `
         -ScriptPath (Join-Path $scriptDir "run_auth_strict_transport_validation.ps1") `
-        -Arguments $transportArgs `
+        -Parameters $transportParams `
         -ReportPattern "auth-strict-transport-validation-*.md")) | Out-Null
 }
 
@@ -149,12 +143,12 @@ if (-not $SkipSpoof) {
   $results.Add((Invoke-ScriptStep `
         -Name "Spoof Regression" `
         -ScriptPath (Join-Path $scriptDir "run_auth_spoof_regression_check.ps1") `
-        -Arguments @(
-          "-BaseUrl", $BaseUrl,
-          "-HeaderMismatchAttempts", "$HeaderMismatchAttempts",
-          "-CanaryProbeAttempts", "$CanaryProbeAttempts",
-          "-NoFail"
-        ) `
+        -Parameters @{
+          BaseUrl                = $BaseUrl
+          HeaderMismatchAttempts = $HeaderMismatchAttempts
+          CanaryProbeAttempts    = $CanaryProbeAttempts
+          NoFail                 = $true
+        } `
         -ReportPattern "auth-spoof-regression-check-*.md")) | Out-Null
 }
 
@@ -162,16 +156,16 @@ if (-not $SkipRateLimit) {
   $results.Add((Invoke-ScriptStep `
         -Name "Rate-Limit Isolation" `
         -ScriptPath (Join-Path $scriptDir "run_rate_limit_staging_checklist.ps1") `
-        -Arguments @(
-          "-BaseUrl", $BaseUrl,
-          "-ForwardedFor", $ForwardedFor,
-          "-CommentAttempts", "$CommentAttempts",
-          "-ReplyAttempts", "$ReplyAttempts",
-          "-FollowAttempts", "$FollowAttempts",
-          "-RefreshAttempts", "$RefreshAttempts",
-          "-ReadProbeCount", "$ReadProbeCount",
-          "-NoFail"
-        ) `
+        -Parameters @{
+          BaseUrl         = $BaseUrl
+          ForwardedFor    = $ForwardedFor
+          CommentAttempts = $CommentAttempts
+          ReplyAttempts   = $ReplyAttempts
+          FollowAttempts  = $FollowAttempts
+          RefreshAttempts = $RefreshAttempts
+          ReadProbeCount  = $ReadProbeCount
+          NoFail          = $true
+        } `
         -ReportPattern "rate-limit-profile-smoke-*.md")) | Out-Null
 }
 

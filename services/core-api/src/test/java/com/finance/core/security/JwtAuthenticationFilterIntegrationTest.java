@@ -10,6 +10,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -62,5 +64,17 @@ class JwtAuthenticationFilterIntegrationTest {
                 .header("Authorization", "Bearer " + token)
                 .header("X-User-Id", otherUser.getId().toString()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void requestWithMalformedBearerToken_shouldReturnUnauthorizedContract() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me/preferences")
+                        .header("X-Request-Id", "jwt-invalid-1")
+                        .header("Authorization", "Bearer not-a-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("X-Request-Id", "jwt-invalid-1"))
+                .andExpect(jsonPath("$.code").value("unauthorized"))
+                .andExpect(jsonPath("$.message").value("Invalid JWT format"))
+                .andExpect(jsonPath("$.requestId").value("jwt-invalid-1"));
     }
 }

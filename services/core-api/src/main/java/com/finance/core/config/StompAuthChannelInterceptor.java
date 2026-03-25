@@ -1,6 +1,7 @@
 package com.finance.core.config;
 
 import com.finance.core.observability.WebSocketObservabilityService;
+import com.finance.core.security.InvalidJwtException;
 import com.finance.core.security.JwtTokenClaims;
 import com.finance.core.security.JwtTokenService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,27 +52,23 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
             if (authorization != null && !authorization.isBlank()) {
                 if (!authorization.startsWith("Bearer ")) {
-                    recordStompError(command, "invalid-authorization-header");
-                    throw new IllegalArgumentException("Invalid Authorization header");
+                    throw reject(command, "invalid-authorization-header", "Invalid Authorization header");
                 }
                 if (jwtTokenService == null) {
-                    recordStompError(command, "jwt-service-unavailable");
-                    throw new IllegalArgumentException("JWT service unavailable");
+                    throw reject(command, "jwt-service-unavailable", "JWT service unavailable");
                 }
 
                 String token = authorization.substring("Bearer ".length()).trim();
                 JwtTokenClaims claims;
                 try {
                     claims = jwtTokenService.parseAndValidate(token);
-                } catch (IllegalArgumentException e) {
-                    recordStompError(command, "invalid-jwt");
-                    throw new IllegalArgumentException("Invalid Bearer token");
+                } catch (InvalidJwtException e) {
+                    throw reject(command, "invalid-jwt", "Invalid Bearer token");
                 }
 
                 String tokenUserId = claims.userId().toString();
                 if (userId != null && !userId.isBlank() && !tokenUserId.equals(userId)) {
-                    recordStompError(command, "user-id-token-mismatch");
-                    throw new IllegalArgumentException("Authorization and X-User-Id mismatch");
+                    throw reject(command, "user-id-token-mismatch", "Authorization and X-User-Id mismatch");
                 }
 
                 accessor.setUser(new StompPrincipal(tokenUserId));
@@ -92,19 +89,16 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             String destination = accessor.getDestination();
             if (destination != null && destination.startsWith(LEGACY_NOTIFICATION_TOPIC_PREFIX)) {
                 if (!webSocketRuntimeProperties.isLegacyUserTopicBroadcastEnabled()) {
-                    recordStompError(command, "legacy-topic-disabled");
-                    throw new IllegalArgumentException("Legacy notification topic subscription is disabled");
+                    throw reject(command, "legacy-topic-disabled", "Legacy notification topic subscription is disabled");
                 }
                 Principal principal = accessor.getUser();
                 if (principal == null) {
-                    recordStompError(command, "missing-principal");
-                    throw new IllegalArgumentException("Missing authenticated STOMP principal");
+                    throw reject(command, "missing-principal", "Missing authenticated STOMP principal");
                 }
                 String requestedUserId = destination.substring(LEGACY_NOTIFICATION_TOPIC_PREFIX.length());
                 validateUuid(requestedUserId, command, "invalid-requested-user-id");
                 if (!principal.getName().equals(requestedUserId)) {
-                    recordStompError(command, "cross-user-subscribe");
-                    throw new IllegalArgumentException("Cannot subscribe to another user's notification topic");
+                    throw reject(command, "cross-user-subscribe", "Cannot subscribe to another user's notification topic");
                 }
             }
         }
@@ -116,9 +110,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         try {
             UUID.fromString(raw);
         } catch (Exception e) {
-            recordStompError(command, reason);
-            throw new IllegalArgumentException("Invalid UUID value: " + raw);
+            throw reject(command, reason, "Invalid UUID value: " + raw);
         }
+    }
+
+    private StompAuthException reject(StompCommand command, String code, String message) {
+        recordStompError(command, code);
+        return new StompAuthException(code, message);
     }
 
     private void recordStompError(StompCommand command, String reason) {

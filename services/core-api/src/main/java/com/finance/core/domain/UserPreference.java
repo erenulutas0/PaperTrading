@@ -84,6 +84,34 @@ public class UserPreference {
     @Builder.Default
     private String terminalScannerViews = "";
 
+    @Column(name = "notification_in_app_social", nullable = false)
+    @Builder.Default
+    private Boolean notificationInAppSocial = true;
+
+    @Column(name = "notification_in_app_watchlist", nullable = false)
+    @Builder.Default
+    private Boolean notificationInAppWatchlist = true;
+
+    @Column(name = "notification_in_app_tournaments", nullable = false)
+    @Builder.Default
+    private Boolean notificationInAppTournaments = true;
+
+    @Column(name = "notification_digest_cadence", nullable = false)
+    @Builder.Default
+    private String notificationDigestCadence = "INSTANT";
+
+    @Column(name = "notification_quiet_hours_enabled", nullable = false)
+    @Builder.Default
+    private Boolean notificationQuietHoursEnabled = false;
+
+    @Column(name = "notification_quiet_hours_start", nullable = false, length = 5)
+    @Builder.Default
+    private String notificationQuietHoursStart = "22:00";
+
+    @Column(name = "notification_quiet_hours_end", nullable = false, length = 5)
+    @Builder.Default
+    private String notificationQuietHoursEnd = "08:00";
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

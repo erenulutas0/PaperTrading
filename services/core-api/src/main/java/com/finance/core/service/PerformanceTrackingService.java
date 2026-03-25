@@ -31,6 +31,7 @@ public class PerformanceTrackingService {
     private final PortfolioRepository portfolioRepository;
     private final PortfolioSnapshotRepository snapshotRepository;
     private final BinanceService binanceService;
+    private final PerformanceAnalyticsService performanceAnalyticsService;
 
     @Scheduled(fixedDelay = 10000) // Snapshot every 10 seconds
     @SchedulerLock(name = "PerformanceTrackingService.captureSnapshots", lockAtMostFor = "PT1M", lockAtLeastFor = "PT2S")
@@ -56,6 +57,7 @@ public class PerformanceTrackingService {
                         .portfolioId(portfolio.getId())
                         .totalEquity(equity)
                         .build());
+                performanceAnalyticsService.invalidatePortfolioAnalytics(portfolio.getId());
             }
             processed += portfolioPage.getNumberOfElements();
             page++;

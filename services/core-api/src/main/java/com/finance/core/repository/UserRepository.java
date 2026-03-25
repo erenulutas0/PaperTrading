@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 import java.util.Collection;
 import java.util.List;
@@ -49,4 +50,14 @@ public interface UserRepository extends JpaRepository<AppUser, UUID> {
             where u.id = :userId
             """)
     int adjustFollowingCount(@Param("userId") UUID userId, @Param("delta") int delta);
+
+    @Query("""
+            select u from AppUser u
+            order by
+                case when u.verified = true then 1 else 0 end desc,
+                u.trustScore desc,
+                u.followerCount desc,
+                u.createdAt desc
+            """)
+    List<AppUser> findSuggestedAccounts(Pageable pageable);
 }

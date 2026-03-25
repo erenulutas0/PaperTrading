@@ -118,6 +118,32 @@ function Assert-AuditSnapshot {
   Assert-Condition -Results $Results -Name $Name -Condition ($Response.status -eq 200 -and $count -ge 1 -and $null -ne $matchedEntry) -Detail "status=$($Response.status), count=$count, action=$ExpectedAction, path=$ExpectedPath"
 }
 
+function Assert-AuditRecentSnapshot {
+  param(
+    [System.Collections.Generic.List[object]]$Results,
+    [string]$Name,
+    [object]$Response,
+    [int]$ExpectedMaxCount = 0
+  )
+
+  $json = if ($Response.content) { $Response.content | ConvertFrom-Json } else { $null }
+  $entries = @(Get-ObjectPropertyValue -Object $json -Name "entries")
+  $countValue = Get-ObjectPropertyValue -Object $json -Name "count"
+  $count = if ($null -ne $countValue) { [int]$countValue } else { -1 }
+  $contentText = [string]$Response.content
+  $passed = $Response.status -eq 200 -and $count -ge 1 -and $entries.Count -ge 1 -and -not $contentText.Contains("internal_error")
+  if ($passed -and $ExpectedMaxCount -gt 0) {
+    $passed = $count -le $ExpectedMaxCount -and $entries.Count -le $ExpectedMaxCount
+  }
+
+  $detail = "status=$($Response.status), count=$count, entries=$($entries.Count)"
+  if ($ExpectedMaxCount -gt 0) {
+    $detail += ", expectedMax=$ExpectedMaxCount"
+  }
+
+  Assert-Condition -Results $Results -Name $Name -Condition $passed -Detail $detail
+}
+
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $suffix = Get-Date -Format "yyyyMMddHHmmss"
 $results = New-Object 'System.Collections.Generic.List[object]'
@@ -224,11 +250,14 @@ Assert-AuditSnapshot -Results $results -Name "Analysis Create Audit Capture" -Re
 $analysisDeleteAudit = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?requestId=$([System.Uri]::EscapeDataString($analysisDeleteRequestId))"
 Assert-AuditSnapshot -Results $results -Name "Analysis Delete Audit Capture" -Response $analysisDeleteAudit -ExpectedAction "ANALYSIS_POST_DELETED" -ExpectedPath "/api/v1/analysis-posts/$analysisPostId" -ExpectedRequestId $analysisDeleteRequestId
 
+$auditOpsRecent = Invoke-Request -Method "GET" -Url "$BaseUrl/api/v1/ops/auditlog?limit=5"
+Assert-AuditRecentSnapshot -Results $results -Name "Audit Ops Recent Rows" -Response $auditOpsRecent -ExpectedMaxCount 5
+
 $auditActuator = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/auditlog"
-$auditActuatorJson = if ($auditActuator.content) { $auditActuator.content | ConvertFrom-Json } else { $null }
-$auditActuatorCountValue = Get-ObjectPropertyValue -Object $auditActuatorJson -Name "count"
-$auditActuatorCount = if ($null -ne $auditActuatorCountValue) { [int]$auditActuatorCountValue } else { -1 }
-Assert-Condition -Results $results -Name "Audit Actuator Filtered Snapshot" -Condition ($auditActuator.status -eq 200 -and $auditActuatorCount -ge 1) -Detail "status=$($auditActuator.status), count=$auditActuatorCount"
+Assert-AuditRecentSnapshot -Results $results -Name "Audit Actuator Snapshot Without Params" -Response $auditActuator
+
+$auditActuatorLimited = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/auditlog?limit=5"
+Assert-AuditRecentSnapshot -Results $results -Name "Audit Actuator Snapshot With Limit Param" -Response $auditActuatorLimited
 
 $failedResults = @($results | Where-Object { -not $_.Passed })
 $allPassed = $failedResults.Count -eq 0

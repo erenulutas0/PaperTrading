@@ -2,6 +2,9 @@ package com.finance.core.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
@@ -35,6 +38,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -46,6 +50,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -87,6 +92,8 @@ class StrategyBotRunServiceTest {
     private MarketDataFacadeService marketDataFacadeService;
     @Mock
     private AuditLogService auditLogService;
+    @Mock
+    private PerformanceAnalyticsService performanceAnalyticsService;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
     @Spy
@@ -98,6 +105,51 @@ class StrategyBotRunServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(userRepository.existsById(any())).thenReturn(true);
+    }
+
+    @Test
+    void parseJson_whenStoredPayloadIsInvalid_shouldThrowIllegalStateException() {
+        IllegalStateException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> ReflectionTestUtils.invokeMethod(strategyBotRunService, "parseJson", "{broken"));
+
+        assertThat(exception).hasMessage("Failed to parse strategy bot run payload");
+    }
+
+    @Test
+    void writeSummary_whenSerializationFails_shouldThrowIllegalStateException() throws Exception {
+        ObjectMapper brokenMapper = org.mockito.Mockito.mock(ObjectMapper.class);
+        org.mockito.Mockito.doThrow(new JsonProcessingException("boom") { })
+                .when(brokenMapper)
+                .writeValueAsString(any());
+        ReflectionTestUtils.setField(strategyBotRunService, "objectMapper", brokenMapper);
+
+        IllegalStateException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> ReflectionTestUtils.invokeMethod(strategyBotRunService, "writeSummary", java.util.Map.of("phase", "run")));
+
+        assertThat(exception).hasMessage("Failed to serialize strategy bot run summary");
+    }
+
+    @Test
+    void writePrettyJsonExport_whenSerializationFails_shouldThrowIllegalStateException() throws Exception {
+        ObjectMapper brokenMapper = org.mockito.Mockito.mock(ObjectMapper.class);
+        ObjectWriter brokenWriter = org.mockito.Mockito.mock(ObjectWriter.class);
+        when(brokenMapper.copy()).thenReturn(brokenMapper);
+        when(brokenMapper.findAndRegisterModules()).thenReturn(brokenMapper);
+        when(brokenMapper.writerWithDefaultPrettyPrinter()).thenReturn(brokenWriter);
+        when(brokenWriter.writeValueAsString(any())).thenThrow(new JsonProcessingException("boom") { });
+        ReflectionTestUtils.setField(strategyBotRunService, "objectMapper", brokenMapper);
+
+        IllegalStateException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> ReflectionTestUtils.invokeMethod(
+                        strategyBotRunService,
+                        "writePrettyJsonExport",
+                        java.util.Map.of("phase", "run"),
+                        "Failed to serialize strategy bot run export"));
+
+        assertThat(exception).hasMessage("Failed to serialize strategy bot run export");
     }
 
     @Test
@@ -350,6 +402,7 @@ class StrategyBotRunServiceTest {
         verify(portfolioItemRepository).save(any(PortfolioItem.class));
         verify(portfolioItemRepository, never()).delete(any(PortfolioItem.class));
         verify(tradeActivityRepository).save(any(com.finance.core.domain.TradeActivity.class));
+        verify(performanceAnalyticsService).invalidatePortfolioAnalytics(linkedPortfolioId);
         verify(auditLogService).record(eq(userId), eq(com.finance.core.domain.AuditActionType.STRATEGY_BOT_RUN_RECONCILED), eq(com.finance.core.domain.AuditResourceType.STRATEGY_BOT_RUN), eq(runId), any());
     }
 
@@ -942,12 +995,12 @@ class StrategyBotRunServiceTest {
                         """)
                 .build();
 
-        when(strategyBotRepository.findByUserId(eq(userId), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(weakerBot, strongerBot)));
-        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(strongerBot.getId(), userId))
-                .thenReturn(List.of(strongerRun));
-        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(weakerBot.getId(), userId))
-                .thenReturn(List.of(weakerRun));
+        when(strategyBotRepository.findOwnedBotIdsOrderByAvgReturnDesc(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(strongerBot.getId(), weakerBot.getId()), PageRequest.of(0, 10), 2));
+        when(strategyBotRepository.findAllById(List.of(strongerBot.getId(), weakerBot.getId())))
+                .thenReturn(List.of(strongerBot, weakerBot));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
+                .thenReturn(List.of(weakerRun, strongerRun));
 
         var board = strategyBotRunService.getBotBoard(userId, PageRequest.of(0, 10), "AVG_RETURN", "DESC", "ALL", null);
 
@@ -956,6 +1009,13 @@ class StrategyBotRunServiceTest {
         assertThat(board.getContent().get(0).getAvgReturnPercent()).isEqualTo(12.5);
         assertThat(board.getContent().get(1).getStrategyBotId()).isEqualTo(weakerBot.getId());
         assertThat(board.getContent().get(1).getAvgReturnPercent()).isEqualTo(-3.0);
+        ArgumentCaptor<Collection<UUID>> botIdsCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(strategyBotRunRepository).findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(botIdsCaptor.capture(), eq(userId));
+        assertThat(botIdsCaptor.getValue()).containsExactlyInAnyOrder(strongerBot.getId(), weakerBot.getId());
+        verify(strategyBotRepository).findOwnedBotIdsOrderByAvgReturnDesc(eq(userId), any(Pageable.class));
+        verify(strategyBotRepository).findAllById(List.of(strongerBot.getId(), weakerBot.getId()));
+        verify(strategyBotRepository, never()).findByUserId(eq(userId), any(Pageable.class));
+        verify(strategyBotRunRepository, never()).findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(any(), eq(userId));
     }
 
     @Test
@@ -1011,9 +1071,16 @@ class StrategyBotRunServiceTest {
                         """)
                 .build();
 
-        when(strategyBotRepository.findByUserId(eq(userId), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(bot)));
-        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId))
+        when(strategyBotRepository.findOwnedBotIdsOrderByScopedAvgReturnDesc(
+                eq(userId),
+                eq("FORWARD_TEST"),
+                eq(true),
+                any(LocalDateTime.class),
+                any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(bot.getId()), PageRequest.of(0, 10), 1));
+        when(strategyBotRepository.findAllById(List.of(bot.getId())))
+                .thenReturn(List.of(bot));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
                 .thenReturn(List.of(recentForwardRun, oldBacktestRun));
 
         var board = strategyBotRunService.getBotBoard(
@@ -1029,6 +1096,602 @@ class StrategyBotRunServiceTest {
         assertThat(board.getContent().get(0).getCompletedRuns()).isEqualTo(1);
         assertThat(board.getContent().get(0).getAvgReturnPercent()).isEqualTo(4.0);
         assertThat(board.getContent().get(0).getTotalSimulatedTrades()).isEqualTo(2);
+        verify(strategyBotRepository).findOwnedBotIdsOrderByScopedAvgReturnDesc(
+                eq(userId),
+                eq("FORWARD_TEST"),
+                eq(true),
+                any(LocalDateTime.class),
+                any(Pageable.class));
+        verify(strategyBotRepository).findAllById(List.of(bot.getId()));
+        verify(strategyBotRepository, never()).findByUserId(eq(userId), any(Pageable.class));
+    }
+
+    @Test
+    void getBotBoard_shouldUsePagedFastPathForLatestRequestedSort() {
+        UUID userId = UUID.randomUUID();
+        StrategyBot newerBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Newer")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBot olderBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Older")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun newerRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(newerBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(1))
+                .summary("""
+                        {
+                          "returnPercent": 5.0,
+                          "netPnl": 5000.0,
+                          "tradeCount": 2
+                        }
+                        """)
+                .build();
+        StrategyBotRun olderRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(olderBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .summary("""
+                        {
+                          "returnPercent": 2.0,
+                          "netPnl": 2000.0,
+                          "tradeCount": 1
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findByUserIdOrderByLatestRequestedAtDesc(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(newerBot, olderBot), PageRequest.of(0, 10), 2));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
+                .thenReturn(List.of(newerRun, olderRun));
+
+        Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "LATEST_REQUESTED_AT",
+                "DESC",
+                "ALL",
+                null);
+
+        assertThat(board.getContent()).hasSize(2);
+        assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(newerBot.getId());
+        verify(strategyBotRepository).findByUserIdOrderByLatestRequestedAtDesc(eq(userId), any(Pageable.class));
+        verify(strategyBotRepository, never()).findByUserId(eq(userId), any(Pageable.class));
+    }
+
+    @Test
+    void getBotBoard_shouldUsePagedFastPathForTotalSimulatedTradesSort() {
+        UUID userId = UUID.randomUUID();
+        StrategyBot busierBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Busier")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBot quieterBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Quieter")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun busierRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(busierBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(3))
+                .summary("""
+                        {
+                          "returnPercent": 4.0,
+                          "netPnl": 4000.0,
+                          "tradeCount": 9
+                        }
+                        """)
+                .build();
+        StrategyBotRun quieterRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(quieterBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(1))
+                .summary("""
+                        {
+                          "returnPercent": 7.0,
+                          "netPnl": 7000.0,
+                          "tradeCount": 2
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findOwnedBotIdsOrderByTotalSimulatedTradesDesc(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(busierBot.getId(), quieterBot.getId()), PageRequest.of(0, 10), 2));
+        when(strategyBotRepository.findAllById(List.of(busierBot.getId(), quieterBot.getId())))
+                .thenReturn(List.of(busierBot, quieterBot));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
+                .thenReturn(List.of(busierRun, quieterRun));
+
+        Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "TOTAL_SIMULATED_TRADES",
+                "DESC",
+                "ALL",
+                null);
+
+        assertThat(board.getContent()).hasSize(2);
+        assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(busierBot.getId());
+        assertThat(board.getContent().get(0).getTotalSimulatedTrades()).isEqualTo(9);
+        assertThat(board.getContent().get(1).getStrategyBotId()).isEqualTo(quieterBot.getId());
+        assertThat(board.getContent().get(1).getTotalSimulatedTrades()).isEqualTo(2);
+        verify(strategyBotRepository).findOwnedBotIdsOrderByTotalSimulatedTradesDesc(eq(userId), any(Pageable.class));
+        verify(strategyBotRepository).findAllById(List.of(busierBot.getId(), quieterBot.getId()));
+        verify(strategyBotRepository, never()).findByUserId(eq(userId), any(Pageable.class));
+    }
+
+    @Test
+    void getBotBoard_shouldUsePagedFastPathForAvgWinRateSort() {
+        UUID userId = UUID.randomUUID();
+        StrategyBot higherWinRateBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Higher Win")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBot lowerWinRateBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Lower Win")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun higherRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(higherWinRateBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .summary("""
+                        {
+                          "returnPercent": 6.0,
+                          "netPnl": 6000.0,
+                          "winRate": 78.0,
+                          "tradeCount": 4,
+                          "profitFactor": 1.9
+                        }
+                        """)
+                .build();
+        StrategyBotRun lowerRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(lowerWinRateBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(1))
+                .summary("""
+                        {
+                          "returnPercent": 3.0,
+                          "netPnl": 3000.0,
+                          "winRate": 41.0,
+                          "tradeCount": 2,
+                          "profitFactor": 1.1
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findOwnedBotIdsOrderByAvgWinRateDesc(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(higherWinRateBot.getId(), lowerWinRateBot.getId()), PageRequest.of(0, 10), 2));
+        when(strategyBotRepository.findAllById(List.of(higherWinRateBot.getId(), lowerWinRateBot.getId())))
+                .thenReturn(List.of(higherWinRateBot, lowerWinRateBot));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
+                .thenReturn(List.of(higherRun, lowerRun));
+
+        Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "AVG_WIN_RATE",
+                "DESC",
+                "ALL",
+                null);
+
+        assertThat(board.getContent()).hasSize(2);
+        assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(higherWinRateBot.getId());
+        assertThat(board.getContent().get(0).getAvgWinRate()).isEqualTo(78.0);
+        assertThat(board.getContent().get(1).getStrategyBotId()).isEqualTo(lowerWinRateBot.getId());
+        assertThat(board.getContent().get(1).getAvgWinRate()).isEqualTo(41.0);
+        verify(strategyBotRepository).findOwnedBotIdsOrderByAvgWinRateDesc(eq(userId), any(Pageable.class));
+        verify(strategyBotRepository).findAllById(List.of(higherWinRateBot.getId(), lowerWinRateBot.getId()));
+        verify(strategyBotRepository, never()).findByUserId(eq(userId), any(Pageable.class));
+    }
+
+    @Test
+    void getBotBoard_shouldUseScopedPagedFastPathForTotalRunsSort() {
+        UUID userId = UUID.randomUUID();
+        StrategyBot activeBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Active")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBot inactiveBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Inactive")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun activeScopedRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(activeBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .summary("""
+                        {
+                          "returnPercent": 4.0,
+                          "netPnl": 4000.0,
+                          "tradeCount": 2
+                        }
+                        """)
+                .build();
+        StrategyBotRun inactiveOutOfScopeRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(inactiveBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(45))
+                .completedAt(LocalDateTime.now().minusDays(44))
+                .summary("""
+                        {
+                          "returnPercent": 7.0,
+                          "netPnl": 7000.0,
+                          "tradeCount": 3
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findOwnedBotIdsOrderByScopedRunCountDesc(
+                eq(userId),
+                eq("FORWARD_TEST"),
+                eq(true),
+                any(LocalDateTime.class),
+                any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(activeBot.getId(), inactiveBot.getId()), PageRequest.of(0, 10), 2));
+        when(strategyBotRepository.findAllById(List.of(activeBot.getId(), inactiveBot.getId())))
+                .thenReturn(List.of(activeBot, inactiveBot));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
+                .thenReturn(List.of(activeScopedRun, inactiveOutOfScopeRun));
+
+        Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "TOTAL_RUNS",
+                "DESC",
+                "FORWARD_TEST",
+                30);
+
+        assertThat(board.getContent()).hasSize(2);
+        assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(activeBot.getId());
+        assertThat(board.getContent().get(0).getTotalRuns()).isEqualTo(1);
+        assertThat(board.getContent().get(1).getStrategyBotId()).isEqualTo(inactiveBot.getId());
+        assertThat(board.getContent().get(1).getTotalRuns()).isEqualTo(0);
+        verify(strategyBotRepository).findOwnedBotIdsOrderByScopedRunCountDesc(
+                eq(userId),
+                eq("FORWARD_TEST"),
+                eq(true),
+                any(LocalDateTime.class),
+                any(Pageable.class));
+        verify(strategyBotRepository).findAllById(List.of(activeBot.getId(), inactiveBot.getId()));
+        verify(strategyBotRepository, never()).findByUserId(eq(userId), any(Pageable.class));
+    }
+
+    @Test
+    void getBotBoard_shouldUseScopedPagedFastPathForAvgReturnSort() {
+        UUID userId = UUID.randomUUID();
+        StrategyBot activeBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Active")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBot inactiveBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Inactive")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun activeScopedRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(activeBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .summary("""
+                        {
+                          "returnPercent": 4.0,
+                          "netPnl": 4000.0,
+                          "tradeCount": 2
+                        }
+                        """)
+                .build();
+        StrategyBotRun inactiveOutOfScopeRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(inactiveBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(45))
+                .completedAt(LocalDateTime.now().minusDays(44))
+                .summary("""
+                        {
+                          "returnPercent": 11.0,
+                          "netPnl": 11000.0,
+                          "tradeCount": 4
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findOwnedBotIdsOrderByScopedAvgReturnDesc(
+                eq(userId),
+                eq("FORWARD_TEST"),
+                eq(true),
+                any(LocalDateTime.class),
+                any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(activeBot.getId(), inactiveBot.getId()), PageRequest.of(0, 10), 2));
+        when(strategyBotRepository.findAllById(List.of(activeBot.getId(), inactiveBot.getId())))
+                .thenReturn(List.of(activeBot, inactiveBot));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
+                .thenReturn(List.of(activeScopedRun, inactiveOutOfScopeRun));
+
+        Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "AVG_RETURN",
+                "DESC",
+                "FORWARD_TEST",
+                30);
+
+        assertThat(board.getContent()).hasSize(2);
+        assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(activeBot.getId());
+        assertThat(board.getContent().get(0).getAvgReturnPercent()).isEqualTo(4.0);
+        assertThat(board.getContent().get(1).getStrategyBotId()).isEqualTo(inactiveBot.getId());
+        assertThat(board.getContent().get(1).getAvgReturnPercent()).isNull();
+        verify(strategyBotRepository).findOwnedBotIdsOrderByScopedAvgReturnDesc(
+                eq(userId),
+                eq("FORWARD_TEST"),
+                eq(true),
+                any(LocalDateTime.class),
+                any(Pageable.class));
+        verify(strategyBotRepository).findAllById(List.of(activeBot.getId(), inactiveBot.getId()));
+        verify(strategyBotRepository, never()).findByUserId(eq(userId), any(Pageable.class));
+    }
+
+    @Test
+    void getBotBoard_shouldUseScopedPagedFastPathForTotalSimulatedTradesSort() {
+        UUID userId = UUID.randomUUID();
+        StrategyBot activeBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Active")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBot inactiveBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Inactive")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .status(StrategyBot.Status.READY)
+                .build();
+
+        StrategyBotRun activeScopedRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(activeBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(2))
+                .completedAt(LocalDateTime.now().minusDays(1))
+                .summary("""
+                        {
+                          "returnPercent": 4.0,
+                          "netPnl": 4000.0,
+                          "tradeCount": 5
+                        }
+                        """)
+                .build();
+        StrategyBotRun inactiveOutOfScopeRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(inactiveBot.getId())
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusDays(45))
+                .completedAt(LocalDateTime.now().minusDays(44))
+                .summary("""
+                        {
+                          "returnPercent": 7.0,
+                          "netPnl": 7000.0,
+                          "tradeCount": 9
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findOwnedBotIdsOrderByScopedTotalSimulatedTradesDesc(
+                eq(userId),
+                eq("FORWARD_TEST"),
+                eq(true),
+                any(LocalDateTime.class),
+                any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(activeBot.getId(), inactiveBot.getId()), PageRequest.of(0, 10), 2));
+        when(strategyBotRepository.findAllById(List.of(activeBot.getId(), inactiveBot.getId())))
+                .thenReturn(List.of(activeBot, inactiveBot));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
+                .thenReturn(List.of(activeScopedRun, inactiveOutOfScopeRun));
+
+        Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.getBotBoard(
+                userId,
+                PageRequest.of(0, 10),
+                "TOTAL_SIMULATED_TRADES",
+                "DESC",
+                "FORWARD_TEST",
+                30);
+
+        assertThat(board.getContent()).hasSize(2);
+        assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(activeBot.getId());
+        assertThat(board.getContent().get(0).getTotalSimulatedTrades()).isEqualTo(5);
+        assertThat(board.getContent().get(1).getStrategyBotId()).isEqualTo(inactiveBot.getId());
+        assertThat(board.getContent().get(1).getTotalSimulatedTrades()).isEqualTo(0);
+        verify(strategyBotRepository).findOwnedBotIdsOrderByScopedTotalSimulatedTradesDesc(
+                eq(userId),
+                eq("FORWARD_TEST"),
+                eq(true),
+                any(LocalDateTime.class),
+                any(Pageable.class));
+        verify(strategyBotRepository).findAllById(List.of(activeBot.getId(), inactiveBot.getId()));
+        verify(strategyBotRepository, never()).findByUserId(eq(userId), any(Pageable.class));
+    }
+
+    @Test
+    void discoverPublicBotBoard_shouldUsePagedFastPathForTotalRunsSort() {
+        UUID ownerId = UUID.randomUUID();
+        UUID linkedPortfolioId = UUID.randomUUID();
+        StrategyBot publicBot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(ownerId)
+                .linkedPortfolioId(linkedPortfolioId)
+                .name("Public Runner")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        AppUser owner = AppUser.builder()
+                .id(ownerId)
+                .username("runner")
+                .displayName("Runner")
+                .build();
+        Portfolio linkedPortfolio = Portfolio.builder()
+                .id(linkedPortfolioId)
+                .name("Public Linked")
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build();
+        StrategyBotRun firstRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(publicBot.getId())
+                .userId(ownerId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .summary("""
+                        {
+                          "returnPercent": 7.0,
+                          "netPnl": 7000.0,
+                          "tradeCount": 3
+                        }
+                        """)
+                .build();
+        StrategyBotRun secondRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(publicBot.getId())
+                .userId(ownerId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .requestedAt(LocalDateTime.now().minusMinutes(30))
+                .summary("""
+                        {
+                          "returnPercent": 1.2,
+                          "netPnl": 1200.0,
+                          "tradeCount": 1
+                        }
+                        """)
+                .build();
+
+        when(strategyBotRepository.findPublicDiscoverableBotsOrderByRunCountDesc(
+                eq(Portfolio.Visibility.PUBLIC),
+                eq(StrategyBot.Status.DRAFT),
+                eq("btc"),
+                any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(publicBot), PageRequest.of(0, 10), 1));
+        when(userRepository.findByIdIn(List.of(ownerId))).thenReturn(List.of(owner));
+        when(portfolioRepository.findByIdInAndVisibility(List.of(linkedPortfolioId), Portfolio.Visibility.PUBLIC))
+                .thenReturn(List.of(linkedPortfolio));
+        when(strategyBotRunRepository.findByStrategyBotIdInOrderByRequestedAtDesc(List.of(publicBot.getId())))
+                .thenReturn(List.of(secondRun, firstRun));
+
+        Page<StrategyBotBoardEntryResponse> board = strategyBotRunService.discoverPublicBotBoard(
+                PageRequest.of(0, 10),
+                "TOTAL_RUNS",
+                "DESC",
+                "ALL",
+                null,
+                "btc");
+
+        assertThat(board.getContent()).hasSize(1);
+        assertThat(board.getContent().get(0).getStrategyBotId()).isEqualTo(publicBot.getId());
+        assertThat(board.getContent().get(0).getTotalRuns()).isEqualTo(2);
+        verify(strategyBotRepository).findPublicDiscoverableBotsOrderByRunCountDesc(
+                eq(Portfolio.Visibility.PUBLIC),
+                eq(StrategyBot.Status.DRAFT),
+                eq("btc"),
+                any(Pageable.class));
+        verify(strategyBotRepository, never()).findPublicDiscoverableBots(any(), any(), any());
     }
 
     @Test
@@ -1093,10 +1756,8 @@ class StrategyBotRunServiceTest {
 
         when(strategyBotRepository.findByUserId(eq(userId), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(idle, leader)));
-        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(leader.getId(), userId))
-                .thenReturn(List.of(recentForwardRun));
-        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(idle.getId(), userId))
-                .thenReturn(List.of(staleForwardRun));
+        when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
+                .thenReturn(List.of(staleForwardRun, recentForwardRun));
 
         String json = strategyBotRunService.buildBotBoardExportJson(userId, "AVG_RETURN", "DESC", "FORWARD_TEST", 30);
         String csv = new String(

@@ -29,6 +29,7 @@ public class CopyTradingService {
     private final PortfolioRepository portfolioRepository;
     private final PortfolioItemRepository portfolioItemRepository;
     private final TradeActivityRepository tradeActivityRepository;
+    private final PerformanceAnalyticsService performanceAnalyticsService;
 
     /**
      * Replicates a BUY trade across all cloned portfolios for a given original
@@ -156,6 +157,7 @@ public class CopyTradingService {
                 .quantity(copyQty)
                 .price(executedPrice)
                 .build());
+        performanceAnalyticsService.invalidatePortfolioAnalytics(clonedId);
     }
 
     /**
@@ -270,6 +272,7 @@ public class CopyTradingService {
                 .price(executedPrice)
                 .realizedPnl(pnl)
                 .build());
+        performanceAnalyticsService.invalidatePortfolioAnalytics(clonedId);
     }
 
     private String normalizeRequestedSide(String rawSide) {

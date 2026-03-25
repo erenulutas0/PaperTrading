@@ -2,9 +2,11 @@ package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.domain.PortfolioSnapshot;
 import com.finance.core.domain.TradeActivity;
 import com.finance.core.dto.TradeRequest;
 import com.finance.core.repository.PortfolioRepository;
+import com.finance.core.repository.PortfolioSnapshotRepository;
 import com.finance.core.repository.TradeActivityRepository;
 import com.finance.core.service.BinanceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Map;
 
@@ -41,6 +44,9 @@ class PortfolioControllerIntegrationTest {
     private TradeActivityRepository tradeActivityRepository;
 
     @Autowired
+    private PortfolioSnapshotRepository snapshotRepository;
+
+    @Autowired
     private com.finance.core.repository.ActivityEventRepository activityEventRepository;
 
     @Autowired
@@ -48,6 +54,9 @@ class PortfolioControllerIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private com.finance.core.service.LeaderboardService leaderboardService;
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private BinanceService binanceService;
@@ -60,7 +69,9 @@ class PortfolioControllerIntegrationTest {
         notificationRepository.deleteAll();
         activityEventRepository.deleteAll();
         tradeActivityRepository.deleteAll();
+        snapshotRepository.deleteAll();
         portfolioRepository.deleteAll();
+        leaderboardService.invalidateCache();
 
         portfolio = Portfolio.builder()
                 .name("Holdings Visibility Test")
@@ -93,6 +104,27 @@ class PortfolioControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].items", hasSize(1)))
                 .andExpect(jsonPath("$.content[0].items[0].symbol").value("BTCUSDT"))
                 .andExpect(jsonPath("$.content[0].items[0].side").value("LONG"));
+    }
+
+    @Test
+    void getPortfolio_shouldPreserveMicroPositionEquityWithoutFalseLoss() throws Exception {
+        TradeRequest request = new TradeRequest();
+        request.setPortfolioId(portfolio.getId().toString());
+        request.setSymbol("BTCUSDT");
+        request.setQuantity(new BigDecimal("0.001"));
+        request.setLeverage(1);
+        request.setSide("LONG");
+
+        mockMvc.perform(post("/api/v1/trade/buy")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/portfolios/{id}", portfolio.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].quantity").value(0.001))
+                .andExpect(jsonPath("$.totalEquity").value(10000.0));
     }
 
     @Test
@@ -161,6 +193,82 @@ class PortfolioControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("invalid_portfolio_size"))
                 .andExpect(jsonPath("$.message").value("Invalid portfolio size"))
                 .andExpect(jsonPath("$.requestId").value("portfolio-page-err-2"));
+    }
+
+    @Test
+    void discoverHighlights_shouldReturnTopPublicPortfoliosByOneWeekReturn() throws Exception {
+        Portfolio secondPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Momentum Copy")
+                .ownerId("owner-highlight-two")
+                .description("Second ranked public candidate")
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .balance(new BigDecimal("112000"))
+                .build());
+        Portfolio privatePortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Private Rocket")
+                .ownerId("owner-highlight-private")
+                .description("Should never appear")
+                .visibility(Portfolio.Visibility.PRIVATE)
+                .balance(new BigDecimal("160000"))
+                .build());
+
+        portfolio.setVisibility(Portfolio.Visibility.PUBLIC);
+        portfolio.setDescription("Top ranked public candidate");
+        portfolio.setBalance(new BigDecimal("125000"));
+        portfolioRepository.save(portfolio);
+
+        snapshotRepository.save(PortfolioSnapshot.builder()
+                .portfolioId(portfolio.getId())
+                .totalEquity(new BigDecimal("100000"))
+                .timestamp(LocalDateTime.now().minusDays(8))
+                .build());
+        snapshotRepository.save(PortfolioSnapshot.builder()
+                .portfolioId(portfolio.getId())
+                .totalEquity(new BigDecimal("125000"))
+                .timestamp(LocalDateTime.now().minusMinutes(5))
+                .build());
+        snapshotRepository.save(PortfolioSnapshot.builder()
+                .portfolioId(secondPortfolio.getId())
+                .totalEquity(new BigDecimal("100000"))
+                .timestamp(LocalDateTime.now().minusDays(8))
+                .build());
+        snapshotRepository.save(PortfolioSnapshot.builder()
+                .portfolioId(secondPortfolio.getId())
+                .totalEquity(new BigDecimal("112000"))
+                .timestamp(LocalDateTime.now().minusMinutes(5))
+                .build());
+        snapshotRepository.save(PortfolioSnapshot.builder()
+                .portfolioId(privatePortfolio.getId())
+                .totalEquity(new BigDecimal("100000"))
+                .timestamp(LocalDateTime.now().minusDays(8))
+                .build());
+        snapshotRepository.save(PortfolioSnapshot.builder()
+                .portfolioId(privatePortfolio.getId())
+                .totalEquity(new BigDecimal("160000"))
+                .timestamp(LocalDateTime.now().minusMinutes(5))
+                .build());
+
+        mockMvc.perform(get("/api/v1/portfolios/discover/highlights")
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].id").value(portfolio.getId().toString()))
+                .andExpect(jsonPath("$[0].name").value("Holdings Visibility Test"))
+                .andExpect(jsonPath("$[0].returnPercentage1W").value(25.0))
+                .andExpect(jsonPath("$[1].id").value(secondPortfolio.getId().toString()))
+                .andExpect(jsonPath("$[1].returnPercentage1W").value(12.0));
+    }
+
+    @Test
+    void discoverHighlights_withInvalidLimit_shouldReturnExplicitBadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/portfolios/discover/highlights")
+                        .param("limit", "99")
+                        .header("X-Request-Id", "portfolio-highlight-err-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "portfolio-highlight-err-1"))
+                .andExpect(jsonPath("$.code").value("invalid_portfolio_discover_highlight_limit"))
+                .andExpect(jsonPath("$.message").value("Invalid portfolio discover highlight limit"))
+                .andExpect(jsonPath("$.requestId").value("portfolio-highlight-err-1"));
     }
 
     @Test

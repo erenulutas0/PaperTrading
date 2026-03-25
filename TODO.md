@@ -1,6 +1,6 @@
 # TODO - Core API Reliability & Scalability Sweep
 
-Last updated: 2026-03-23
+Last updated: 2026-03-25
 
 ## In Progress
 - [x] Verify the new local-dev bootstrap path:
@@ -282,9 +282,14 @@ Last updated: 2026-03-23
 - [x] Redeploy frontend after auth-state-aware notification reconnect + polling fallback and verify receiver gets follow/like/comment notifications without manual refresh after login or transient WS/SSE stalls
 - [x] Re-run `run_auth_attack_scenarios.ps1` after accepting rate-limit `429` on invalid refresh flood and making websocket canary parsing schema-tolerant for current endpoint payloads
 - [x] Simplified custom actuator audit endpoint to zero-argument snapshot mode and verified locally `/actuator/auditlog` now returns the default recent snapshot without relying on optional parameter binding
-- [ ] Redeploy backend after JDBC-based audit inspection rewrite and verify both `/api/v1/ops/auditlog` and `/actuator/auditlog` return recent rows instead of `internal_error`
-- [ ] Redeploy backend after REST audit ops endpoint rollout and verify `/api/v1/ops/auditlog` exposes recent audit rows even if custom actuator inspection remains unstable in this runtime
-- [ ] Redeploy backend after enabling Java `-parameters` metadata and verify `/actuator/auditlog` no longer fails when optional query params (`limit`, `requestId`) are present or omitted
+- [ ] Run staging readiness suite and attach report (`infra/load-test/run_staging_readiness_suite.ps1`) to confirm in one parent report:
+  - audit inspection/write-capture stability
+  - data-integrity checks (false-loss + Flyway/history integrity)
+  - unified error-contract rollout
+  - auth strict pre-cutover readiness
+  - websocket/browser-origin/relay/SSE-fallback resilience
+  - leaderboard period validation
+  - live ops webhook delivery with the real staging webhook URL configured
 - [x] Re-ran actuator audit snapshot locally and verified `/actuator/auditlog` now serves a recent unfiltered snapshot while request-filtered inspection remains on `/api/v1/ops/auditlog`
 - [x] Added audit validation suite orchestration:
   - Added:
@@ -319,6 +324,116 @@ Last updated: 2026-03-23
     - `infra/load-test/reports/audit-validation-local-runtime-check-20260324-015035.md`
     - `infra/load-test/reports/audit-validation-suite-20260324-015110.md`
     - `infra/load-test/reports/audit-write-capture-smoke-20260324-015111.md`
+- [x] Expanded audit checklist tooling to cover recent-row and optional-param verification:
+  - Updated:
+    - `infra/load-test/run_audit_write_capture_smoke.ps1`
+    - `infra/load-test/run_audit_validation_local_runtime_check.ps1`
+    - `infra/load-test/README.md`
+  - Behavior:
+    - audit write-capture smoke now verifies:
+      - request-id-filtered audit rows
+      - `/api/v1/ops/auditlog?limit=5`
+      - `/actuator/auditlog`
+      - `/actuator/auditlog?limit=5`
+    - actuator audit validation now keys on `200 + recent snapshot + no internal_error` instead of assuming the optional query param narrows the snapshot
+    - local runtime wrapper now reports early backend process exit explicitly when the temporary backend dies before health
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_audit_validation_local_runtime_check.ps1`
+  - Passing reports:
+    - `infra/load-test/reports/audit-validation-local-runtime-check-20260325-002506.md`
+    - `infra/load-test/reports/audit-validation-suite-20260325-002543.md`
+    - `infra/load-test/reports/audit-write-capture-smoke-20260325-002544.md`
+- [x] Hardened staging-wrapper markdown status parsing against partial/ambiguous child-report matches:
+  - Updated:
+    - `infra/load-test/run_audit_validation_suite.ps1`
+    - `infra/load-test/run_browser_origin_staging_checklist.ps1`
+    - `infra/load-test/run_auth_strict_post_cutover_checklist.ps1`
+    - `infra/load-test/run_auth_spoof_regression_check.ps1`
+    - `infra/load-test/run_auth_strict_mode_validation_suite.ps1`
+    - `infra/load-test/run_websocket_staging_resilience_suite.ps1`
+  - Behavior:
+    - wrapper scripts now parse child report status only from explicit `- Status:` lines
+    - accepted status values are constrained (`PASSED`, `FAILED`, `UNKNOWN`, `READY`, `CONDITIONAL_READY`, `NOT_READY`, `SKIPPED`) so table rows or incidental text cannot be misread as suite outcome
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_audit_validation_local_runtime_check.ps1`
+  - Passing reports:
+    - `infra/load-test/reports/audit-validation-local-runtime-check-20260325-002948.md`
+- [x] Added a parent staging readiness suite wrapper for the main remaining rollout checklists:
+  - Added:
+    - `infra/load-test/run_staging_readiness_suite.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - runs and links:
+      - audit staging checklist
+      - auth strict pre-cutover checklist
+      - websocket staging resilience suite
+      - ops webhook staging checklist
+    - produces one parent markdown report so staging verification no longer requires manually collecting four separate child entrypoints
+    - supports `-Skip*` switches for partial rollout phases
+  - Local mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_staging_readiness_suite.ps1 -BaseUrl http://localhost:8080 -SkipAudit -SkipAuthReadiness -SkipWebsocket -SkipOpsWebhook -NoFail`
+  - Passing report:
+    - `infra/load-test/reports/staging-readiness-suite-20260325-003635.md`
+- [x] Extended parent staging readiness suite with leaderboard period validation:
+  - Updated:
+    - `infra/load-test/run_staging_readiness_suite.ps1`
+    - `infra/load-test/README.md`
+  - Behavior:
+    - parent suite now includes `run_leaderboard_period_validation_staging_checklist.ps1` by default
+    - `-SkipLeaderboardPeriods` keeps partial rollout phases explicit when this product-review slice is not needed
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_staging_readiness_suite.ps1 -BaseUrl http://localhost:8080 -SkipAudit -SkipAuthReadiness -SkipWebsocket -SkipOpsWebhook -NoFail`
+- [x] Extended parent staging readiness suite with error-contract validation:
+  - Updated:
+    - `infra/load-test/run_staging_readiness_suite.ps1`
+    - `infra/load-test/README.md`
+  - Behavior:
+    - parent suite now includes `run_error_contract_staging_checklist.ps1` by default
+    - `-SkipErrorContracts` keeps partial rollout phases explicit when this contract slice is not needed
+  - Local validation:
+    - staging-oriented parent inclusion was updated; fresh local proof for the same contract slice is tracked via `run_error_contract_local_runtime_check.ps1`
+- [x] Extended parent staging readiness suite with data-integrity validation:
+  - Updated:
+    - `infra/load-test/run_staging_readiness_suite.ps1`
+    - `infra/load-test/README.md`
+  - Behavior:
+    - parent suite now includes `run_data_integrity_staging_checklist.ps1` by default
+    - `-SkipDataIntegrity` keeps partial rollout phases explicit when the DB/runtime integrity slice is intentionally out of scope
+    - open staging backlog no longer needs separate audit/error/data/pre-cutover/websocket/leaderboard/ops child lines because the parent suite is now the real entrypoint
+  - Local validation:
+    - child data-integrity proof is locked by `run_data_integrity_local_runtime_check.ps1`
+    - parent suite inclusion was mechanically updated alongside the existing wrapper contract
+- [x] Added leaderboard preference continuity checklist tooling:
+  - Added:
+    - `infra/load-test/run_leaderboard_preferences_staging_checklist.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - registers a fresh user
+    - verifies default leaderboard preference payload
+    - persists dashboard leaderboard lens (`period`, `sortBy`, `direction`)
+    - persists public leaderboard lens (`sortBy`, `direction`) without clobbering dashboard values
+    - re-reads `/api/v1/users/me/preferences` to prove continuity
+    - probes both portfolio and account leaderboard endpoints with the persisted lens values
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_leaderboard_preferences_staging_checklist.ps1 -BaseUrl http://localhost:8080 -NoFail`
+  - Passing report:
+    - `infra/load-test/reports/leaderboard-preferences-staging-checklist-20260325-004137.md`
+- [x] Added leaderboard period validation checklist tooling:
+  - Added:
+    - `infra/load-test/run_leaderboard_period_validation_staging_checklist.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - probes portfolio leaderboard periods `1D`, `1W`, `1M`, `ALL`
+    - captures both `RETURN_PERCENTAGE` and `PROFIT_LOSS` top slices in one attachable markdown report
+    - reports `CONDITIONAL_READY` when slices are healthy but empty, so staging data absence is distinguished from transport/contract failure
+    - turns the remaining ranking-semantics discussion into a repeatable checklist instead of ad hoc endpoint probing
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_leaderboard_period_validation_staging_checklist.ps1 -BaseUrl http://localhost:8080 -NoFail`
+  - Passing report:
+    - `infra/load-test/reports/leaderboard-period-validation-staging-checklist-20260325-005124.md`
 - [x] Added runtime log smoke for the portfolio pagination warning cleanup and verified local scheduler-oriented reads stay clean:
   - Added:
     - `infra/load-test/run_portfolio_pagination_warning_smoke.ps1`
@@ -359,11 +474,30 @@ Last updated: 2026-03-23
 - [x] Fix Binance REST fallback `symbols` request formatting and verify startup/stale-read price hydration no longer logs `Illegal characters found in parameter 'symbols'` while leaderboard refresh still works when WS cache is cold
 - [x] Re-ran idempotency cleanup/inspection rollout locally and verified `/actuator/idempotency` reports sane counts while manual cleanup purges expired keys without breaking replay semantics
 - [x] Re-ran idempotency-key rollout locally and verified duplicate write retries replay cached `2xx` responses for protected `/api/v1/**` writes while auth endpoints remain excluded
-- [ ] Redeploy backend after audit log foundation rollout and verify `audit_logs` captures trade/portfolio/follow/post/interaction writes with correlated `request_id`
 - [x] Re-ran audit log foundation locally and verified `/api/v1/ops/auditlog` captures correlated request-id rows for portfolio/trade/follow/comment/analysis smoke writes while `/actuator/auditlog` still exposes a filtered snapshot
 - [x] Re-ran notification error cleanup locally and verified unread-count/mark-read paths now use the same correlated error contract as other controllers, including invalid notification-id handling
-- [ ] Redeploy backend after portfolio/trade/tournament/watchlist manual error-path migration and verify common user-facing failures now return unified `{code,message,details?,requestId}` payloads instead of raw strings/empty 404s
-- [ ] Redeploy backend after profile-follow/portfolio-participation manual error-path migration and verify social join/follow edge cases now return unified `{code,message,details?,requestId}` payloads instead of generic runtime fallbacks
+- [x] Added error-contract staging checklist wrapper:
+  - Added:
+    - `infra/load-test/run_error_contract_staging_checklist.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - verifies representative unified error payloads across portfolio/trade/tournament/watchlist surfaces
+    - verifies bearer-authenticated social edge contracts for self-follow, duplicate follow, and leave-without-participation
+    - locks both JSON `requestId` continuity and `X-Request-Id` echo behavior on each sampled failure path
+- [x] Added local runtime wrapper for error-contract checklist validation:
+  - Added:
+    - `infra/load-test/run_error_contract_local_runtime_check.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - starts a fresh temporary backend before running `run_error_contract_staging_checklist.ps1`
+    - avoids false negatives from stale shared localhost runtimes while still producing an attachable child checklist report
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_error_contract_local_runtime_check.ps1 -NoFail`
+  - Passing reports:
+    - `infra/load-test/reports/error-contract-local-runtime-check-20260325-010754.md`
+    - `infra/load-test/reports/error-contract-staging-checklist-20260325-010828.md`
 - [x] Tightened manual error-path mapping across portfolio/trade/tournament/watchlist controllers:
   - Updated:
     - `PortfolioController`
@@ -388,8 +522,14 @@ Last updated: 2026-03-23
 - [x] Re-ran portfolio/trade/tournament/watchlist error-contract rollout locally and verified targeted fail paths now emit correlated API errors instead of generic/raw responses
 - [x] Re-ran profile-follow/portfolio-participation error-contract rollout locally and verified targeted fail paths now emit correlated API errors instead of generic/raw responses
 - [x] Re-ran request-correlation + unified error contract rollout locally and verified `X-Request-Id` is echoed on errors plus auth failures return `{code,message,details?,requestId}`
-- [ ] Redeploy backend/frontend after token-only web client auth hardening and verify staging works with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false` for browser REST + notification/tournament websocket paths
-- [ ] Re-run `lightweight_baseline.ps1` and `validate_websocket_relay_smoke.ps1` against strict-mode staging after Bearer-auth migration and confirm reports still pass without legacy header acceptance
+- [ ] Move auth migration to staging enforcement mode (`APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`) and attach report (`infra/load-test/run_auth_strict_post_cutover_checklist.ps1`) proving browser REST + notification/tournament websocket Bearer paths, spoof regression, and rate-limit isolation all still pass without legacy-header acceptance
+  - Local wrapper added:
+    - `infra/load-test/run_auth_strict_post_cutover_local_runtime_check.ps1`
+  - Goal:
+    - boot a fresh local backend with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`
+    - prove the post-cutover checklist still runs against a current runtime before the final staging enforcement pass
+  - Latest local passing report:
+    - `infra/load-test/reports/auth-strict-post-cutover-local-runtime-check-20260325-174908.md`
 - [x] Added strict transport validation wrapper for Bearer-only staging checks:
   - Added:
     - `infra/load-test/run_auth_strict_transport_validation.ps1`
@@ -435,19 +575,30 @@ Last updated: 2026-03-23
     - drives comment, reply, follow, and auth-refresh bursts until each dedicated profile returns `429`
     - verifies ordinary read probes still return `200`, so write throttling does not starve the default read bucket
 - [x] Re-ran endpoint-aware rate-limit hardening locally and verified comment/reply/follow/auth-refresh bursts now hit dedicated `429` buckets while normal reads continue to succeed
-- [ ] Redeploy backend after reverting accidental `V3` migration edit and verify Flyway validation passes with `COMMENT` support coming only from `V10`
+- [x] Added Flyway/data staging checklist wrapper:
+  - Added:
+    - `infra/load-test/run_flyway_data_staging_checklist.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - verifies successful Flyway history rows for `V3`, `V9`, `V10`, and `V27`
+    - verifies the live `interactions_target_type_check` constraint includes `COMMENT`
+    - verifies BUY trade rows no longer carry `NULL` `realized_pnl` after the V9 data fix
+    - verifies no legacy `quantity = 0` crypto rows remain in `portfolio_items` / `trade_activities` under the `USDT` symbol heuristic after the V27 precision widening
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_flyway_data_staging_checklist.ps1 -NoFail`
+  - Passing report:
+    - `infra/load-test/reports/flyway-data-staging-checklist-20260325-013324.md`
 - [x] Redeploy frontend after recursive comment-thread action rendering and verify replies also expose like/reply controls, not just root comments
 - [x] Redeploy backend/frontend after comment-thread interaction upgrade and verify portfolio/post comments now support comment likes + replies with sane notifications and root-page links
 - [x] Redeploy frontend after global bell relocation + follow-back action and verify notifications are visible from all dashboard sub-pages without header clipping
 - [x] Redeploy frontend after notification dropdown inbox-preview improvement and verify bell panel now supports scrollable recent notifications without forcing `View All`
-- [ ] Redeploy staging after market-price fallback + portfolio equity calculation fix, then verify leaderboard P/L/return and portfolio detail P/L no longer freeze at false losses when Binance WS is sparse
-- [ ] Verify Flyway `V9__backfill_buy_trade_realized_pnl.sql` applied in staging and confirm legacy BUY history rows now render `0` instead of `-`
-- [ ] Redeploy backend/frontend after notification SSE stream-token hardening and verify WS->SSE fallback still delivers notifications without duplicates
-- [ ] Bootstrap Railway staging frontend service (`apps/web`), generate frontend domain, and wire `NEXT_PUBLIC_API_BASE_URL` to backend domain
-- [ ] Wire frontend runtime proxy env (`API_BASE_URL`) in Railway web service and verify `/api/v1/auth/*` and `/api/v1/leaderboards` no longer return Next.js 404
-- [ ] Switch frontend Railway deploy mode to Dockerfile fallback (`apps/web/Dockerfile`) to bypass Railpack `npm ci` lockfile mismatch and verify successful build/start on port 3000
-- [ ] Set backend staging `APP_WEBSOCKET_ALLOWED_ORIGIN_PATTERNS` to include frontend Railway domain and verify notification websocket handshake
-- [ ] Set backend staging `APP_CORS_ALLOWED_ORIGIN_PATTERNS` to include frontend Railway domain and re-test register/login flows for CORS-free API proxying
+- [ ] Run Railway frontend staging checklist and attach report (`infra/load-test/run_railway_frontend_staging_checklist.ps1`) after bringing `apps/web` online to confirm:
+  - frontend domain responds on `/auth/login`
+  - frontend proxy no longer returns Next.js `404` for `/api/v1/auth/*` and `/api/v1/leaderboards`
+  - proxied register/login/protected-read flows work through the frontend domain
+  - backend browser-origin and notification websocket handshake accept the real frontend origin
+  - Railway can fall back to `apps/web/Dockerfile` if Railpack keeps failing on lockfile mismatch
 - [x] Added browser-origin staging checklist wrapper:
   - Added:
     - `infra/load-test/run_browser_origin_staging_checklist.ps1`
@@ -458,6 +609,46 @@ Last updated: 2026-03-23
   - Local validation:
     - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_browser_origin_staging_checklist.ps1 -BaseUrl http://localhost:8080 -FrontendOrigin http://localhost:3005 -SkipRelay -NoFail`
     - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\validate_websocket_relay_smoke.ps1 -SkipAppStart -BaseUrl http://localhost:8080 -OriginHeader http://localhost:3005 -NoFail`
+- [x] Added Railway frontend staging checklist wrapper:
+  - Added:
+    - `infra/load-test/run_railway_frontend_staging_checklist.ps1`
+  - Behavior:
+    - verifies frontend route availability on `/auth/login`
+    - verifies the Next proxy path serves `/api/v1/leaderboards`
+    - verifies proxied register/login and a protected unread-count read through the frontend domain
+    - delegates browser-origin and optional relay validation to `run_browser_origin_staging_checklist.ps1` using the real frontend origin
+  - Local mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_railway_frontend_staging_checklist.ps1 -FrontendBaseUrl http://localhost:3005 -BackendBaseUrl http://localhost:8080 -SkipOriginChecklist -NoFail`
+  - Mechanical report:
+    - `infra/load-test/reports/railway-frontend-staging-checklist-20260325-170746.md`
+- [x] Fixed the frontend deployment checklist so local `localhost:3005` proxy validation reflects the real app state instead of helper drift:
+  - Updated:
+    - `infra/load-test/run_railway_frontend_staging_checklist.ps1`
+  - Problem observed:
+    - direct `curl` / browser-origin checks passed locally, but the wrapper still marked proxied auth calls as failed
+    - the issue was in the wrapper helper, not in the Next proxy route itself
+  - Fix:
+    - switched the wrapper request path to `Invoke-WebRequest`
+    - hardened strict-mode response handling for non-2xx responses
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_railway_frontend_staging_checklist.ps1 -FrontendBaseUrl http://localhost:3005 -BackendBaseUrl http://localhost:8080 -SkipRelay -NoFail`
+  - Passing reports:
+    - `infra/load-test/reports/browser-origin-staging-checklist-20260325-173048.md`
+    - `infra/load-test/reports/railway-frontend-staging-checklist-20260325-173047.md`
+- [x] Hardened critical staging wrappers to avoid nested PowerShell / `$LASTEXITCODE` drift in parent-child report orchestration:
+  - Updated:
+    - `infra/load-test/run_staging_readiness_suite.ps1`
+    - `infra/load-test/run_auth_strict_post_cutover_checklist.ps1`
+    - `infra/load-test/run_websocket_staging_resilience_suite.ps1`
+    - `infra/load-test/run_browser_origin_staging_checklist.ps1`
+    - `infra/load-test/run_railway_frontend_staging_checklist.ps1`
+  - Behavior:
+    - child scripts now run via direct parameter splatting instead of nested stringy PowerShell argument assembly
+    - parent wrappers now depend on child report presence/status instead of fragile `$LASTEXITCODE` reads from nested PowerShell flows
+  - Mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_staging_readiness_suite.ps1 -BaseUrl http://localhost:8080 -SkipAudit -SkipDataIntegrity -SkipErrorContracts -SkipLeaderboardPeriods -SkipAuthReadiness -SkipWebsocket -SkipOpsWebhook -NoFail`
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_auth_strict_post_cutover_checklist.ps1 -BaseUrl http://localhost:8080 -SkipBaseline -SkipRelay -SkipSpoof -SkipRateLimit -NoFail`
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_railway_frontend_staging_checklist.ps1 -FrontendBaseUrl http://localhost:3005 -BackendBaseUrl http://localhost:8080 -SkipOriginChecklist -NoFail`
 - [x] Hardened websocket canary external runner and added transition checklist:
   - `/actuator/websocketcanary` now supports `?refresh=false` to read the latest snapshot without forcing a new probe
   - `infra/load-test/run_websocket_canary_external.ps1` now:
@@ -476,9 +667,59 @@ Last updated: 2026-03-23
     - runs browser-origin validation
     - runs websocket relay continuity/restart validation
     - runs websocket canary latest-snapshot transition validation
+    - runs direct notification SSE fallback delivery validation
     - emits one summary markdown report linking child reports
   - Note:
-    - SSE fallback is still a separate UX/runtime concern; this suite does not claim it
+    - the suite validates transport-level SSE fallback delivery, not full browser toast/render dedupe semantics
+- [x] Added notification SSE fallback checklist wrapper:
+  - Added:
+    - `infra/load-test/run_notification_sse_fallback_staging_checklist.ps1`
+    - `infra/load-test/run_notification_sse_fallback_local_runtime_check.ps1`
+  - Behavior:
+    - issues a short-lived bearer-authenticated stream token
+    - opens `/api/v1/notifications/stream` directly via SSE
+    - triggers a follow notification and verifies one SSE event arrives without duplicate replay in a short settle window
+    - verifies unread-count + paged inbox continuity after fallback delivery
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_notification_sse_fallback_local_runtime_check.ps1 -NoFail`
+- [x] Hardened micro-crypto trade quantity precision and added false-loss checklist tooling:
+  - Root cause found during local staging simulation:
+    - `portfolio_items.quantity` and `trade_activities.quantity` still used scale `2`, so `0.001 BTC` persisted as `0.00`
+    - that made portfolio detail and leaderboard equity collapse into a false `-50` style loss even after the earlier entry-price fallback fix
+  - Added:
+    - `services/core-api/src/main/resources/db/migration/V27__expand_trade_quantity_precision.sql`
+    - `infra/load-test/run_market_price_false_loss_staging_checklist.ps1`
+    - `infra/load-test/run_market_price_false_loss_local_runtime_check.ps1`
+  - Local validation:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=TradeControllerIntegrationTest,PortfolioControllerIntegrationTest" test`
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_market_price_false_loss_local_runtime_check.ps1 -NoFail`
+- [x] Expanded the Flyway/data staging checklist so pre-`V27` zeroed crypto rows are inspected in the same DB-backed report:
+  - Updated:
+    - `infra/load-test/run_flyway_data_staging_checklist.ps1`
+    - `infra/load-test/README.md`
+  - Behavior:
+    - verifies successful Flyway history rows for `V27`
+    - scans `portfolio_items` and `trade_activities` for `quantity = 0` crypto rows under the `USDT` symbol heuristic
+    - emits recent sample rows when zeroed crypto history is present so staging/prod cleanup can be decided from the attached report
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_flyway_data_staging_checklist.ps1 -NoFail`
+  - Passing report:
+    - `infra/load-test/reports/flyway-data-staging-checklist-20260325-020035.md`
+- [x] Added a parent data-integrity checklist wrapper so market-price false-loss and Flyway/data verification can be attached as one report:
+  - Added:
+    - `infra/load-test/run_data_integrity_staging_checklist.ps1`
+    - `infra/load-test/run_data_integrity_local_runtime_check.ps1`
+  - Updated:
+    - `infra/load-test/run_market_price_false_loss_local_runtime_check.ps1`
+    - `infra/load-test/README.md`
+  - Behavior:
+    - chains the market-price false-loss checklist and the Flyway/data checklist into one parent markdown report
+    - provides a fresh-local-runtime wrapper that reuses the market-price restart check and then runs the DB-backed Flyway/data inspection
+    - fixes the false-loss local wrapper so leaderboard asserts are not skipped by scalar `content` drift
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_data_integrity_local_runtime_check.ps1 -NoFail`
+  - Passing report:
+    - `infra/load-test/reports/data-integrity-local-runtime-check-20260325-023320.md`
 - [x] Added auth strict pre-cutover checklist wrapper:
   - Added:
     - `infra/load-test/run_auth_strict_pre_cutover_checklist.ps1`
@@ -493,19 +734,18 @@ Last updated: 2026-03-23
     - ensured disabled alerting still provides a no-op `OpsAlertPublisher`
     - fixed single-sample auth observability calibration under PowerShell strict mode
 - [ ] Run websocket canary staging checklist from a separate node/network path and attach report (`infra/load-test/run_websocket_canary_staging_checklist.ps1`) to confirm initial `not-run-yet` -> healthy snapshot transition
-- [ ] Run auth strict pre-cutover checklist in staging and attach report (`infra/load-test/run_auth_strict_pre_cutover_checklist.ps1`) to confirm:
-  - legacy accepted traffic is below threshold
-  - auth refresh churn calibration is available
-  - readiness is `READY` or acceptable `CONDITIONAL_READY` before disabling legacy-header acceptance
-- [ ] Run quick UX validation for persisted leaderboard sort controls (reload/session continuity for `sortBy` + `direction`, and dashboard `period`)
-- [ ] Run websocket relay smoke/failover script in staging with real broker restart command and attach report (`infra/load-test/validate_websocket_relay_smoke.ps1`)
-- [ ] Run websocket staging resilience suite in staging and attach report (`infra/load-test/run_websocket_staging_resilience_suite.ps1`) to confirm:
-  - browser origin acceptance
-  - relay continuity across forced broker restart
-  - canary latest-snapshot transition
-  - then separately validate browser-side SSE fallback path
-- [ ] Validate leaderboard period metrics with live user flows (`1D/1W/1M/ALL`) and confirm expected ranking semantics (portfolio ROI vs position ROE) with product decision
-- [ ] Monitor runtime for one sprint and tune pool/cache TTL values using real traffic metrics
+  - Local wrapper hardening:
+    - parent now reuses the child canary report directly instead of falling back to `report_not_found`
+    - local shared-runtime check now fails for the real reason (`final_state=not-run-yet`), so the remaining work is genuinely environment-specific
+  - Latest local report:
+    - `infra/load-test/reports/websocket-canary-staging-checklist-20260325-174442.md`
+- [ ] Run runtime observability review checklist and attach report (`infra/load-test/run_runtime_observability_review_checklist.ps1`) after one sprint of real traffic to summarize feed/auth/websocket/idempotency/ops snapshots before tuning pool/cache TTL values
+  - Local wrapper added:
+    - `infra/load-test/run_runtime_observability_review_local_runtime_check.ps1`
+  - Goal:
+    - boot a fresh local backend and prove the review checklist runs against current code before the real post-traffic staging snapshot
+  - Latest local passing report:
+    - `infra/load-test/reports/runtime-observability-review-local-runtime-check-20260325-175210.md`
 
 ## Next
 - [x] Add audit-log read tooling (admin/report/export or actuator-style inspection path) once write-path capture is stable in staging
@@ -533,7 +773,211 @@ Last updated: 2026-03-23
     - computes `p95/p99` deltas between follower-count stages
   - Local mechanical validation:
     - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_follower_fanout_stress_suite.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
-- [ ] Run follower-fanout stress profile with staged high follower counts (`1k -> 5k -> 10k`) and persist median reports (`repeat_baseline_median.ps1`)
+- [x] Added feed-scale staging checklist wrapper:
+  - Added:
+    - `infra/load-test/run_feed_scale_staging_checklist.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - uses staging-oriented follower ladder defaults (`1000 -> 5000 -> 10000`)
+    - delegates to `run_feed_scale_validation_suite.ps1`
+    - emits one attachable wrapper report linking the child suite result
+  - Local validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_feed_scale_staging_checklist.ps1 -BaseUrl http://localhost:8080 -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail`
+  - Passing report:
+    - `infra/load-test/reports/feed-scale-staging-checklist-20260325-005647.md`
+- [ ] Run feed observability rollout checklist and attach report (`infra/load-test/run_feed_observability_rollout_checklist.ps1`) to confirm:
+  - feed-scale staging evidence exists for the `1k -> 5k -> 10k` follower ladder
+  - threshold guidance is recalibrated from the available median telemetry history
+  - one parent report links both the scale evidence and the recalibration outcome
+  - Local wrapper validation:
+    - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_feed_observability_rollout_checklist.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
+  - Latest local passing report:
+    - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
+
+## New Review Findings (2026-03-25)
+- [ ] Rework strategy-bot board/discover aggregation so it scales without unpaged + N+1 analytics assembly
+  - Current risk:
+    - board/discover still assembles page-visible analytics from raw run rows instead of a projection/materialized summary
+    - analytics-heavy ranking still has no precomputed bot-run summary path for colder read workloads
+  - Target:
+    - move board/discover reads toward DB projections or precomputed bot-run summaries
+    - keep page-visible board/discover analytics from reparsing large run sets once summary projections exist
+- [x] Add scoped DB-first strategy-bot board/discover fast paths for `TOTAL_SIMULATED_TRADES`
+  - `StrategyBotRunService` now pages by bot-id query first for filtered board/discover reads when `runMode` and/or `lookbackDays` is active on:
+    - owner board `TOTAL_SIMULATED_TRADES`
+    - public discover `TOTAL_SIMULATED_TRADES`
+  - scoped trade-volume ordering now matches the existing completed-run `totalSimulatedTrades` analytics contract instead of re-materializing all candidate bots in memory
+  - remaining filtered backlog is now concentrated in avg-metric sorts (`AVG_RETURN`, `AVG_NET_PNL`, `AVG_WIN_RATE`, `AVG_PROFIT_FACTOR`)
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest" test`
+  - broader nearby regression passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest,AnalyticsControllerIntegrationTest,PortfolioControllerIntegrationTest,TradeControllerIntegrationTest" test`
+- [x] Add scoped DB-first strategy-bot board/discover fast paths for `TOTAL_RUNS` and `LATEST_REQUESTED_AT`
+  - `StrategyBotRunService` now pages by bot-id query first for filtered board/discover reads when `runMode` and/or `lookbackDays` is active on:
+    - owner board `TOTAL_RUNS`
+    - owner board `LATEST_REQUESTED_AT`
+    - public discover `TOTAL_RUNS`
+    - public discover `LATEST_REQUESTED_AT`
+  - Scoped ordering now stays at the query layer while response analytics still reuse the existing filtered run assembly for the visible page only
+  - remaining filtered backlog is now concentrated in avg-metric sorts (`AVG_RETURN`, `AVG_NET_PNL`, `AVG_WIN_RATE`, `AVG_PROFIT_FACTOR`)
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest" test`
+  - broader nearby regression passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest,AnalyticsControllerIntegrationTest,PortfolioControllerIntegrationTest,TradeControllerIntegrationTest" test`
+- [x] Add scoped DB-first strategy-bot board/discover fast paths for `AVG_RETURN`, `AVG_NET_PNL`, `AVG_WIN_RATE`, and `AVG_PROFIT_FACTOR`
+  - `StrategyBotRunService` now pages by bot-id query first for filtered board/discover reads when `runMode` and/or `lookbackDays` is active on:
+    - owner board `AVG_RETURN`
+    - owner board `AVG_NET_PNL`
+    - owner board `AVG_WIN_RATE`
+    - owner board `AVG_PROFIT_FACTOR`
+    - public discover `AVG_RETURN`
+    - public discover `AVG_NET_PNL`
+    - public discover `AVG_WIN_RATE`
+    - public discover `AVG_PROFIT_FACTOR`
+  - Scoped ordering now stays at the query layer for all avg-metric strategy-bot board/discover sorts instead of falling back to full candidate-set materialization
+  - remaining local perf backlog is now centered on page-visible analytics projection/materialized-summary reuse rather than query-layer sort pagination
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest" test`
+  - broader nearby regression passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest,AnalyticsControllerIntegrationTest,PortfolioControllerIntegrationTest,TradeControllerIntegrationTest" test`
+- [x] Add DB-first strategy-bot board/discover fast paths for `AVG_WIN_RATE` and `AVG_PROFIT_FACTOR`
+  - `StrategyBotRunService` now pages by bot-id query first for:
+    - owner board `AVG_WIN_RATE`
+    - owner board `AVG_PROFIT_FACTOR`
+    - public discover `AVG_WIN_RATE`
+    - public discover `AVG_PROFIT_FACTOR`
+  - Native ordering reads completed-run `winRate` and `profitFactor` directly from `strategy_bot_runs.summary`
+  - filtered `runMode` / `lookbackDays` scopes still intentionally stay on the slower general path until a scoped summary/projection model exists
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest" test`
+  - broader nearby regression passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotControllerIntegrationTest,AnalyticsControllerIntegrationTest,PortfolioControllerIntegrationTest,TradeControllerIntegrationTest" test`
+- [x] Add DB-first strategy-bot board/discover fast paths for `TOTAL_SIMULATED_TRADES`
+  - `StrategyBotRunService` now pages by bot-id query first for:
+    - owner board `TOTAL_SIMULATED_TRADES`
+    - public discover `TOTAL_SIMULATED_TRADES`
+  - Native ordering reads completed-run `tradeCount` directly from `strategy_bot_runs.summary`
+  - targeted verification passed:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotControllerIntegrationTest`
+- [x] Add DB-first strategy-bot board/discover fast paths for `AVG_RETURN` and `AVG_NET_PNL`
+  - `StrategyBotRunService` now pages by bot-id query first, then batch-loads only the visible page bots and their runs for:
+    - owner board `AVG_RETURN`
+    - owner board `AVG_NET_PNL`
+    - public discover `AVG_RETURN`
+    - public discover `AVG_NET_PNL`
+  - Native repository ordering reads completed-run summary metrics directly from `strategy_bot_runs.summary`
+  - targeted verification passed:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotControllerIntegrationTest`
+- [x] Add DB-first strategy-bot board/discover fast paths for `LATEST_REQUESTED_AT` and `TOTAL_RUNS`
+  - `StrategyBotRunService` now uses paged repository queries for owner board and public discover when:
+    - `sortBy` is `LATEST_REQUESTED_AT` or `TOTAL_RUNS`
+    - no `runMode` scope is active
+    - no `lookbackDays` scope is active
+  - Removed the earlier nullable scoped JPQL experiment that caused Postgres parameter-type drift on `LEFT JOIN` filters
+  - targeted verification passed:
+    - `StrategyBotRunServiceTest`
+    - `StrategyBotControllerIntegrationTest`
+- [x] Remove owner-scoped strategy-bot board N+1 run loading
+  - `StrategyBotRunService.buildBotBoardEntries(...)` now batch-loads owned bot runs with `findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(...)`
+  - owner board/export no longer does one run query per bot before sorting
+  - targeted verification passed:
+    - `StrategyBotRunServiceTest`
+- [x] Reduce strategy-bot run drilldown payload fanout in the dashboard workspace
+  - Added:
+    - page-aware incremental loading for run fills
+    - page-aware incremental loading for decision events
+    - page-aware incremental loading for equity curve points
+  - Scope delivered:
+    - interactive page sizes reduced to `fills=40`, `events=60`, `equity=120`
+    - dashboard run detail now uses `Load More` instead of treating the opened tab as a full export surface
+    - event/fill/equity tabs now show loaded-window counts against total persisted rows
+  - Verification:
+    - `npm run lint -- app/dashboard/bots/page.tsx`
+    - `npx tsc --noEmit`
+- [x] Lazy-load strategy-bot run outputs by detail tab
+  - `apps/web/app/dashboard/bots/page.tsx` now keeps run summary visible by default and loads:
+    - fills
+    - decision events
+    - equity curve
+    - reconciliation plan
+    only when the matching detail tab is opened
+  - default fetch sizes were reduced for interactive inspection:
+    - events `120`
+    - fills `80`
+    - equity points `240`
+  - raw output preview now becomes the explicit heavy path instead of the default selected-run path
+- [x] Add a reusable analytics summary/cache layer for heavy portfolio analytics reads
+  - `PerformanceAnalyticsService` now caches the full analytics payload per portfolio and reuses it for:
+    - `/analytics/{portfolioId}`
+    - `/analytics/{portfolioId}/risk`
+    - `/analytics/{portfolioId}/trades`
+    - `/analytics/{portfolioId}/equity-curve`
+    - analytics export flows
+  - cache invalidation is now wired to the portfolio state mutation paths that actually change analytics output:
+    - primary trade writes
+    - copy-trading writes
+    - liquidation writes
+    - performance snapshot writes
+    - strategy-bot reconciliation writes
+    - portfolio deposit / visibility / delete mutations
+  - targeted unit + integration coverage now locks both:
+    - cache-hit reuse
+    - write-path invalidation behavior
+- [x] Remove duplicate snapshot/trade loads inside one analytics request
+  - `PerformanceAnalyticsService` now builds internal analytics inputs once and reuses them across:
+    - full analytics
+    - risk metrics
+    - trade stats
+    - equity curve
+  - full dashboard assembly no longer reloads the same snapshot/trade history again just to build `riskMetrics`
+  - targeted verification passed:
+    - `PerformanceAnalyticsServiceTest`
+- [x] Add notification preferences to user settings
+  - Added:
+    - account-backed notification preferences inside `user_preferences`
+    - `PUT /api/v1/users/me/preferences/notifications`
+    - settings workspace `Inbox Routing` panel
+  - Scope delivered:
+    - in-app category toggles for `social / watchlist / tournaments`
+    - quiet hours `enabled / start / end`
+    - digest cadence `INSTANT / DAILY / OFF`
+    - settings account summary copy now includes inbox routing state
+  - Verification:
+    - `UserPreferencesServiceTest`
+    - `UserPreferencesControllerIntegrationTest`
+    - `npm run lint -- app/dashboard/settings/page.tsx lib/user-preferences.ts`
+    - `npx tsc --noEmit`
+- [x] Add social discovery recommendations to improve follow conversion
+  - Added:
+    - `GET /api/v1/users/suggestions`
+    - `GET /api/v1/portfolios/discover/highlights`
+    - discover overview rails for suggested accounts + trending public portfolios
+  - Scope delivered:
+    - trust-score-aware suggested accounts excluding self and already-followed users
+    - public-portfolio requirement on account suggestions
+    - one-week trending public portfolio highlights from verified leaderboard performance
+    - lightweight follow/open-portfolio actions directly in `/discover`
+  - Verification:
+    - `UserProfileServiceTest`
+    - `UserProfileControllerIntegrationTest`
+    - `PortfolioControllerIntegrationTest`
+    - `npm run lint -- app/discover/page.tsx`
+    - `npx tsc --noEmit`
+- [x] Add public share cards for profile and accountability surfaces
+  - Added:
+    - profile public share card actions on `/profile/[userId]`
+    - analysis public share card actions on `/dashboard/analysis/[id]`
+  - Scope delivered:
+    - copyable public link + copyable summary on profile pages
+    - trust/follower/portfolio footprint summary card for profile sharing
+    - immutable thesis/outcome summary card for analysis sharing
+    - public-share UX without forcing users into the full dashboard state
+  - Verification:
+    - `npm run lint -- app/profile/[userId]/page.tsx app/dashboard/analysis/[id]/page.tsx app/discover/page.tsx`
+    - `npx tsc --noEmit`
 - [x] Added feed latency recalibration checklist wrapper:
   - Added:
     - `infra/load-test/run_feed_latency_recalibration_checklist.ps1`
@@ -550,6 +994,19 @@ Last updated: 2026-03-23
     - emits one parent report linking the child reports
   - Local mechanical validation:
     - `powershell -ExecutionPolicy Bypass -Command "& '.\infra\load-test\run_feed_scale_validation_suite.ps1' -BaseUrl 'http://localhost:8080' -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail"`
+- [x] Added feed observability rollout parent wrapper:
+  - Added:
+    - `infra/load-test/run_feed_observability_rollout_checklist.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - chains `run_feed_scale_staging_checklist.ps1` and `run_feed_latency_recalibration_checklist.ps1`
+    - keeps the remaining feed-scale + threshold-tuning backlog under one attachable parent report
+    - supports partial phases via `-SkipScaleChecklist` and `-SkipTelemetryRecalibration`
+  - Local mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_feed_observability_rollout_checklist.ps1 -BaseUrl http://localhost:8080 -FanoutStages @(10,20) -SeedEvents 10 -Concurrency 2 -RequestsPerWorker 5 -Rounds 1 -NoFail`
+  - Passing report:
+    - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-171339.md`
 - [x] Added live/staging ops webhook checklist wrapper:
   - Added:
     - `infra/load-test/run_ops_alert_webhook_staging_checklist.ps1`
@@ -564,9 +1021,18 @@ Last updated: 2026-03-23
   - Verification:
     - targeted backend integration coverage added for `/actuator/opsalerts`
     - isolated one-off runtime pass completed with alerting enabled and a temporary local webhook receiver
-- [ ] Re-calibrate feed latency thresholds from one-sprint production telemetry and adjust `APP_FEED_OBSERVABILITY_*` as needed
-- [ ] Configure real ops webhook URL in staging/prod (`APP_ALERTING_WEBHOOK_URL`) and run `run_ops_alert_webhook_staging_checklist.ps1` against the live app
-- [ ] Move auth migration to enforcement mode in staging (`APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`) and resolve any failing clients
+- [x] Added runtime observability review checklist wrapper:
+  - Added:
+    - `infra/load-test/run_runtime_observability_review_checklist.ps1`
+  - Updated:
+    - `infra/load-test/README.md`
+  - Behavior:
+    - captures one report across feed latency, auth session churn, websocket, websocket canary, idempotency, and ops alert actuator snapshots
+    - is intended to be attached after a real traffic window before pool/cache TTL tuning decisions are made
+  - Mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_runtime_observability_review_checklist.ps1 -BaseUrl http://localhost:8080 -NoFail`
+  - Mechanical report:
+    - `infra/load-test/reports/runtime-observability-review-checklist-20260325-171823.md`
 - [x] Roll out DB-level orphan prevention for strategy-bot ownership columns:
   - migration:
     - `V25__harden_strategy_bot_user_foreign_keys.sql`
@@ -1023,9 +1489,82 @@ Last updated: 2026-03-23
     - bounded action schema (`BUY/SELL/HOLD/UPDATE_STOPS`)
     - provider abstraction so future LLM runtime is not coupled to a single vendor/model
     - server-side validation against bot risk caps and position state before any proposal can be accepted
-- [ ] Continue roadmap phase 3: request correlation + idempotency key support + unified error contract (`{code,message,details}`)
 
 ## Done
+- [x] Reclassified internal JSON serialize/parse failures away from client-error buckets:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/AuditLogService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotService.java`
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotRunService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/AuditLogServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotRunServiceTest.java`
+  - Behavior:
+    - audit detail serialization, strategy-rule serialization/parsing, and strategy-bot export/payload serialization paths now throw `IllegalStateException` instead of `IllegalArgumentException`
+    - internal corruption/export-generation failures are no longer implicitly modeled as caller validation errors
+  - Local validation:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=AuditLogServiceTest,StrategyBotServiceTest,StrategyBotRunServiceTest" test`
+- [x] Completed the local phase-3 contract-hardening sweep for request correlation, idempotency, and unified backend error envelopes:
+  - Behavior:
+    - account-backed and high-traffic REST surfaces now consistently emit correlated `{code,message,details?,requestId}` contracts
+    - framework binding failures, provider validation failures, locale-sensitive parsing, auth token parsing, and remaining message-coupled guardrails were tightened locally
+    - remaining unchecked work in this area is now rollout/staging verification already tracked by the separate open redeploy/checklist items below
+- [x] Replaced generic JWT parse failures with a typed security exception:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/security/InvalidJwtException.java`
+    - `services/core-api/src/main/java/com/finance/core/security/JwtTokenService.java`
+    - `services/core-api/src/main/java/com/finance/core/security/JwtAuthenticationFilter.java`
+    - `services/core-api/src/test/java/com/finance/core/security/JwtTokenServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/security/JwtAuthenticationFilterIntegrationTest.java`
+  - Behavior:
+    - malformed, expired, wrong-purpose, and otherwise invalid JWTs now flow through `InvalidJwtException` instead of generic `IllegalArgumentException`
+    - `JwtAuthenticationFilter` now catches that explicit auth parse failure type while preserving the existing unauthorized response contract
+  - Local validation:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=JwtTokenServiceTest,JwtAuthenticationFilterIntegrationTest,JwtAuthenticationFilterStrictModeIntegrationTest" test`
+- [x] Removed raw message-coupling from STOMP auth interceptor failures:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/config/StompAuthException.java`
+    - `services/core-api/src/main/java/com/finance/core/config/StompAuthChannelInterceptor.java`
+    - `services/core-api/src/main/java/com/finance/core/config/RateLimitFilter.java`
+    - `services/core-api/src/test/java/com/finance/core/config/StompAuthChannelInterceptorTest.java`
+    - `services/core-api/src/test/java/com/finance/core/config/RateLimitFilterTest.java`
+  - Behavior:
+    - STOMP `CONNECT` and legacy notification `SUBSCRIBE` policy failures now throw typed `StompAuthException`
+    - `RateLimitFilter` now also consumes bearer parse failures through `InvalidJwtException` instead of broad `IllegalArgumentException`
+    - websocket auth tests now assert `error.code()` for branches like:
+      - `invalid-authorization-header`
+      - `invalid-jwt`
+      - `invalid-user-id`
+      - `user-id-token-mismatch`
+      - `legacy-topic-disabled`
+      - `cross-user-subscribe`
+    - interceptor now catches `InvalidJwtException` explicitly instead of broad `IllegalArgumentException`
+  - Local validation:
+    - `services/core-api\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=RateLimitFilterTest,StompAuthChannelInterceptorTest,JwtAuthenticationFilterIntegrationTest,JwtTokenServiceTest" test`
+- [x] Reclassified strategy-bot pretty JSON export failures as internal state errors:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/service/StrategyBotRunService.java`
+    - `services/core-api/src/test/java/com/finance/core/service/StrategyBotRunServiceTest.java`
+  - Behavior:
+    - `writePrettyJsonExport(...)` now throws `IllegalStateException` instead of `IllegalArgumentException`
+    - public/private strategy-bot JSON export helpers now align with the rest of the internal serialization failure contract
+  - Local validation:
+    - `services/core-api\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=StrategyBotRunServiceTest" test`
+- [x] Hardened derived status-code and observability lowercasing against Turkish-locale drift:
+  - Updated:
+    - `services/core-api/src/main/java/com/finance/core/controller/GlobalExceptionHandler.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/AuthSessionObservabilityService.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/OpsAlertService.java`
+    - `services/core-api/src/main/java/com/finance/core/observability/WebSocketCanaryService.java`
+    - `services/core-api/src/test/java/com/finance/core/controller/GlobalExceptionHandlerTest.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/AuthSessionObservabilityServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/OpsAlertServiceTest.java`
+    - `services/core-api/src/test/java/com/finance/core/observability/WebSocketCanaryServiceTest.java`
+  - Behavior:
+    - fallback `ResponseStatusException` code derivation now uses `Locale.ROOT`
+    - auth refresh churn, ops alert, and websocket canary metric tags no longer depend on the JVM default locale for values like `critical`
+  - Local validation:
+    - `.\mvnw.cmd -q "-Dmaven.repo.local=C:\Users\pc\OneDrive\Masaüstü\finance-app\.m2repo" "-Dtest=GlobalExceptionHandlerTest,AuthSessionObservabilityServiceTest,OpsAlertServiceTest,WebSocketCanaryServiceTest" test`
 - [x] Replaced raw message-coded agent guardrail failures with a typed strategy-bot validator exception:
   - Updated:
     - `services/core-api/src/main/java/com/finance/core/service/StrategyBotAgentActionValidator.java`

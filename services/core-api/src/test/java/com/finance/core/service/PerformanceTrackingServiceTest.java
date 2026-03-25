@@ -35,6 +35,8 @@ class PerformanceTrackingServiceTest {
     private PortfolioSnapshotRepository snapshotRepository;
     @Mock
     private BinanceService binanceService;
+    @Mock
+    private PerformanceAnalyticsService performanceAnalyticsService;
 
     @InjectMocks
     private PerformanceTrackingService performanceTrackingService;
@@ -95,6 +97,7 @@ class PerformanceTrackingServiceTest {
         // ETH PNL: (3000 - 2900) * 10 = 1000
         // Total Equity = 10000 + 80000 + 2000 + 1000 = 93000
         assertEquals(0, BigDecimal.valueOf(93000).compareTo(snapshot.getTotalEquity()));
+        verify(performanceAnalyticsService).invalidatePortfolioAnalytics(portfolio.getId());
     }
 
     @Test

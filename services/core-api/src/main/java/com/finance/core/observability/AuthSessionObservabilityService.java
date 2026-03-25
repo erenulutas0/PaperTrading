@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -205,8 +206,8 @@ public class AuthSessionObservabilityService {
 
         meterRegistry.counter(
                 "app.auth.refresh.state.transitions",
-                "from", previous.name().toLowerCase(),
-                "to", desired.name().toLowerCase()
+                "from", previous.name().toLowerCase(Locale.ROOT),
+                "to", desired.name().toLowerCase(Locale.ROOT)
         ).increment();
 
         alertState.set(desired);

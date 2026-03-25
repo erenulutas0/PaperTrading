@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -200,6 +201,47 @@ class UserProfileServiceTest {
                 when(userRepository.findById(fakeId)).thenReturn(Optional.empty());
 
                 assertThrows(RuntimeException.class, () -> userProfileService.getProfile(fakeId, null));
+        }
+
+        @Test
+        void getSuggestedAccounts_shouldExcludeSelfAndRequirePublicPortfolios() {
+                AppUser candidate = AppUser.builder()
+                                .id(UUID.randomUUID())
+                                .username("carol")
+                                .email("carol@test.com")
+                                .password("pass")
+                                .displayName("Carol")
+                                .verified(true)
+                                .followerCount(12)
+                                .trustScore(78.5)
+                                .createdAt(LocalDateTime.now().minusDays(2))
+                                .build();
+                AppUser noPortfolioCandidate = AppUser.builder()
+                                .id(UUID.randomUUID())
+                                .username("dave")
+                                .email("dave@test.com")
+                                .password("pass")
+                                .displayName("Dave")
+                                .verified(false)
+                                .followerCount(4)
+                                .trustScore(65.0)
+                                .createdAt(LocalDateTime.now().minusDays(1))
+                                .build();
+
+                when(userRepository.findSuggestedAccounts(any(Pageable.class)))
+                                .thenReturn(List.of(userA, candidate, noPortfolioCandidate));
+                when(followRepository.findByFollowerId(userAId)).thenReturn(List.of());
+                when(portfolioRepository.countByOwnerIdInAndVisibilityGrouped(any(), eq(Portfolio.Visibility.PUBLIC)))
+                                .thenReturn(java.util.Collections.singletonList(
+                                                new Object[] { candidate.getId().toString(), 2L }));
+
+                List<com.finance.core.dto.UserSuggestionResponse> suggestions = userProfileService.getSuggestedAccounts(userAId, 6);
+
+                assertEquals(1, suggestions.size());
+                assertEquals(candidate.getId(), suggestions.get(0).getId());
+                assertEquals("Carol", suggestions.get(0).getDisplayName());
+                assertEquals(2, suggestions.get(0).getPortfolioCount());
+                assertEquals(78.5, suggestions.get(0).getTrustScore());
         }
 
         // ===== PROFILE UPDATE =====

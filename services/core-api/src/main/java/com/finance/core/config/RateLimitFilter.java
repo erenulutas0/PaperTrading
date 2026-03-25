@@ -2,6 +2,7 @@ package com.finance.core.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.security.AuthSessionService;
+import com.finance.core.security.InvalidJwtException;
 import com.finance.core.security.JwtTokenClaims;
 import com.finance.core.security.JwtTokenService;
 import com.finance.core.web.ApiErrorResponse;
@@ -212,7 +213,7 @@ public class RateLimitFilter implements Filter {
             try {
                 JwtTokenClaims claims = jwtTokenService.parseAndValidate(token);
                 return "principal:" + claims.userId();
-            } catch (IllegalArgumentException ignored) {
+            } catch (InvalidJwtException ignored) {
                 // Fall back to legacy/token-hash behavior for malformed or expired tokens.
             }
         }

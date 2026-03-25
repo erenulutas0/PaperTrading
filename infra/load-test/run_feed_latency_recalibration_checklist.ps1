@@ -39,6 +39,28 @@ function Parse-ReportField {
     return $DefaultValue
 }
 
+function Parse-MarkdownStatus {
+    param([string]$ReportPath)
+
+    if (-not (Test-Path $ReportPath)) {
+        return ""
+    }
+
+    $content = Get-Content -Path $ReportPath -Raw
+    $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+    $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
+    if ($match.Success -and $match.Groups.Count -ge 2) {
+        return $match.Groups[1].Value.Trim()
+    }
+
+    $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
+    if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
+        return $lineMatch.Groups[1].Value.Trim()
+    }
+
+    return ""
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $calibrationScript = Join-Path $scriptDir "calibrate_feed_thresholds.ps1"
 if (-not (Test-Path $calibrationScript)) {
@@ -49,14 +71,18 @@ $resolvedOutputDir = Resolve-Path "." | ForEach-Object { Join-Path $_.Path $Outp
 New-Item -Path $resolvedOutputDir -ItemType Directory -Force | Out-Null
 
 $beforeCalibration = Get-LatestReport -Directory $resolvedOutputDir -Pattern "feed-threshold-calibration-*.md"
-& powershell -ExecutionPolicy Bypass -File $calibrationScript `
-    -ReportsGlob $ReportsGlob `
-    -WarningMultiplier $WarningMultiplier `
-    -CriticalMultiplier $CriticalMultiplier `
-    -Percentile $Percentile | Out-Null
-$calibrationExitCode = $LASTEXITCODE
+try {
+    & $calibrationScript `
+        -ReportsGlob $ReportsGlob `
+        -WarningMultiplier $WarningMultiplier `
+        -CriticalMultiplier $CriticalMultiplier `
+        -Percentile $Percentile | Out-Null
+    $calibrationDetail = "ok"
+} catch {
+    $calibrationDetail = $_.Exception.Message
+}
 $calibrationReport = Get-LatestReport -Directory $resolvedOutputDir -Pattern "feed-threshold-calibration-*.md"
-if ($calibrationReport -eq $beforeCalibration) {
+if ($calibrationDetail -ne "ok" -and $calibrationReport -eq $beforeCalibration) {
     $calibrationReport = ""
 }
 
@@ -80,8 +106,9 @@ if (-not [string]::IsNullOrWhiteSpace($calibrationReport) -and (Test-Path $calib
     if (-not [string]::IsNullOrWhiteSpace($warningP95) -and
         -not [string]::IsNullOrWhiteSpace($warningP99) -and
         -not [string]::IsNullOrWhiteSpace($criticalP99)) {
-        $overallStatus = "PASSED"
-        $detail = "ok"
+        $parsedStatus = Parse-MarkdownStatus -ReportPath $calibrationReport
+        $overallStatus = if ([string]::IsNullOrWhiteSpace($parsedStatus)) { "PASSED" } else { $parsedStatus }
+        $detail = $calibrationDetail
     } else {
         $detail = "calibration_values_missing"
     }
@@ -99,7 +126,7 @@ $lines.Add("- Percentile: $Percentile")
 $lines.Add("")
 $lines.Add("| Step | Status | Detail | Report |")
 $lines.Add("|---|---|---|---|")
-$lines.Add("| Feed threshold calibration | $overallStatus | $detail / exit_code=$calibrationExitCode / reports_parsed=$reportsParsed | $(if ([string]::IsNullOrWhiteSpace($calibrationReport)) { 'n/a' } else { $calibrationReport.Replace('|','/') }) |")
+$lines.Add("| Feed threshold calibration | $overallStatus | $detail / reports_parsed=$reportsParsed | $(if ([string]::IsNullOrWhiteSpace($calibrationReport)) { 'n/a' } else { $calibrationReport.Replace('|','/') }) |")
 $lines.Add("")
 $lines.Add("## Recommended Env Overrides")
 $lines.Add("- APP_FEED_OBSERVABILITY_WARNING_P95_MS=$warningP95")

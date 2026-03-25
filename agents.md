@@ -14,7 +14,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 - **Automatic outcome resolution**: system resolves "did the target hit?" — not humans
 - **Trust scores**: computed from historical accuracy, not self-reported
 
-### Progress Tracker (updated 2026-03-24)
+### Progress Tracker (updated 2026-03-25)
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Auth (Register/Login) | ✅ Done | bcrypt hashing + JWT access token baseline + refresh-token rotation/logout invalidation + principal-aware REST identity resolver + web client/token-only primary paths (REST + notification/tournament WS) + legacy `X-User-Id` bridge still available server-side for staged ops/script rollout + refresh churn observability (rolling-window thresholds, actuator/health, ops alerts) + rollout telemetry tooling (`legacy-usage` readiness check + churn threshold calibration script) |
@@ -22,7 +22,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | Trade (Long/Short/Leverage) | ✅ Done | Full trade lifecycle + explicit quantity/leverage/side contracts + dual-sided sell disambiguation when the same symbol has both `LONG` and `SHORT` positions + non-blocking copy/tournament side-effect fanout |
 | Real-time Market (Binance WS) | ✅ Done | BTC, ETH, SOL, AVAX, BNB + websocket transport/auth hardening baseline + broker relay mode readiness + relay smoke/failover validation tooling + websocket observability metrics/endpoint + synthetic canary checks + multi-window alert-noise guard + external canary runner tooling + REST fallback query-format hardening for cold/stale price hydration + explicit invalid-param contracts for public market query surfaces + TradingView-style market workspace (`/watchlist`) with watchlist rail, instrument universe, 24h movers, interval-driven candles (`1m/15m/30m/1h/4h/1d`), chunked `ALL` history loading, account-backed compare-basket presets, and market-provider split preparing delayed BIST100 support |
 | Performance Tracking (Snapshots) | ✅ Done | 10s interval snapshots |
-| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) + DB-backed read fallback when Redis leaderboard ranges are unavailable + explicit invalid-param contracts for portfolio/account leaderboard reads + explicit page/size contracts instead of silent pagination fallback |
+| Leaderboard (Dynamic) | ✅ Done | Public portfolio ranking with period windows (`1D/1W/1M/ALL`) from snapshot-based performance metrics + API/UI sort controls (`RETURN_PERCENTAGE`/`PROFIT_LOSS`, `ASC`/`DESC`) + persisted filter preferences (browser + backend sync) + DB-backed read fallback when Redis leaderboard ranges are unavailable + explicit invalid-param contracts for portfolio/account leaderboard reads + explicit page/size contracts instead of silent pagination fallback + staging checklist tooling for preference continuity and period-slice validation |
 | Liquidation Engine | ✅ Done | Auto-liquidation on margin breach |
 | User Profiles & Social | ✅ Done | Display name, bio, avatar, follows, profile page |
 | Portfolio Sharing (Public/Private) | ✅ Done | Visibility toggle, discover endpoint |
@@ -39,6 +39,674 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-25**: **Strategy-Bot Board And Discover Now Use DB-First Fast Paths For Unfiltered Analytics Sorts And Scoped Activity/Analytics Sorts**
+  - **Problem observed**:
+    - The earlier board/discover perf cleanup removed owner-side run N+1 loading, but two common ranking lenses still paid unnecessary full-set assembly cost:
+      - `LATEST_REQUESTED_AT`
+      - `TOTAL_RUNS`
+    - The same pattern also applied to the most common analytics lenses:
+      - `AVG_RETURN`
+      - `AVG_NET_PNL`
+      - `AVG_WIN_RATE`
+      - `AVG_PROFIT_FACTOR`
+      - `TOTAL_SIMULATED_TRADES`
+    - An initial attempt to make fast-path queries aware of nullable `runMode/lookback` filters introduced a real Postgres runtime problem on `LEFT JOIN` parameter typing.
+  - **Implementation**:
+    - Added paged repository queries for owner board and public discover fast paths on:
+      - latest requested run
+      - total run count
+      - total completed simulated trades
+      - average completed return
+      - average completed net PnL
+      - average completed win rate
+      - average completed profit factor
+    - All unfiltered analytics fast paths now page by bot id first, then batch-load only the visible page bots and their runs for response assembly.
+    - `StrategyBotRunService` now also uses scoped DB-first id paging for:
+      - `TOTAL_RUNS`
+      - `LATEST_REQUESTED_AT`
+      - `TOTAL_SIMULATED_TRADES`
+      - `AVG_RETURN`
+      - `AVG_NET_PNL`
+      - `AVG_WIN_RATE`
+      - `AVG_PROFIT_FACTOR`
+      when `runMode` and/or `lookbackDays` is active, using explicit non-null filter parameters instead of fragile nullable join predicates.
+    - Removed the unused nullable scoped JPQL fast-path methods so the board/discover path no longer depends on fragile `NULL`-parameter join predicates.
+    - Extended unit and controller integration coverage for:
+      - owner board `LATEST_REQUESTED_AT`
+      - owner board scoped `TOTAL_RUNS`
+      - owner board scoped `TOTAL_SIMULATED_TRADES`
+      - owner board `AVG_RETURN`
+      - owner board `AVG_WIN_RATE`
+      - public discover `TOTAL_RUNS`
+      - public discover scoped `TOTAL_RUNS`
+      - public discover scoped `TOTAL_SIMULATED_TRADES`
+      - public discover `AVG_RETURN`
+      - public discover `AVG_PROFIT_FACTOR`
+  - **Operational impact**:
+    - the unfiltered freshness/activity and analytics rankings, plus the scoped activity/trade-volume/avg-metric sorts, now page and sort at the query layer instead of loading the full candidate set first
+    - the remaining local perf backlog is now concentrated in page-visible board/discover analytics assembly and any future projection/materialized-summary model for those read paths
+- **2026-03-25**: **Portfolio Analytics Reads Now Reuse A Cached Portfolio Bundle And Invalidate On Mutations**
+  - **Problem observed**:
+    - `PerformanceAnalyticsService` had already stopped duplicate repository loads inside one request, but repeated reads for the same portfolio still rebuilt the full analytics aggregate every time.
+    - That kept `/analytics`, `/risk`, `/trades`, `/equity-curve`, and export flows rescanning the same history under active dashboard use.
+  - **Implementation**:
+    - Added a cache-aside full analytics bundle in `PerformanceAnalyticsService`.
+    - `risk`, `tradeStats`, and `equityCurve` now reuse that cached bundle instead of recomputing separate history scans.
+    - Wired explicit analytics invalidation into the mutation paths that change portfolio analytics state:
+      - primary trades
+      - copy-trading writes
+      - liquidation writes
+      - snapshot writes
+      - strategy-bot reconciliation writes
+      - portfolio deposit / visibility / delete mutations
+    - Extended unit and integration coverage for cache-hit reuse and write-path invalidation.
+  - **Operational impact**:
+    - repeated analytics reads are cheaper without introducing a second reporting model
+    - cache staleness risk stays bounded because the main portfolio mutation paths now evict cached bundles proactively
+- **2026-03-25**: **Strategy-Bot Run Detail Tabs Now Page Heavy Journals Instead Of Expanding To Full Payloads Immediately**
+  - **Problem observed**:
+    - Lazy tab loading removed the default fanout, but once an operator opened:
+      - fills
+      - events
+      - equity curve
+    - the dashboard still pulled a relatively large single window and treated the tab view almost like an inline export surface.
+    - Large runs could still make the selected-run panel heavier than it needed to be for routine inspection.
+  - **Implementation**:
+    - Updated `apps/web/app/dashboard/bots/page.tsx` so run detail tabs now request page-aware windows:
+      - fills `size=40`
+      - events `size=60`
+      - equity `size=120`
+    - Added per-tab page metadata, loaded-count summaries, and `Load More` actions.
+    - Kept full-history export on the explicit CSV/JSON export actions instead of the in-page drilldown defaults.
+  - **Operational impact**:
+    - heavy run journals no longer expand toward full payload size just because one detail tab was opened
+    - the operator can inspect persisted journals incrementally while keeping full export as a separate intentional action
+- **2026-03-25**: **Profile And Analysis Surfaces Now Expose Copyable Public Share Cards**
+  - **Problem observed**:
+    - The product already had share/export affordances for analytics, watchlist layouts, and strategy-bot views.
+    - Two accountability-heavy public surfaces still lacked a compact shareable summary:
+      - profile trust/performance context
+      - immutable analysis thesis/outcome context
+    - That made social distribution depend on screenshots or sending the full page without a tighter summary layer.
+  - **Implementation**:
+    - Updated `apps/web/app/profile/[userId]/page.tsx` with:
+      - `Copy Link`
+      - `Copy Summary`
+      - a public share-card panel summarizing trust, audience, and portfolio footprint
+    - Updated `apps/web/app/dashboard/analysis/[id]/page.tsx` with:
+      - `Copy Link`
+      - `Copy Share Card`
+      - a compact thesis/outcome/author accountability panel
+    - Both surfaces fall back to showing the copied payload inline if clipboard write fails.
+  - **Operational impact**:
+    - users can now distribute accountable profile and analysis summaries without reconstructing the important metrics manually
+    - public growth/share behavior is better aligned with the platform’s immutable-accountability model instead of generic screenshot sharing
+- **2026-03-25**: **Discover Overview Now Starts With Suggested Accounts And Trending Public Portfolios**
+  - **Problem observed**:
+    - Discovery still required operators to start from a generic public portfolio list even after adding stronger accountability and leaderboard signals.
+    - There was no lightweight conversion rail for:
+      - who to follow next
+      - which public portfolios currently deserve first inspection
+    - That left the top of `/discover` informative but not especially effective at driving the next action.
+  - **Implementation**:
+    - Added `GET /api/v1/users/suggestions`:
+      - ranked from verified/trust/follower signals
+      - excludes self and already-followed accounts
+      - requires at least one public portfolio
+    - Added `GET /api/v1/portfolios/discover/highlights`:
+      - uses the one-week public leaderboard
+      - returns a lightweight trending portfolio card payload
+      - validates `limit` with explicit `invalid_portfolio_discover_highlight_limit`
+    - Updated `apps/web/app/discover/page.tsx` so overview now renders:
+      - suggested accounts with follow CTA
+      - trending public portfolios with open-portfolio CTA
+  - **Operational impact**:
+    - discover no longer starts from a blank feed-only experience
+    - follow conversion and portfolio inspection can begin from lighter recommendation rails before the operator pages through the full public list
+- **2026-03-25**: **User Settings Now Include Account-Backed Notification Routing Controls**
+  - **Problem observed**:
+    - The notification surface had inbox slices and live delivery tooling, but user settings still had no persisted routing controls.
+    - `UserPreferencesResponse` only exposed leaderboard and terminal preferences, so there was no first-class place to save:
+      - category-level in-app toggles
+      - quiet hours
+      - digest cadence
+  - **Implementation**:
+    - Added `V28__add_notification_preferences_to_user_preferences.sql`.
+    - Extended `user_preferences` with:
+      - in-app social/watchlist/tournament toggles
+      - digest cadence
+      - quiet-hours enabled/start/end
+    - Added `PUT /api/v1/users/me/preferences/notifications` plus typed validation for:
+      - invalid digest cadence
+      - invalid quiet-hours start/end
+    - Wired `/dashboard/settings` with a new `Inbox Routing` panel using the shared preferences client.
+    - Settings account summary copy now includes digest cadence, quiet-hours window, and in-app category toggles.
+  - **Operational impact**:
+    - notification routing is now part of the same account-backed preferences envelope as leaderboard and terminal state
+    - users can tune alert noise without losing settings on logout/login or device changes
+- **2026-03-25**: **Strategy-Bot Run Detail Now Loads Heavy Journals Only When The Operator Opens The Matching Tab**
+  - **Problem observed**:
+    - The dashboard bot workspace selected-run panel was immediately requesting:
+      - `events?size=500`
+      - `fills?size=200`
+      - `equity-curve?size=1000`
+    - on every run selection change, even if the operator only needed the summary/compiler surface.
+    - That made run inspection overfetch by default and pushed the heavy path into the common case.
+  - **Implementation**:
+    - Added a run-detail tab state in `apps/web/app/dashboard/bots/page.tsx`.
+    - Selected runs now default to `Summary`, and the page lazy-loads:
+      - fills
+      - decision events
+      - equity curve
+      - reconciliation
+      only when the matching tab is opened.
+    - Reduced default interactive fetch sizes to:
+      - events `120`
+      - fills `80`
+      - equity points `240`
+    - Kept raw export as the explicit heavier inspection path instead of the default selected-run view.
+  - **Operational impact**:
+    - switching between runs no longer triggers the heavy journal fanout automatically
+    - operators still have access to full persisted detail, but the expensive path is now intentional rather than implicit
+- **2026-03-25**: **Portfolio Analytics Reads Now Reuse One Trade/Snapshot Load Per Request**
+  - **Problem observed**:
+    - `PerformanceAnalyticsService` was loading the same portfolio history repeatedly inside one request:
+      - `getFullAnalytics(...)` loaded snapshots and trades once
+      - then `buildRiskMetrics(...)` reloaded snapshots three more times and trades once more
+    - That made `/analytics/{portfolioId}` and export flows do unnecessary repeat repository work before any broader cache/materialization layer existed.
+  - **Implementation**:
+    - Added an internal analytics input loader that can fetch:
+      - portfolio
+      - trades
+      - snapshots
+      once per request path
+    - `getFullAnalytics(...)`, `getRiskMetrics(...)`, `getTradeStats(...)`, and `getEquityCurve(...)` now reuse those preloaded inputs instead of re-querying the same trade/snapshot history through nested metric helpers.
+    - Extended `PerformanceAnalyticsServiceTest` to prove full-analytics and risk-metrics assembly only hit snapshot/trade repositories once per request.
+  - **Operational impact**:
+    - portfolio analytics/export reads now do materially less duplicate repository work under the same request
+    - the larger summary/cache backlog still remains, but one concrete read-amplification hotspot is gone
+- **2026-03-25**: **Owned Strategy-Bot Board Reads No Longer Open One Run Query Per Bot**
+  - **Problem observed**:
+    - The owned strategy-bot board/export path had a real read-amplification issue:
+      - `findByUserId(..., Pageable.unpaged())`
+      - then `buildBotAnalytics(...)` per bot
+      - which loaded owned runs one bot at a time
+    - That meant the board scaled as `1 + N` repository reads just to assemble the owner-scoped ranking view.
+  - **Implementation**:
+    - Added `StrategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(...)`.
+    - `StrategyBotRunService.buildBotBoardEntries(...)` now:
+      - loads the owned bot list once
+      - batch-loads all owned runs for those bot ids
+      - groups runs by bot id before analytics assembly
+    - Extended `StrategyBotRunServiceTest` so board assembly now proves the batch run query is used and the old per-bot run lookup path is not.
+  - **Operational impact**:
+    - owner-scoped board/export reads no longer pay a bot-by-bot run query penalty
+    - the broader in-memory board/discover aggregation problem still exists, but one concrete N+1 hotspot is gone
+- **2026-03-25**: **False-Loss And Flyway Validation Now Share One Data-Integrity Wrapper**
+  - **Problem observed**:
+    - After the `V27` precision fix, the remaining data-integrity rollout evidence was split across two separate commands:
+      - HTTP/runtime false-loss verification for small crypto positions
+      - DB-backed Flyway/history inspection
+    - That kept `TODO.md` looking like two separate staging chores even though both were really one question: is paper-trading data integrity clean after the precision repair?
+  - **Implementation**:
+    - Added:
+      - `infra/load-test/run_data_integrity_staging_checklist.ps1`
+      - `infra/load-test/run_data_integrity_local_runtime_check.ps1`
+    - The parent wrapper chains:
+      - `run_market_price_false_loss_staging_checklist.ps1`
+      - `run_flyway_data_staging_checklist.ps1`
+    - The local wrapper reuses the fresh restart-based false-loss check and then runs the DB-backed Flyway/data inspection against the same local database.
+    - Also hardened `run_market_price_false_loss_local_runtime_check.ps1` so leaderboard assertions cannot be skipped by scalar `content` drift during report assembly.
+  - **Operational impact**:
+    - the remaining staging data-integrity work is now one attachable report instead of two remembered commands
+    - local evidence for the post-`V27` repair now covers both runtime behavior and historical-row inspection in one pass
+- **2026-03-25**: **Railway Frontend Bring-Up Now Has A Dedicated Staging Checklist Instead Of A Prose Task**
+  - **Problem observed**:
+    - The remaining `apps/web` Railway bring-up work was still written as a manual prose task:
+      - frontend domain live
+      - Next proxy wired
+      - register/login roundtrip
+      - protected API proxying
+      - backend browser-origin / websocket acceptance from the real frontend origin
+    - That made the frontend rollout less attachable and less comparable than the newer staging checklist slices.
+  - **Implementation**:
+    - Added `infra/load-test/run_railway_frontend_staging_checklist.ps1`.
+    - The checklist verifies:
+      - frontend route availability on `/auth/login`
+      - proxied `/api/v1/leaderboards`
+      - proxied auth register/login
+      - proxied protected unread-count read
+    - It delegates browser-origin and optional relay/origin validation to `run_browser_origin_staging_checklist.ps1` using the actual frontend origin derived from the deployed frontend URL.
+  - **Operational impact**:
+    - Railway frontend bring-up is now one attachable checklist run rather than a manual prose note
+    - frontend rollout evidence can now be compared alongside the other staging wrappers instead of living only in operator memory
+    - the same checklist also proved the local `localhost:3005` frontend proxy path once its own HTTP helper was fixed, so local frontend health is no longer inferred only from manual browser use
+- **2026-03-25**: **Feed Scale And Threshold Tuning Now Share One Rollout Wrapper**
+  - **Problem observed**:
+    - The remaining feed observability backlog still appeared as two separate operator tasks:
+      - staging fanout evidence
+      - later threshold recalibration from production/median telemetry
+    - But the repo already had all the pieces; what was missing was one parent entrypoint that reflected the actual rollout workflow.
+  - **Implementation**:
+    - Added `infra/load-test/run_feed_observability_rollout_checklist.ps1`.
+    - The wrapper chains:
+      - `run_feed_scale_staging_checklist.ps1`
+      - `run_feed_latency_recalibration_checklist.ps1`
+    - It keeps partial-phase flexibility through:
+      - `-SkipScaleChecklist`
+      - `-SkipTelemetryRecalibration`
+  - **Operational impact**:
+    - feed observability rollout is now represented by one attachable parent report instead of two open prose tasks
+    - staging ladder evidence and threshold guidance stay linked even when they are produced from different telemetry windows
+- **2026-03-25**: **Post-Sprint Runtime Tuning Now Has A Snapshot Checklist Instead Of A Prose Reminder**
+  - **Problem observed**:
+    - The remaining runtime tuning backlog still existed as a broad note to “watch traffic for one sprint and tune pool/cache TTL values”.
+    - That is directionally correct, but it lacked a repeatable artifact covering the observability surfaces that now drive most release judgement:
+      - feed latency
+      - auth churn
+      - websocket / canary
+      - idempotency cleanup
+      - ops alert counters
+  - **Implementation**:
+    - Added `infra/load-test/run_runtime_observability_review_checklist.ps1`.
+    - The checklist snapshots the main actuator observability endpoints into one markdown report so post-sprint tuning conversations start from one attachable artifact rather than ad hoc endpoint probing.
+  - **Operational impact**:
+    - runtime tuning is now easier to document and compare across review windows
+    - backlog language is closer to the actual operator workflow because the “one sprint later” step now has a concrete command and report shape
+- **2026-03-25**: **Critical Staging Wrappers No Longer Depend On Nested PowerShell Exit-Code Drift**
+  - **Problem observed**:
+    - While adding newer rollout wrappers, the same old orchestration risk kept reappearing in several parent scripts:
+      - nested `powershell -File ...`
+      - string-array argument passing
+      - `$LASTEXITCODE`-based status assumptions
+    - That can create false negatives, false positives, or argument-binding drift even when the child report itself is correct.
+  - **Implementation**:
+    - Hardened the main remaining staging parents:
+      - `run_staging_readiness_suite.ps1`
+      - `run_auth_strict_post_cutover_checklist.ps1`
+      - `run_websocket_staging_resilience_suite.ps1`
+      - `run_browser_origin_staging_checklist.ps1`
+      - `run_railway_frontend_staging_checklist.ps1`
+    - Child scripts now run via direct parameter splatting and parent status derives from child report presence/status rather than nested PowerShell exit-code coupling.
+  - **Operational impact**:
+    - the wrappers that back the remaining staging backlog are less likely to fail because of their own orchestration layer
+    - a failed report is now more likely to reflect the target runtime than wrapper argument/exit-code drift
+- **2026-03-25**: **Feed And Canary Parent Wrappers Now Reuse Child Reports Directly**
+  - **Problem observed**:
+    - After the first parent-wrapper cleanup, several remaining rollout scripts still had their own orchestration drift:
+      - feed parent wrappers still spawned nested `powershell` processes and inferred child success from raw exit codes
+      - direct operator examples using `-FanoutStages 10,20` could collapse into a single `1020` stage under PowerShell parsing/culture quirks
+      - the websocket canary staging checklist still passed child arguments as a raw string array, which made its own report discovery less reliable than the newer hashtable-based wrappers
+  - **Implementation**:
+    - Hardened:
+      - `run_feed_scale_validation_suite.ps1`
+      - `run_feed_scale_staging_checklist.ps1`
+      - `run_feed_latency_recalibration_checklist.ps1`
+      - `run_feed_observability_rollout_checklist.ps1`
+      - `run_auth_strict_pre_cutover_checklist.ps1`
+      - `run_websocket_canary_staging_checklist.ps1`
+    - These wrappers now:
+      - call child scripts via direct parameter splatting
+      - derive step status from the child markdown report whenever available
+      - keep parent failure focused on missing/failed child reports rather than nested-shell exit-code coupling
+      - treat child report freshness as `path + last-write-time`, so same-second markdown rewrites do not get misclassified as `report_not_found`
+    - Updated operator-facing examples in `README.md` and `TODO.md` to use explicit PowerShell array syntax for `FanoutStages`.
+  - **Operational impact**:
+    - feed rollout wrappers are less likely to misclassify child outcomes because of their own process layer
+    - local/staging operator commands are less likely to accidentally run a single `1020` follower stage instead of `10 -> 20`
+    - websocket canary checklist failures are more likely to reflect runtime state than argument-marshalling drift in the parent wrapper
+- **2026-03-25**: **Auth Post-Cutover Enforcement Now Has A Fresh Local Runtime Wrapper**
+  - **Problem observed**:
+    - The remaining auth backlog is mostly staging-specific, but the strict post-cutover checklist still lacked a fresh local runtime proof with legacy-header acceptance explicitly disabled.
+    - That left an unnecessary gap between “wrapper exists” and “wrapper has been exercised against a current backend started in enforcement mode”.
+  - **Implementation**:
+    - Added `infra/load-test/run_auth_strict_post_cutover_local_runtime_check.ps1`.
+    - The wrapper:
+      - boots a temporary backend on a dedicated port
+      - forces `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`
+      - runs `run_auth_strict_post_cutover_checklist.ps1` against that runtime
+      - captures child report path/status plus app stdout/stderr logs in one parent markdown report
+  - **Operational impact**:
+    - auth enforcement rollout is now closer to a final staging-only decision rather than an unexercised local checklist
+    - local failures can be separated from stale shared-runtime behavior before toggling staging envs
+- **2026-03-25**: **Runtime Observability Review Now Has A Fresh Local Runtime Wrapper**
+  - **Problem observed**:
+    - The runtime observability review checklist is intentionally a post-traffic/staging exercise, but the repo still lacked a clean way to prove the checklist itself against a fresh current backend.
+    - Shared local runtimes had already shown stale/misaligned actuator behavior, which made it harder to tell script issues from environment drift.
+  - **Implementation**:
+    - Added `infra/load-test/run_runtime_observability_review_local_runtime_check.ps1`.
+    - The wrapper:
+      - boots a temporary backend on a dedicated port
+      - runs `run_runtime_observability_review_checklist.ps1` against that runtime
+      - records child report path/status plus app stdout/stderr logs
+  - **Operational impact**:
+    - runtime observability review is now easier to validate against current code before waiting for the true one-sprint staging evidence window
+    - local/staging failures are easier to classify as script drift vs. real actuator/runtime issues
+- **2026-03-25**: **Micro-Crypto Quantity Precision Now Matches Paper Trading Reality Instead Of Rounding To Zero**
+  - **Problem observed**:
+    - While turning the old false-loss rollout note into a repeatable checklist, local verification exposed a deeper data bug:
+      - `portfolio_items.quantity`
+      - `trade_activities.quantity`
+      still used scale `2`
+    - That meant a legitimate micro crypto trade like `0.001 BTCUSDT` persisted as `0.00`, which in turn made portfolio detail and leaderboard reads show a synthetic `-50` style loss even though the entry-price fallback logic itself had already been added.
+  - **Implementation**:
+    - Added Flyway migration:
+      - `V27__expand_trade_quantity_precision.sql`
+    - Expanded both columns from scale `2` to scale `8`:
+      - `portfolio_items.quantity`
+      - `trade_activities.quantity`
+    - Added checklist tooling:
+      - `infra/load-test/run_market_price_false_loss_staging_checklist.ps1`
+      - `infra/load-test/run_market_price_false_loss_local_runtime_check.ps1`
+    - Added regression coverage proving `0.001` quantity now survives both trade persistence and portfolio detail reads.
+  - **Operational impact**:
+    - small crypto paper positions no longer disappear into zero-quantity rows
+    - the remaining staging verification for the old false-loss issue is now an explicit checklist run instead of a vague redeploy note
+    - any already-truncated historical rows created before `V27` still require separate staging/prod inspection because widened precision cannot reconstruct previously rounded values
+- **2026-03-25**: **Leaderboard Period Semantics Now Have A Dedicated Checklist Instead Of Ad Hoc Endpoint Probing**
+  - **Problem observed**:
+    - The remaining leaderboard backlog was no longer about missing transport or preference persistence, but about validating live ranking semantics across `1D/1W/1M/ALL`.
+    - Leaving that as a free-form note meant each pass would require ad hoc endpoint probing and produce inconsistent evidence for the product decision around portfolio return/ROI vs position-level ROE expectations.
+  - **Implementation**:
+    - Added `infra/load-test/run_leaderboard_period_validation_staging_checklist.ps1`.
+    - The checklist captures:
+      - portfolio leaderboard slices for `1D`, `1W`, `1M`, `ALL`
+      - both `RETURN_PERCENTAGE` and `PROFIT_LOSS` lenses
+      - top-row summaries in one attachable markdown report
+    - Empty but healthy slices are reported as `CONDITIONAL_READY` so the report separates lack of staging data from genuine contract/transport failure.
+  - **Operational impact**:
+    - the remaining leaderboard/product-decision work is now a repeatable checklist run rather than ad hoc endpoint inspection
+    - staging evidence for ranking semantics is easier to compare across redeploys because the same report shape can be attached each time
+- **2026-03-25**: **Parent Staging Readiness Suite Now Includes Error-Contract Validation**
+  - **Problem observed**:
+    - The parent staging readiness suite had grown into the main rollout entrypoint, but unified error-contract verification still sat outside it as a separate checklist.
+    - That meant one more easy-to-forget command even though error-envelope stability is part of release quality, not a sidecar concern.
+  - **Implementation**:
+    - Extended `infra/load-test/run_staging_readiness_suite.ps1` so it now runs `run_error_contract_staging_checklist.ps1` by default.
+    - Added `-SkipErrorContracts` for partial phases where the error-envelope slice is intentionally out of scope.
+  - **Operational impact**:
+    - staging readiness passes now capture error-envelope evidence alongside audit/auth/websocket/ops signals
+    - the parent suite better reflects the actual release bar without forcing separate manual bookkeeping for contract validation
+- **2026-03-25**: **Parent Staging Readiness Suite Now Includes Data-Integrity Validation**
+  - **Problem observed**:
+    - After the false-loss precision repair and Flyway/data checklist work, the remaining staging backlog still represented data-integrity as a separate child action outside the main readiness entrypoint.
+    - That left audit/error/data/auth/websocket/leaderboard/ops evidence split between the parent suite and another remembered command even though they all describe the same release-readiness pass.
+  - **Implementation**:
+    - Extended `infra/load-test/run_staging_readiness_suite.ps1` so it now runs `run_data_integrity_staging_checklist.ps1` by default.
+    - Added `-SkipDataIntegrity` for partial phases where DB/runtime integrity evidence should stay out of scope.
+    - Collapsed the corresponding open `TODO.md` child lines back into one parent staging-readiness action.
+  - **Operational impact**:
+    - staging readiness now captures audit, data-integrity, error contracts, auth readiness, websocket resilience, leaderboard semantics, and ops webhook evidence under one parent report
+    - open rollout bookkeeping is closer to the real operator workflow instead of mirroring each child script as a separate top-level task
+- **2026-03-25**: **Parent Staging Readiness Suite Now Includes Leaderboard Period Validation**
+  - **Problem observed**:
+    - The main staging parent wrapper already consolidated audit/auth/websocket/ops checks, but leaderboard period semantics had become a separate standalone checklist.
+    - That still left one meaningful staging/product review step outside the primary readiness entrypoint.
+  - **Implementation**:
+    - Extended `infra/load-test/run_staging_readiness_suite.ps1` so it now runs `run_leaderboard_period_validation_staging_checklist.ps1` by default.
+    - Added `-SkipLeaderboardPeriods` for rollout phases where the product-review slice should stay out of a partial run.
+  - **Operational impact**:
+    - staging readiness passes now capture leaderboard period evidence without requiring a separate remembered command
+    - partial rollout runs still stay explicit because leaderboard validation can be skipped deliberately
+- **2026-03-25**: **Feed Scale Staging Validation Now Has A Dedicated Wrapper Instead Of Manual Suite Assembly**
+  - **Problem observed**:
+    - Feed-scale verification already had the building blocks:
+      - staged follower fanout median suite
+      - feed latency recalibration checklist
+      - combined feed-scale validation suite
+    - But the remaining open backlog still described the work in terms of manually running the median profile ladder, which was less explicit than the newer staging checklist style used elsewhere.
+  - **Implementation**:
+    - Added `infra/load-test/run_feed_scale_staging_checklist.ps1`.
+    - The wrapper keeps staging defaults centered on `1000 -> 5000 -> 10000` follower stages and delegates to `run_feed_scale_validation_suite.ps1`.
+    - The result is one attachable wrapper report that points at the child suite report instead of relying on remembered manual command assembly.
+  - **Operational impact**:
+    - the remaining feed-scale staging work is now phrased as one explicit checklist run rather than manual parameter reconstruction
+    - ladder evidence and recalibration output stay linked under one top-level report for rollout review
+- **2026-03-25**: **Audit Staging Verification Backlog Is Now Represented As One Checklist Item Instead Of Split Redeploy Notes**
+  - **Problem observed**:
+    - The audit backlog still had several older unchecked redeploy notes that all pointed at the same real staging question:
+      - recent REST audit rows
+      - actuator audit stability
+      - optional audit param tolerance
+      - correlated request-id capture
+    - Keeping them split made `TODO.md` look larger than the real remaining work and obscured the fact that the repo already had a dedicated audit staging checklist.
+  - **Implementation**:
+    - Collapsed the older audit redeploy notes in `TODO.md` into one explicit staging action tied to `infra/load-test/run_audit_staging_checklist.ps1`.
+    - Kept the acceptance criteria attached to that one checklist item instead of scattering them across separate historical rollout notes.
+  - **Operational impact**:
+    - open audit backlog now reflects the real remaining action more accurately
+    - finishing the audit rollout no longer requires mentally mapping multiple old notes back to the same checklist command
+- **2026-03-25**: **Unified Error-Contract Rollout Now Has A Dedicated Staging Checklist**
+  - **Problem observed**:
+    - Two remaining open rollout notes were both about the same question: do the hardened controllers still emit the shared `{code,message,details?,requestId}` contract in a live bearer-authenticated staging runtime?
+    - Leaving them split by controller family made the remaining work less actionable than the newer checklist-based rollout items.
+  - **Implementation**:
+    - Added `infra/load-test/run_error_contract_staging_checklist.ps1`.
+    - The checklist samples representative failures across:
+      - portfolio
+      - trade
+      - tournament
+      - watchlist
+      - follow/self-follow
+      - portfolio participation
+    - It verifies both JSON `requestId` continuity and `X-Request-Id` echo behavior.
+  - **Operational impact**:
+    - the remaining error-contract rollout is now a single attachable checklist run instead of two broad prose notes
+    - staging verification better reflects the real auth mode because the social checks run with bearer tokens instead of only legacy headers
+- **2026-03-25**: **Flyway, Legacy BUY Backfill, And Pre-V27 Micro-Quantity Inspection Now Share One DB-Backed Checklist**
+  - **Problem observed**:
+    - The remaining migration backlog had three closely related staging questions:
+      - is the reverted `V3` / `V10` interaction-target history coherent in the live database?
+      - did `V9__backfill_buy_trade_realized_pnl.sql` actually clean up legacy BUY rows?
+      - are there already-truncated pre-`V27` crypto rows with `quantity = 0.00` that widened precision can no longer reconstruct?
+    - All three require database evidence rather than HTTP-only probing.
+  - **Implementation**:
+    - Added `infra/load-test/run_flyway_data_staging_checklist.ps1`.
+    - The checklist uses `psql` to verify:
+      - successful Flyway history rows for `V3`, `V9`, `V10`, `V27`
+      - live `interactions_target_type_check` contains `COMMENT`
+      - BUY rows no longer have `NULL realized_pnl`
+      - `portfolio_items` / `trade_activities` do not still contain `quantity = 0` crypto rows under the `USDT` symbol heuristic
+    - When zeroed crypto rows are present, the report now emits recent sample ids/symbols so operators can decide whether manual cleanup is needed.
+  - **Operational impact**:
+    - migration validation and historical micro-quantity inspection are now one attachable DB-backed checklist instead of split prose notes
+    - staging rollout evidence for Flyway/data-fix state is easier to capture and compare over time
+- **2026-03-25**: **Error-Contract Checklist Validation Now Uses A Fresh Local Runtime Wrapper To Avoid Stale Shared-Backend Drift**
+  - **Problem observed**:
+    - The new error-contract checklist can be run directly against `localhost:8080`, but a long-lived shared backend may lag current code and create false negatives for freshly hardened controller/query contracts.
+    - The first local run also showed the response header can contain duplicate `X-Request-Id` values even while the echoed id is still correct.
+  - **Implementation**:
+    - Relaxed checklist header validation to accept a deduplicated header set that contains the expected request id.
+    - Added `infra/load-test/run_error_contract_local_runtime_check.ps1` to boot a fresh temporary backend and run the child checklist against that known-current runtime.
+  - **Operational impact**:
+    - local proof for error-contract rollout is less likely to be polluted by stale shared runtime state
+    - the checklist now tolerates duplicate-but-correct request-id header echoes without masking real contract failures
+- **2026-03-25**: **Leaderboard Preference Continuity Now Has A Dedicated Checklist Instead Of Ad Hoc UX Probing**
+  - **Problem observed**:
+    - The remaining leaderboard backlog still included a manual continuity check for persisted sort controls and dashboard period.
+    - But the most failure-prone part was the underlying account-backed persistence contract:
+      - default payload shape
+      - dashboard update persistence
+      - public-page partial update behavior
+      - continuity on subsequent reads
+      - compatibility of saved lenses with leaderboard endpoints
+  - **Implementation**:
+    - Added `infra/load-test/run_leaderboard_preferences_staging_checklist.ps1`.
+    - The checklist verifies:
+      - default leaderboard preference payload
+      - dashboard `period/sortBy/direction` persistence
+      - public-page `sortBy/direction` partial-update persistence
+      - reloaded continuity through `GET /api/v1/users/me/preferences`
+      - compatibility of persisted lens values with both portfolio and account leaderboard endpoints
+  - **Operational impact**:
+    - leaderboard preference continuity is now less dependent on ad hoc manual probing
+    - remaining leaderboard validation is narrower and more about live ranking semantics than preference persistence plumbing
+- **2026-03-25**: **Remaining Staging Verification Now Has A Single Parent Readiness Suite Entry Point**
+  - **Problem observed**:
+    - By this point, most open backlog items were no longer local implementation gaps but staging verification tasks spread across separate wrappers:
+      - audit staging checklist
+      - auth strict pre-cutover readiness
+      - websocket/browser-origin/relay/canary resilience
+      - ops webhook validation
+    - Running them individually made it easy to lose the overall rollout picture and harder to keep one parent report per staging pass.
+  - **Implementation**:
+    - Added `infra/load-test/run_staging_readiness_suite.ps1`.
+    - The suite orchestrates and links:
+      - `run_audit_staging_checklist.ps1`
+      - `run_auth_strict_pre_cutover_checklist.ps1`
+      - `run_websocket_staging_resilience_suite.ps1`
+      - `run_ops_alert_webhook_staging_checklist.ps1`
+    - Added `-Skip*` switches so partial rollout phases can still reuse the same parent wrapper.
+  - **Operational impact**:
+    - staging verification now has a single parent entrypoint/report for the main remaining rollout surfaces
+    - release/readiness passes are easier to compare over time because the same parent wrapper can be rerun with different child subsets
+- **2026-03-25**: **Staging Wrapper Status Parsing Now Reads Only Explicit Markdown Status Lines**
+  - **Problem observed**:
+    - Several PowerShell wrapper scripts derive overall step outcome by parsing child markdown reports.
+    - The original status parser was broad enough to risk ambiguous or partial matches from incidental text/table content, which can make parent suite reports less trustworthy.
+  - **Implementation**:
+    - Hardened `Parse-MarkdownStatus` across the staging/local wrapper chain so it now parses only explicit leading `- Status:` lines.
+    - Constrained accepted parsed values to:
+      - `PASSED`
+      - `FAILED`
+      - `UNKNOWN`
+      - `READY`
+      - `CONDITIONAL_READY`
+      - `NOT_READY`
+      - `SKIPPED`
+    - Revalidated through the audit local runtime wrapper, which exercises the parent-child report chain end to end.
+  - **Operational impact**:
+    - staging checklist parent reports are less likely to misclassify child suite outcome because of accidental markdown/text matches
+    - troubleshooting becomes easier because reported step status now tracks the intended child status line more deterministically
+- **2026-03-25**: **Audit Checklist Tooling Now Verifies Recent Rows And Optional Audit Query Param Tolerance Explicitly**
+  - **Problem observed**:
+    - The remaining audit backlog had become mostly staging verification, but the supporting smoke/tooling still left two audit assertions under-specified:
+      - recent REST audit rows from `/api/v1/ops/auditlog`
+      - actuator audit stability when optional query params are present on `/actuator/auditlog`
+    - The local audit runtime wrapper also degraded temporary-backend startup crashes into a generic health timeout.
+  - **Implementation**:
+    - Expanded `run_audit_write_capture_smoke.ps1` to verify:
+      - request-id-filtered audit rows
+      - recent REST audit rows via `/api/v1/ops/auditlog?limit=5`
+      - actuator audit snapshots both with and without `?limit=5`
+    - Kept the actuator expectation focused on `200 + recent snapshot + no internal_error` rather than assuming the optional query param changes the returned slice.
+    - Hardened `run_audit_validation_local_runtime_check.ps1` so an early child-backend exit now surfaces explicit process/log diagnostics instead of only timing out on health.
+  - **Operational impact**:
+    - the remaining audit staging checklist items are closer to one-command verification instead of ad hoc endpoint probing
+    - local wrapper failures are easier to classify as startup/runtime issues rather than opaque health timeouts
+- **2026-03-25**: **Typed Invalid-JWT Handling Now Reaches Remaining Auth Consumers Beyond The HTTP Filter**
+  - **Problem observed**:
+    - `JwtAuthenticationFilter` had already moved onto `InvalidJwtException`, but two adjacent auth consumers still relied on broader channels:
+      - `StompAuthChannelInterceptor` still caught generic argument failures around bearer validation
+      - `RateLimitFilter` still treated malformed bearer parsing as a broad `IllegalArgumentException`
+    - That left token parsing semantics inconsistent across HTTP auth, STOMP auth, and rate-limit identity resolution.
+  - **Implementation**:
+    - Added `StompAuthException` with explicit `code()` accessors for websocket policy/auth failures.
+    - Updated `StompAuthChannelInterceptor` to catch `InvalidJwtException` directly and keep explicit websocket failure codes such as:
+      - `invalid-authorization-header`
+      - `invalid-jwt`
+      - `invalid-user-id`
+      - `user-id-token-mismatch`
+      - `legacy-topic-disabled`
+      - `cross-user-subscribe`
+    - Updated `RateLimitFilter` to consume malformed/expired bearer parsing via `InvalidJwtException` instead of broad argument exceptions.
+    - Extended targeted auth regression coverage in:
+      - `StompAuthChannelInterceptorTest`
+      - `RateLimitFilterTest`
+      - `JwtAuthenticationFilterIntegrationTest`
+      - `JwtTokenServiceTest`
+  - **Operational impact**:
+    - HTTP auth, STOMP auth, and rate-limit principal resolution now share the same typed invalid-JWT failure semantics
+    - websocket and rate-limit auth behavior are less brittle under future JWT parser refactors
+- **2026-03-25**: **STOMP Auth Failures Now Use A Typed Interceptor Exception Instead Of Raw IllegalArgument Messages**
+  - **Problem observed**:
+    - HTTP JWT parsing had already moved onto `InvalidJwtException`, but the websocket/STOMP side still encoded auth and policy failures in raw `IllegalArgumentException` messages inside `StompAuthChannelInterceptor`.
+    - That left internal websocket auth behavior coupled to message phrasing for cases such as:
+      - malformed `Authorization` header
+      - invalid bearer token
+      - invalid bridged `X-User-Id`
+      - token/header mismatch
+      - disabled legacy topic subscription
+      - cross-user legacy subscribe attempts
+  - **Implementation**:
+    - Added `StompAuthException` with an explicit `code()` accessor.
+    - Updated `StompAuthChannelInterceptor` to:
+      - throw `StompAuthException` for policy/validation failures
+      - catch `InvalidJwtException` explicitly for bearer-token validation
+      - preserve existing websocket observability `recordStompError(...)` reason tags
+    - Expanded `StompAuthChannelInterceptorTest` so websocket auth regressions assert explicit codes instead of generic exception type only.
+  - **Operational impact**:
+    - websocket auth policy failures now have a typed internal contract rather than message-string coupling
+    - future STOMP auth hardening can branch on explicit failure codes without depending on incidental phrasing
+- **2026-03-25**: **Internal JSON Serialization Failures No Longer Masquerade As Client Input Errors**
+  - **Problem observed**:
+    - Several backend internals were still throwing `IllegalArgumentException` for JSON serialization or stored-payload parse failures in:
+      - `AuditLogService`
+      - `StrategyBotService`
+      - `StrategyBotRunService`
+    - Those are server-state or export-generation failures, not caller validation mistakes, so keeping them in the generic argument-error bucket risks misclassification if they bubble upward.
+  - **Implementation**:
+    - Reclassified those JSON serialize/parse failures to `IllegalStateException`.
+    - This now also includes the pretty-print export helper inside `StrategyBotRunService`, so public/private strategy-bot JSON export serialization no longer falls back into argument-error semantics.
+    - Added focused regression coverage in:
+      - `AuditLogServiceTest`
+      - `StrategyBotServiceTest`
+      - `StrategyBotRunServiceTest`
+  - **Operational impact**:
+    - internal payload/export corruption paths are now more honestly modeled as server-state failures
+    - future contract hardening can distinguish caller validation from backend serialization faults more cleanly
+- **2026-03-24**: **The Local Phase-3 Error-Contract Sweep Is Functionally Complete; Remaining Backlog Is Now Mostly Rollout Verification**
+  - **Problem observed**:
+    - The broad roadmap item for:
+      - request correlation
+      - idempotency support
+      - unified `{code,message,details,requestId}` contracts
+    - had become too coarse to communicate actual remaining work.
+    - After the latest controller/service/auth/provider/observability passes, most remaining unchecked items were no longer local implementation gaps but staging or redeploy verification tasks.
+  - **Implementation**:
+    - Closed the local phase-3 umbrella in `TODO.md`.
+    - Kept the concrete remaining open work tracked as environment-specific checklist items:
+      - redeploy validation
+      - staging smoke suites
+      - telemetry/threshold verification
+  - **Operational impact**:
+    - the active backlog is now clearer about what still requires code changes versus what requires runtime validation
+    - future local backend work can start from new focused technical debt items instead of reopening an already-broadened umbrella
+- **2026-03-24**: **JWT Validation Failures Now Use A Typed Security Exception Instead Of Generic IllegalArgument Branches**
+  - **Problem observed**:
+    - The token-only auth rollout already had stable public `401 unauthorized` behavior.
+    - Internally, though, `JwtTokenService` still surfaced malformed/expired/wrong-purpose token paths as generic `IllegalArgumentException`s, and `JwtAuthenticationFilter` caught that broad type directly.
+    - That leaves the auth filter coupled to an overly generic exception channel and makes future internal parse changes easier to mis-handle.
+  - **Implementation**:
+    - Added `InvalidJwtException`.
+    - Updated `JwtTokenService` to throw that typed exception for:
+      - invalid format
+      - invalid signature / issuer / subject / purpose
+      - expiry and issued-at validation
+      - generic malformed-token fallback
+    - Updated `JwtAuthenticationFilter` to catch `InvalidJwtException` instead of broad `IllegalArgumentException`.
+    - Added regression coverage for malformed bearer tokens in `JwtAuthenticationFilterIntegrationTest`, while updating `JwtTokenServiceTest` to assert the typed exception.
+  - **Operational impact**:
+    - auth token parsing now uses an explicit failure type rather than a generic runtime channel
+    - public unauthorized behavior stays the same, but the internal contract is less brittle under future JWT parse refactors
+- **2026-03-24**: **Observability And Derived Status-Code Lowercasing No Longer Depends On The JVM Locale**
+  - **Problem observed**:
+    - Most public input parsing had already been moved onto `Locale.ROOT`, but a few derived lowercasing paths still used the JVM default locale in:
+      - `GlobalExceptionHandler` fallback `ResponseStatusException` code derivation
+      - auth refresh churn transition metric tags
+      - ops alert severity metric tags
+      - websocket canary transition metric tags
+    - Under Turkish locale, values such as `IM_USED` and `CRITICAL` could degrade into dotted/dotless-`i` variants, which would split metrics or mutate fallback status codes.
+  - **Implementation**:
+    - Switched those lowercasing paths to `Locale.ROOT`.
+    - Added targeted regression coverage under `tr-TR` locale for:
+      - `GlobalExceptionHandlerTest`
+      - `AuthSessionObservabilityServiceTest`
+      - `OpsAlertServiceTest`
+      - `WebSocketCanaryServiceTest`
+  - **Operational impact**:
+    - fallback status-code derivation and observability tags are now stable across deployment locales
+    - metric series no longer risk silent duplication from locale-specific casing behavior
 - **2026-03-24**: **Strategy Bot Agent Guardrails No Longer Encode Validation Semantics In Raw IllegalArgument Messages**
   - **Problem observed**:
     - The future agentic strategy-bot runtime already had a bounded action schema and validator foundation.
@@ -2722,6 +3390,7 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - browser-origin validation
       - relay continuity/restart validation
       - canary latest-snapshot transition validation
+      - notification SSE fallback delivery validation
     - That made the staging runbook better than before, but still dependent on remembering which scripts belonged together.
   - **Implementation**:
     - Added:
@@ -2730,11 +3399,12 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
       - `run_browser_origin_staging_checklist.ps1`
       - `validate_websocket_relay_smoke.ps1`
       - `run_websocket_canary_staging_checklist.ps1`
+      - `run_notification_sse_fallback_staging_checklist.ps1`
     - It emits one markdown summary that links the child reports.
-    - The suite explicitly documents that browser-side SSE fallback is still outside its scope.
+    - The suite now covers direct transport-level SSE fallback delivery, while still documenting that full browser toast/render dedupe semantics remain a frontend/runtime concern.
   - **Operational impact**:
-    - staging websocket validation is now closer to a single operator command instead of a remembered sequence of three wrappers
-    - the remaining websocket TODOs are narrower because origin, relay continuity, and canary transition are now grouped into one repeatable flow
+    - staging websocket validation is now closer to a single operator command instead of a remembered sequence of four wrappers
+    - the remaining websocket TODOs are narrower because origin, relay continuity, canary transition, and SSE fallback delivery are now grouped into one repeatable flow
 - **2026-03-21**: **WebSocket Canary Latest Snapshot Is Now Readable Without Forcing A Probe**
   - **Problem observed**:
     - The synthetic canary tooling had two practical operator gaps:

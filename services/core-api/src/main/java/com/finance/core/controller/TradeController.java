@@ -42,6 +42,7 @@ public class TradeController {
     private final BinanceService binanceService;
     private final com.finance.core.service.CopyTradingService copyTradingService;
     private final com.finance.core.service.TournamentService tournamentService;
+    private final com.finance.core.service.PerformanceAnalyticsService performanceAnalyticsService;
     private final AuditLogService auditLogService;
 
     @PostMapping("/buy")
@@ -134,6 +135,7 @@ public class TradeController {
 
         safelyNotifyTournamentTrade(trade);
         safelyReplicateBuy(portfolioId, request, currentPrice);
+        performanceAnalyticsService.invalidatePortfolioAnalytics(portfolioId);
 
         return ResponseEntity.ok(portfolio);
     }
@@ -208,6 +210,7 @@ public class TradeController {
 
         safelyNotifyTournamentTrade(trade);
         safelyReplicateSell(portfolioId, request, currentPrice);
+        performanceAnalyticsService.invalidatePortfolioAnalytics(portfolioId);
 
         return ResponseEntity.ok(portfolio);
     }

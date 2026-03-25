@@ -33,7 +33,7 @@ class JwtTokenServiceTest {
         properties.setSecret("unit-test-secret-value-with-sufficient-length-12345");
         JwtTokenService service = new JwtTokenService(properties, new ObjectMapper());
 
-        assertThrows(IllegalArgumentException.class, () -> service.parseAndValidate("not-a-token"));
+        assertThrows(InvalidJwtException.class, () -> service.parseAndValidate("not-a-token"));
     }
 
     @Test
@@ -59,6 +59,6 @@ class JwtTokenServiceTest {
         UUID userId = UUID.randomUUID();
         String accessToken = service.generateAccessToken(userId, "alice");
 
-        assertThrows(IllegalArgumentException.class, () -> service.parseAndValidateNotificationStreamToken(accessToken));
+        assertThrows(InvalidJwtException.class, () -> service.parseAndValidateNotificationStreamToken(accessToken));
     }
 }

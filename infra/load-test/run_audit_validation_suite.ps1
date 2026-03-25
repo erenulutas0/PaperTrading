@@ -48,12 +48,13 @@ function Parse-MarkdownStatus {
   }
 
   $content = Get-Content $ReportPath -Raw
-  $match = [regex]::Match($content, "- Status:\s+\*\*(.+?)\*\*", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+  $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
   if ($match.Success -and $match.Groups.Count -ge 2) {
     return $match.Groups[1].Value.Trim()
   }
 
-  $lineMatch = [regex]::Match($content, "Status:\s+([A-Z_]+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
   if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
     return $lineMatch.Groups[1].Value.Trim()
   }

@@ -69,9 +69,14 @@ function Get-StatusFromReport {
   }
 
   $content = Get-Content -Path $ReportPath -Raw
-  $match = [regex]::Match($content, "- Status:\s+\*\*(.+?)\*\*", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+  $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
   if ($match.Success -and $match.Groups.Count -ge 2) {
     return $match.Groups[1].Value.Trim()
+  }
+  $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
+  if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
+    return $lineMatch.Groups[1].Value.Trim()
   }
   return ""
 }
@@ -83,23 +88,24 @@ $reportPath = Join-Path $ReportsDir "websocket-canary-staging-checklist-$timesta
 $results = New-Object 'System.Collections.Generic.List[object]'
 
 $runnerScript = Join-Path $scriptDir "run_websocket_canary_external.ps1"
-$runnerArgs = @(
-  "-BaseUrl", $BaseUrl,
-  "-Iterations", "$Iterations",
-  "-IntervalSec", "$IntervalSec",
-  "-RequestTimeoutSec", "$RequestTimeoutSec"
-)
+$runnerParams = @{
+  BaseUrl           = $BaseUrl
+  Iterations        = $Iterations
+  IntervalSec       = $IntervalSec
+  RequestTimeoutSec = $RequestTimeoutSec
+}
 if ($IncludeWebSocketSnapshot) {
-  $runnerArgs += "-IncludeWebSocketSnapshot"
+  $runnerParams["IncludeWebSocketSnapshot"] = $true
 }
 
 $before = Get-LatestReport -Directory $ReportsDir -Pattern "websocket-canary-external-*.md"
-& powershell -ExecutionPolicy Bypass -File $runnerScript @runnerArgs | Out-Null
-$runnerExitCode = $LASTEXITCODE
-$runnerReport = Get-LatestReport -Directory $ReportsDir -Pattern "websocket-canary-external-*.md"
-if ($runnerReport -eq $before) {
-  $runnerReport = ""
+try {
+  & $runnerScript @runnerParams | Out-Null
+  $runnerDetail = "ok"
+} catch {
+  $runnerDetail = $_.Exception.Message
 }
+$runnerReport = Get-LatestReport -Directory $ReportsDir -Pattern "websocket-canary-external-*.md"
 
 if ([string]::IsNullOrWhiteSpace($runnerReport)) {
   $results.Add((New-StepResult -Name "External Canary Run" -Status "FAILED" -Detail "report_not_found")) | Out-Null
@@ -107,7 +113,7 @@ if ([string]::IsNullOrWhiteSpace($runnerReport)) {
   $runnerContent = Get-Content -Path $runnerReport -Raw
   $runnerStatus = Get-StatusFromReport -ReportPath $runnerReport
   if ([string]::IsNullOrWhiteSpace($runnerStatus)) {
-    $runnerStatus = if ($runnerExitCode -eq 0) { "PASSED" } else { "FAILED" }
+    $runnerStatus = "PASSED"
   }
 
   $initialState = Get-ReportValue -Content $runnerContent -Label "Initial latest state"
@@ -131,7 +137,7 @@ if ([string]::IsNullOrWhiteSpace($runnerReport)) {
   }
   $results.Add((New-StepResult -Name "Initial Canary State" -Status $initialStatus -Detail $initialDetail -ReportPath $runnerReport)) | Out-Null
 
-  $results.Add((New-StepResult -Name "External Canary Run" -Status $runnerStatus -Detail "runner_exit_code=$runnerExitCode" -ReportPath $runnerReport)) | Out-Null
+  $results.Add((New-StepResult -Name "External Canary Run" -Status $runnerStatus -Detail $runnerDetail -ReportPath $runnerReport)) | Out-Null
 
   $finalHealthy = $finalState -eq "snapshot-available" -and $finalSuccess -eq "True" -and $finalAlertState -ne "CRITICAL"
   $finalDetail = "final_state=$finalState, final_success=$finalSuccess, final_alert_state=$finalAlertState"

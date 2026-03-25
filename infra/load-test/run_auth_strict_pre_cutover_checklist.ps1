@@ -66,6 +66,28 @@ function Parse-MarkdownField {
   return $DefaultValue
 }
 
+function Parse-MarkdownStatus {
+  param([string]$ReportPath)
+
+  if (-not (Test-Path $ReportPath)) {
+    return ""
+  }
+
+  $content = Get-Content -Path $ReportPath -Raw
+  $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+  $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
+  if ($match.Success -and $match.Groups.Count -ge 2) {
+    return $match.Groups[1].Value.Trim()
+  }
+
+  $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
+  if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
+    return $lineMatch.Groups[1].Value.Trim()
+  }
+
+  return ""
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $null = New-Item -ItemType Directory -Path $ReportsDir -Force
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -77,14 +99,18 @@ if (-not (Test-Path $assessmentScript)) {
 }
 
 $beforeAssessment = Get-LatestReport -Directory $ReportsDir -Pattern "auth-strict-readiness-*.md"
-& powershell -ExecutionPolicy Bypass -File $assessmentScript `
-  -BaseUrl $BaseUrl `
-  -RequestTimeoutSec $RequestTimeoutSec `
-  -MaxLegacyAccepted $MaxLegacyAccepted `
-  -CalibrationIterations $CalibrationIterations `
-  -CalibrationIntervalSec $CalibrationIntervalSec `
-  -NoFail | Out-Null
-$assessmentExitCode = $LASTEXITCODE
+try {
+  & $assessmentScript `
+    -BaseUrl $BaseUrl `
+    -RequestTimeoutSec $RequestTimeoutSec `
+    -MaxLegacyAccepted $MaxLegacyAccepted `
+    -CalibrationIterations $CalibrationIterations `
+    -CalibrationIntervalSec $CalibrationIntervalSec `
+    -NoFail | Out-Null
+  $assessmentDetail = "ok"
+} catch {
+  $assessmentDetail = $_.Exception.Message
+}
 $assessmentReport = Get-LatestReport -Directory $ReportsDir -Pattern "auth-strict-readiness-*.md"
 if ($assessmentReport -eq $beforeAssessment) {
   $assessmentReport = ""
@@ -95,17 +121,22 @@ $results = New-Object 'System.Collections.Generic.List[object]'
 if ([string]::IsNullOrWhiteSpace($assessmentReport)) {
   $results.Add((New-StepResult -Name "Readiness Assessment" -Status "FAILED" -Detail "report_not_found")) | Out-Null
 } else {
+  $reportStatus = Parse-MarkdownStatus -ReportPath $assessmentReport
   $readinessStatus = Parse-MarkdownField -ReportPath $assessmentReport -Pattern "Readiness status:\s+\*\*(.+?)\*\*" -DefaultValue "UNKNOWN"
   $legacyStatus = Parse-MarkdownField -ReportPath $assessmentReport -Pattern "Legacy status:\s+(.+)" -DefaultValue "UNKNOWN"
   $calibrationStatus = Parse-MarkdownField -ReportPath $assessmentReport -Pattern "Calibration status:\s+(.+)" -DefaultValue "UNKNOWN"
 
-  $assessmentStepStatus = switch ($readinessStatus) {
-    "READY" { "PASSED" }
-    "CONDITIONAL_READY" { "PASSED" }
-    default { "FAILED" }
+  if (-not [string]::IsNullOrWhiteSpace($reportStatus)) {
+    $assessmentStepStatus = $reportStatus
+  } else {
+    $assessmentStepStatus = switch ($readinessStatus) {
+      "READY" { "PASSED" }
+      "CONDITIONAL_READY" { "PASSED" }
+      default { "FAILED" }
+    }
   }
-  $assessmentDetail = "readiness=$readinessStatus, legacy=$legacyStatus, calibration=$calibrationStatus, exit_code=$assessmentExitCode"
-  $results.Add((New-StepResult -Name "Readiness Assessment" -Status $assessmentStepStatus -Detail $assessmentDetail -ReportPath $assessmentReport)) | Out-Null
+  $assessmentSummary = "readiness=$readinessStatus, legacy=$legacyStatus, calibration=$calibrationStatus, detail=$assessmentDetail"
+  $results.Add((New-StepResult -Name "Readiness Assessment" -Status $assessmentStepStatus -Detail $assessmentSummary -ReportPath $assessmentReport)) | Out-Null
 }
 
 $failed = @($results | Where-Object { $_.Status -ne "PASSED" })

@@ -2,6 +2,7 @@ package com.finance.core.controller;
 
 import com.finance.core.dto.UpdateTerminalPreferencesRequest;
 import com.finance.core.dto.UpdateLeaderboardPreferencesRequest;
+import com.finance.core.dto.UpdateNotificationPreferencesRequest;
 import com.finance.core.dto.UserPreferencesResponse;
 import com.finance.core.service.UserPreferencesService;
 import com.finance.core.web.ApiErrorResponses;
@@ -68,6 +69,20 @@ public class UserPreferencesController {
             throw exception;
         } catch (RuntimeException exception) {
             return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "user_preferences_terminal_update_failed", "Failed to update terminal preferences", null, httpRequest);
+        }
+    }
+
+    @PutMapping("/notifications")
+    public ResponseEntity<?> updateNotificationPreferences(
+            @CurrentUserId UUID userId,
+            @RequestBody(required = false) UpdateNotificationPreferencesRequest request,
+            HttpServletRequest httpRequest) {
+        try {
+            return ResponseEntity.ok(userPreferencesService.updateNotificationPreferences(userId, request));
+        } catch (ApiRequestException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            return ApiErrorResponses.build(HttpStatus.BAD_REQUEST, "user_preferences_notification_update_failed", "Failed to update notification preferences", null, httpRequest);
         }
     }
 }

@@ -140,6 +140,19 @@ function Get-ContentText {
   return Get-Content -Path $Path -Raw
 }
 
+function Get-LogTail {
+  param(
+    [string]$Path,
+    [int]$LineCount = 20
+  )
+
+  if (-not (Test-Path $Path)) {
+    return ""
+  }
+
+  return ((Get-Content -Path $Path -Tail $LineCount) -join "`n").Trim()
+}
+
 function Get-ObjectPropertyValue {
   param(
     [object]$Object,
@@ -223,6 +236,17 @@ try {
   }
 
   $healthy = Wait-HttpHealthy -Url $healthUrl -TimeoutSec $StartupTimeoutSec
+  if (-not $healthy -and $appStartedByScript -and $appProcess -and $appProcess.HasExited) {
+    $stdoutTail = Get-LogTail -Path $appLogPath
+    $stderrTail = Get-LogTail -Path $appErrLogPath
+    $processExitMessage = "Core API process exited before healthy. exitCode=$($appProcess.ExitCode)"
+    if (-not [string]::IsNullOrWhiteSpace($stderrTail)) {
+      $processExitMessage += " | stderrTail=$stderrTail"
+    } elseif (-not [string]::IsNullOrWhiteSpace($stdoutTail)) {
+      $processExitMessage += " | stdoutTail=$stdoutTail"
+    }
+    throw $processExitMessage
+  }
   Assert-Condition -Results $results -Name "Backend Health" -Condition $healthy -Detail "url=$healthUrl"
   if (-not $healthy) {
     throw "Core API did not become healthy at $healthUrl within $StartupTimeoutSec seconds."

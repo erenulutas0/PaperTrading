@@ -19,6 +19,8 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
 
     List<StrategyBotRun> findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(UUID strategyBotId, UUID userId);
 
+    List<StrategyBotRun> findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(Collection<UUID> strategyBotIds, UUID userId);
+
     List<StrategyBotRun> findByStrategyBotIdOrderByRequestedAtDesc(UUID strategyBotId);
 
     List<StrategyBotRun> findByStrategyBotIdInOrderByRequestedAtDesc(Collection<UUID> strategyBotIds);

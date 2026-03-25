@@ -1,6 +1,7 @@
 package com.finance.core.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.dto.StrategyBotRequest;
 import com.finance.core.dto.StrategyBotResponse;
@@ -15,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.Locale;
@@ -22,7 +24,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
@@ -116,5 +122,55 @@ class StrategyBotServiceTest {
         assertEquals("BIST100", botCaptor.getValue().getMarket());
         assertEquals("THYAO", botCaptor.getValue().getSymbol());
         assertEquals("4H", botCaptor.getValue().getTimeframe());
+    }
+
+    @Test
+    void createBot_whenRuleSerializationFails_shouldThrowIllegalStateException() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.existsById(userId)).thenReturn(true);
+
+        ObjectMapper brokenMapper = mock(ObjectMapper.class);
+        doThrow(new JsonProcessingException("boom") { })
+                .when(brokenMapper)
+                .writeValueAsString(any());
+        ReflectionTestUtils.setField(strategyBotService, "objectMapper", brokenMapper);
+
+        StrategyBotRequest request = new StrategyBotRequest();
+        request.setName("Broken Bot");
+        request.setMarket("CRYPTO");
+        request.setSymbol("BTCUSDT");
+        request.setTimeframe("1H");
+        request.setMaxPositionSizePercent(new BigDecimal("25"));
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> strategyBotService.createBot(userId, request));
+
+        assertEquals("Failed to serialize strategy rules", exception.getMessage());
+    }
+
+    @Test
+    void listOwnedBots_whenStoredRulesAreInvalid_shouldThrowIllegalStateException() throws Exception {
+        UUID userId = UUID.randomUUID();
+        StrategyBot bot = StrategyBot.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .name("Broken Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{broken")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("25"))
+                .status(StrategyBot.Status.DRAFT)
+                .cooldownMinutes(0)
+                .build();
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(strategyBotRepository.findByUserId(eq(userId), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(bot)));
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> strategyBotService.getUserBots(userId, org.springframework.data.domain.PageRequest.of(0, 10)));
+
+        assertEquals("Failed to parse stored strategy rules", exception.getMessage());
     }
 }

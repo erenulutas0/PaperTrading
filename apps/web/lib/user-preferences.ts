@@ -24,11 +24,32 @@ export interface LeaderboardPreferencesResponsePayload {
 export interface UserPreferencesResponsePayload {
   leaderboard: LeaderboardPreferencesResponsePayload;
   terminal?: TerminalPreferencesResponsePayload;
+  notification?: NotificationPreferencesResponsePayload;
 }
 
 export interface UpdateLeaderboardPreferencesPayload {
   dashboard?: Partial<LeaderboardDashboardPreferences>;
   publicPage?: Partial<LeaderboardPublicPreferences>;
+}
+
+export interface NotificationPreferencesResponsePayload {
+  inApp: {
+    social: boolean;
+    watchlist: boolean;
+    tournaments: boolean;
+  };
+  digestCadence: "INSTANT" | "DAILY" | "OFF";
+  quietHours: {
+    enabled: boolean;
+    start: string;
+    end: string;
+  };
+}
+
+export interface UpdateNotificationPreferencesPayload {
+  inApp?: Partial<NotificationPreferencesResponsePayload["inApp"]>;
+  digestCadence?: NotificationPreferencesResponsePayload["digestCadence"];
+  quietHours?: Partial<NotificationPreferencesResponsePayload["quietHours"]>;
 }
 
 export interface TerminalPreferencesResponsePayload {
@@ -136,6 +157,27 @@ export async function updateTerminalPreferences(
 ): Promise<UserPreferencesResponsePayload | null> {
   try {
     const res = await apiFetch("/api/v1/users/me/preferences/terminal", {
+      method: "PUT",
+      headers: userIdHeaders(userId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return (await res.json()) as UserPreferencesResponsePayload;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateNotificationPreferences(
+  userId: string,
+  payload: UpdateNotificationPreferencesPayload
+): Promise<UserPreferencesResponsePayload | null> {
+  try {
+    const res = await apiFetch("/api/v1/users/me/preferences/notifications", {
       method: "PUT",
       headers: userIdHeaders(userId, {
         "Content-Type": "application/json",

@@ -60,7 +60,7 @@ public class AuditLogService {
         try {
             return objectMapper.writeValueAsString(details);
         } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Failed to serialize audit details", e);
+            throw new IllegalStateException("Failed to serialize audit details", e);
         }
     }
 

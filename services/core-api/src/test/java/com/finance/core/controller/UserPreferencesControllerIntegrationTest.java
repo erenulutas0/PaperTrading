@@ -1,6 +1,7 @@
 package com.finance.core.controller;
 
 import com.finance.core.dto.UpdateLeaderboardPreferencesRequest;
+import com.finance.core.dto.UpdateNotificationPreferencesRequest;
 import com.finance.core.dto.UpdateTerminalPreferencesRequest;
 import com.finance.core.dto.UserPreferencesResponse;
 import com.finance.core.service.BinanceService;
@@ -77,6 +78,19 @@ class UserPreferencesControllerIntegrationTest {
                                         .updatedAt("2026-03-15T00:00:00Z")
                                         .build()))
                         .build())
+                .notification(UserPreferencesResponse.NotificationPreferences.builder()
+                        .inApp(UserPreferencesResponse.InAppPreferences.builder()
+                                .social(true)
+                                .watchlist(false)
+                                .tournaments(true)
+                                .build())
+                        .digestCadence("DAILY")
+                        .quietHours(UserPreferencesResponse.QuietHoursPreferences.builder()
+                                .enabled(true)
+                                .start("22:00")
+                                .end("08:00")
+                                .build())
+                        .build())
                 .build();
 
         when(userPreferencesService.getPreferences(any(UUID.class))).thenReturn(response);
@@ -92,7 +106,10 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.terminal.market").value("CRYPTO"))
                 .andExpect(jsonPath("$.terminal.symbol").value("BTCUSDT"))
                 .andExpect(jsonPath("$.terminal.compareBaskets[0].name").value("Majors"))
-                .andExpect(jsonPath("$.terminal.scannerViews[0].name").value("Crypto Movers"));
+                .andExpect(jsonPath("$.terminal.scannerViews[0].name").value("Crypto Movers"))
+                .andExpect(jsonPath("$.notification.digestCadence").value("DAILY"))
+                .andExpect(jsonPath("$.notification.inApp.watchlist").value(false))
+                .andExpect(jsonPath("$.notification.quietHours.start").value("22:00"));
     }
 
     @Test
@@ -334,5 +351,95 @@ class UserPreferencesControllerIntegrationTest {
                 .andExpect(jsonPath("$.code").value("user_preferences_compare_basket_limit_reached"))
                 .andExpect(jsonPath("$.message").value("Compare basket limit reached"))
                 .andExpect(jsonPath("$.requestId").value("prefs-terminal-basket-limit-1"));
+    }
+
+    @Test
+    void updateNotificationPreferences_shouldReturnUpdatedNotificationPayload() throws Exception {
+        UserPreferencesResponse response = UserPreferencesResponse.builder()
+                .leaderboard(UserPreferencesResponse.LeaderboardPreferences.builder()
+                        .dashboard(UserPreferencesResponse.DashboardPreferences.builder()
+                                .period("1D")
+                                .sortBy("RETURN_PERCENTAGE")
+                                .direction("DESC")
+                                .build())
+                        .publicPage(UserPreferencesResponse.PublicPreferences.builder()
+                                .sortBy("RETURN_PERCENTAGE")
+                                .direction("DESC")
+                                .build())
+                        .build())
+                .terminal(UserPreferencesResponse.TerminalPreferences.builder()
+                        .market("CRYPTO")
+                        .symbol("BTCUSDT")
+                        .compareSymbols(java.util.List.of())
+                        .compareVisible(true)
+                        .range("1D")
+                        .interval("1h")
+                        .favoriteSymbols(java.util.List.of())
+                        .compareBaskets(java.util.List.of())
+                        .scannerViews(java.util.List.of())
+                        .build())
+                .notification(UserPreferencesResponse.NotificationPreferences.builder()
+                        .inApp(UserPreferencesResponse.InAppPreferences.builder()
+                                .social(false)
+                                .watchlist(true)
+                                .tournaments(false)
+                                .build())
+                        .digestCadence("OFF")
+                        .quietHours(UserPreferencesResponse.QuietHoursPreferences.builder()
+                                .enabled(true)
+                                .start("21:00")
+                                .end("07:00")
+                                .build())
+                        .build())
+                .build();
+        when(userPreferencesService.updateNotificationPreferences(any(UUID.class), any(UpdateNotificationPreferencesRequest.class)))
+                .thenReturn(response);
+
+        String body = """
+                {
+                  "inApp": {
+                    "social": false,
+                    "watchlist": true,
+                    "tournaments": false
+                  },
+                  "digestCadence": "OFF",
+                  "quietHours": {
+                    "enabled": true,
+                    "start": "21:00",
+                    "end": "07:00"
+                  }
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/notifications")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notification.inApp.social").value(false))
+                .andExpect(jsonPath("$.notification.inApp.watchlist").value(true))
+                .andExpect(jsonPath("$.notification.digestCadence").value("OFF"))
+                .andExpect(jsonPath("$.notification.quietHours.enabled").value(true))
+                .andExpect(jsonPath("$.notification.quietHours.start").value("21:00"))
+                .andExpect(jsonPath("$.notification.quietHours.end").value("07:00"));
+    }
+
+    @Test
+    void updateNotificationPreferences_withInvalidDigest_shouldReturnExplicitBadRequestContract() throws Exception {
+        when(userPreferencesService.updateNotificationPreferences(any(UUID.class), any(UpdateNotificationPreferencesRequest.class)))
+                .thenThrow(ApiRequestException.badRequest(
+                        "invalid_user_preferences_notification_digest",
+                        "Invalid user preferences notification digest"));
+
+        mockMvc.perform(put("/api/v1/users/me/preferences/notifications")
+                        .header("X-Request-Id", "prefs-notification-invalid-digest-1")
+                        .header("X-User-Id", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"digestCadence\":\"WEEKLY\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", "prefs-notification-invalid-digest-1"))
+                .andExpect(jsonPath("$.code").value("invalid_user_preferences_notification_digest"))
+                .andExpect(jsonPath("$.message").value("Invalid user preferences notification digest"))
+                .andExpect(jsonPath("$.requestId").value("prefs-notification-invalid-digest-1"));
     }
 }

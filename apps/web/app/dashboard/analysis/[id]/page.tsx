@@ -55,6 +55,7 @@ export default function AnalysisDetail() {
     const [loading, setLoading] = useState(true);
     const [myUserId, setMyUserId] = useState('');
     const [workspaceTab, setWorkspaceTab] = useState<AnalysisDetailWorkspaceTab>('THESIS');
+    const [shareMessage, setShareMessage] = useState('');
     const router = useRouter();
 
     const fetchPost = useCallback(async () => {
@@ -114,6 +115,42 @@ export default function AnalysisDetail() {
     }
 
     const accuracy = post.authorTotalPosts > 0 ? Math.round((post.authorHitCount / post.authorTotalPosts) * 100) : 0;
+    const publicAnalysisLink = typeof window !== 'undefined' ? `${window.location.origin}/dashboard/analysis/${post.id}` : '';
+    const analysisSummaryLines = [
+        `${post.title}`,
+        `${post.instrumentSymbol} · ${post.direction} · ${post.outcome}`,
+        `Entry: $${post.priceAtCreation.toLocaleString()}`,
+        `Target: ${post.targetPrice != null ? `$${post.targetPrice.toLocaleString()}` : 'N/A'}`,
+        `Stop: ${post.stopPrice != null ? `$${post.stopPrice.toLocaleString()}` : 'N/A'}`,
+        `Author: ${post.authorDisplayName || post.authorUsername} (@${post.authorUsername})`,
+        `Author Accuracy: ${accuracy}%`,
+        `Published: ${new Date(post.createdAt).toLocaleString()}`,
+        publicAnalysisLink ? `Analysis: ${publicAnalysisLink}` : '',
+    ].filter(Boolean);
+
+    const copyAnalysisLink = async () => {
+        if (!publicAnalysisLink) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(publicAnalysisLink);
+            setShareMessage('Analysis link copied.');
+        } catch (error) {
+            console.error(error);
+            setShareMessage(publicAnalysisLink);
+        }
+    };
+
+    const copyAnalysisSummary = async () => {
+        const summary = analysisSummaryLines.join('\n');
+        try {
+            await navigator.clipboard.writeText(summary);
+            setShareMessage('Analysis share card copied.');
+        } catch (error) {
+            console.error(error);
+            setShareMessage(summary);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-background text-foreground">
@@ -214,6 +251,66 @@ export default function AnalysisDetail() {
                             <span className="rounded-full border border-border bg-accent px-3 py-1 text-xs font-medium text-muted-foreground">
                                 Server Timestamped
                             </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-border bg-background/60 p-5">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                    <p className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground">Public Share Card</p>
+                                    <h2 className="mt-2 text-xl font-semibold">Compress the thesis and outcome into a copyable accountability snapshot.</h2>
+                                    <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+                                        Use this when you want to share the immutable thesis, resolution status, and author context without the full page walkthrough.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => void copyAnalysisLink()}
+                                        className="rounded-full border border-border bg-accent px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary/35"
+                                    >
+                                        Copy Link
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void copyAnalysisSummary()}
+                                        className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15"
+                                    >
+                                        Copy Share Card
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Instrument</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{post.instrumentSymbol}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">{post.direction}</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Outcome</p>
+                                    <p className={`mt-2 text-lg font-semibold ${post.outcome === 'HIT'
+                                        ? 'text-success'
+                                        : post.outcome === 'MISSED'
+                                            ? 'text-destructive'
+                                            : 'text-warning'
+                                        }`}>
+                                        {post.outcome}
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">Entry ${post.priceAtCreation.toLocaleString()}</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Author</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{post.authorDisplayName || post.authorUsername}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">{accuracy}% accuracy</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-background/60 p-4">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Publication</p>
+                                    <p className="mt-2 text-lg font-semibold text-foreground">{new Date(post.createdAt).toLocaleDateString()}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">Immutable record</p>
+                                </div>
+                            </div>
+                            {shareMessage ? (
+                                <p className="mt-3 text-xs text-muted-foreground">{shareMessage}</p>
+                            ) : null}
                         </div>
 
                         {workspaceTab === 'THESIS' && (

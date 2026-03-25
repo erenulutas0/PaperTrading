@@ -73,7 +73,7 @@ public class JwtTokenService {
         JsonNode payloadNode = parseAndValidatePayload(token);
         String purpose = payloadNode.path("purpose").asText("");
         if (!PURPOSE_NOTIFICATION_STREAM.equals(purpose)) {
-            throw new IllegalArgumentException("Invalid JWT purpose");
+            throw new InvalidJwtException("Invalid JWT purpose");
         }
         return parseUserId(payloadNode);
     }
@@ -83,7 +83,7 @@ public class JwtTokenService {
             JsonNode payloadNode = parseAndValidatePayload(token);
             String purpose = payloadNode.path("purpose").asText(PURPOSE_ACCESS);
             if (!PURPOSE_ACCESS.equals(purpose)) {
-                throw new IllegalArgumentException("Invalid JWT purpose");
+                throw new InvalidJwtException("Invalid JWT purpose");
             }
 
             UUID userId = parseUserId(payloadNode);
@@ -91,10 +91,10 @@ public class JwtTokenService {
             long expiresAt = payloadNode.path("exp").asLong(0L);
             String username = payloadNode.path("preferred_username").asText("");
             return new JwtTokenClaims(userId, username, issuedAt, expiresAt);
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidJwtException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid JWT token");
+            throw new InvalidJwtException("Invalid JWT token");
         }
     }
 
@@ -102,7 +102,7 @@ public class JwtTokenService {
         try {
             String[] parts = token != null ? token.split("\\.") : new String[0];
             if (parts.length != 3) {
-                throw new IllegalArgumentException("Invalid JWT format");
+                throw new InvalidJwtException("Invalid JWT format");
             }
 
             String encodedHeader = parts[0];
@@ -114,35 +114,35 @@ public class JwtTokenService {
             if (!MessageDigest.isEqual(
                     expectedSignature.getBytes(StandardCharsets.UTF_8),
                     encodedSignature.getBytes(StandardCharsets.UTF_8))) {
-                throw new IllegalArgumentException("Invalid JWT signature");
+                throw new InvalidJwtException("Invalid JWT signature");
             }
 
             JsonNode headerNode = objectMapper.readTree(URL_DECODER.decode(encodedHeader));
             if (!"HS256".equals(headerNode.path("alg").asText())) {
-                throw new IllegalArgumentException("Unsupported JWT algorithm");
+                throw new InvalidJwtException("Unsupported JWT algorithm");
             }
 
             JsonNode payloadNode = objectMapper.readTree(URL_DECODER.decode(encodedPayload));
             String issuer = payloadNode.path("iss").asText();
             if (issuer == null || issuer.isBlank() || !issuer.equals(properties.getIssuer())) {
-                throw new IllegalArgumentException("Invalid JWT issuer");
+                throw new InvalidJwtException("Invalid JWT issuer");
             }
 
             long issuedAt = payloadNode.path("iat").asLong(0L);
             long expiresAt = payloadNode.path("exp").asLong(0L);
             long now = Instant.now().getEpochSecond();
             if (expiresAt <= 0 || expiresAt <= now) {
-                throw new IllegalArgumentException("JWT expired");
+                throw new InvalidJwtException("JWT expired");
             }
             if (issuedAt > 0 && issuedAt > now + 60) {
-                throw new IllegalArgumentException("JWT issued-at is invalid");
+                throw new InvalidJwtException("JWT issued-at is invalid");
             }
 
             return payloadNode;
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidJwtException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid JWT token");
+            throw new InvalidJwtException("Invalid JWT token");
         }
     }
 
@@ -151,7 +151,7 @@ public class JwtTokenService {
         try {
             return UUID.fromString(rawSub);
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid JWT subject");
+            throw new InvalidJwtException("Invalid JWT subject");
         }
     }
 

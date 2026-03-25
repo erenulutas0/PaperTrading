@@ -17,6 +17,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -346,8 +347,8 @@ public class WebSocketCanaryService {
 
         meterRegistry.counter(
                 "app.websocket.canary.state.transitions",
-                "from", previousState.name().toLowerCase(),
-                "to", desiredState.name().toLowerCase()
+                "from", previousState.name().toLowerCase(Locale.ROOT),
+                "to", desiredState.name().toLowerCase(Locale.ROOT)
         ).increment();
 
         alertState.set(desiredState);

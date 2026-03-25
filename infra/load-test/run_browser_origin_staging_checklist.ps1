@@ -123,12 +123,13 @@ function Parse-MarkdownStatus {
   }
 
   $content = Get-Content -Path $ReportPath -Raw
-  $match = [regex]::Match($content, "- Status:\s+\*\*(.+?)\*\*", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+  $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
   if ($match.Success -and $match.Groups.Count -ge 2) {
     return $match.Groups[1].Value.Trim()
   }
 
-  $lineMatch = [regex]::Match($content, "Status:\s+([A-Z_]+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
   if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
     return $lineMatch.Groups[1].Value.Trim()
   }
@@ -140,20 +141,13 @@ function Invoke-ScriptStep {
   param(
     [string]$Name,
     [string]$ScriptPath,
-    [string[]]$Arguments,
+    [hashtable]$Parameters,
     [string]$ReportPattern
   )
 
   $before = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
   try {
-    & powershell -ExecutionPolicy Bypass -File $ScriptPath @Arguments | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-      $report = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
-      if ($report -eq $before) {
-        $report = ""
-      }
-      return New-StepResult -Name $Name -Status "FAILED" -Detail "exit_code=$LASTEXITCODE" -ReportPath $report
-    }
+    & $ScriptPath @Parameters | Out-Null
 
     $report = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
     if ([string]::IsNullOrWhiteSpace($report)) {
@@ -221,20 +215,20 @@ $protectedOrigin = Get-HeaderValue -Headers $protected.headers -Name "Access-Con
 $results.Add((New-StepResult -Name "Protected Read With Origin" -Status $(if ($protected.status -eq 200 -and $protectedOrigin -eq $FrontendOrigin) { "PASSED" } else { "FAILED" }) -Detail "status=$($protected.status), allowOrigin=$protectedOrigin")) | Out-Null
 
 if (-not $SkipRelay) {
-  $relayArgs = @(
-    "-SkipAppStart",
-    "-BaseUrl", $BaseUrl,
-    "-OriginHeader", $FrontendOrigin
-  )
-  if (-not [string]::IsNullOrWhiteSpace($RelayBrokerRestartCommand)) {
-    $relayArgs += @("-BrokerRestartCommand", $RelayBrokerRestartCommand)
+  $relayParams = @{
+    SkipAppStart = $true
+    BaseUrl      = $BaseUrl
+    OriginHeader = $FrontendOrigin
+    NoFail       = $true
   }
-  $relayArgs += "-NoFail"
+  if (-not [string]::IsNullOrWhiteSpace($RelayBrokerRestartCommand)) {
+    $relayParams["BrokerRestartCommand"] = $RelayBrokerRestartCommand
+  }
 
   $results.Add((Invoke-ScriptStep `
         -Name "WebSocket Origin Relay" `
         -ScriptPath (Join-Path $PSScriptRoot "validate_websocket_relay_smoke.ps1") `
-        -Arguments $relayArgs `
+        -Parameters $relayParams `
         -ReportPattern "websocket-relay-smoke-*.md")) | Out-Null
 }
 

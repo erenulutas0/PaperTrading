@@ -10,6 +10,7 @@ param(
   [switch]$SkipOrigin,
   [switch]$SkipRelay,
   [switch]$SkipCanary,
+  [switch]$SkipSseFallback,
   [switch]$NoFail
 )
 
@@ -62,12 +63,13 @@ function Parse-MarkdownStatus {
   }
 
   $content = Get-Content -Path $ReportPath -Raw
-  $match = [regex]::Match($content, "- Status:\s+\*\*(.+?)\*\*", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+  $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
   if ($match.Success -and $match.Groups.Count -ge 2) {
     return $match.Groups[1].Value.Trim()
   }
 
-  $lineMatch = [regex]::Match($content, "Status:\s+([A-Z_]+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
   if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
     return $lineMatch.Groups[1].Value.Trim()
   }
@@ -79,20 +81,13 @@ function Invoke-ScriptStep {
   param(
     [string]$Name,
     [string]$ScriptPath,
-    [string[]]$Arguments,
+    [hashtable]$Parameters,
     [string]$ReportPattern
   )
 
   $before = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
   try {
-    & powershell -ExecutionPolicy Bypass -File $ScriptPath @Arguments | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-      $report = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
-      if ($report -eq $before) {
-        $report = ""
-      }
-      return New-StepResult -Name $Name -Status "FAILED" -Detail "exit_code=$LASTEXITCODE" -ReportPath $report
-    }
+    & $ScriptPath @Parameters | Out-Null
 
     $report = Get-LatestReport -Directory $ReportsDir -Pattern $ReportPattern
     if ([string]::IsNullOrWhiteSpace($report)) {
@@ -121,63 +116,74 @@ $reportPath = Join-Path $ReportsDir "websocket-staging-resilience-suite-$timesta
 $results = New-Object 'System.Collections.Generic.List[object]'
 
 if (-not $SkipOrigin) {
-  $originArgs = @(
-    "-BaseUrl", $BaseUrl,
-    "-FrontendOrigin", $FrontendOrigin,
-    "-NoFail"
-  )
+  $originParams = @{
+    BaseUrl        = $BaseUrl
+    FrontendOrigin = $FrontendOrigin
+    NoFail         = $true
+  }
   if ($SkipRelay) {
-    $originArgs += "-SkipRelay"
+    $originParams["SkipRelay"] = $true
   } elseif (-not [string]::IsNullOrWhiteSpace($RelayBrokerRestartCommand)) {
-    $originArgs += @("-RelayBrokerRestartCommand", $RelayBrokerRestartCommand)
+    $originParams["RelayBrokerRestartCommand"] = $RelayBrokerRestartCommand
   }
 
   $results.Add((Invoke-ScriptStep `
         -Name "Browser Origin" `
         -ScriptPath (Join-Path $scriptDir "run_browser_origin_staging_checklist.ps1") `
-        -Arguments $originArgs `
+        -Parameters $originParams `
         -ReportPattern "browser-origin-staging-checklist-*.md")) | Out-Null
 }
 
 if (-not $SkipRelay) {
-  $relayArgs = @(
-    "-SkipAppStart",
-    "-BaseUrl", $BaseUrl
-  )
+  $relayParams = @{
+    SkipAppStart = $true
+    BaseUrl      = $BaseUrl
+    NoFail       = $true
+  }
   if (-not [string]::IsNullOrWhiteSpace($FrontendOrigin)) {
-    $relayArgs += @("-OriginHeader", $FrontendOrigin)
+    $relayParams["OriginHeader"] = $FrontendOrigin
   }
   if (-not [string]::IsNullOrWhiteSpace($RelayBrokerRestartCommand)) {
-    $relayArgs += @("-BrokerRestartCommand", $RelayBrokerRestartCommand)
+    $relayParams["BrokerRestartCommand"] = $RelayBrokerRestartCommand
   }
-  $relayArgs += "-NoFail"
 
   $results.Add((Invoke-ScriptStep `
         -Name "Relay Continuity" `
         -ScriptPath (Join-Path $scriptDir "validate_websocket_relay_smoke.ps1") `
-        -Arguments $relayArgs `
+        -Parameters $relayParams `
         -ReportPattern "websocket-relay-smoke-*.md")) | Out-Null
 }
 
 if (-not $SkipCanary) {
-  $canaryArgs = @(
-    "-BaseUrl", $BaseUrl,
-    "-Iterations", "$CanaryIterations",
-    "-IntervalSec", "$CanaryIntervalSec",
-    "-NoFail"
-  )
+  $canaryParams = @{
+    BaseUrl     = $BaseUrl
+    Iterations  = $CanaryIterations
+    IntervalSec = $CanaryIntervalSec
+    NoFail      = $true
+  }
   if ($IncludeCanaryWebSocketSnapshot) {
-    $canaryArgs += "-IncludeWebSocketSnapshot"
+    $canaryParams["IncludeWebSocketSnapshot"] = $true
   }
   if ($AllowAlreadyProbedCanary) {
-    $canaryArgs += "-AllowAlreadyProbed"
+    $canaryParams["AllowAlreadyProbed"] = $true
   }
 
   $results.Add((Invoke-ScriptStep `
         -Name "Canary Transition" `
         -ScriptPath (Join-Path $scriptDir "run_websocket_canary_staging_checklist.ps1") `
-        -Arguments $canaryArgs `
+        -Parameters $canaryParams `
         -ReportPattern "websocket-canary-staging-checklist-*.md")) | Out-Null
+}
+
+if (-not $SkipSseFallback) {
+  $results.Add((Invoke-ScriptStep `
+        -Name "Notification SSE Fallback" `
+        -ScriptPath (Join-Path $scriptDir "run_notification_sse_fallback_staging_checklist.ps1") `
+        -Parameters @{
+          BaseUrl = $BaseUrl
+          NoFail  = $true
+        } `
+        -ReportPattern "notification-sse-fallback-staging-checklist-*.md")) | Out-Null
 }
 
 $failed = @($results | Where-Object { $_.Status -ne "PASSED" })
@@ -196,9 +202,10 @@ $lines += "Coverage:"
 $lines += "- browser-origin REST and optional websocket origin validation"
 $lines += "- websocket relay continuity / broker restart validation"
 $lines += "- websocket canary latest-snapshot transition validation"
+$lines += "- direct notification SSE fallback delivery validation"
 $lines += ""
 $lines += "Known gap:"
-$lines += "- this suite does not prove browser-side SSE fallback behavior by itself"
+$lines += "- this suite validates transport-level SSE fallback delivery, not full browser-side toast/render dedupe semantics"
 $lines += ""
 $lines += "| Step | Status | Detail | Report |"
 $lines += "|---|---|---|---|"

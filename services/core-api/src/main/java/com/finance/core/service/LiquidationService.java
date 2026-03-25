@@ -33,6 +33,7 @@ public class LiquidationService {
     private final PortfolioItemRepository portfolioItemRepository;
     private final com.finance.core.repository.TradeActivityRepository tradeActivityRepository;
     private final BinanceService binanceService;
+    private final PerformanceAnalyticsService performanceAnalyticsService;
 
     @Scheduled(fixedDelay = 5000) // Run every 5 seconds
     @SchedulerLock(name = "LiquidationService.monitorLiquidations", lockAtMostFor = "PT45S", lockAtLeastFor = "PT2S")
@@ -115,6 +116,7 @@ public class LiquidationService {
 
                 if (changed) {
                     portfolioRepository.save(portfolio);
+                    performanceAnalyticsService.invalidatePortfolioAnalytics(portfolio.getId());
                 }
             }
 

@@ -2,6 +2,7 @@ package com.finance.core.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.core.domain.AppUser;
+import com.finance.core.domain.Portfolio;
 import com.finance.core.dto.UpdateProfileRequest;
 import com.finance.core.repository.FollowRepository;
 import com.finance.core.repository.PortfolioRepository;
@@ -126,6 +127,37 @@ class UserProfileControllerIntegrationTest {
                                 .header("X-User-Id", userAlice.getId().toString()))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.following").value(true));
+        }
+
+        @Test
+        void getSuggestions_returnsSuggestedAccountsWithPublicPortfolioCounts() throws Exception {
+                portfolioRepository.save(Portfolio.builder()
+                                .name("Bob Public")
+                                .ownerId(userBob.getId().toString())
+                                .balance(new java.math.BigDecimal("125000"))
+                                .visibility(Portfolio.Visibility.PUBLIC)
+                                .build());
+
+                mockMvc.perform(get("/api/v1/users/suggestions")
+                                .header("X-User-Id", userAlice.getId().toString())
+                                .param("limit", "6"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$[0].id").value(userBob.getId().toString()))
+                                .andExpect(jsonPath("$[0].displayName").value("Bob"))
+                                .andExpect(jsonPath("$[0].portfolioCount").value(1))
+                                .andExpect(jsonPath("$[0].following").value(false));
+        }
+
+        @Test
+        void getSuggestions_withInvalidLimit_returnsExplicitBadRequestContract() throws Exception {
+                mockMvc.perform(get("/api/v1/users/suggestions")
+                                .header("X-Request-Id", "user-suggestions-invalid-limit-1")
+                                .param("limit", "0"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().string("X-Request-Id", "user-suggestions-invalid-limit-1"))
+                                .andExpect(jsonPath("$.code").value("invalid_user_suggestion_limit"))
+                                .andExpect(jsonPath("$.message").value("Invalid user suggestion limit"))
+                                .andExpect(jsonPath("$.requestId").value("user-suggestions-invalid-limit-1"));
         }
 
         // ===== UPDATE PROFILE =====

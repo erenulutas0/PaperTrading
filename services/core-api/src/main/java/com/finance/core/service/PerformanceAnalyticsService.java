@@ -1,5 +1,6 @@
 package com.finance.core.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.finance.core.domain.AnalysisPost;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioItem;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -23,11 +25,16 @@ import java.util.*;
 @RequiredArgsConstructor
 public class PerformanceAnalyticsService {
 
+    private static final Duration FULL_ANALYTICS_CACHE_TTL = Duration.ofSeconds(30);
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
+
     private final PortfolioSnapshotRepository snapshotRepository;
     private final AnalysisPostRepository analysisPostRepository;
     private final TradeActivityRepository tradeActivityRepository;
     private final PortfolioRepository portfolioRepository;
     private final MarketDataFacadeService marketDataFacadeService;
+    private final CacheService cacheService;
 
     // ==================== RISK METRICS ====================
 
@@ -36,22 +43,7 @@ public class PerformanceAnalyticsService {
      * MDD = Max (Peak - Trough) / Peak
      */
     public double calculateMaxDrawdown(UUID portfolioId) {
-        List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
-        if (snapshots.isEmpty())
-            return 0.0;
-
-        double maxDrawdown = 0.0;
-        double peak = snapshots.get(0).getTotalEquity().doubleValue();
-
-        for (PortfolioSnapshot snapshot : snapshots) {
-            double equity = snapshot.getTotalEquity().doubleValue();
-            if (equity > peak)
-                peak = equity;
-            double drawdown = peak > 0 ? ((peak - equity) / peak) : 0;
-            if (drawdown > maxDrawdown)
-                maxDrawdown = drawdown;
-        }
-        return maxDrawdown * 100.0;
+        return calculateMaxDrawdown(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId));
     }
 
     /**
@@ -81,58 +73,31 @@ public class PerformanceAnalyticsService {
      * Sharpe Ratio (risk-free rate = 0).
      */
     public double calculateSharpeRatio(UUID portfolioId) {
-        double[] returns = getSnapshotReturns(portfolioId);
-        if (returns.length == 0)
-            return 0.0;
-
-        double avgReturn = Arrays.stream(returns).average().orElse(0);
-        double variance = Arrays.stream(returns).map(r -> Math.pow(r - avgReturn, 2)).sum() / returns.length;
-        double stdDev = Math.sqrt(variance);
-
-        if (stdDev == 0)
-            return avgReturn > 0 ? 999.0 : 0.0;
-        return avgReturn / stdDev;
+        return calculateSharpeRatio(getSnapshotReturns(portfolioId));
     }
 
     /**
      * Sortino Ratio: like Sharpe but only penalizes downside volatility.
      */
     public double calculateSortinoRatio(UUID portfolioId) {
-        double[] returns = getSnapshotReturns(portfolioId);
-        if (returns.length == 0)
-            return 0.0;
-
-        double avgReturn = Arrays.stream(returns).average().orElse(0);
-        double downsideVariance = Arrays.stream(returns)
-                .filter(r -> r < 0)
-                .map(r -> r * r)
-                .sum() / returns.length;
-        double downsideDeviation = Math.sqrt(downsideVariance);
-
-        if (downsideDeviation == 0)
-            return avgReturn > 0 ? 999.0 : 0.0;
-        return avgReturn / downsideDeviation;
+        return calculateSortinoRatio(getSnapshotReturns(portfolioId));
     }
 
     /**
      * Annualized volatility from snapshot returns.
      */
     public double calculateVolatility(UUID portfolioId) {
-        double[] returns = getSnapshotReturns(portfolioId);
-        if (returns.length < 2)
-            return 0.0;
-
-        double avgReturn = Arrays.stream(returns).average().orElse(0);
-        double variance = Arrays.stream(returns).map(r -> Math.pow(r - avgReturn, 2)).sum() / (returns.length - 1);
-        return Math.sqrt(variance) * Math.sqrt(252) * 100; // Annualized %
+        return calculateVolatility(getSnapshotReturns(portfolioId));
     }
 
     /**
      * Profit Factor = Total Profits / Total Losses (from realized PnL).
      */
     public double calculateProfitFactor(UUID portfolioId) {
-        List<TradeActivity> trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId);
+        return calculateProfitFactor(tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId));
+    }
 
+    private double calculateProfitFactor(List<TradeActivity> trades) {
         double totalProfit = 0;
         double totalLoss = 0;
 
@@ -155,9 +120,7 @@ public class PerformanceAnalyticsService {
      * Get comprehensive trade statistics for a portfolio.
      */
     public Map<String, Object> getTradeStats(UUID portfolioId) {
-        ensurePortfolioExists(portfolioId);
-        List<TradeActivity> trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId);
-        return buildTradeStats(trades);
+        return copyMapSection(getCachedFullAnalytics(portfolioId).get("tradeStats"));
     }
 
     private Map<String, Object> buildTradeStats(List<TradeActivity> trades) {
@@ -246,9 +209,7 @@ public class PerformanceAnalyticsService {
      * Get equity curve data points for charting.
      */
     public List<Map<String, Object>> getEquityCurve(UUID portfolioId) {
-        ensurePortfolioExists(portfolioId);
-        List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
-        return buildEquityCurve(snapshots);
+        return copyListSection(getCachedFullAnalytics(portfolioId).get("equityCurve"));
     }
 
     // ==================== FULL DASHBOARD ====================
@@ -257,15 +218,38 @@ public class PerformanceAnalyticsService {
      * Aggregate all analytics into a single dashboard response.
      */
     public Map<String, Object> getRiskMetrics(UUID portfolioId) {
-        ensurePortfolioExists(portfolioId);
-        return buildRiskMetrics(portfolioId);
+        return copyMapSection(getCachedFullAnalytics(portfolioId).get("riskMetrics"));
     }
 
     public Map<String, Object> getFullAnalytics(UUID portfolioId) {
+        return copyMap(getCachedFullAnalytics(portfolioId));
+    }
+
+    public void invalidatePortfolioAnalytics(UUID portfolioId) {
+        if (portfolioId == null) {
+            return;
+        }
+        cacheService.delete(fullAnalyticsCacheKey(portfolioId));
+    }
+
+    private Map<String, Object> getCachedFullAnalytics(UUID portfolioId) {
+        String cacheKey = fullAnalyticsCacheKey(portfolioId);
+        Optional<Map<String, Object>> cached = cacheService.get(cacheKey, MAP_TYPE);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        Map<String, Object> analytics = buildFullAnalytics(portfolioId);
+        cacheService.set(cacheKey, analytics, FULL_ANALYTICS_CACHE_TTL);
+        return analytics;
+    }
+
+    private Map<String, Object> buildFullAnalytics(UUID portfolioId) {
         Map<String, Object> analytics = new LinkedHashMap<>();
-        Portfolio portfolio = loadPortfolioOrThrow(portfolioId);
-        List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
-        List<TradeActivity> trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId);
+        AnalyticsInputs inputs = loadAnalyticsInputs(portfolioId, true, true, true);
+        Portfolio portfolio = inputs.portfolio();
+        List<PortfolioSnapshot> snapshots = inputs.snapshots();
+        List<TradeActivity> trades = inputs.trades();
         Map<String, Object> positionSummary = buildPositionSummary(portfolio, trades);
         List<Map<String, Object>> riskAttribution = buildRiskAttribution(portfolio);
         Map<String, Object> performanceWindows = buildPerformanceWindows(snapshots);
@@ -289,7 +273,7 @@ public class PerformanceAnalyticsService {
         analytics.put("pnlTimeline", pnlTimeline);
 
         // Risk Metrics
-        analytics.put("riskMetrics", buildRiskMetrics(portfolioId));
+        analytics.put("riskMetrics", buildRiskMetrics(snapshots, inputs.snapshotReturns(), trades));
 
         UUID ownerId = parseOwnerUuid(portfolio.getOwnerId());
         analytics.put("predictionWinRate", ownerId != null
@@ -385,7 +369,14 @@ public class PerformanceAnalyticsService {
     // ==================== INTERNAL HELPERS ====================
 
     private double[] getSnapshotReturns(UUID portfolioId) {
-        List<PortfolioSnapshot> snapshots = snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId);
+        return computeSnapshotReturns(snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId));
+    }
+
+    private String fullAnalyticsCacheKey(UUID portfolioId) {
+        return "app:analytics:full:" + portfolioId;
+    }
+
+    private double[] computeSnapshotReturns(List<PortfolioSnapshot> snapshots) {
         if (snapshots.size() < 2)
             return new double[0];
 
@@ -896,6 +887,18 @@ public class PerformanceAnalyticsService {
         return value instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
     }
 
+    private Map<String, Object> copyMap(Map<String, Object> source) {
+        return new LinkedHashMap<>(source);
+    }
+
+    private Map<String, Object> copyMapSection(Object value) {
+        return new LinkedHashMap<>(castMap(value));
+    }
+
+    private List<Map<String, Object>> copyListSection(Object value) {
+        return new ArrayList<>(castList(value));
+    }
+
     private String escapeCsv(Object value) {
         String raw = value == null ? "" : String.valueOf(value);
         if (raw.contains(",") || raw.contains("\"") || raw.contains("\n")) {
@@ -943,14 +946,70 @@ public class PerformanceAnalyticsService {
                         "Analytics portfolio not found"));
     }
 
-    private Map<String, Object> buildRiskMetrics(UUID portfolioId) {
+    private Map<String, Object> buildRiskMetrics(List<PortfolioSnapshot> snapshots, double[] returns, List<TradeActivity> trades) {
         Map<String, Object> risk = new LinkedHashMap<>();
-        risk.put("maxDrawdown", Math.round(calculateMaxDrawdown(portfolioId) * 100.0) / 100.0);
-        risk.put("sharpeRatio", Math.round(calculateSharpeRatio(portfolioId) * 100.0) / 100.0);
-        risk.put("sortinoRatio", Math.round(calculateSortinoRatio(portfolioId) * 100.0) / 100.0);
-        risk.put("volatility", Math.round(calculateVolatility(portfolioId) * 100.0) / 100.0);
-        risk.put("profitFactor", Math.round(calculateProfitFactor(portfolioId) * 100.0) / 100.0);
+        risk.put("maxDrawdown", Math.round(calculateMaxDrawdown(snapshots) * 100.0) / 100.0);
+        risk.put("sharpeRatio", Math.round(calculateSharpeRatio(returns) * 100.0) / 100.0);
+        risk.put("sortinoRatio", Math.round(calculateSortinoRatio(returns) * 100.0) / 100.0);
+        risk.put("volatility", Math.round(calculateVolatility(returns) * 100.0) / 100.0);
+        risk.put("profitFactor", Math.round(calculateProfitFactor(trades) * 100.0) / 100.0);
         return risk;
+    }
+
+    private double calculateMaxDrawdown(List<PortfolioSnapshot> snapshots) {
+        if (snapshots.isEmpty())
+            return 0.0;
+
+        double maxDrawdown = 0.0;
+        double peak = snapshots.get(0).getTotalEquity().doubleValue();
+
+        for (PortfolioSnapshot snapshot : snapshots) {
+            double equity = snapshot.getTotalEquity().doubleValue();
+            if (equity > peak)
+                peak = equity;
+            double drawdown = peak > 0 ? ((peak - equity) / peak) : 0;
+            if (drawdown > maxDrawdown)
+                maxDrawdown = drawdown;
+        }
+        return maxDrawdown * 100.0;
+    }
+
+    private double calculateSharpeRatio(double[] returns) {
+        if (returns.length == 0)
+            return 0.0;
+
+        double avgReturn = Arrays.stream(returns).average().orElse(0);
+        double variance = Arrays.stream(returns).map(r -> Math.pow(r - avgReturn, 2)).sum() / returns.length;
+        double stdDev = Math.sqrt(variance);
+
+        if (stdDev == 0)
+            return avgReturn > 0 ? 999.0 : 0.0;
+        return avgReturn / stdDev;
+    }
+
+    private double calculateSortinoRatio(double[] returns) {
+        if (returns.length == 0)
+            return 0.0;
+
+        double avgReturn = Arrays.stream(returns).average().orElse(0);
+        double downsideVariance = Arrays.stream(returns)
+                .filter(r -> r < 0)
+                .map(r -> r * r)
+                .sum() / returns.length;
+        double downsideDeviation = Math.sqrt(downsideVariance);
+
+        if (downsideDeviation == 0)
+            return avgReturn > 0 ? 999.0 : 0.0;
+        return avgReturn / downsideDeviation;
+    }
+
+    private double calculateVolatility(double[] returns) {
+        if (returns.length < 2)
+            return 0.0;
+
+        double avgReturn = Arrays.stream(returns).average().orElse(0);
+        double variance = Arrays.stream(returns).map(r -> Math.pow(r - avgReturn, 2)).sum() / (returns.length - 1);
+        return Math.sqrt(variance) * Math.sqrt(252) * 100;
     }
 
     private void ensurePortfolioExists(UUID portfolioId) {
@@ -959,6 +1018,26 @@ public class PerformanceAnalyticsService {
                     "analytics_portfolio_not_found",
                     "Analytics portfolio not found");
         }
+    }
+
+    private AnalyticsInputs loadAnalyticsInputs(
+            UUID portfolioId,
+            boolean includePortfolio,
+            boolean includeTrades,
+            boolean includeSnapshots) {
+        Portfolio portfolio = includePortfolio ? loadPortfolioOrThrow(portfolioId) : null;
+        if (!includePortfolio) {
+            ensurePortfolioExists(portfolioId);
+        }
+
+        List<TradeActivity> trades = includeTrades
+                ? tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(portfolioId)
+                : List.of();
+        List<PortfolioSnapshot> snapshots = includeSnapshots
+                ? snapshotRepository.findByPortfolioIdOrderByTimestampAsc(portfolioId)
+                : List.of();
+        double[] snapshotReturns = includeSnapshots ? computeSnapshotReturns(snapshots) : new double[0];
+        return new AnalyticsInputs(portfolio, trades, snapshots, snapshotReturns);
     }
 
     private UUID parseOwnerUuid(String ownerId) {
@@ -990,5 +1069,12 @@ public class PerformanceAnalyticsService {
             curve.add(point);
         }
         return curve;
+    }
+
+    private record AnalyticsInputs(
+            Portfolio portfolio,
+            List<TradeActivity> trades,
+            List<PortfolioSnapshot> snapshots,
+            double[] snapshotReturns) {
     }
 }

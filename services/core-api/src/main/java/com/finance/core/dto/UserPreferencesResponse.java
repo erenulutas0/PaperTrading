@@ -13,6 +13,7 @@ public class UserPreferencesResponse {
 
     private LeaderboardPreferences leaderboard;
     private TerminalPreferences terminal;
+    private NotificationPreferences notification;
 
     @Data
     @Builder
@@ -56,6 +57,36 @@ public class UserPreferencesResponse {
         private java.util.List<String> favoriteSymbols;
         private java.util.List<CompareBasket> compareBaskets;
         private java.util.List<ScannerView> scannerViews;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NotificationPreferences {
+        private InAppPreferences inApp;
+        private String digestCadence;
+        private QuietHoursPreferences quietHours;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class InAppPreferences {
+        private Boolean social;
+        private Boolean watchlist;
+        private Boolean tournaments;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class QuietHoursPreferences {
+        private Boolean enabled;
+        private String start;
+        private String end;
     }
 
     @Data

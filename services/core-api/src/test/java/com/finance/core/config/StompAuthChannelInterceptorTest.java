@@ -1,6 +1,7 @@
 package com.finance.core.config;
 
 import com.finance.core.security.JwtTokenClaims;
+import com.finance.core.security.InvalidJwtException;
 import com.finance.core.security.JwtTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -94,7 +95,8 @@ class StompAuthChannelInterceptorTest {
                 .thenReturn(new JwtTokenClaims(UUID.fromString(tokenUserId), "alice", 100L, 200L));
         Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
 
-        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(message, channel));
+        StompAuthException error = assertThrows(StompAuthException.class, () -> interceptor.preSend(message, channel));
+        assertEquals("user-id-token-mismatch", error.code());
         verify(observabilityService).recordStompError(eq("CONNECT"), eq("user-id-token-mismatch"));
     }
 
@@ -104,10 +106,11 @@ class StompAuthChannelInterceptorTest {
         accessor.setLeaveMutable(true);
         accessor.setNativeHeader("Authorization", "Bearer invalid-token");
         when(jwtTokenService.parseAndValidate("invalid-token"))
-                .thenThrow(new IllegalArgumentException("Invalid token"));
+                .thenThrow(new InvalidJwtException("Invalid token"));
         Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
 
-        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(message, channel));
+        StompAuthException error = assertThrows(StompAuthException.class, () -> interceptor.preSend(message, channel));
+        assertEquals("invalid-jwt", error.code());
         verify(observabilityService).recordStompError(eq("CONNECT"), eq("invalid-jwt"));
     }
 
@@ -120,7 +123,8 @@ class StompAuthChannelInterceptorTest {
         accessor.setUser(new StompPrincipal(userId));
         Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
 
-        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(message, channel));
+        StompAuthException error = assertThrows(StompAuthException.class, () -> interceptor.preSend(message, channel));
+        assertEquals("legacy-topic-disabled", error.code());
         verify(observabilityService).recordStompError(eq("SUBSCRIBE"), eq("legacy-topic-disabled"));
     }
 
@@ -133,7 +137,34 @@ class StompAuthChannelInterceptorTest {
         accessor.setUser(new StompPrincipal(UUID.randomUUID().toString()));
         Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
 
-        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(message, channel));
+        StompAuthException error = assertThrows(StompAuthException.class, () -> interceptor.preSend(message, channel));
+        assertEquals("cross-user-subscribe", error.code());
         verify(observabilityService).recordStompError(eq("SUBSCRIBE"), eq("cross-user-subscribe"));
+    }
+
+    @Test
+    void preSend_connectWithInvalidAuthorizationHeader_shouldRejectWithExplicitCode() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
+        accessor.setLeaveMutable(true);
+        accessor.setNativeHeader("Authorization", "Token invalid-token");
+        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        StompAuthException error = assertThrows(StompAuthException.class, () -> interceptor.preSend(message, channel));
+
+        assertEquals("invalid-authorization-header", error.code());
+        verify(observabilityService).recordStompError(eq("CONNECT"), eq("invalid-authorization-header"));
+    }
+
+    @Test
+    void preSend_connectWithInvalidUserId_shouldRejectWithExplicitCode() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
+        accessor.setLeaveMutable(true);
+        accessor.setNativeHeader("X-User-Id", "not-a-uuid");
+        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        StompAuthException error = assertThrows(StompAuthException.class, () -> interceptor.preSend(message, channel));
+
+        assertEquals("invalid-user-id", error.code());
+        verify(observabilityService).recordStompError(eq("CONNECT"), eq("invalid-user-id"));
     }
 }

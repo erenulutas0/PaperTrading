@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { extractContent } from '../../lib/page';
-import { apiFetch } from '../../lib/api-client';
+import { apiFetch, userIdHeaders } from '../../lib/api-client';
 
 interface PublicPortfolio {
     id: string;
@@ -20,6 +20,30 @@ interface PublicPortfolio {
         leverage: number;
         side: 'LONG' | 'SHORT';
     }[];
+}
+
+interface SuggestedAccount {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    verified: boolean;
+    followerCount: number;
+    portfolioCount: number;
+    trustScore: number;
+    following: boolean;
+}
+
+interface DiscoverPortfolioHighlight {
+    id: string;
+    name: string;
+    description: string | null;
+    ownerId: string;
+    ownerName: string;
+    returnPercentage1W: number;
+    profitLoss1W: number;
+    totalEquity: number;
+    createdAt: string;
 }
 
 type DiscoverWorkspaceTab = 'OVERVIEW' | 'FEED';
@@ -62,6 +86,19 @@ export default function DiscoverPage() {
     const [pageIndex, setPageIndex] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [totalElements, setTotalElements] = useState(0);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [suggestedAccounts, setSuggestedAccounts] = useState<SuggestedAccount[]>([]);
+    const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+    const [followLoadingId, setFollowLoadingId] = useState<string | null>(null);
+    const [highlightedPortfolios, setHighlightedPortfolios] = useState<DiscoverPortfolioHighlight[]>([]);
+    const [highlightsLoading, setHighlightsLoading] = useState(true);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        setCurrentUserId(window.localStorage.getItem('userId'));
+    }, []);
 
     useEffect(() => {
         const timeoutId = window.setTimeout(() => {
@@ -72,31 +109,100 @@ export default function DiscoverPage() {
     }, [discoverSearchInput]);
 
     useEffect(() => {
-        fetchDiscoverPortfolios();
+        const fetchDiscoverPortfolios = async () => {
+            setLoading(true);
+            try {
+                const url = new URL('/api/v1/portfolios/discover', window.location.origin);
+                url.searchParams.set('page', String(pageIndex));
+                url.searchParams.set('size', '12');
+                url.searchParams.set('sort', resolveSortQuery(discoverSort));
+                if (discoverQuery) {
+                    url.searchParams.set('q', discoverQuery);
+                }
+                const res = await apiFetch(`${url.pathname}${url.search}`);
+                if (res.ok) {
+                    const payload = await res.json();
+                    setPortfolios(extractContent<PublicPortfolio>(payload));
+                    const meta = readPageMeta(payload);
+                    setTotalElements(meta.totalElements);
+                    setTotalPages(meta.totalPages);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        void fetchDiscoverPortfolios();
     }, [pageIndex, discoverSort, discoverQuery]);
 
-    const fetchDiscoverPortfolios = async () => {
-        setLoading(true);
+    useEffect(() => {
+        void fetchSuggestedAccounts(currentUserId);
+    }, [currentUserId]);
+
+    useEffect(() => {
+        void fetchDiscoverHighlights();
+    }, []);
+
+    const fetchSuggestedAccounts = async (userId: string | null) => {
+        setSuggestionsLoading(true);
         try {
-            const url = new URL('/api/v1/portfolios/discover', window.location.origin);
-            url.searchParams.set('page', String(pageIndex));
-            url.searchParams.set('size', '12');
-            url.searchParams.set('sort', resolveSortQuery(discoverSort));
-            if (discoverQuery) {
-                url.searchParams.set('q', discoverQuery);
+            const response = await apiFetch('/api/v1/users/suggestions?limit=6', {
+                headers: userId ? userIdHeaders(userId) : undefined,
+                cache: 'no-store',
+            });
+            if (!response.ok) {
+                setSuggestedAccounts([]);
+                return;
             }
-            const res = await apiFetch(`${url.pathname}${url.search}`);
-            if (res.ok) {
-                const payload = await res.json();
-                setPortfolios(extractContent<PublicPortfolio>(payload));
-                const meta = readPageMeta(payload);
-                setTotalElements(meta.totalElements);
-                setTotalPages(meta.totalPages);
-            }
-        } catch (err) {
-            console.error(err);
+            setSuggestedAccounts(await response.json() as SuggestedAccount[]);
+        } catch (error) {
+            console.error(error);
+            setSuggestedAccounts([]);
         } finally {
-            setLoading(false);
+            setSuggestionsLoading(false);
+        }
+    };
+
+    const fetchDiscoverHighlights = async () => {
+        setHighlightsLoading(true);
+        try {
+            const response = await apiFetch('/api/v1/portfolios/discover/highlights?limit=4', {
+                cache: 'no-store',
+            });
+            if (!response.ok) {
+                setHighlightedPortfolios([]);
+                return;
+            }
+            setHighlightedPortfolios(await response.json() as DiscoverPortfolioHighlight[]);
+        } catch (error) {
+            console.error(error);
+            setHighlightedPortfolios([]);
+        } finally {
+            setHighlightsLoading(false);
+        }
+    };
+
+    const handleFollowSuggestion = async (suggestion: SuggestedAccount) => {
+        if (!currentUserId) {
+            window.location.href = '/auth/login';
+            return;
+        }
+        setFollowLoadingId(suggestion.id);
+        try {
+            const response = await apiFetch(`/api/v1/users/${suggestion.id}/follow`, {
+                method: 'POST',
+                headers: userIdHeaders(currentUserId),
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to follow user (${response.status})`);
+            }
+            setSuggestedAccounts((current) => current.filter((entry) => entry.id !== suggestion.id));
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setFollowLoadingId(null);
         }
     };
 
@@ -183,6 +289,136 @@ export default function DiscoverPage() {
                                 <li>Copy a portfolio into your own account when you want a tracked clone.</li>
                                 <li>Jump directly to the trader profile behind the published record.</li>
                             </ul>
+                        </section>
+                        <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 md:col-span-2">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-[11px] uppercase tracking-[0.32em] text-zinc-500">Suggested Accounts</p>
+                                    <h2 className="mt-3 text-2xl font-black text-white">Follow traders with public accountability already on display.</h2>
+                                    <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">
+                                        This rail prioritizes verified public accounts with follower traction, trust score, and at least one visible portfolio.
+                                    </p>
+                                </div>
+                                <Link href="/dashboard/leaderboard" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-300 hover:text-white">
+                                    Open Leaderboard
+                                </Link>
+                            </div>
+                            {suggestionsLoading ? (
+                                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                                    {Array.from({ length: 3 }).map((_, index) => (
+                                        <div key={index} className="h-32 animate-pulse rounded-xl bg-white/5" />
+                                    ))}
+                                </div>
+                            ) : suggestedAccounts.length === 0 ? (
+                                <div className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-5 py-6 text-sm text-zinc-400">
+                                    No account suggestions are ready yet. Public portfolios and leaderboard winners will populate this rail as the network grows.
+                                </div>
+                            ) : (
+                                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                                    {suggestedAccounts.map((account) => (
+                                        <div key={account.id} className="rounded-xl border border-white/5 bg-black/25 p-4">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <Link href={`/profile/${account.id}`} className="font-semibold text-white hover:text-green-300">
+                                                        {account.displayName}
+                                                    </Link>
+                                                    <p className="mt-1 text-xs text-zinc-500">@{account.username}</p>
+                                                </div>
+                                                {account.verified ? (
+                                                    <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-1 text-[10px] font-semibold text-green-300">
+                                                        Verified
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                            <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-zinc-400">
+                                                <span className="rounded-full border border-white/10 px-2 py-1">{account.portfolioCount} public</span>
+                                                <span className="rounded-full border border-white/10 px-2 py-1">{account.followerCount} followers</span>
+                                                <span className="rounded-full border border-white/10 px-2 py-1">Trust {account.trustScore.toFixed(1)}</span>
+                                            </div>
+                                            <div className="mt-4 flex gap-2">
+                                                <Link href={`/profile/${account.id}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200">
+                                                    View Profile
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleFollowSuggestion(account)}
+                                                    disabled={followLoadingId === account.id || account.following}
+                                                    className="rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs font-semibold text-green-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                    {followLoadingId === account.id ? 'Following...' : account.following ? 'Following' : 'Follow'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                        <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 md:col-span-2">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-[11px] uppercase tracking-[0.32em] text-zinc-500">Trending Public Portfolios</p>
+                                    <h2 className="mt-3 text-2xl font-black text-white">Open the public records already rising on the one-week board.</h2>
+                                    <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">
+                                        This rail highlights recent public outperformers so discovery can start from stronger verified momentum instead of a blank portfolio list.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setWorkspaceTab('FEED')}
+                                    className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-300 hover:text-white"
+                                >
+                                    Browse Feed
+                                </button>
+                            </div>
+                            {highlightsLoading ? (
+                                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                                    {Array.from({ length: 4 }).map((_, index) => (
+                                        <div key={index} className="h-36 animate-pulse rounded-xl bg-white/5" />
+                                    ))}
+                                </div>
+                            ) : highlightedPortfolios.length === 0 ? (
+                                <div className="mt-5 rounded-xl border border-dashed border-white/10 bg-black/20 px-5 py-6 text-sm text-zinc-400">
+                                    No trending public portfolios are available yet. Once public records accumulate, this rail will highlight the strongest recent movers.
+                                </div>
+                            ) : (
+                                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                                    {highlightedPortfolios.map((portfolio) => (
+                                        <Link
+                                            key={portfolio.id}
+                                            href={`/dashboard/portfolio/${portfolio.id}`}
+                                            className="rounded-xl border border-white/5 bg-black/25 p-4 transition hover:border-green-500/20 hover:bg-black/35"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <h3 className="font-semibold text-white">{portfolio.name}</h3>
+                                                    <p className="mt-1 text-xs text-zinc-500">by {portfolio.ownerName}</p>
+                                                </div>
+                                                <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-1 text-[10px] font-semibold text-green-300">
+                                                    1W
+                                                </span>
+                                            </div>
+                                            {portfolio.description ? (
+                                                <p className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">{portfolio.description}</p>
+                                            ) : null}
+                                            <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-zinc-400">
+                                                <span className="rounded-full border border-white/10 px-2 py-1">
+                                                    {portfolio.returnPercentage1W.toFixed(1)}% 1W
+                                                </span>
+                                                <span className="rounded-full border border-white/10 px-2 py-1">
+                                                    ${portfolio.totalEquity.toLocaleString('en-US', { maximumFractionDigits: 0 })} equity
+                                                </span>
+                                                <span className="rounded-full border border-white/10 px-2 py-1">
+                                                    ${portfolio.profitLoss1W.toLocaleString('en-US', { maximumFractionDigits: 0 })} PnL
+                                                </span>
+                                            </div>
+                                            <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
+                                                <span>Published {new Date(portfolio.createdAt).toLocaleDateString()}</span>
+                                                <span className="text-green-300">Open Portfolio →</span>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
                         </section>
                         <section className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 md:col-span-2">
                             <div className="grid gap-4 md:grid-cols-3">
@@ -371,7 +607,7 @@ export default function DiscoverPage() {
                                     {' '}from <span className="font-semibold text-white">{totalElements}</span> public portfolios.
                                     {discoverQuery && (
                                         <>
-                                            {' '}Filtered by <span className="font-semibold text-green-300">"{discoverQuery}"</span>.
+                                            {' '}Filtered by <span className="font-semibold text-green-300">&quot;{discoverQuery}&quot;</span>.
                                         </>
                                     )}
                                 </div>

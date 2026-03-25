@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -112,7 +113,7 @@ public class OpsAlertService implements OpsAlertPublisher {
         meterRegistry.counter(
                         ALERT_METRIC,
                         "component", component,
-                        "severity", severity.name().toLowerCase(),
+                        "severity", severity.name().toLowerCase(Locale.ROOT),
                         "channel", channel,
                         "result", result)
                 .increment();

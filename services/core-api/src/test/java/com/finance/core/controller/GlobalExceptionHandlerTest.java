@@ -10,6 +10,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -97,6 +100,26 @@ class GlobalExceptionHandlerTest {
         assertEquals("invalid_request_payload", response.getBody().code());
         assertEquals("Invalid request payload", response.getBody().message());
         assertEquals("global-runtime-5", response.getBody().requestId());
+    }
+
+    @Test
+    void handleResponseStatusException_usesLocaleRootForDerivedStatusCodes() {
+        HttpServletRequest request = requestWithId("global-runtime-6");
+
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+        try {
+            ResponseEntity<ApiErrorResponse> response = handler.handleResponseStatusException(
+                    new ResponseStatusException(HttpStatus.IM_USED),
+                    request);
+
+            assertEquals(HttpStatus.IM_USED, response.getStatusCode());
+            assertEquals("im_used", response.getBody().code());
+            assertEquals("IM Used", response.getBody().message());
+            assertEquals("global-runtime-6", response.getBody().requestId());
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     private HttpServletRequest requestWithId(String requestId) {

@@ -793,6 +793,64 @@ class StrategyBotControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/strategy-bots/board")
                         .header("X-User-Id", userId.toString())
+                        .param("sortBy", "LATEST_REQUESTED_AT")
+                        .param("direction", "DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(weakerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].latestRequestedAt").isNotEmpty())
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(strongerBot.getId().toString()));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
+                        .param("sortBy", "TOTAL_RUNS")
+                        .param("direction", "DESC")
+                        .param("runMode", "FORWARD_TEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(strongerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].totalRuns").value(1))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(weakerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].totalRuns").value(0));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
+                        .param("sortBy", "TOTAL_SIMULATED_TRADES")
+                        .param("direction", "DESC")
+                        .param("runMode", "FORWARD_TEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(strongerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].totalSimulatedTrades").value(2))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(weakerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].totalSimulatedTrades").value(0));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
+                        .param("sortBy", "TOTAL_SIMULATED_TRADES")
+                        .param("direction", "DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(weakerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].totalSimulatedTrades").value(8))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(strongerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].totalSimulatedTrades").value(6));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
+                        .param("sortBy", "AVG_WIN_RATE")
+                        .param("direction", "DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(strongerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].avgWinRate").value(67.5))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(weakerBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].avgWinRate").value(47.5));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/board")
+                        .header("X-User-Id", userId.toString())
                         .param("sortBy", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_strategy_bot_board_sort"));
@@ -985,11 +1043,26 @@ class StrategyBotControllerIntegrationTest {
                 .trustScore(72.25)
                 .build());
         UUID publicOwnerId = publicOwner.getId();
+        AppUser secondaryOwner = userRepository.save(AppUser.builder()
+                .username("nebula")
+                .email("nebula@example.com")
+                .password("hashed")
+                .displayName("Nebula Signals")
+                .avatarUrl("https://example.com/nebula.png")
+                .trustScore(68.5)
+                .build());
+        UUID secondaryOwnerId = secondaryOwner.getId();
 
         Portfolio publicPortfolio = portfolioRepository.save(Portfolio.builder()
                 .name("Aurora Public Basket")
                 .ownerId(publicOwnerId.toString())
                 .balance(new BigDecimal("150000"))
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build());
+        Portfolio secondaryPublicPortfolio = portfolioRepository.save(Portfolio.builder()
+                .name("Nebula Public Basket")
+                .ownerId(secondaryOwnerId.toString())
+                .balance(new BigDecimal("120000"))
                 .visibility(Portfolio.Visibility.PUBLIC)
                 .build());
         Portfolio privatePortfolio = portfolioRepository.save(Portfolio.builder()
@@ -1066,6 +1139,61 @@ class StrategyBotControllerIntegrationTest {
                         """)
                 .build());
 
+        StrategyBot publicVolumeBot = strategyBotRepository.save(StrategyBot.builder()
+                .userId(secondaryOwnerId)
+                .linkedPortfolioId(secondaryPublicPortfolio.getId())
+                .name("Nebula Runner")
+                .description("Public high-volume runner")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("20"))
+                .cooldownMinutes(60)
+                .status(StrategyBot.Status.READY)
+                .build());
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(publicVolumeBot.getId())
+                .userId(secondaryOwnerId)
+                .linkedPortfolioId(secondaryPublicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusDays(3))
+                .completedAt(LocalDateTime.now().minusDays(2))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 4.0,
+                          "netPnl": 4000.0,
+                          "tradeCount": 2,
+                          "profitFactor": 1.3
+                        }
+                        """)
+                .build());
+        strategyBotRunRepository.save(StrategyBotRun.builder()
+                .strategyBotId(publicVolumeBot.getId())
+                .userId(secondaryOwnerId)
+                .linkedPortfolioId(secondaryPublicPortfolio.getId())
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .requestedInitialCapital(new BigDecimal("100000"))
+                .effectiveInitialCapital(new BigDecimal("100000"))
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .compiledEntryRules("{}")
+                .compiledExitRules("{}")
+                .summary("""
+                        {
+                          "returnPercent": 1.0,
+                          "netPnl": 1000.0,
+                          "tradeCount": 1
+                        }
+                        """)
+                .build());
+
         mockMvc.perform(get("/api/v1/strategy-bots/discover")
                         .param("q", "aurora")
                         .param("sortBy", "AVG_RETURN")
@@ -1085,6 +1213,62 @@ class StrategyBotControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].avgReturnPercent").value(12.0))
                 .andExpect(jsonPath("$.content[0].totalRuns").value(1))
                 .andExpect(jsonPath("$.page.totalElements").value(1));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .param("sortBy", "TOTAL_RUNS")
+                        .param("direction", "DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(publicVolumeBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].totalRuns").value(2))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(publicReadyBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].totalRuns").value(1));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .param("sortBy", "AVG_PROFIT_FACTOR")
+                        .param("direction", "DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(publicReadyBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].avgProfitFactor").value(1.9))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(publicVolumeBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].avgProfitFactor").value(1.3));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .param("sortBy", "AVG_RETURN")
+                        .param("direction", "DESC")
+                        .param("runMode", "BACKTEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(publicReadyBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].avgReturnPercent").value(12.0))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(publicVolumeBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].avgReturnPercent").value(4.0));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .param("sortBy", "TOTAL_RUNS")
+                        .param("direction", "DESC")
+                        .param("runMode", "FORWARD_TEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(publicVolumeBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].totalRuns").value(1))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(publicReadyBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].totalRuns").value(0));
+
+        mockMvc.perform(get("/api/v1/strategy-bots/discover")
+                        .param("sortBy", "TOTAL_SIMULATED_TRADES")
+                        .param("direction", "DESC")
+                        .param("runMode", "FORWARD_TEST")
+                        .param("lookbackDays", "30"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].strategyBotId").value(publicVolumeBot.getId().toString()))
+                .andExpect(jsonPath("$.content[0].totalSimulatedTrades").value(0))
+                .andExpect(jsonPath("$.content[1].strategyBotId").value(publicReadyBot.getId().toString()))
+                .andExpect(jsonPath("$.content[1].totalSimulatedTrades").value(0));
 
         mockMvc.perform(get("/api/v1/strategy-bots/discover")
                         .param("sortBy", "BOGUS"))

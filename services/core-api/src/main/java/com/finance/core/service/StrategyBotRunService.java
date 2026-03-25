@@ -84,6 +84,7 @@ public class StrategyBotRunService {
     private final MarketDataFacadeService marketDataFacadeService;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
+    private final PerformanceAnalyticsService performanceAnalyticsService;
 
     @Value("${app.strategy-bots.synthetic-crypto-candles-enabled:false}")
     private boolean syntheticCryptoCandlesEnabled;
@@ -152,10 +153,21 @@ public class StrategyBotRunService {
                                                            Integer lookbackDays) {
         StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        String normalizedSort = normalizeBoardSort(sortBy);
+        String normalizedDirection = normalizeBoardDirection(direction);
+        if (supportsPagedBoardFastPath(normalizedSort, scopedRunMode, normalizedLookbackDays)) {
+            return buildOwnedBotBoardPageFast(
+                    userId,
+                    pageable,
+                    normalizedSort,
+                    normalizedDirection,
+                    scopedRunMode,
+                    normalizedLookbackDays);
+        }
         List<StrategyBotBoardEntryResponse> entries = buildBotBoardEntries(
                 userId,
-                sortBy,
-                direction,
+                normalizedSort,
+                normalizedDirection,
                 scopedRunMode,
                 normalizedLookbackDays);
 
@@ -176,9 +188,20 @@ public class StrategyBotRunService {
                                                                       String query) {
         StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
+        String normalizedSort = normalizeBoardSort(sortBy);
+        String normalizedDirection = normalizeBoardDirection(direction);
+        if (supportsPagedBoardFastPath(normalizedSort, scopedRunMode, normalizedLookbackDays)) {
+            return buildPublicBotBoardPageFast(
+                    pageable,
+                    normalizedSort,
+                    normalizedDirection,
+                    query,
+                    scopedRunMode,
+                    normalizedLookbackDays);
+        }
         List<StrategyBotBoardEntryResponse> entries = buildPublicBotBoardEntries(
-                sortBy,
-                direction,
+                normalizedSort,
+                normalizedDirection,
                 scopedRunMode,
                 normalizedLookbackDays,
                 query);
@@ -728,7 +751,7 @@ public class StrategyBotRunService {
                     .writerWithDefaultPrettyPrinter()
                     .writeValueAsString(payload);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to serialize strategy bot analytics export", ex);
+            throw new IllegalStateException("Failed to serialize strategy bot analytics export", ex);
         }
     }
 
@@ -840,7 +863,7 @@ public class StrategyBotRunService {
                     .writerWithDefaultPrettyPrinter()
                     .writeValueAsString(payload);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to serialize strategy bot run export", ex);
+            throw new IllegalStateException("Failed to serialize strategy bot run export", ex);
         }
     }
 
@@ -1115,11 +1138,53 @@ public class StrategyBotRunService {
                                                                      StrategyBotRun.RunMode scopedRunMode,
                                                                      Integer lookbackDays) {
         ensureUserExists(userId);
-        return strategyBotRepository.findByUserId(userId, Pageable.unpaged())
+        List<StrategyBot> bots = strategyBotRepository.findByUserId(userId, Pageable.unpaged())
                 .stream()
-                .map(bot -> toBoardEntry(bot, buildBotAnalytics(bot, userId, scopedRunMode, lookbackDays)))
+                .toList();
+        if (bots.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, List<StrategyBotRun>> runsByBotId = loadOwnedRunsByBotId(
+                bots.stream().map(StrategyBot::getId).toList(),
+                userId);
+
+        return bots.stream()
+                .map(bot -> toBoardEntry(
+                        bot,
+                        buildBotAnalytics(bot, runsByBotId.getOrDefault(bot.getId(), List.of()), scopedRunMode, lookbackDays)))
                 .sorted(resolveBoardComparator(sortBy, direction))
                 .toList();
+    }
+
+    private Page<StrategyBotBoardEntryResponse> buildOwnedBotBoardPageFast(UUID userId,
+                                                                           Pageable pageable,
+                                                                           String sortBy,
+                                                                           String direction,
+                                                                           StrategyBotRun.RunMode scopedRunMode,
+                                                                           Integer lookbackDays) {
+        ensureUserExists(userId);
+        Page<StrategyBot> page = loadOwnedBoardBotsPageFast(
+                userId,
+                pageable,
+                sortBy,
+                direction,
+                scopedRunMode,
+                lookbackDays);
+        if (page.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, page.getTotalElements());
+        }
+
+        List<StrategyBot> bots = page.getContent();
+        Map<UUID, List<StrategyBotRun>> runsByBotId = loadOwnedRunsByBotId(
+                bots.stream().map(StrategyBot::getId).toList(),
+                userId);
+        List<StrategyBotBoardEntryResponse> entries = bots.stream()
+                .map(bot -> toBoardEntry(
+                        bot,
+                        buildBotAnalytics(bot, runsByBotId.getOrDefault(bot.getId(), List.of()), scopedRunMode, lookbackDays)))
+                .toList();
+        return new PageImpl<>(entries, pageable, page.getTotalElements());
     }
 
     private List<StrategyBotBoardEntryResponse> buildPublicBotBoardEntries(String sortBy,
@@ -1174,6 +1239,57 @@ public class StrategyBotRunService {
                 .toList();
     }
 
+    private Page<StrategyBotBoardEntryResponse> buildPublicBotBoardPageFast(Pageable pageable,
+                                                                            String sortBy,
+                                                                            String direction,
+                                                                            String query,
+                                                                            StrategyBotRun.RunMode scopedRunMode,
+                                                                            Integer lookbackDays) {
+        Page<StrategyBot> page = loadPublicBoardBotsPageFast(
+                pageable,
+                sortBy,
+                direction,
+                query,
+                scopedRunMode,
+                lookbackDays);
+        if (page.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, page.getTotalElements());
+        }
+
+        List<StrategyBot> bots = page.getContent();
+        Map<UUID, AppUser> ownersById = userRepository.findByIdIn(bots.stream()
+                        .map(StrategyBot::getUserId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, user) -> map.put(user.getId(), user),
+                        LinkedHashMap::putAll);
+
+        Map<UUID, Portfolio> publicPortfoliosById = portfolioRepository.findByIdInAndVisibility(
+                        bots.stream()
+                                .map(StrategyBot::getLinkedPortfolioId)
+                                .filter(Objects::nonNull)
+                                .distinct()
+                                .toList(),
+                        Portfolio.Visibility.PUBLIC)
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, portfolio) -> map.put(portfolio.getId(), portfolio),
+                        LinkedHashMap::putAll);
+
+        Map<UUID, List<StrategyBotRun>> runsByBotId = loadPublicRunsByBotId(bots.stream().map(StrategyBot::getId).toList());
+        List<StrategyBotBoardEntryResponse> entries = bots.stream()
+                .map(bot -> toBoardEntry(
+                        bot,
+                        buildBotAnalytics(bot, runsByBotId.getOrDefault(bot.getId(), List.of()), scopedRunMode, lookbackDays),
+                        ownersById.get(bot.getUserId()),
+                        publicPortfoliosById.get(bot.getLinkedPortfolioId())))
+                .toList();
+        return new PageImpl<>(entries, pageable, page.getTotalElements());
+    }
+
     private List<StrategyBotRun> filterRuns(List<StrategyBotRun> runs,
                                             StrategyBotRun.RunMode scopedRunMode,
                                             Integer lookbackDays) {
@@ -1188,6 +1304,459 @@ public class StrategyBotRunService {
                     return anchor != null && !anchor.isBefore(cutoff);
                 })
                 .toList();
+    }
+
+    private Map<UUID, List<StrategyBotRun>> loadOwnedRunsByBotId(List<UUID> botIds, UUID userId) {
+        if (botIds == null || botIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, List<StrategyBotRun>> runsByBotId = new HashMap<>();
+        strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(botIds, userId)
+                .forEach(run -> runsByBotId
+                        .computeIfAbsent(run.getStrategyBotId(), ignored -> new ArrayList<>())
+                        .add(run));
+        return runsByBotId;
+    }
+
+    private Map<UUID, List<StrategyBotRun>> loadPublicRunsByBotId(List<UUID> botIds) {
+        if (botIds == null || botIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, List<StrategyBotRun>> runsByBotId = new HashMap<>();
+        strategyBotRunRepository.findByStrategyBotIdInOrderByRequestedAtDesc(botIds)
+                .forEach(run -> runsByBotId
+                        .computeIfAbsent(run.getStrategyBotId(), ignored -> new ArrayList<>())
+                        .add(run));
+        return runsByBotId;
+    }
+
+    private Page<StrategyBot> loadOwnedBoardBotsPageFast(UUID userId,
+                                                         Pageable pageable,
+                                                         String sortBy,
+                                                         String direction,
+                                                         StrategyBotRun.RunMode scopedRunMode,
+                                                         Integer lookbackDays) {
+        String runModeScope = toBoardRunModeScope(scopedRunMode);
+        boolean lookbackActive = lookbackDays != null;
+        LocalDateTime lookbackCutoff = resolveBoardLookbackCutoff(lookbackDays);
+        return switch (sortBy) {
+            case "AVG_RETURN" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByScopedAvgReturnAsc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByScopedAvgReturnDesc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByAvgReturnAsc(userId, pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByAvgReturnDesc(userId, pageable)),
+                    pageable);
+            case "AVG_NET_PNL" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByScopedAvgNetPnlAsc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByScopedAvgNetPnlDesc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByAvgNetPnlAsc(userId, pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByAvgNetPnlDesc(userId, pageable)),
+                    pageable);
+            case "AVG_WIN_RATE" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByScopedAvgWinRateAsc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByScopedAvgWinRateDesc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByAvgWinRateAsc(userId, pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByAvgWinRateDesc(userId, pageable)),
+                    pageable);
+            case "AVG_PROFIT_FACTOR" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByScopedAvgProfitFactorAsc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByScopedAvgProfitFactorDesc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByAvgProfitFactorAsc(userId, pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByAvgProfitFactorDesc(userId, pageable)),
+                    pageable);
+            case "TOTAL_SIMULATED_TRADES" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByScopedTotalSimulatedTradesAsc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByScopedTotalSimulatedTradesDesc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByTotalSimulatedTradesAsc(userId, pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByTotalSimulatedTradesDesc(userId, pageable)),
+                    pageable);
+            case "TOTAL_RUNS" -> hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                    ? loadBotsByIdPage(
+                    "ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByScopedRunCountAsc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByScopedRunCountDesc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable),
+                    pageable)
+                    : ("ASC".equals(direction)
+                    ? strategyBotRepository.findByUserIdOrderByRunCountAsc(userId, pageable)
+                    : strategyBotRepository.findByUserIdOrderByRunCountDesc(userId, pageable));
+            case "LATEST_REQUESTED_AT" -> hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                    ? loadBotsByIdPage(
+                    "ASC".equals(direction)
+                            ? strategyBotRepository.findOwnedBotIdsOrderByScopedLatestRequestedAtAsc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findOwnedBotIdsOrderByScopedLatestRequestedAtDesc(
+                            userId,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable),
+                    pageable)
+                    : ("ASC".equals(direction)
+                    ? strategyBotRepository.findByUserIdOrderByLatestRequestedAtAsc(userId, pageable)
+                    : strategyBotRepository.findByUserIdOrderByLatestRequestedAtDesc(userId, pageable));
+            default -> throw ApiRequestException.badRequest("invalid_strategy_bot_board_sort", "Invalid strategy bot board sort");
+        };
+    }
+
+    private Page<StrategyBot> loadPublicBoardBotsPageFast(Pageable pageable,
+                                                          String sortBy,
+                                                          String direction,
+                                                          String query,
+                                                          StrategyBotRun.RunMode scopedRunMode,
+                                                          Integer lookbackDays) {
+        String normalizedQuery = normalizeSearchQuery(query);
+        String runModeScope = toBoardRunModeScope(scopedRunMode);
+        boolean lookbackActive = lookbackDays != null;
+        LocalDateTime lookbackCutoff = resolveBoardLookbackCutoff(lookbackDays);
+        return switch (sortBy) {
+            case "AVG_RETURN" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedAvgReturnAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedAvgReturnDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByAvgReturnAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByAvgReturnDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)),
+                    pageable);
+            case "AVG_NET_PNL" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedAvgNetPnlAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedAvgNetPnlDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByAvgNetPnlAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByAvgNetPnlDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)),
+                    pageable);
+            case "AVG_WIN_RATE" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedAvgWinRateAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedAvgWinRateDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByAvgWinRateAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByAvgWinRateDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)),
+                    pageable);
+            case "AVG_PROFIT_FACTOR" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedAvgProfitFactorAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedAvgProfitFactorDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByAvgProfitFactorAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByAvgProfitFactorDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)),
+                    pageable);
+            case "TOTAL_SIMULATED_TRADES" -> loadBotsByIdPage(
+                    hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                            ? ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedTotalSimulatedTradesAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedTotalSimulatedTradesDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    runModeScope,
+                                    lookbackActive,
+                                    lookbackCutoff,
+                                    pageable))
+                            : ("ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByTotalSimulatedTradesAsc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByTotalSimulatedTradesDesc(
+                                    Portfolio.Visibility.PUBLIC.name(),
+                                    StrategyBot.Status.DRAFT.name(),
+                                    normalizedQuery,
+                                    pageable)),
+                    pageable);
+            case "TOTAL_RUNS" -> hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                    ? loadBotsByIdPage(
+                    "ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedRunCountAsc(
+                            Portfolio.Visibility.PUBLIC.name(),
+                            StrategyBot.Status.DRAFT.name(),
+                            normalizedQuery,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedRunCountDesc(
+                            Portfolio.Visibility.PUBLIC.name(),
+                            StrategyBot.Status.DRAFT.name(),
+                            normalizedQuery,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable),
+                    pageable)
+                    : ("ASC".equals(direction)
+                    ? strategyBotRepository.findPublicDiscoverableBotsOrderByRunCountAsc(
+                            Portfolio.Visibility.PUBLIC,
+                            StrategyBot.Status.DRAFT,
+                            normalizedQuery,
+                            pageable)
+                    : strategyBotRepository.findPublicDiscoverableBotsOrderByRunCountDesc(
+                            Portfolio.Visibility.PUBLIC,
+                            StrategyBot.Status.DRAFT,
+                            normalizedQuery,
+                            pageable));
+            case "LATEST_REQUESTED_AT" -> hasScopedBoardFilters(scopedRunMode, lookbackDays)
+                    ? loadBotsByIdPage(
+                    "ASC".equals(direction)
+                            ? strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedLatestRequestedAtAsc(
+                            Portfolio.Visibility.PUBLIC.name(),
+                            StrategyBot.Status.DRAFT.name(),
+                            normalizedQuery,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable)
+                            : strategyBotRepository.findPublicDiscoverableBotIdsOrderByScopedLatestRequestedAtDesc(
+                            Portfolio.Visibility.PUBLIC.name(),
+                            StrategyBot.Status.DRAFT.name(),
+                            normalizedQuery,
+                            runModeScope,
+                            lookbackActive,
+                            lookbackCutoff,
+                            pageable),
+                    pageable)
+                    : ("ASC".equals(direction)
+                    ? strategyBotRepository.findPublicDiscoverableBotsOrderByLatestRequestedAtAsc(
+                            Portfolio.Visibility.PUBLIC,
+                            StrategyBot.Status.DRAFT,
+                            normalizedQuery,
+                            pageable)
+                    : strategyBotRepository.findPublicDiscoverableBotsOrderByLatestRequestedAtDesc(
+                            Portfolio.Visibility.PUBLIC,
+                            StrategyBot.Status.DRAFT,
+                            normalizedQuery,
+                            pageable));
+            default -> throw ApiRequestException.badRequest("invalid_strategy_bot_board_sort", "Invalid strategy bot board sort");
+        };
+    }
+
+    private boolean supportsPagedBoardFastPath(String sortBy,
+                                               StrategyBotRun.RunMode scopedRunMode,
+                                               Integer lookbackDays) {
+        if ("AVG_RETURN".equals(sortBy)
+                || "AVG_NET_PNL".equals(sortBy)
+                || "AVG_WIN_RATE".equals(sortBy)
+                || "AVG_PROFIT_FACTOR".equals(sortBy)
+                || "TOTAL_RUNS".equals(sortBy)
+                || "LATEST_REQUESTED_AT".equals(sortBy)
+                || "TOTAL_SIMULATED_TRADES".equals(sortBy)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasScopedBoardFilters(StrategyBotRun.RunMode scopedRunMode, Integer lookbackDays) {
+        return scopedRunMode != null || lookbackDays != null;
+    }
+
+    private String toBoardRunModeScope(StrategyBotRun.RunMode scopedRunMode) {
+        return scopedRunMode == null ? "ALL" : scopedRunMode.name();
+    }
+
+    private LocalDateTime resolveBoardLookbackCutoff(Integer lookbackDays) {
+        return lookbackDays == null
+                ? LocalDateTime.of(1970, 1, 1, 0, 0)
+                : LocalDateTime.now().minusDays(lookbackDays.longValue());
+    }
+
+    private Page<StrategyBot> loadBotsByIdPage(Page<UUID> idPage, Pageable pageable) {
+        if (idPage.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, idPage.getTotalElements());
+        }
+
+        List<UUID> ids = idPage.getContent();
+        Map<UUID, StrategyBot> botsById = strategyBotRepository.findAllById(ids)
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, bot) -> map.put(bot.getId(), bot),
+                        LinkedHashMap::putAll);
+
+        List<StrategyBot> orderedBots = ids.stream()
+                .map(botsById::get)
+                .filter(Objects::nonNull)
+                .toList();
+        return new PageImpl<>(orderedBots, pageable, idPage.getTotalElements());
     }
 
     private StrategyBotRun.RunMode normalizeBoardRunMode(String runMode) {
@@ -1325,7 +1894,7 @@ public class StrategyBotRunService {
                     .writerWithDefaultPrettyPrinter()
                     .writeValueAsString(payload);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException(errorMessage, ex);
+            throw new IllegalStateException(errorMessage, ex);
         }
     }
 
@@ -1580,6 +2149,7 @@ public class StrategyBotRunService {
         }
 
         recordSyntheticReconciliationTrades(linkedPortfolio.getId(), plan);
+        performanceAnalyticsService.invalidatePortfolioAnalytics(linkedPortfolio.getId());
 
         LinkedHashMap<String, Object> details = new LinkedHashMap<>();
         details.put("strategyBotId", bot.getId());
@@ -2842,7 +3412,7 @@ public class StrategyBotRunService {
         try {
             return objectMapper.writeValueAsString(values);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to serialize strategy bot run matched rules", ex);
+            throw new IllegalStateException("Failed to serialize strategy bot run matched rules", ex);
         }
     }
 
@@ -2850,7 +3420,7 @@ public class StrategyBotRunService {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to serialize strategy bot run event payload", ex);
+            throw new IllegalStateException("Failed to serialize strategy bot run event payload", ex);
         }
     }
 
@@ -2858,7 +3428,7 @@ public class StrategyBotRunService {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to serialize strategy bot run summary", ex);
+            throw new IllegalStateException("Failed to serialize strategy bot run summary", ex);
         }
     }
 
@@ -2866,7 +3436,7 @@ public class StrategyBotRunService {
         try {
             return objectMapper.readTree(raw == null || raw.isBlank() ? "{}" : raw);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to parse strategy bot run payload", ex);
+            throw new IllegalStateException("Failed to parse strategy bot run payload", ex);
         }
     }
 

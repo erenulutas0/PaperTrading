@@ -27,6 +27,8 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `repeat_baseline_median.ps1`
 - `compare_median_reports.ps1`
 - `calibrate_feed_thresholds.ps1`
+- `run_feed_observability_rollout_checklist.ps1`
+- `run_runtime_observability_review_checklist.ps1`
 - `validate_ops_alert_webhook.ps1`
 - `validate_ops_alert_webhook_skipapp_flow.ps1`
 - `run_ops_alert_webhook_staging_checklist.ps1`
@@ -42,6 +44,9 @@ This folder contains a lightweight, repeatable load scenario for the core API fe
 - `run_idempotency_cleanup_local_runtime_check.ps1`
 - `run_audit_write_capture_smoke.ps1`
 - `run_audit_validation_local_runtime_check.ps1`
+- `run_data_integrity_staging_checklist.ps1`
+- `run_data_integrity_local_runtime_check.ps1`
+- `run_railway_frontend_staging_checklist.ps1`
 - `run_portfolio_pagination_warning_smoke.ps1`
 - `run_strategy_bot_forward_test_scheduler_smoke.ps1`
 - `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
@@ -176,7 +181,7 @@ Run staged follower-fanout median stress in one suite report:
 ```powershell
 ./infra/load-test/run_follower_fanout_stress_suite.ps1 `
   -BaseUrl "http://localhost:8080" `
-  -FanoutStages 1000,5000,10000 `
+  -FanoutStages @(1000,5000,10000) `
   -SeedEvents 200 `
   -Concurrency 8 `
   -RequestsPerWorker 120 `
@@ -226,7 +231,7 @@ Run the combined feed scale validation suite:
 ```powershell
 ./infra/load-test/run_feed_scale_validation_suite.ps1 `
   -BaseUrl "http://localhost:8080" `
-  -FanoutStages 1000,5000,10000 `
+  -FanoutStages @(1000,5000,10000) `
   -SeedEvents 200 `
   -Concurrency 8 `
   -RequestsPerWorker 120 `
@@ -239,6 +244,50 @@ Useful notes:
   - `run_feed_latency_recalibration_checklist.ps1`
 - it emits one parent report linking the child fanout + recalibration reports
 - use `-SkipFanoutSuite` or `-SkipRecalibration` when you only want one side of the flow
+
+Run the parent feed observability rollout checklist:
+
+```powershell
+./infra/load-test/run_feed_observability_rollout_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -FanoutStages @(1000,5000,10000)
+```
+
+Useful notes:
+- this wrapper chains:
+  - `run_feed_scale_staging_checklist.ps1`
+  - `run_feed_latency_recalibration_checklist.ps1`
+- it keeps the remaining feed observability backlog under one parent report
+- use `-SkipScaleChecklist` when you only want telemetry recalibration from an existing report history
+- use `-SkipTelemetryRecalibration` when you only want fresh staging ladder evidence
+
+Run the runtime observability review checklist after a meaningful traffic window:
+
+```powershell
+./infra/load-test/run_runtime_observability_review_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Checklist behavior:
+- captures one report across:
+  - `/actuator/feedlatency`
+  - `/actuator/authsessions`
+  - `/actuator/websocket`
+  - `/actuator/websocketcanary?refresh=false`
+  - `/actuator/idempotency`
+  - `/actuator/opsalerts`
+- is intended to provide one attachable snapshot before pool/cache TTL tuning or threshold changes are proposed
+
+For a fresh local proof against current code, run:
+
+```powershell
+./infra/load-test/run_runtime_observability_review_local_runtime_check.ps1
+```
+
+Local wrapper behavior:
+- boots a temporary backend on a dedicated port
+- runs the runtime observability review checklist against that runtime
+- emits one parent markdown report plus app stdout/stderr logs
 
 Validate end-to-end ops webhook routing (starts core-api on port `18080` by default):
 
@@ -358,6 +407,16 @@ The audit write-capture smoke checks:
 - comment on the portfolio from the actor account
 - create + delete an analysis post from the actor account
 - verify `/api/v1/ops/auditlog` exposes request-id-filtered rows for:
+  - portfolio create
+  - trade buy
+  - follow
+  - comment
+  - analysis create
+  - analysis delete
+- verify `/api/v1/ops/auditlog?limit=5` returns recent rows without `internal_error`
+- verify `/actuator/auditlog` returns a recent snapshot:
+  - without query params
+  - with optional `?limit=5` present
 
 Run portfolio pagination warning smoke against local infra:
 
@@ -374,13 +433,6 @@ The portfolio pagination warning smoke checks:
 - leaderboard scheduler activity is observed in logs
 - `HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory`
   does not appear during the observation window
-  - portfolio create
-  - trade buy
-  - follow
-  - comment
-- analysis create
-- analysis delete
-- verify `/actuator/auditlog` still exposes a recent unfiltered snapshot
 
 Run strategy-bot forward-test scheduler smoke against a local backend:
 
@@ -601,6 +653,106 @@ Checklist behavior:
 - reuses `validate_websocket_relay_smoke.ps1` with an explicit WebSocket `Origin` header
 - use `-SkipRelay` when only HTTP CORS verification is needed
 
+Run the leaderboard preference persistence checklist:
+
+```powershell
+./infra/load-test/run_leaderboard_preferences_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Checklist behavior:
+- registers a fresh user
+- verifies default leaderboard preference payload
+- persists dashboard leaderboard lens (`period`, `sortBy`, `direction`)
+- persists public leaderboard lens (`sortBy`, `direction`) without clobbering dashboard values
+- re-reads `/api/v1/users/me/preferences` to prove continuity
+- probes both portfolio and account leaderboard endpoints with the persisted lens values
+
+Run the leaderboard period validation checklist:
+
+```powershell
+./infra/load-test/run_leaderboard_period_validation_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Checklist behavior:
+- probes portfolio leaderboard periods `1D`, `1W`, `1M`, `ALL`
+- captures both `RETURN_PERCENTAGE` and `PROFIT_LOSS` top slices
+- writes one attachable markdown report for the remaining product/staging decision on ranking semantics
+- treats empty-but-healthy slices as `CONDITIONAL_READY` so the report distinguishes data absence from transport/contract failure
+
+The parent staging readiness suite also includes the data-integrity, error-contract, and leaderboard period validation steps unless `-SkipDataIntegrity`, `-SkipErrorContracts`, or `-SkipLeaderboardPeriods` is provided.
+
+Run the feed-scale staging checklist:
+
+```powershell
+./infra/load-test/run_feed_scale_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Checklist behavior:
+- uses staging-oriented defaults for follower fanout stages: `1000 -> 5000 -> 10000`
+- delegates to `run_feed_scale_validation_suite.ps1`
+- keeps the per-stage median reports plus recalibration output linked behind one attachable wrapper report
+
+Run the error-contract staging checklist:
+
+```powershell
+./infra/load-test/run_error_contract_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Checklist behavior:
+- verifies representative unified error payloads across portfolio/trade/tournament/watchlist surfaces
+- verifies social follow/participation edge contracts on bearer-authenticated flows
+- checks both JSON `requestId` continuity and `X-Request-Id` echo behavior
+
+Run the Flyway/data staging checklist:
+
+```powershell
+./infra/load-test/run_flyway_data_staging_checklist.ps1 `
+  -DbHost "staging-db-host" `
+  -DbPort 5432 `
+  -DbName "finance_db" `
+  -DbUser "postgres"
+```
+
+Checklist behavior:
+- verifies successful Flyway history rows for `V3`, `V9`, `V10`, and `V27`
+- verifies the live `interactions_target_type_check` constraint includes `COMMENT`
+- verifies BUY trade rows no longer carry `NULL` `realized_pnl` after the V9 data fix
+- verifies no legacy `quantity = 0` crypto rows remain in `portfolio_items` / `trade_activities` under the `USDT` symbol heuristic after the V27 precision widening
+- emits recent sample rows when zeroed crypto history is present so manual cleanup decisions can be made from the report itself
+
+Run the parent data-integrity staging checklist:
+
+```powershell
+./infra/load-test/run_data_integrity_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -DbHost "staging-db-host" `
+  -DbPort 5432 `
+  -DbName "finance_db" `
+  -DbUser "postgres"
+```
+
+Parent checklist behavior:
+- runs the market-price false-loss checklist
+- runs the Flyway/data checklist
+- emits one parent markdown report linking both child reports
+- keeps the remaining data-integrity rollout evidence in one attachable artifact instead of two separate commands
+
+Run a one-off local runtime wrapper for the same error-contract checklist:
+
+```powershell
+./infra/load-test/run_error_contract_local_runtime_check.ps1
+```
+
+Wrapper behavior:
+- boots a temporary backend against local Postgres/Redis
+- waits for health
+- executes `run_error_contract_staging_checklist.ps1` against the fresh runtime
+- writes a parent report plus the child checklist report
+
 Run Bearer-only transport validation for the two scripts that matter most after strict auth cutover:
 
 ```powershell
@@ -700,8 +852,98 @@ Suite behavior:
 - runs browser-origin validation
 - runs websocket relay continuity / restart validation
 - runs websocket canary transition validation
+- runs direct notification SSE fallback delivery validation
 - writes one summary report linking child reports
-- note: browser-side SSE fallback still needs separate UX/runtime validation; this suite does not claim that path
+- note: the suite validates transport-level SSE fallback delivery, not full browser toast/render dedupe semantics
+
+Run the standalone notification SSE fallback checklist:
+
+```powershell
+./infra/load-test/run_notification_sse_fallback_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Checklist behavior:
+- issues a short-lived bearer-authenticated stream token
+- opens the SSE stream directly with that token
+- triggers a follow notification and verifies one SSE event arrives
+- verifies unread-count and inbox continuity after fallback delivery
+- checks a short duplicate window so the SSE path does not replay the same notification twice
+
+Run the fresh-local-runtime wrapper for the same SSE fallback checklist:
+
+```powershell
+./infra/load-test/run_notification_sse_fallback_local_runtime_check.ps1
+```
+
+Run the market-price false-loss checklist:
+
+```powershell
+./infra/load-test/run_market_price_false_loss_staging_checklist.ps1 `
+  -BaseUrl "http://staging-core-api:8080"
+```
+
+Checklist behavior:
+- creates a fresh public portfolio and opens one small BTCUSDT long
+- verifies portfolio detail total equity does not collapse into false-loss territory
+- verifies leaderboard profit/loss and total equity for the same portfolio stay above a configurable floor
+- is intended to catch the old `0.00` quantity / sparse-price false-loss drift with one attachable report
+
+Run the fresh-local-runtime restart wrapper for the same false-loss check:
+
+```powershell
+./infra/load-test/run_market_price_false_loss_local_runtime_check.ps1
+```
+
+Local wrapper behavior:
+- boots one temporary backend with manual market seeding enabled
+- opens the micro-position through the checklist
+- restarts into a second fresh backend process
+- re-reads `/actuator/marketprices`, portfolio detail, and leaderboard so restart-time false-loss regressions are visible
+
+Run the parent local runtime wrapper for the same combined data-integrity proof:
+
+```powershell
+./infra/load-test/run_data_integrity_local_runtime_check.ps1
+```
+
+Local parent wrapper behavior:
+- runs the market-price false-loss local runtime check
+- runs the Flyway/data staging checklist against the same local database
+- emits one parent report linking both child reports
+
+Run the Railway frontend staging checklist after `apps/web` is deployed:
+
+```powershell
+./infra/load-test/run_railway_frontend_staging_checklist.ps1 `
+  -FrontendBaseUrl "https://your-frontend.up.railway.app" `
+  -BackendBaseUrl "https://your-backend.up.railway.app" `
+  -RelayBrokerRestartCommand "docker restart finance-rabbitmq"
+```
+
+Checklist behavior:
+- verifies the frontend domain serves `/auth/login`
+- verifies the frontend proxy path serves `/api/v1/leaderboards`
+- verifies proxied register/login and a protected unread-count read through the frontend domain
+- delegates browser-origin and optional relay validation to `run_browser_origin_staging_checklist.ps1` using the real frontend origin
+
+Run one parent staging readiness suite that links the main audit/auth/websocket/ops checklist reports:
+
+```powershell
+./infra/load-test/run_staging_readiness_suite.ps1 `
+  -BaseUrl "http://staging-core-api:8080" `
+  -FrontendOrigin "https://frontend.up.railway.app" `
+  -RelayBrokerRestartCommand "docker restart finance-rabbitmq"
+```
+
+Suite behavior:
+- runs audit staging checklist
+- runs data-integrity staging checklist
+- runs auth strict pre-cutover checklist
+- runs websocket staging resilience suite
+- runs ops webhook staging checklist
+- writes one parent markdown report that links the child checklist reports
+- use `-Skip*` switches to narrow the suite for partial rollout phases
 
 Check auth legacy-header usage readiness before disabling legacy mode:
 
@@ -787,6 +1029,18 @@ Checklist behavior:
   - readiness is `READY` or `CONDITIONAL_READY`
 - emits a single markdown summary that points at the underlying readiness report
 
+For a fresh local proof with legacy-header acceptance already forced off, run:
+
+```powershell
+./infra/load-test/run_auth_strict_post_cutover_local_runtime_check.ps1 `
+  -SkipRelay
+```
+
+Local wrapper behavior:
+- boots a temporary backend with `APP_AUTH_ALLOW_LEGACY_USER_ID_HEADER=false`
+- runs the post-cutover checklist against that current runtime
+- emits one parent markdown report plus app stdout/stderr logs
+
 ## Output
 
 Report file:
@@ -806,6 +1060,7 @@ Report file:
 - `infra/load-test/reports/auth-observability-calibration-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-strict-readiness-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-strict-pre-cutover-checklist-YYYYMMDD-HHMMSS.md`
+- `infra/load-test/reports/auth-strict-post-cutover-local-runtime-check-YYYYMMDD-HHMMSS.md`
 - `infra/load-test/reports/auth-attack-scenarios-YYYYMMDD-HHMMSS.md`
 
 Contains:

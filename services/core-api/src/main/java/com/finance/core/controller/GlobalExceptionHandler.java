@@ -15,6 +15,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -42,7 +43,7 @@ public class GlobalExceptionHandler {
             case FORBIDDEN -> "forbidden";
             case NOT_FOUND -> "not_found";
             case BAD_REQUEST -> "bad_request";
-            default -> status.name().toLowerCase();
+            default -> status.name().toLowerCase(Locale.ROOT);
         };
         String message = ex.getReason() != null && !ex.getReason().isBlank()
                 ? ex.getReason()

@@ -262,7 +262,7 @@ public class StrategyBotService {
         try {
             return objectMapper.writeValueAsString(normalized);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to serialize strategy rules", ex);
+            throw new IllegalStateException("Failed to serialize strategy rules", ex);
         }
     }
 
@@ -270,7 +270,7 @@ public class StrategyBotService {
         try {
             return objectMapper.readTree(raw == null || raw.isBlank() ? "{}" : raw);
         } catch (JsonProcessingException ex) {
-            throw new IllegalArgumentException("Failed to parse stored strategy rules", ex);
+            throw new IllegalStateException("Failed to parse stored strategy rules", ex);
         }
     }
 

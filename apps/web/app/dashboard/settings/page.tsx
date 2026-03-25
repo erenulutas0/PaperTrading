@@ -8,7 +8,9 @@ import { apiFetch, userIdHeaders } from '../../../lib/api-client';
 import {
     fetchTerminalLayouts,
     fetchUserPreferences,
+    updateNotificationPreferences,
     type TerminalLayoutResponsePayload,
+    type NotificationPreferencesResponsePayload,
     type UserPreferencesResponsePayload,
 } from '../../../lib/user-preferences';
 
@@ -125,6 +127,19 @@ export default function DashboardSettingsPage() {
     const [displayName, setDisplayName] = useState('');
     const [bio, setBio] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
+    const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferencesResponsePayload>({
+        inApp: {
+            social: true,
+            watchlist: true,
+            tournaments: true,
+        },
+        digestCadence: 'INSTANT',
+        quietHours: {
+            enabled: false,
+            start: '22:00',
+            end: '08:00',
+        },
+    });
 
     const loadSettings = useCallback(async () => {
         const localUserId = localStorage.getItem('userId');
@@ -161,6 +176,9 @@ export default function DashboardSettingsPage() {
             setBio(profilePayload.bio ?? '');
             setAvatarUrl(profilePayload.avatarUrl ?? '');
             setPreferences(preferenceRes);
+            if (preferenceRes?.notification) {
+                setNotificationPrefs(preferenceRes.notification);
+            }
             setLayouts(layoutRes);
         } catch (loadError) {
             console.error(loadError);
@@ -217,10 +235,38 @@ export default function DashboardSettingsPage() {
     };
 
     const terminal = preferences?.terminal;
+    const notification = preferences?.notification ?? notificationPrefs;
     const compareBasketCount = terminal?.compareBaskets?.length ?? 0;
     const scannerViewCount = terminal?.scannerViews?.length ?? 0;
     const favoriteCount = terminal?.favoriteSymbols?.length ?? 0;
     const compareCount = terminal?.compareSymbols?.length ?? 0;
+
+    const handleSaveNotificationPreferences = useCallback(async () => {
+        if (!userId) {
+            setError('You need an active session to save notification preferences.');
+            return;
+        }
+
+        setSaving(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            const updated = await updateNotificationPreferences(userId, notificationPrefs);
+            if (!updated) {
+                throw new Error('notification save failed');
+            }
+            setPreferences(updated);
+            if (updated.notification) {
+                setNotificationPrefs(updated.notification);
+            }
+            setSuccess('Notification preferences saved.');
+        } catch (saveError) {
+            console.error(saveError);
+            setError('Notification preferences could not be saved.');
+        } finally {
+            setSaving(false);
+        }
+    }, [notificationPrefs, userId]);
 
     const handleCopyAccountSummary = useCallback(async () => {
         if (!profile) {
@@ -243,6 +289,9 @@ export default function DashboardSettingsPage() {
             `Compare Baskets: ${compareBasketCount}`,
             `Scanner Views: ${scannerViewCount}`,
             `Layouts: ${layouts.length}`,
+            `Inbox Digest: ${notification ? notification.digestCadence : 'N/A'}`,
+            `Quiet Hours: ${notification ? (notification.quietHours.enabled ? `${notification.quietHours.start}-${notification.quietHours.end}` : 'OFF') : 'N/A'}`,
+            `Inbox Categories: ${notification ? `social=${notification.inApp.social}, watchlist=${notification.inApp.watchlist}, tournaments=${notification.inApp.tournaments}` : 'N/A'}`,
         ].join('\n');
 
         try {
@@ -253,7 +302,7 @@ export default function DashboardSettingsPage() {
             console.error(copyError);
             setError('Account summary could not be copied.');
         }
-    }, [compareBasketCount, compareCount, favoriteCount, layouts.length, profile, scannerViewCount, terminal]);
+    }, [compareBasketCount, compareCount, favoriteCount, layouts.length, notification, profile, scannerViewCount, terminal]);
 
     const handleExportSettingsSnapshot = useCallback(() => {
         if (!profile) {
@@ -661,6 +710,127 @@ export default function DashboardSettingsPage() {
                         </SettingsPanel>
 
                         <SettingsPanel
+                            title="Inbox Routing"
+                            body="Tune in-app categories, digest cadence, and quiet hours without leaving the settings workspace."
+                        >
+                            <div className="space-y-5">
+                                <div className="grid gap-3 sm:grid-cols-3">
+                                    {([
+                                        ['social', 'Social'],
+                                        ['watchlist', 'Watchlist'],
+                                        ['tournaments', 'Tournaments'],
+                                    ] as const).map(([key, label]) => (
+                                        <label key={key} className="rounded-xl border border-border bg-background/60 px-4 py-4 text-sm text-foreground">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="font-medium">{label}</p>
+                                                    <p className="mt-1 text-xs text-muted-foreground">Keep in-app inbox alerts for {label.toLowerCase()} activity.</p>
+                                                </div>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={notification.inApp[key]}
+                                                    onChange={(event) => setNotificationPrefs((current) => ({
+                                                        ...current,
+                                                        inApp: {
+                                                            ...current.inApp,
+                                                            [key]: event.target.checked,
+                                                        },
+                                                    }))}
+                                                    className="mt-1 h-4 w-4 rounded border-border bg-background"
+                                                />
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div>
+                                        <label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Digest Cadence</label>
+                                        <select
+                                            value={notification.digestCadence}
+                                            onChange={(event) => setNotificationPrefs((current) => ({
+                                                ...current,
+                                                digestCadence: event.target.value as NotificationPreferencesResponsePayload['digestCadence'],
+                                            }))}
+                                            className="mt-2 w-full rounded-xl border border-border bg-background/60 px-4 py-3 text-sm text-foreground outline-none transition-colors focus:border-primary/40"
+                                        >
+                                            <option value="INSTANT">Instant</option>
+                                            <option value="DAILY">Daily Digest</option>
+                                            <option value="OFF">Off</option>
+                                        </select>
+                                    </div>
+                                    <label className="rounded-xl border border-border bg-background/60 px-4 py-4 text-sm text-foreground">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="font-medium">Quiet Hours</p>
+                                                <p className="mt-1 text-xs text-muted-foreground">Keep non-urgent in-app alerts muted during your offline window.</p>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={notification.quietHours.enabled}
+                                                onChange={(event) => setNotificationPrefs((current) => ({
+                                                    ...current,
+                                                    quietHours: {
+                                                        ...current.quietHours,
+                                                        enabled: event.target.checked,
+                                                    },
+                                                }))}
+                                                className="mt-1 h-4 w-4 rounded border-border bg-background"
+                                            />
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div>
+                                        <label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Quiet Hours Start</label>
+                                        <input
+                                            type="time"
+                                            value={notification.quietHours.start}
+                                            onChange={(event) => setNotificationPrefs((current) => ({
+                                                ...current,
+                                                quietHours: {
+                                                    ...current.quietHours,
+                                                    start: event.target.value,
+                                                },
+                                            }))}
+                                            className="mt-2 w-full rounded-xl border border-border bg-background/60 px-4 py-3 text-sm text-foreground outline-none transition-colors focus:border-primary/40"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Quiet Hours End</label>
+                                        <input
+                                            type="time"
+                                            value={notification.quietHours.end}
+                                            onChange={(event) => setNotificationPrefs((current) => ({
+                                                ...current,
+                                                quietHours: {
+                                                    ...current.quietHours,
+                                                    end: event.target.value,
+                                                },
+                                            }))}
+                                            className="mt-2 w-full rounded-xl border border-border bg-background/60 px-4 py-3 text-sm text-foreground outline-none transition-colors focus:border-primary/40"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSaveNotificationPreferences()}
+                                        disabled={saving}
+                                        className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {saving ? 'Saving...' : 'Save Notification Preferences'}
+                                    </button>
+                                    <Link href="/notifications" className="rounded-xl border border-border bg-accent px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/30">
+                                        Open Inbox
+                                    </Link>
+                                </div>
+                            </div>
+                        </SettingsPanel>
+
+                        <SettingsPanel
                             className="xl:col-span-2"
                             title="Data Footprint"
                             body="What this account keeps on the server versus what this browser keeps locally."
@@ -672,6 +842,7 @@ export default function DashboardSettingsPage() {
                                         <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Profile</span>
                                         <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Trust History</span>
                                         <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Terminal Preferences</span>
+                                        <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Notification Preferences</span>
                                         <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Layouts</span>
                                         <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Analytics</span>
                                         <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">Audit Trails</span>

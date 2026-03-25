@@ -3,6 +3,8 @@ package com.finance.core.controller;
 import com.finance.core.domain.AuditActionType;
 import com.finance.core.domain.AuditResourceType;
 import com.finance.core.domain.Portfolio;
+import com.finance.core.dto.DiscoverPortfolioHighlightResponse;
+import com.finance.core.dto.LeaderboardEntry;
 import com.finance.core.dto.PortfolioRequest;
 import com.finance.core.dto.PortfolioResponse;
 import com.finance.core.repository.PortfolioRepository;
@@ -178,6 +180,54 @@ public class PortfolioController {
         return ResponseEntity.ok(toOrderedPortfolioPage(idPage, effectivePageable, true));
     }
 
+    @GetMapping("/discover/highlights")
+    public ResponseEntity<List<DiscoverPortfolioHighlightResponse>> discoverHighlights(
+            @RequestParam(required = false) String limit) {
+        int effectiveLimit = resolveDiscoverHighlightLimit(limit);
+        Page<LeaderboardEntry> leaderboard = leaderboardService.getLeaderboard(
+                "1W",
+                "RETURN_PERCENTAGE",
+                "DESC",
+                PageRequest.of(0, effectiveLimit));
+        if (leaderboard.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<UUID> orderedIds = leaderboard.getContent().stream()
+                .map(LeaderboardEntry::getPortfolioId)
+                .toList();
+        Map<UUID, Portfolio> portfolioById = portfolioRepository
+                .findByIdInAndVisibility(orderedIds, Portfolio.Visibility.PUBLIC)
+                .stream()
+                .collect(Collectors.toMap(
+                        Portfolio::getId,
+                        portfolio -> portfolio,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+
+        List<DiscoverPortfolioHighlightResponse> response = leaderboard.getContent().stream()
+                .map(entry -> {
+                    Portfolio portfolio = portfolioById.get(entry.getPortfolioId());
+                    if (portfolio == null) {
+                        return null;
+                    }
+                    return DiscoverPortfolioHighlightResponse.builder()
+                            .id(portfolio.getId())
+                            .name(portfolio.getName())
+                            .description(portfolio.getDescription())
+                            .ownerId(portfolio.getOwnerId())
+                            .ownerName(entry.getOwnerName())
+                            .returnPercentage1W(entry.getReturnPercentage())
+                            .profitLoss1W(entry.getProfitLoss())
+                            .totalEquity(entry.getTotalEquity())
+                            .createdAt(portfolio.getCreatedAt())
+                            .build();
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        return ResponseEntity.ok(response);
+    }
+
     @PutMapping("/{id}/visibility")
     public ResponseEntity<?> toggleVisibility(
             @PathVariable UUID id,
@@ -188,6 +238,7 @@ public class PortfolioController {
             Portfolio.Visibility newVisibility = parseVisibility(request != null ? request.getVisibility() : null, true);
             portfolio.setVisibility(newVisibility);
             Portfolio saved = portfolioRepository.save(portfolio);
+            performanceAnalyticsService.invalidatePortfolioAnalytics(saved.getId());
 
             // Social logic: If made PUBLIC, publish to feed
             if (oldVisibility == Portfolio.Visibility.PRIVATE && newVisibility == Portfolio.Visibility.PUBLIC) {
@@ -250,6 +301,7 @@ public class PortfolioController {
             }
             portfolio.setBalance(portfolio.getBalance().add(request.getAmount()));
             Portfolio saved = portfolioRepository.save(portfolio);
+            performanceAnalyticsService.invalidatePortfolioAnalytics(saved.getId());
             LinkedHashMap<String, Object> details = new LinkedHashMap<>();
             details.put("amount", request.getAmount());
             details.put("newBalance", saved.getBalance());
@@ -357,6 +409,7 @@ public class PortfolioController {
         return portfolioRepository.findById(id)
                 .<ResponseEntity<?>>map(portfolio -> {
                     portfolioRepository.delete(portfolio);
+                    performanceAnalyticsService.invalidatePortfolioAnalytics(portfolio.getId());
                     LinkedHashMap<String, Object> details = new LinkedHashMap<>();
                     details.put("portfolioName", portfolio.getName());
                     details.put("visibility", portfolio.getVisibility().name());
@@ -399,6 +452,25 @@ public class PortfolioController {
                 .sorted(Comparator.comparingInt(portfolio -> orderIndex.getOrDefault(portfolio.getId(), Integer.MAX_VALUE)))
                 .toList();
         return new PageImpl<>(ordered, pageable, idPage.getTotalElements());
+    }
+
+    private int resolveDiscoverHighlightLimit(String rawLimit) {
+        if (rawLimit == null || rawLimit.isBlank()) {
+            return 4;
+        }
+        try {
+            int parsed = Integer.parseInt(rawLimit.trim());
+            if (parsed < 1 || parsed > 8) {
+                throw ApiRequestException.badRequest(
+                        "invalid_portfolio_discover_highlight_limit",
+                        "Invalid portfolio discover highlight limit");
+            }
+            return parsed;
+        } catch (NumberFormatException exception) {
+            throw ApiRequestException.badRequest(
+                    "invalid_portfolio_discover_highlight_limit",
+                    "Invalid portfolio discover highlight limit");
+        }
     }
 
     private void validateCreateRequest(PortfolioRequest request) {

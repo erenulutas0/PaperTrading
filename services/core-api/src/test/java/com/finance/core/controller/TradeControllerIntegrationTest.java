@@ -50,6 +50,21 @@ class TradeControllerIntegrationTest {
     @Autowired
     private com.finance.core.repository.PortfolioItemRepository portfolioItemRepository;
 
+    @Autowired
+    private com.finance.core.repository.StrategyBotRepository strategyBotRepository;
+
+    @Autowired
+    private com.finance.core.repository.StrategyBotRunRepository strategyBotRunRepository;
+
+    @Autowired
+    private com.finance.core.repository.StrategyBotRunFillRepository strategyBotRunFillRepository;
+
+    @Autowired
+    private com.finance.core.repository.StrategyBotRunEventRepository strategyBotRunEventRepository;
+
+    @Autowired
+    private com.finance.core.repository.StrategyBotRunEquityPointRepository strategyBotRunEquityPointRepository;
+
     @MockitoBean
     private BinanceService binanceService;
 
@@ -75,6 +90,11 @@ class TradeControllerIntegrationTest {
         notificationRepository.deleteAll();
         activityEventRepository.deleteAll();
         tradeActivityRepository.deleteAll();
+        strategyBotRunEventRepository.deleteAll();
+        strategyBotRunEquityPointRepository.deleteAll();
+        strategyBotRunFillRepository.deleteAll();
+        strategyBotRunRepository.deleteAll();
+        strategyBotRepository.deleteAll();
         portfolioItemRepository.deleteAll();
         portfolioRepository.deleteAll();
 
@@ -126,6 +146,31 @@ class TradeControllerIntegrationTest {
         assertEquals("BUY", trades.get(0).getType());
         assertNotNull(trades.get(0).getRealizedPnl());
         assertEquals(0, BigDecimal.ZERO.compareTo(trades.get(0).getRealizedPnl()));
+    }
+
+    @Test
+    void testBuyMicroQuantity_shouldPersistQuantityWithoutRoundingToZero() throws Exception {
+        TradeRequest request = new TradeRequest();
+        request.setPortfolioId(testPortfolio.getId().toString());
+        request.setSymbol("BTCUSDT");
+        request.setQuantity(new BigDecimal("0.001"));
+        request.setLeverage(1);
+        request.setSide("LONG");
+
+        mockMvc.perform(post("/api/v1/trade/buy")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.balance").value(9950.0))
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].quantity").value(0.001));
+
+        PortfolioItem savedItem = portfolioItemRepository.findAll().get(0);
+        assertEquals(0, new BigDecimal("0.001").compareTo(savedItem.getQuantity()));
+
+        var trades = tradeActivityRepository.findByPortfolioIdOrderByTimestampDesc(testPortfolio.getId());
+        assertEquals(1, trades.size());
+        assertEquals(0, new BigDecimal("0.001").compareTo(trades.get(0).getQuantity()));
     }
 
     @Test
