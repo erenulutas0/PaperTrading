@@ -39,6 +39,32 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Common Scoped Strategy-Bot Windows Now Prefer Persisted Summary Rows Without Read-Time Writes**
+  - **Problem observed**:
+    - All-time strategy-bot cold reads already had persisted summaries, but the most common scoped lenses still depended on projection-only cold assembly:
+      - `BACKTEST`
+      - `FORWARD_TEST`
+      - `7D`
+      - `30D`
+      - `90D`
+    - An initial read-time refresh attempt made scoped exports and analytics reads responsible for creating missing rows, which is the wrong ownership boundary for these surfaces.
+  - **Implementation**:
+    - Added Flyway migration `V30__create_strategy_bot_materialized_window_summaries_table.sql`.
+    - Added:
+      - `StrategyBotMaterializedWindowSummary`
+      - `StrategyBotMaterializedWindowSummaryId`
+      - `StrategyBotMaterializedWindowSummaryRepository`
+    - `StrategyBotRunService` now:
+      - loads persisted window rows first for common scoped cold reads
+      - only uses them when the requested scope is one of the supported common windows
+      - falls back to the existing scoped projection-first path when no persisted row exists or the scope is unsupported
+    - Row refresh was moved to run mutation paths, where affected bots now refresh:
+      - all-time summary row
+      - matching `BACKTEST`/`FORWARD_TEST` `7/30/90` window rows
+      before cache invalidation.
+  - **Operational impact**:
+    - common scoped cold reads now have a persisted summary layer without turning analytics/export reads into hidden write flows
+    - unsupported or less-common scopes still keep the safer live projection fallback instead of multiplying summary variants prematurely
 - **2026-03-26**: **All-Time Strategy-Bot Cold Reads Now Prefer Persisted Materialized Summaries Before Projection/Run Fallback**
   - **Problem observed**:
     - Query-layer fast paths, snapshot projections, and JSON caches had already reduced repeated hot reads for strategy bots.
