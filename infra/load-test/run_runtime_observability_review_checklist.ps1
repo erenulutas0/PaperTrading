@@ -143,6 +143,11 @@ $opsAlertsJson = Get-Json -Content $opsAlerts.content
 $opsAlertsOk = $opsAlerts.status -eq 200 -and (Test-JsonKeys -Json $opsAlertsJson -Keys @("totalAlertCount", "webhookSentCount", "webhookFailedCount"))
 $results.Add((New-StepResult -Name "Ops Alert Snapshot" -Status $(if ($opsAlertsOk) { "PASSED" } else { "FAILED" }) -Detail "status=$($opsAlerts.status), totalAlerts=$(Get-JsonPropertyValue -Json $opsAlertsJson -Name 'totalAlertCount' -DefaultValue '<missing>'), webhookSent=$(Get-JsonPropertyValue -Json $opsAlertsJson -Name 'webhookSentCount' -DefaultValue '<missing>'), webhookFailed=$(Get-JsonPropertyValue -Json $opsAlertsJson -Name 'webhookFailedCount' -DefaultValue '<missing>'), error=$($opsAlerts.error)")) | Out-Null
 
+$botSummaries = Invoke-Request -Method "GET" -Url "$BaseUrl/actuator/strategybotsummaries"
+$botSummariesJson = Get-Json -Content $botSummaries.content
+$botSummariesOk = $botSummaries.status -eq 200 -and (Test-JsonKeys -Json $botSummariesJson -Keys @("scheduledTickCount", "refreshSuccessCount", "refreshFailureCount", "lastRefreshedBotCount"))
+$results.Add((New-StepResult -Name "Strategy Bot Summary Snapshot" -Status $(if ($botSummariesOk) { "PASSED" } else { "FAILED" }) -Detail "status=$($botSummaries.status), ticks=$(Get-JsonPropertyValue -Json $botSummariesJson -Name 'scheduledTickCount' -DefaultValue '<missing>'), refreshSuccess=$(Get-JsonPropertyValue -Json $botSummariesJson -Name 'refreshSuccessCount' -DefaultValue '<missing>'), refreshFailure=$(Get-JsonPropertyValue -Json $botSummariesJson -Name 'refreshFailureCount' -DefaultValue '<missing>'), lastRefreshedBotCount=$(Get-JsonPropertyValue -Json $botSummariesJson -Name 'lastRefreshedBotCount' -DefaultValue '<missing>'), error=$($botSummaries.error)")) | Out-Null
+
 if ($feedOk) {
   $notes.Add("Feed latency thresholds: warningP95=$(Get-JsonPropertyValue -Json $feedJson -Name 'warningP95Ms'), warningP99=$(Get-JsonPropertyValue -Json $feedJson -Name 'warningP99Ms'), criticalP99=$(Get-JsonPropertyValue -Json $feedJson -Name 'criticalP99Ms')") | Out-Null
 }
@@ -154,6 +159,9 @@ if ($websocketOk -and $canaryOk) {
 }
 if ($idempotencyOk) {
   $notes.Add("Idempotency cleanup: totalRecords=$(Get-JsonPropertyValue -Json $idempotencyJson -Name 'totalRecords'), expiredRecords=$(Get-JsonPropertyValue -Json $idempotencyJson -Name 'expiredRecords'), alertState=$(Get-JsonPropertyValue -Json $idempotencyJson -Name 'alertState')") | Out-Null
+}
+if ($botSummariesOk) {
+  $notes.Add("Strategy-bot summary refresh: ticks=$(Get-JsonPropertyValue -Json $botSummariesJson -Name 'scheduledTickCount'), refreshSuccess=$(Get-JsonPropertyValue -Json $botSummariesJson -Name 'refreshSuccessCount'), refreshFailure=$(Get-JsonPropertyValue -Json $botSummariesJson -Name 'refreshFailureCount'), lastRefreshedBotCount=$(Get-JsonPropertyValue -Json $botSummariesJson -Name 'lastRefreshedBotCount')") | Out-Null
 }
 
 $failedCount = (@($results | Where-Object { $_.Status -ne "PASSED" })).Count
@@ -172,6 +180,7 @@ $lines.Add("- auth session churn snapshot")
 $lines.Add("- websocket + canary snapshot")
 $lines.Add("- idempotency cleanup snapshot")
 $lines.Add("- ops alert counter summary")
+$lines.Add("- strategy-bot summary precompute snapshot")
 $lines.Add("")
 $lines.Add("| Step | Status | Detail |")
 $lines.Add("|---|---|---|")

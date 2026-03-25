@@ -742,6 +742,8 @@ Last updated: 2026-03-26
 - [ ] Run runtime observability review checklist and attach report (`infra/load-test/run_runtime_observability_review_checklist.ps1`) after one sprint of real traffic to summarize feed/auth/websocket/idempotency/ops snapshots before tuning pool/cache TTL values
   - Local wrapper added:
     - `infra/load-test/run_runtime_observability_review_local_runtime_check.ps1`
+  - Snapshot coverage now also includes:
+    - `GET /actuator/strategybotsummaries`
   - Goal:
     - boot a fresh local backend and prove the review checklist runs against current code before the real post-traffic staging snapshot
   - Latest local passing report:

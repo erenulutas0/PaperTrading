@@ -276,6 +276,7 @@ Checklist behavior:
   - `/actuator/websocketcanary?refresh=false`
   - `/actuator/idempotency`
   - `/actuator/opsalerts`
+  - `/actuator/strategybotsummaries`
 - is intended to provide one attachable snapshot before pool/cache TTL tuning or threshold changes are proposed
 
 For a fresh local proof against current code, run:

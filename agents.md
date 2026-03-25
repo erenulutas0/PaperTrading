@@ -54,6 +54,17 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
   - **Operational impact**:
     - summary precompute no longer fails the first time it needs to persist or refresh a materialized window row
     - the new rollout wrapper is now proving real scheduler behavior instead of tripping over persistence semantics
+- **2026-03-26**: **Runtime Observability Review Now Includes Strategy-Bot Summary Precompute State**
+  - **Problem observed**:
+    - The platform-wide runtime review checklist already captured feed/auth/websocket/idempotency/ops state, but it still omitted the new strategy-bot summary precompute scheduler.
+    - That left one newer background job outside the main "post-sprint tuning snapshot" even after adding dedicated smoke tooling for it.
+  - **Implementation**:
+    - Extended `infra/load-test/run_runtime_observability_review_checklist.ps1` to snapshot:
+      - `GET /actuator/strategybotsummaries`
+    - Updated rollout docs/tracker so the runtime review slice explicitly includes summary-precompute state.
+  - **Operational impact**:
+    - post-traffic runtime reviews now include the same strategy-bot precompute scheduler that board/detail performance depends on
+    - tuning conversations can start from one broader observability artifact instead of a review checklist plus a separate bot-specific actuator probe
 - **2026-03-26**: **Strategy-Bot Summary Precompute Now Has A Dedicated Smoke And Fresh Local Runtime Proof**
   - **Problem observed**:
     - After exposing `/actuator/strategybotsummaries`, operators could inspect the scheduler state manually, but rollout evidence still depended on ad hoc endpoint probing.
