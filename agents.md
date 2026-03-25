@@ -39,6 +39,24 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Strategy-Bot Board And Discover Export Assembly Now Prefer Batch Snapshots Over Full Run Loads**
+  - **Problem observed**:
+    - Cached export entry sets removed repeated hot work, but the cold export miss path still rebuilt board/discover entries from full run-list loads:
+      - owner board export
+      - public discover export
+    - That left export assembly heavier than it needed to be even after page/detail cold-read cleanup.
+  - **Implementation**:
+    - Reworked `StrategyBotRunService.buildBotBoardEntries(...)` and `buildPublicBotBoardEntries(...)` so they now assemble from:
+      - batch aggregate snapshot projections
+      - selected scorecard run ids
+    - Reused the existing `loadBoardAnalyticsSnapshots(...)` path so export assembly and page assembly now share the same snapshot model.
+    - Kept the owned/public raw run-list loaders only as fallback when no projection data exists.
+    - Added targeted service coverage proving:
+      - owner board export snapshot assembly does not open the raw owned-run batch query
+      - public discover export snapshot assembly does not open the raw public-run batch query
+  - **Operational impact**:
+    - cold export misses for strategy-bot board/discover reads now do less full-history work before cache warmup
+    - the remaining perf backlog is pushed further toward true precomputed summary/materialization concerns instead of export-side raw-run reparsing
 - **2026-03-26**: **Strategy-Bot Analytics Cold Reads Now Prefer Aggregate Snapshots Over Full Run Reparse**
   - **Problem observed**:
     - Page and export caching had already reduced repeated hot reads, but one colder strategy-bot perf hotspot still remained:

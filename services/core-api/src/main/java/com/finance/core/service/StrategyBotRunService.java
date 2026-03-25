@@ -1614,14 +1614,17 @@ public class StrategyBotRunService {
             return List.of();
         }
 
-        Map<UUID, List<StrategyBotRun>> runsByBotId = loadOwnedRunsByBotId(
-                bots.stream().map(StrategyBot::getId).toList(),
-                userId);
+        List<UUID> botIds = bots.stream().map(StrategyBot::getId).toList();
+        Map<UUID, BoardAnalyticsSnapshot> snapshots = loadBoardAnalyticsSnapshots(
+                botIds,
+                scopedRunMode,
+                lookbackDays,
+                () -> loadOwnedRunsByBotId(botIds, userId));
 
         return bots.stream()
                 .map(bot -> toBoardEntry(
                         bot,
-                        buildBotAnalytics(bot, runsByBotId.getOrDefault(bot.getId(), List.of()), scopedRunMode, lookbackDays)))
+                        snapshots.getOrDefault(bot.getId(), defaultBoardAnalyticsSnapshot())))
                 .sorted(resolveBoardComparator(sortBy, direction))
                 .toList();
     }
@@ -1693,17 +1696,17 @@ public class StrategyBotRunService {
                         (map, portfolio) -> map.put(portfolio.getId(), portfolio),
                         LinkedHashMap::putAll);
 
-        Map<UUID, List<StrategyBotRun>> runsByBotId = new HashMap<>();
-        strategyBotRunRepository.findByStrategyBotIdInOrderByRequestedAtDesc(
-                        bots.stream().map(StrategyBot::getId).toList())
-                .forEach(run -> runsByBotId
-                        .computeIfAbsent(run.getStrategyBotId(), ignored -> new ArrayList<>())
-                        .add(run));
+        List<UUID> botIds = bots.stream().map(StrategyBot::getId).toList();
+        Map<UUID, BoardAnalyticsSnapshot> snapshots = loadBoardAnalyticsSnapshots(
+                botIds,
+                scopedRunMode,
+                lookbackDays,
+                () -> loadPublicRunsByBotId(botIds));
 
         return bots.stream()
                 .map(bot -> toBoardEntry(
                         bot,
-                        buildBotAnalytics(bot, runsByBotId.getOrDefault(bot.getId(), List.of()), scopedRunMode, lookbackDays),
+                        snapshots.getOrDefault(bot.getId(), defaultBoardAnalyticsSnapshot()),
                         ownersById.get(bot.getUserId()),
                         publicPortfoliosById.get(bot.getLinkedPortfolioId())))
                 .sorted(resolveBoardComparator(sortBy, direction))

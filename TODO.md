@@ -806,6 +806,13 @@ Last updated: 2026-03-25
   - public detail now shares the same projection-first analytics path as owner analytics instead of always reparsing the full bot run history.
   - targeted verification passed:
     - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest" test`
+- [x] Project strategy-bot board/discover export assembly onto batch snapshots before raw-run fallback
+  - owner board export and public discover export now build entry rows from:
+    - aggregate snapshot projections
+    - selected scorecard run ids
+  - the old owned/public raw run-list loaders remain only as a fallback when projection rows are absent.
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest" test`
 - [x] Cache strategy-bot board/discover export entry sets and invalidate them on bot/run mutations
   - `StrategyBotRunService` now caches:
     - owner board export entry snapshots
