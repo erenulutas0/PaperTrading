@@ -288,6 +288,8 @@ Last updated: 2026-03-26
   - unified error-contract rollout
   - auth strict pre-cutover readiness
   - websocket/browser-origin/relay/SSE-fallback resilience
+  - strategy-bot forward-test scheduler health/refresh proof
+  - strategy-bot summary precompute recurring proof
   - leaderboard period validation
   - live ops webhook delivery with the real staging webhook URL configured
 - [x] Re-ran actuator audit snapshot locally and verified `/actuator/auditlog` now serves a recent unfiltered snapshot while request-filtered inspection remains on `/api/v1/ops/auditlog`
@@ -404,6 +406,19 @@ Last updated: 2026-03-26
   - Local validation:
     - child data-integrity proof is locked by `run_data_integrity_local_runtime_check.ps1`
     - parent suite inclusion was mechanically updated alongside the existing wrapper contract
+- [x] Extended parent staging readiness suite with strategy-bot runtime and summary-precompute validation:
+  - Updated:
+    - `infra/load-test/run_staging_readiness_suite.ps1`
+    - `infra/load-test/run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
+    - `infra/load-test/README.md`
+  - Behavior:
+    - parent suite now includes:
+      - `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
+      - `run_strategy_bot_summary_precompute_staging_checklist.ps1`
+    - added `-SkipStrategyBotForwardTest` and `-SkipStrategyBotSummaries` for partial rollout phases
+    - forward-test staging wrapper now reuses its child smoke report directly instead of nested PowerShell exit-code drift
+  - Local mechanical validation:
+    - `powershell -ExecutionPolicy Bypass -File .\infra\load-test\run_staging_readiness_suite.ps1 -BaseUrl http://localhost:8080 -SkipAudit -SkipDataIntegrity -SkipErrorContracts -SkipLeaderboardPeriods -SkipAuthReadiness -SkipWebsocket -SkipStrategyBotForwardTest -SkipStrategyBotSummaries -SkipOpsWebhook -NoFail`
 - [x] Added leaderboard preference continuity checklist tooling:
   - Added:
     - `infra/load-test/run_leaderboard_preferences_staging_checklist.ps1`

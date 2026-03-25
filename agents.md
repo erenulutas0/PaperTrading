@@ -39,6 +39,27 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Parent Staging Readiness Suite Now Includes Strategy-Bot Runtime And Summary Precompute Proofs**
+  - **Problem observed**:
+    - The repo already had dedicated staging wrappers for:
+      - forward-test scheduler health/refresh proof
+      - summary precompute recurring proof
+    - But the main parent staging readiness suite still stopped at audit/auth/websocket/ops evidence.
+    - That left the most important strategy-bot recurring-runtime checks outside the main rollout entrypoint even though strategy bots are now a first-class product surface.
+  - **Implementation**:
+    - Extended `infra/load-test/run_staging_readiness_suite.ps1` so it now includes:
+      - `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1`
+      - `run_strategy_bot_summary_precompute_staging_checklist.ps1`
+    - Added partial-run switches:
+      - `-SkipStrategyBotForwardTest`
+      - `-SkipStrategyBotSummaries`
+    - Also hardened `run_strategy_bot_forward_test_scheduler_staging_checklist.ps1` so it:
+      - reuses the child smoke report directly
+      - detects freshness by `path + last-write-time`
+      - no longer depends on nested PowerShell exit-code drift
+  - **Operational impact**:
+    - the main staging readiness report now carries strategy-bot recurring-runtime proof alongside the existing auth/websocket/audit slices
+    - bot rollout evidence is less likely to be skipped just because it lived outside the parent staging entrypoint
 - **2026-03-26**: **Strategy-Bot Materialized Summary Persistence Now Preserves Creation Timestamps And Inserts New Window Rows Correctly**
   - **Problem observed**:
     - The first fresh local proof for summary precompute surfaced two real persistence bugs instead of a wrapper issue:

@@ -32,19 +32,48 @@ function New-StepResult {
   }
 }
 
-function Get-LatestReport {
+function Get-LatestReportSnapshot {
   param(
     [string]$Directory,
     [string]$Pattern
   )
 
   $report = Get-ChildItem -Path $Directory -Filter $Pattern -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTime -Descending |
+    Sort-Object LastWriteTimeUtc -Descending |
     Select-Object -First 1
   if ($null -eq $report) {
+    return $null
+  }
+
+  return [pscustomobject]@{
+    Path             = $report.FullName
+    LastWriteTimeUtc = $report.LastWriteTimeUtc
+  }
+}
+
+function Resolve-NewReportPath {
+  param(
+    [object]$BeforeSnapshot,
+    [object]$AfterSnapshot
+  )
+
+  if ($null -eq $AfterSnapshot) {
     return ""
   }
-  return $report.FullName
+
+  if ($null -eq $BeforeSnapshot) {
+    return [string]$AfterSnapshot.Path
+  }
+
+  if ($AfterSnapshot.Path -ne $BeforeSnapshot.Path) {
+    return [string]$AfterSnapshot.Path
+  }
+
+  if ($AfterSnapshot.LastWriteTimeUtc -gt $BeforeSnapshot.LastWriteTimeUtc) {
+    return [string]$AfterSnapshot.Path
+  }
+
+  return ""
 }
 
 function Get-StatusFromReport {
@@ -55,14 +84,15 @@ function Get-StatusFromReport {
   }
 
   $content = Get-Content -Path $ReportPath -Raw
-  $match = [regex]::Match($content, "- Status:\s+\*\*(.+?)\*\*|- Status:\s+(.+)$", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline)
-  if ($match.Success) {
-    if ($match.Groups[1].Success) {
-      return $match.Groups[1].Value.Trim()
-    }
-    if ($match.Groups[2].Success) {
-      return $match.Groups[2].Value.Trim()
-    }
+  $patternFlags = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline
+  $match = [regex]::Match($content, "^\s*-\s+Status:\s+\*\*(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\*\*\s*$", $patternFlags)
+  if ($match.Success -and $match.Groups.Count -ge 2) {
+    return $match.Groups[1].Value.Trim()
+  }
+
+  $lineMatch = [regex]::Match($content, "^\s*-\s+Status:\s+(PASSED|FAILED|UNKNOWN|READY|CONDITIONAL_READY|NOT_READY|SKIPPED)\b", $patternFlags)
+  if ($lineMatch.Success -and $lineMatch.Groups.Count -ge 2) {
+    return $lineMatch.Groups[1].Value.Trim()
   }
   return ""
 }
@@ -123,28 +153,25 @@ if (-not [string]::IsNullOrWhiteSpace($RestartCommand)) {
   $results.Add((New-StepResult -Name "Post-Restart Health" -Status $(if ($postRestartHealthy) { "PASSED" } else { "FAILED" }) -Detail "url=$healthUrl, recovery_wait=$RecoveryWaitSec")) | Out-Null
 }
 
-$beforeSmoke = Get-LatestReport -Directory $ReportsDir -Pattern "strategy-bot-forward-test-scheduler-smoke-*.md"
-& powershell -ExecutionPolicy Bypass -File $smokeScript `
+$beforeSmoke = Get-LatestReportSnapshot -Directory $ReportsDir -Pattern "strategy-bot-forward-test-scheduler-smoke-*.md"
+& $smokeScript `
   -BaseUrl $BaseUrl `
   -OutputDir $ReportsDir `
   -TimeoutSec $TimeoutSec `
   -PollAttempts $PollAttempts `
   -PollIntervalSec $PollIntervalSec `
   -NoFail | Out-Null
-$smokeExitCode = $LASTEXITCODE
-$smokeReport = Get-LatestReport -Directory $ReportsDir -Pattern "strategy-bot-forward-test-scheduler-smoke-*.md"
-if ($smokeReport -eq $beforeSmoke) {
-  $smokeReport = ""
-}
+$afterSmoke = Get-LatestReportSnapshot -Directory $ReportsDir -Pattern "strategy-bot-forward-test-scheduler-smoke-*.md"
+$smokeReport = Resolve-NewReportPath -BeforeSnapshot $beforeSmoke -AfterSnapshot $afterSmoke
 
 if ([string]::IsNullOrWhiteSpace($smokeReport)) {
-  $results.Add((New-StepResult -Name "Scheduler Smoke" -Status "FAILED" -Detail "report_not_found, exit_code=$smokeExitCode")) | Out-Null
+  $results.Add((New-StepResult -Name "Scheduler Smoke" -Status "FAILED" -Detail "report_not_found")) | Out-Null
 } else {
   $smokeStatus = Get-StatusFromReport -ReportPath $smokeReport
   if ([string]::IsNullOrWhiteSpace($smokeStatus)) {
-    $smokeStatus = if ($smokeExitCode -eq 0) { "PASSED" } else { "FAILED" }
+    $smokeStatus = "FAILED"
   }
-  $results.Add((New-StepResult -Name "Scheduler Smoke" -Status $smokeStatus -Detail "exit_code=$smokeExitCode" -ReportPath $smokeReport)) | Out-Null
+  $results.Add((New-StepResult -Name "Scheduler Smoke" -Status $smokeStatus -Detail "report=$smokeReport" -ReportPath $smokeReport)) | Out-Null
 }
 
 $failed = @($results | Where-Object { $_.Status -ne "PASSED" })

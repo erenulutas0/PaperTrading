@@ -976,7 +976,7 @@ Checklist behavior:
 - verifies proxied register/login and a protected unread-count read through the frontend domain
 - delegates browser-origin and optional relay validation to `run_browser_origin_staging_checklist.ps1` using the real frontend origin
 
-Run one parent staging readiness suite that links the main audit/auth/websocket/ops checklist reports:
+Run one parent staging readiness suite that links the main audit/auth/websocket/bot/ops checklist reports:
 
 ```powershell
 ./infra/load-test/run_staging_readiness_suite.ps1 `
@@ -990,9 +990,12 @@ Suite behavior:
 - runs data-integrity staging checklist
 - runs auth strict pre-cutover checklist
 - runs websocket staging resilience suite
+- runs strategy-bot forward-test scheduler staging checklist
+- runs strategy-bot summary precompute staging checklist
 - runs ops webhook staging checklist
 - writes one parent markdown report that links the child checklist reports
 - use `-Skip*` switches to narrow the suite for partial rollout phases
+- `-SkipStrategyBotForwardTest` and `-SkipStrategyBotSummaries` let you leave bot-specific rollout slices out of a partial run
 
 Check auth legacy-header usage readiness before disabling legacy mode:
 

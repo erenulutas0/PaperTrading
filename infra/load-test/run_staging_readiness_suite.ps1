@@ -14,6 +14,14 @@ param(
   [int]$OpsAlertPollIntervalSec = 2,
   [int]$CanaryIterations = 6,
   [int]$CanaryIntervalSec = 20,
+  [int]$StrategyBotForwardTestTimeoutSec = 25,
+  [int]$StrategyBotForwardTestPollAttempts = 12,
+  [int]$StrategyBotForwardTestPollIntervalSec = 8,
+  [int]$StrategyBotForwardTestRecoveryWaitSec = 20,
+  [int]$StrategyBotSummaryTimeoutSec = 20,
+  [int]$StrategyBotSummaryPollAttempts = 16,
+  [int]$StrategyBotSummaryPollIntervalSec = 60,
+  [int]$StrategyBotSummaryRecoveryWaitSec = 30,
   [switch]$IncludeCanaryWebSocketSnapshot,
   [switch]$AllowAlreadyProbedCanary,
   [switch]$SkipAudit,
@@ -22,6 +30,8 @@ param(
   [switch]$SkipLeaderboardPeriods,
   [switch]$SkipAuthReadiness,
   [switch]$SkipWebsocket,
+  [switch]$SkipStrategyBotForwardTest,
+  [switch]$SkipStrategyBotSummaries,
   [switch]$SkipOpsWebhook,
   [switch]$SkipOrigin,
   [switch]$SkipRelay,
@@ -203,6 +213,36 @@ if (-not $SkipWebsocket) {
         -ReportPattern "websocket-staging-resilience-suite-*.md")) | Out-Null
 }
 
+if (-not $SkipStrategyBotForwardTest) {
+  $results.Add((Invoke-ScriptStep `
+        -Name "Strategy Bot Forward-Test Checklist" `
+        -ScriptPath (Join-Path $scriptDir "run_strategy_bot_forward_test_scheduler_staging_checklist.ps1") `
+        -Parameters @{
+          BaseUrl         = $BaseUrl
+          TimeoutSec      = $StrategyBotForwardTestTimeoutSec
+          PollAttempts    = $StrategyBotForwardTestPollAttempts
+          PollIntervalSec = $StrategyBotForwardTestPollIntervalSec
+          RecoveryWaitSec = $StrategyBotForwardTestRecoveryWaitSec
+          NoFail          = $true
+        } `
+        -ReportPattern "strategy-bot-forward-test-staging-checklist-*.md")) | Out-Null
+}
+
+if (-not $SkipStrategyBotSummaries) {
+  $results.Add((Invoke-ScriptStep `
+        -Name "Strategy Bot Summary Precompute Checklist" `
+        -ScriptPath (Join-Path $scriptDir "run_strategy_bot_summary_precompute_staging_checklist.ps1") `
+        -Parameters @{
+          BaseUrl         = $BaseUrl
+          TimeoutSec      = $StrategyBotSummaryTimeoutSec
+          PollAttempts    = $StrategyBotSummaryPollAttempts
+          PollIntervalSec = $StrategyBotSummaryPollIntervalSec
+          RecoveryWaitSec = $StrategyBotSummaryRecoveryWaitSec
+          NoFail          = $true
+        } `
+        -ReportPattern "strategy-bot-summary-precompute-staging-checklist-*.md")) | Out-Null
+}
+
 if (-not $SkipOpsWebhook) {
   $results.Add((Invoke-ScriptStep `
         -Name "Ops Webhook Checklist" `
@@ -238,6 +278,8 @@ $lines += "- unified error-contract checklist"
 $lines += "- leaderboard period-slice validation checklist"
 $lines += "- auth strict pre-cutover readiness checklist"
 $lines += "- websocket/browser-origin/relay/canary/SSE-fallback resilience checklist"
+$lines += "- strategy-bot forward-test scheduler checklist"
+$lines += "- strategy-bot summary precompute checklist"
 $lines += "- ops webhook delivery checklist"
 $lines += ""
 $lines += "| Step | Status | Detail | Report |"
