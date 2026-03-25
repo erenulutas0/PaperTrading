@@ -12,6 +12,8 @@ import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
 import com.finance.core.domain.StrategyBotMaterializedSummary;
+import com.finance.core.domain.StrategyBotMaterializedWindowSummary;
+import com.finance.core.domain.StrategyBotMaterializedWindowSummaryId;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
 import com.finance.core.domain.StrategyBotRunEvent;
@@ -33,6 +35,7 @@ import com.finance.core.dto.StrategyBotRunScorecardResponse;
 import com.finance.core.repository.PortfolioItemRepository;
 import com.finance.core.repository.PortfolioRepository;
 import com.finance.core.repository.StrategyBotMaterializedSummaryRepository;
+import com.finance.core.repository.StrategyBotMaterializedWindowSummaryRepository;
 import com.finance.core.repository.StrategyBotRepository;
 import com.finance.core.repository.StrategyBotRunEquityPointRepository;
 import com.finance.core.repository.StrategyBotRunEventRepository;
@@ -81,8 +84,10 @@ public class StrategyBotRunService {
     private static final Duration PUBLIC_BOT_DETAIL_CACHE_TTL = Duration.ofSeconds(30);
     private static final Duration BOT_BOARD_CACHE_TTL = Duration.ofSeconds(15);
     private static final int MATERIALIZED_RECENT_RUN_LIMIT = 12;
+    private static final Set<Integer> MATERIALIZED_WINDOW_LOOKBACK_DAYS = Set.of(7, 30, 90);
     private final StrategyBotRunRepository strategyBotRunRepository;
     private final StrategyBotMaterializedSummaryRepository strategyBotMaterializedSummaryRepository;
+    private final StrategyBotMaterializedWindowSummaryRepository strategyBotMaterializedWindowSummaryRepository;
     private final StrategyBotRepository strategyBotRepository;
     private final StrategyBotService strategyBotService;
     private final StrategyBotRuleEngineService strategyBotRuleEngineService;
@@ -1430,6 +1435,16 @@ public class StrategyBotRunService {
                                                                         StrategyBotRun.RunMode scopedRunMode,
                                                                         Integer lookbackDays,
                                                                         Supplier<List<StrategyBotRun>> fallbackRunLoader) {
+        if (shouldUseWindowMaterializedSummary(scopedRunMode, lookbackDays)) {
+            StrategyBotMaterializedWindowSummary windowSummary = loadMaterializedWindowSummaries(
+                    List.of(botId),
+                    toBoardRunModeScope(scopedRunMode),
+                    lookbackDays).get(botId);
+            if (windowSummary != null) {
+                return buildBotAnalyticsFromMaterializedWindowSummary(windowSummary);
+            }
+        }
+
         if (!hasScopedBoardFilters(scopedRunMode, lookbackDays)) {
             StrategyBotMaterializedSummary materializedSummary = loadOrRefreshMaterializedSummaries(List.of(botId)).get(botId);
             if (materializedSummary != null) {
@@ -2512,6 +2527,20 @@ public class StrategyBotRunService {
             return Map.of();
         }
 
+        if (shouldUseWindowMaterializedSummary(scopedRunMode, lookbackDays)) {
+            Map<UUID, StrategyBotMaterializedWindowSummary> summaries = loadMaterializedWindowSummaries(
+                    botIds,
+                    toBoardRunModeScope(scopedRunMode),
+                    lookbackDays);
+            if (summaries.size() == botIds.size()) {
+                Map<UUID, BoardAnalyticsSnapshot> snapshots = new LinkedHashMap<>();
+                for (UUID botId : botIds) {
+                    snapshots.put(botId, snapshotFromMaterializedWindowSummary(summaries.get(botId)));
+                }
+                return snapshots;
+            }
+        }
+
         if (!hasScopedBoardFilters(scopedRunMode, lookbackDays)) {
             Map<UUID, StrategyBotMaterializedSummary> summaries = loadOrRefreshMaterializedSummaries(botIds);
             if (!summaries.isEmpty()) {
@@ -2633,6 +2662,24 @@ public class StrategyBotRunService {
         return summaries;
     }
 
+    private Map<UUID, StrategyBotMaterializedWindowSummary> loadMaterializedWindowSummaries(List<UUID> botIds,
+                                                                                            String runModeScope,
+                                                                                            Integer lookbackDays) {
+        if (botIds == null || botIds.isEmpty() || runModeScope == null || lookbackDays == null) {
+            return Map.of();
+        }
+
+        return defaultIfNull(
+                        strategyBotMaterializedWindowSummaryRepository.findByStrategyBotIdInAndRunModeScopeAndLookbackDays(
+                                botIds,
+                                runModeScope,
+                                lookbackDays))
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, summary) -> map.put(summary.getStrategyBotId(), summary),
+                        LinkedHashMap::putAll);
+    }
+
     private List<StrategyBotMaterializedSummary> refreshMaterializedSummaries(List<UUID> botIds) {
         if (botIds == null || botIds.isEmpty()) {
             return List.of();
@@ -2739,7 +2786,174 @@ public class StrategyBotRunService {
         return strategyBotMaterializedSummaryRepository.saveAll(summaries);
     }
 
+    private List<StrategyBotMaterializedWindowSummary> refreshMaterializedWindowSummaries(List<UUID> botIds,
+                                                                                          String runModeScope,
+                                                                                          Integer lookbackDays) {
+        if (botIds == null || botIds.isEmpty() || runModeScope == null || lookbackDays == null) {
+            return List.of();
+        }
+
+        boolean lookbackActive = true;
+        LocalDateTime lookbackCutoff = resolveBoardLookbackCutoff(lookbackDays);
+
+        Map<UUID, StrategyBotRunRepository.BoardAggregateView> aggregateRows = defaultIfNull(
+                        strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(
+                                botIds,
+                                runModeScope,
+                                lookbackActive,
+                                lookbackCutoff))
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, row) -> map.put(row.getStrategyBotId(), row),
+                        LinkedHashMap::putAll);
+        Map<UUID, UUID> bestRunIds = indexSelectedRunIds(defaultIfNull(
+                strategyBotRunRepository.findBestCompletedRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        Map<UUID, UUID> worstRunIds = indexSelectedRunIds(defaultIfNull(
+                strategyBotRunRepository.findWorstCompletedRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        Map<UUID, UUID> latestCompletedRunIds = indexSelectedRunIds(defaultIfNull(
+                strategyBotRunRepository.findLatestCompletedRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        Map<UUID, UUID> activeForwardRunIds = indexSelectedRunIds(defaultIfNull(
+                strategyBotRunRepository.findActiveForwardRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        Map<UUID, List<UUID>> recentRunIdsByBot = defaultIfNull(
+                        strategyBotRunRepository.findRecentRunIdsByStrategyBotIdIn(
+                                botIds,
+                                runModeScope,
+                                lookbackActive,
+                                lookbackCutoff,
+                                MATERIALIZED_RECENT_RUN_LIMIT))
+                .stream()
+                .filter(row -> row.getStrategyBotId() != null && row.getId() != null)
+                .collect(LinkedHashMap::new,
+                        (map, row) -> map.computeIfAbsent(row.getStrategyBotId(), ignored -> new ArrayList<>()).add(row.getId()),
+                        LinkedHashMap::putAll);
+        Map<UUID, Map<String, Integer>> entryReasonTotalsByBot = aggregateReasonCountsByBotId(defaultIfNull(
+                strategyBotRunRepository.findEntryReasonCountsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        Map<UUID, Map<String, Integer>> exitReasonTotalsByBot = aggregateReasonCountsByBotId(defaultIfNull(
+                strategyBotRunRepository.findExitReasonCountsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+
+        List<StrategyBotMaterializedWindowSummary> summaries = botIds.stream()
+                .filter(Objects::nonNull)
+                .map(botId -> {
+                    StrategyBotRunRepository.BoardAggregateView aggregate = aggregateRows.get(botId);
+                    return StrategyBotMaterializedWindowSummary.builder()
+                            .id(StrategyBotMaterializedWindowSummaryId.builder()
+                                    .strategyBotId(botId)
+                                    .runModeScope(runModeScope)
+                                    .lookbackDays(lookbackDays)
+                                    .build())
+                            .totalRuns(intValue(aggregate == null ? null : aggregate.getTotalRuns()))
+                            .backtestRuns(intValue(aggregate == null ? null : aggregate.getBacktestRuns()))
+                            .forwardTestRuns(intValue(aggregate == null ? null : aggregate.getForwardTestRuns()))
+                            .completedRuns(intValue(aggregate == null ? null : aggregate.getCompletedRuns()))
+                            .runningRuns(intValue(aggregate == null ? null : aggregate.getRunningRuns()))
+                            .failedRuns(intValue(aggregate == null ? null : aggregate.getFailedRuns()))
+                            .cancelledRuns(intValue(aggregate == null ? null : aggregate.getCancelledRuns()))
+                            .compilerReadyRuns(intValue(aggregate == null ? null : aggregate.getCompilerReadyRuns()))
+                            .positiveCompletedRuns(intValue(aggregate == null ? null : aggregate.getPositiveCompletedRuns()))
+                            .negativeCompletedRuns(intValue(aggregate == null ? null : aggregate.getNegativeCompletedRuns()))
+                            .totalSimulatedTrades(intValue(aggregate == null ? null : aggregate.getTotalSimulatedTrades()))
+                            .avgReturnPercent(roundNullable(aggregate == null ? null : aggregate.getAvgReturnPercent()))
+                            .avgNetPnl(roundNullable(aggregate == null ? null : aggregate.getAvgNetPnl()))
+                            .avgMaxDrawdownPercent(roundNullable(aggregate == null ? null : aggregate.getAvgMaxDrawdownPercent()))
+                            .avgWinRate(roundNullable(aggregate == null ? null : aggregate.getAvgWinRate()))
+                            .avgTradeCount(roundNullable(aggregate == null ? null : aggregate.getAvgTradeCount()))
+                            .avgProfitFactor(roundNullable(aggregate == null ? null : aggregate.getAvgProfitFactor()))
+                            .avgExpectancyPerTrade(roundNullable(aggregate == null ? null : aggregate.getAvgExpectancyPerTrade()))
+                            .latestRequestedAt(aggregate == null ? null : aggregate.getLatestRequestedAt())
+                            .bestRunId(bestRunIds.get(botId))
+                            .worstRunId(worstRunIds.get(botId))
+                            .latestCompletedRunId(latestCompletedRunIds.get(botId))
+                            .activeForwardRunId(activeForwardRunIds.get(botId))
+                            .recentRunIds(writeCompactJson(defaultIfNull(recentRunIdsByBot.get(botId))))
+                            .entryDriverTotals(writeCompactJson(defaultIfNull(entryReasonTotalsByBot.get(botId))))
+                            .exitDriverTotals(writeCompactJson(defaultIfNull(exitReasonTotalsByBot.get(botId))))
+                            .build();
+                })
+                .toList();
+        return strategyBotMaterializedWindowSummaryRepository.saveAll(summaries);
+    }
+
     private StrategyBotAnalyticsResponse buildBotAnalyticsFromMaterializedSummary(StrategyBotMaterializedSummary summary) {
+        if (summary == null) {
+            return StrategyBotAnalyticsResponse.builder().build();
+        }
+
+        LinkedHashSet<UUID> selectedRunIds = new LinkedHashSet<>();
+        addRunIdIfPresent(selectedRunIds, summary.getBestRunId());
+        addRunIdIfPresent(selectedRunIds, summary.getWorstRunId());
+        addRunIdIfPresent(selectedRunIds, summary.getLatestCompletedRunId());
+        addRunIdIfPresent(selectedRunIds, summary.getActiveForwardRunId());
+        parseUuidList(summary.getRecentRunIds()).forEach(runId -> addRunIdIfPresent(selectedRunIds, runId));
+
+        Map<UUID, StrategyBotRun> selectedRunsById = selectedRunIds.isEmpty()
+                ? Map.of()
+                : defaultIfNull(strategyBotRunRepository.findByIdIn(selectedRunIds))
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, run) -> map.put(run.getId(), run),
+                        LinkedHashMap::putAll);
+
+        List<StrategyBotRunScorecardResponse> recentScorecards = parseUuidList(summary.getRecentRunIds()).stream()
+                .map(selectedRunsById::get)
+                .filter(Objects::nonNull)
+                .map(this::toScorecard)
+                .toList();
+
+        return StrategyBotAnalyticsResponse.builder()
+                .strategyBotId(summary.getStrategyBotId())
+                .totalRuns(summary.getTotalRuns())
+                .backtestRuns(summary.getBacktestRuns())
+                .forwardTestRuns(summary.getForwardTestRuns())
+                .completedRuns(summary.getCompletedRuns())
+                .runningRuns(summary.getRunningRuns())
+                .failedRuns(summary.getFailedRuns())
+                .cancelledRuns(summary.getCancelledRuns())
+                .compilerReadyRuns(summary.getCompilerReadyRuns())
+                .positiveCompletedRuns(summary.getPositiveCompletedRuns())
+                .negativeCompletedRuns(summary.getNegativeCompletedRuns())
+                .totalSimulatedTrades(summary.getTotalSimulatedTrades())
+                .avgReturnPercent(summary.getAvgReturnPercent())
+                .avgNetPnl(summary.getAvgNetPnl())
+                .avgMaxDrawdownPercent(summary.getAvgMaxDrawdownPercent())
+                .avgWinRate(summary.getAvgWinRate())
+                .avgTradeCount(summary.getAvgTradeCount())
+                .avgProfitFactor(summary.getAvgProfitFactor())
+                .avgExpectancyPerTrade(summary.getAvgExpectancyPerTrade())
+                .bestRun(toScorecard(selectedRunsById.get(summary.getBestRunId())))
+                .worstRun(toScorecard(selectedRunsById.get(summary.getWorstRunId())))
+                .latestCompletedRun(toScorecard(selectedRunsById.get(summary.getLatestCompletedRunId())))
+                .activeForwardRun(toScorecard(selectedRunsById.get(summary.getActiveForwardRunId())))
+                .entryDriverTotals(parseReasonTotals(summary.getEntryDriverTotals()))
+                .exitDriverTotals(parseReasonTotals(summary.getExitDriverTotals()))
+                .recentScorecards(recentScorecards)
+                .build();
+    }
+
+    private StrategyBotAnalyticsResponse buildBotAnalyticsFromMaterializedWindowSummary(StrategyBotMaterializedWindowSummary summary) {
         if (summary == null) {
             return StrategyBotAnalyticsResponse.builder().build();
         }
@@ -2859,6 +3073,42 @@ public class StrategyBotRunService {
                 toScorecard(selectedRunsById.get(summary.getActiveForwardRunId())));
     }
 
+    private BoardAnalyticsSnapshot snapshotFromMaterializedWindowSummary(StrategyBotMaterializedWindowSummary summary) {
+        if (summary == null) {
+            return defaultBoardAnalyticsSnapshot();
+        }
+
+        Map<UUID, StrategyBotRun> selectedRunsById = new LinkedHashMap<>();
+        LinkedHashSet<UUID> selectedRunIds = new LinkedHashSet<>();
+        addRunIdIfPresent(selectedRunIds, summary.getBestRunId());
+        addRunIdIfPresent(selectedRunIds, summary.getLatestCompletedRunId());
+        addRunIdIfPresent(selectedRunIds, summary.getActiveForwardRunId());
+        if (!selectedRunIds.isEmpty()) {
+            defaultIfNull(strategyBotRunRepository.findByIdIn(selectedRunIds))
+                    .forEach(run -> selectedRunsById.put(run.getId(), run));
+        }
+
+        return new BoardAnalyticsSnapshot(
+                summary.getTotalRuns(),
+                summary.getCompletedRuns(),
+                summary.getRunningRuns(),
+                summary.getFailedRuns(),
+                summary.getCancelledRuns(),
+                summary.getTotalSimulatedTrades(),
+                summary.getPositiveCompletedRuns(),
+                summary.getNegativeCompletedRuns(),
+                summary.getAvgReturnPercent(),
+                summary.getAvgNetPnl(),
+                summary.getAvgMaxDrawdownPercent(),
+                summary.getAvgWinRate(),
+                summary.getAvgProfitFactor(),
+                summary.getAvgExpectancyPerTrade(),
+                summary.getLatestRequestedAt(),
+                toScorecard(selectedRunsById.get(summary.getBestRunId())),
+                toScorecard(selectedRunsById.get(summary.getLatestCompletedRunId())),
+                toScorecard(selectedRunsById.get(summary.getActiveForwardRunId())));
+    }
+
     private Map<UUID, UUID> indexSelectedRunIds(List<StrategyBotRunRepository.SelectedRunView> rows) {
         Map<UUID, UUID> indexed = new LinkedHashMap<>();
         for (StrategyBotRunRepository.SelectedRunView row : rows) {
@@ -2898,6 +3148,24 @@ public class StrategyBotRunService {
             return;
         }
         refreshMaterializedSummaries(List.of(botId));
+    }
+
+    private void refreshMaterializedWindowSummariesForRun(StrategyBotRun run) {
+        if (run == null || run.getStrategyBotId() == null || run.getRunMode() == null) {
+            return;
+        }
+        for (Integer lookbackDays : MATERIALIZED_WINDOW_LOOKBACK_DAYS) {
+            refreshMaterializedWindowSummaries(
+                    List.of(run.getStrategyBotId()),
+                    run.getRunMode().name(),
+                    lookbackDays);
+        }
+    }
+
+    private boolean shouldUseWindowMaterializedSummary(StrategyBotRun.RunMode scopedRunMode, Integer lookbackDays) {
+        return scopedRunMode != null
+                && lookbackDays != null
+                && MATERIALIZED_WINDOW_LOOKBACK_DAYS.contains(lookbackDays);
     }
 
     private void addRunIdIfPresent(Set<UUID> target, UUID runId) {
@@ -3353,6 +3621,7 @@ public class StrategyBotRunService {
 
         StrategyBotRun saved = strategyBotRunRepository.save(run);
         refreshMaterializedSummary(saved.getStrategyBotId());
+        refreshMaterializedWindowSummariesForRun(saved);
         invalidateBotReadCaches(saved.getStrategyBotId());
         auditLogService.record(
                 userId,
@@ -3405,6 +3674,7 @@ public class StrategyBotRunService {
         RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, false);
         StrategyBotRun saved = strategyBotRunRepository.save(run);
         refreshMaterializedSummary(saved.getStrategyBotId());
+        refreshMaterializedWindowSummariesForRun(saved);
         invalidateBotReadCaches(saved.getStrategyBotId());
         if (previousStatus == StrategyBotRun.Status.RUNNING && saved.getStatus() == StrategyBotRun.Status.COMPLETED) {
             auditLogService.record(
@@ -3437,6 +3707,7 @@ public class StrategyBotRunService {
 
         StrategyBotRun saved = strategyBotRunRepository.save(run);
         refreshMaterializedSummary(saved.getStrategyBotId());
+        refreshMaterializedWindowSummariesForRun(saved);
         invalidateBotReadCaches(saved.getStrategyBotId());
         auditLogService.record(
                 userId,
@@ -3458,6 +3729,7 @@ public class StrategyBotRunService {
             RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, false);
             StrategyBotRun saved = strategyBotRunRepository.save(run);
             refreshMaterializedSummary(saved.getStrategyBotId());
+            refreshMaterializedWindowSummariesForRun(saved);
             invalidateBotReadCaches(saved.getStrategyBotId());
             if (saved.getStatus() == StrategyBotRun.Status.COMPLETED) {
                 auditLogService.record(
@@ -3474,6 +3746,7 @@ public class StrategyBotRunService {
             run.setErrorMessage(ex.getMessage());
             StrategyBotRun saved = strategyBotRunRepository.save(run);
             refreshMaterializedSummary(saved.getStrategyBotId());
+            refreshMaterializedWindowSummariesForRun(saved);
             invalidateBotReadCaches(saved.getStrategyBotId());
             return saved;
         }
@@ -3495,6 +3768,7 @@ public class StrategyBotRunService {
 
         StrategyBotRun saved = strategyBotRunRepository.save(run);
         refreshMaterializedSummary(saved.getStrategyBotId());
+        refreshMaterializedWindowSummariesForRun(saved);
         invalidateBotReadCaches(saved.getStrategyBotId());
         auditLogService.record(
                 userId,
@@ -3509,6 +3783,7 @@ public class StrategyBotRunService {
         RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, true);
         StrategyBotRun saved = strategyBotRunRepository.save(run);
         refreshMaterializedSummary(saved.getStrategyBotId());
+        refreshMaterializedWindowSummariesForRun(saved);
         invalidateBotReadCaches(saved.getStrategyBotId());
         auditLogService.record(
                 userId,

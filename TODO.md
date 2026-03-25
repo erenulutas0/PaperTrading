@@ -795,6 +795,20 @@ Last updated: 2026-03-26
   - Latest local passing report:
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
+## New Review Findings (2026-03-26)
+- [x] Add persisted common-window strategy-bot summaries for scoped `runMode/lookbackDays` cold reads
+  - Added Flyway migration `V30__create_strategy_bot_materialized_window_summaries_table.sql` plus:
+    - `StrategyBotMaterializedWindowSummary`
+    - `StrategyBotMaterializedWindowSummaryId`
+    - `StrategyBotMaterializedWindowSummaryRepository`
+  - `StrategyBotRunService` now prefers persisted scoped window rows for the common cold-read lenses:
+    - `BACKTEST` / `FORWARD_TEST`
+    - `7D / 30D / 90D`
+  - window rows are intentionally refreshed from run mutation paths, not on read-time misses, so export/analytics reads stay side-effect free.
+  - unsupported scopes still fall back to the existing projection-first live path instead of forcing a partial materialization model.
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest" test`
+
 ## New Review Findings (2026-03-25)
 - [x] Add DB-backed materialized strategy-bot summary rows for all-time analytics and board/discover cold reads
   - Added Flyway migration `V29__create_strategy_bot_materialized_summaries_table.sql` plus the `StrategyBotMaterializedSummary` JPA entity/repository.
