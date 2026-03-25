@@ -16,6 +16,7 @@ import com.finance.core.domain.AuditActionType;
 import com.finance.core.domain.AuditResourceType;
 import com.finance.core.dto.StrategyBotAnalyticsResponse;
 import com.finance.core.dto.StrategyBotBoardEntryResponse;
+import com.finance.core.dto.PublicStrategyBotDetailResponse;
 import com.finance.core.dto.StrategyBotRunReconciliationResponse;
 import com.finance.core.dto.MarketCandleResponse;
 import com.finance.core.dto.MarketType;
@@ -166,6 +167,285 @@ class StrategyBotRunServiceTest {
         assertThat(second.getTotalRuns()).isEqualTo(99);
         verify(strategyBotRunRepository).findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId);
         verify(cacheService).set(contains("strategy-bot:analytics:" + botId), any(String.class), any(Duration.class));
+    }
+
+    @Test
+    void getBotAnalytics_shouldPreferAggregateSnapshotsBeforeRawRunFallback() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("Snapshot Analytics Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("25"))
+                .status(StrategyBot.Status.READY)
+                .cooldownMinutes(0)
+                .build();
+        StrategyBotRun bestRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .summary("""
+                        {
+                          "returnPercent": 8.0,
+                          "netPnl": 8000.0,
+                          "tradeCount": 4,
+                          "profitFactor": 1.8
+                        }
+                        """)
+                .build();
+
+        StrategyBotRunRepository.BoardAggregateView aggregate = org.mockito.Mockito.mock(StrategyBotRunRepository.BoardAggregateView.class);
+        when(aggregate.getTotalRuns()).thenReturn(5L);
+        when(aggregate.getCompletedRuns()).thenReturn(4L);
+        when(aggregate.getRunningRuns()).thenReturn(1L);
+        when(aggregate.getFailedRuns()).thenReturn(0L);
+        when(aggregate.getCancelledRuns()).thenReturn(0L);
+        when(aggregate.getBacktestRuns()).thenReturn(3L);
+        when(aggregate.getForwardTestRuns()).thenReturn(2L);
+        when(aggregate.getCompilerReadyRuns()).thenReturn(5L);
+        when(aggregate.getPositiveCompletedRuns()).thenReturn(3L);
+        when(aggregate.getNegativeCompletedRuns()).thenReturn(1L);
+        when(aggregate.getTotalSimulatedTrades()).thenReturn(19L);
+        when(aggregate.getAvgReturnPercent()).thenReturn(6.25);
+        when(aggregate.getAvgNetPnl()).thenReturn(6250.0);
+        when(aggregate.getAvgMaxDrawdownPercent()).thenReturn(3.4);
+        when(aggregate.getAvgWinRate()).thenReturn(62.5);
+        when(aggregate.getAvgTradeCount()).thenReturn(4.75);
+        when(aggregate.getAvgProfitFactor()).thenReturn(1.7);
+        when(aggregate.getAvgExpectancyPerTrade()).thenReturn(1250.0);
+
+        StrategyBotRunRepository.SelectedRunView bestRunRow = org.mockito.Mockito.mock(StrategyBotRunRepository.SelectedRunView.class);
+        when(bestRunRow.getStrategyBotId()).thenReturn(botId);
+        when(bestRunRow.getId()).thenReturn(bestRun.getId());
+
+        StrategyBotRunRepository.ReasonCountView entryReason = org.mockito.Mockito.mock(StrategyBotRunRepository.ReasonCountView.class);
+        when(entryReason.getStrategyBotId()).thenReturn(botId);
+        when(entryReason.getReason()).thenReturn("price_above_ma_20");
+        when(entryReason.getCount()).thenReturn(3L);
+
+        StrategyBotRunRepository.ReasonCountView exitReason = org.mockito.Mockito.mock(StrategyBotRunRepository.ReasonCountView.class);
+        when(exitReason.getStrategyBotId()).thenReturn(botId);
+        when(exitReason.getReason()).thenReturn("take_profit_hit");
+        when(exitReason.getCount()).thenReturn(2L);
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(cacheService.get(anyString(), eq(String.class))).thenReturn(Optional.empty());
+        when(strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of(aggregate));
+        when(strategyBotRunRepository.findBestCompletedRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of(bestRunRow));
+        when(strategyBotRunRepository.findWorstCompletedRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findLatestCompletedRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findActiveForwardRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findRecentRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0),
+                12))
+                .thenReturn(List.of(bestRunRow));
+        when(strategyBotRunRepository.findEntryReasonCountsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of(entryReason));
+        when(strategyBotRunRepository.findExitReasonCountsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of(exitReason));
+        when(strategyBotRunRepository.findByIdIn(any(Collection.class))).thenReturn(List.of(bestRun));
+
+        StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId, "ALL", null);
+
+        assertThat(analytics.getTotalRuns()).isEqualTo(5);
+        assertThat(analytics.getBacktestRuns()).isEqualTo(3);
+        assertThat(analytics.getForwardTestRuns()).isEqualTo(2);
+        assertThat(analytics.getCompilerReadyRuns()).isEqualTo(5);
+        assertThat(analytics.getAvgTradeCount()).isEqualTo(4.75);
+        assertThat(analytics.getBestRun()).isNotNull();
+        assertThat(analytics.getBestRun().getId()).isEqualTo(bestRun.getId());
+        assertThat(analytics.getRecentScorecards()).hasSize(1);
+        assertThat(analytics.getEntryDriverTotals()).containsEntry("price_above_ma_20", 3);
+        assertThat(analytics.getExitDriverTotals()).containsEntry("take_profit_hit", 2);
+        verify(strategyBotRunRepository, never()).findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId);
+    }
+
+    @Test
+    void getPublicBotDetail_shouldPreferAggregateSnapshotsBeforeRawRunFallback() {
+        UUID ownerId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        UUID portfolioId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(ownerId)
+                .linkedPortfolioId(portfolioId)
+                .name("Public Snapshot Bot")
+                .description("Public snapshot profile")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("18"))
+                .status(StrategyBot.Status.READY)
+                .cooldownMinutes(30)
+                .build();
+        AppUser owner = AppUser.builder()
+                .id(ownerId)
+                .username("snapshot-owner")
+                .displayName("Snapshot Owner")
+                .trustScore(71.2)
+                .build();
+        Portfolio portfolio = Portfolio.builder()
+                .id(portfolioId)
+                .name("Snapshot Public Portfolio")
+                .ownerId(ownerId.toString())
+                .visibility(Portfolio.Visibility.PUBLIC)
+                .build();
+        StrategyBotRun latestRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(ownerId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .summary("""
+                        {
+                          "returnPercent": 4.5,
+                          "netPnl": 4500.0,
+                          "tradeCount": 3,
+                          "profitFactor": 1.5
+                        }
+                        """)
+                .build();
+
+        StrategyBotRunRepository.BoardAggregateView aggregate = org.mockito.Mockito.mock(StrategyBotRunRepository.BoardAggregateView.class);
+        when(aggregate.getTotalRuns()).thenReturn(2L);
+        when(aggregate.getCompletedRuns()).thenReturn(2L);
+        when(aggregate.getRunningRuns()).thenReturn(0L);
+        when(aggregate.getFailedRuns()).thenReturn(0L);
+        when(aggregate.getCancelledRuns()).thenReturn(0L);
+        when(aggregate.getBacktestRuns()).thenReturn(2L);
+        when(aggregate.getForwardTestRuns()).thenReturn(0L);
+        when(aggregate.getCompilerReadyRuns()).thenReturn(2L);
+        when(aggregate.getPositiveCompletedRuns()).thenReturn(2L);
+        when(aggregate.getNegativeCompletedRuns()).thenReturn(0L);
+        when(aggregate.getTotalSimulatedTrades()).thenReturn(6L);
+        when(aggregate.getAvgReturnPercent()).thenReturn(4.5);
+        when(aggregate.getAvgNetPnl()).thenReturn(4500.0);
+        when(aggregate.getAvgMaxDrawdownPercent()).thenReturn(2.2);
+        when(aggregate.getAvgWinRate()).thenReturn(60.0);
+        when(aggregate.getAvgTradeCount()).thenReturn(3.0);
+        when(aggregate.getAvgProfitFactor()).thenReturn(1.5);
+        when(aggregate.getAvgExpectancyPerTrade()).thenReturn(1500.0);
+
+        StrategyBotRunRepository.SelectedRunView latestRunRow = org.mockito.Mockito.mock(StrategyBotRunRepository.SelectedRunView.class);
+        when(latestRunRow.getStrategyBotId()).thenReturn(botId);
+        when(latestRunRow.getId()).thenReturn(latestRun.getId());
+
+        when(strategyBotRepository.findPublicDiscoverableBotById(botId, Portfolio.Visibility.PUBLIC, StrategyBot.Status.DRAFT))
+                .thenReturn(Optional.of(bot));
+        when(userRepository.findById(ownerId)).thenReturn(Optional.of(owner));
+        when(portfolioRepository.findById(portfolioId)).thenReturn(Optional.of(portfolio));
+        when(cacheService.get(anyString(), eq(String.class))).thenReturn(Optional.empty());
+        when(strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of(aggregate));
+        when(strategyBotRunRepository.findBestCompletedRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findWorstCompletedRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findLatestCompletedRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of(latestRunRow));
+        when(strategyBotRunRepository.findActiveForwardRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findRecentRunIdsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0),
+                12))
+                .thenReturn(List.of(latestRunRow));
+        when(strategyBotRunRepository.findEntryReasonCountsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findExitReasonCountsByStrategyBotIdIn(
+                List.of(botId),
+                "ALL",
+                false,
+                LocalDateTime.of(1970, 1, 1, 0, 0)))
+                .thenReturn(List.of());
+        when(strategyBotRunRepository.findByIdIn(any(Collection.class))).thenReturn(List.of(latestRun));
+
+        PublicStrategyBotDetailResponse detail = strategyBotRunService.getPublicBotDetail(botId, "ALL", null);
+
+        assertThat(detail.getStrategyBotId()).isEqualTo(botId);
+        assertThat(detail.getOwnerUsername()).isEqualTo("snapshot-owner");
+        assertThat(detail.getLinkedPortfolioName()).isEqualTo("Snapshot Public Portfolio");
+        assertThat(detail.getAnalytics().getTotalRuns()).isEqualTo(2);
+        assertThat(detail.getAnalytics().getLatestCompletedRun()).isNotNull();
+        assertThat(detail.getAnalytics().getLatestCompletedRun().getId()).isEqualTo(latestRun.getId());
+        verify(strategyBotRunRepository, never()).findByStrategyBotIdOrderByRequestedAtDesc(botId);
     }
 
     @Test

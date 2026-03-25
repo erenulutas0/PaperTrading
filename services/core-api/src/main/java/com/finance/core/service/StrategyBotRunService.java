@@ -338,11 +338,11 @@ public class StrategyBotRunService {
                 : portfolioRepository.findById(bot.getLinkedPortfolioId())
                         .filter(portfolio -> portfolio.getVisibility() == Portfolio.Visibility.PUBLIC)
                         .orElse(null);
-        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(
-                bot,
-                strategyBotRunRepository.findByStrategyBotIdOrderByRequestedAtDesc(bot.getId()),
+        StrategyBotAnalyticsResponse analytics = buildBotAnalyticsFromSnapshots(
+                bot.getId(),
                 scopedRunMode,
-                normalizedLookbackDays);
+                normalizedLookbackDays,
+                () -> strategyBotRunRepository.findByStrategyBotIdOrderByRequestedAtDesc(bot.getId()));
 
         return PublicStrategyBotDetailResponse.builder()
                 .strategyBotId(bot.getId())
@@ -1408,11 +1408,11 @@ public class StrategyBotRunService {
                                                            UUID userId,
                                                            StrategyBotRun.RunMode scopedRunMode,
                                                            Integer lookbackDays) {
-        return buildBotAnalytics(
+        return buildBotAnalyticsFromSnapshots(
                 bot.getId(),
-                strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId),
                 scopedRunMode,
-                lookbackDays);
+                lookbackDays,
+                () -> strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(bot.getId(), userId));
     }
 
     private StrategyBotAnalyticsResponse buildBotAnalytics(StrategyBot bot,
@@ -1420,6 +1420,136 @@ public class StrategyBotRunService {
                                                            StrategyBotRun.RunMode scopedRunMode,
                                                            Integer lookbackDays) {
         return buildBotAnalytics(bot.getId(), rawRuns, scopedRunMode, lookbackDays);
+    }
+
+    private StrategyBotAnalyticsResponse buildBotAnalyticsFromSnapshots(UUID botId,
+                                                                        StrategyBotRun.RunMode scopedRunMode,
+                                                                        Integer lookbackDays,
+                                                                        Supplier<List<StrategyBotRun>> fallbackRunLoader) {
+        String runModeScope = toBoardRunModeScope(scopedRunMode);
+        boolean lookbackActive = lookbackDays != null;
+        LocalDateTime lookbackCutoff = resolveBoardLookbackCutoff(lookbackDays);
+        List<UUID> botIds = List.of(botId);
+
+        StrategyBotRunRepository.BoardAggregateView aggregate = defaultIfNull(
+                        strategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(
+                                botIds,
+                                runModeScope,
+                                lookbackActive,
+                                lookbackCutoff))
+                .stream()
+                .findFirst()
+                .orElse(null);
+        Map<UUID, UUID> bestRunIds = indexSelectedRunIds(defaultIfNull(
+                strategyBotRunRepository.findBestCompletedRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        Map<UUID, UUID> worstRunIds = indexSelectedRunIds(defaultIfNull(
+                strategyBotRunRepository.findWorstCompletedRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        Map<UUID, UUID> latestCompletedRunIds = indexSelectedRunIds(defaultIfNull(
+                strategyBotRunRepository.findLatestCompletedRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        Map<UUID, UUID> activeForwardRunIds = indexSelectedRunIds(defaultIfNull(
+                strategyBotRunRepository.findActiveForwardRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff)));
+        List<StrategyBotRunRepository.SelectedRunView> recentRunRows = defaultIfNull(
+                strategyBotRunRepository.findRecentRunIdsByStrategyBotIdIn(
+                        botIds,
+                        runModeScope,
+                        lookbackActive,
+                        lookbackCutoff,
+                        12));
+        Map<String, Integer> entryDriverTotals = aggregateReasonCountsByBotId(defaultIfNull(
+                        strategyBotRunRepository.findEntryReasonCountsByStrategyBotIdIn(
+                                botIds,
+                                runModeScope,
+                                lookbackActive,
+                                lookbackCutoff)))
+                .getOrDefault(botId, Map.of());
+        Map<String, Integer> exitDriverTotals = aggregateReasonCountsByBotId(defaultIfNull(
+                        strategyBotRunRepository.findExitReasonCountsByStrategyBotIdIn(
+                                botIds,
+                                runModeScope,
+                                lookbackActive,
+                                lookbackCutoff)))
+                .getOrDefault(botId, Map.of());
+
+        if (aggregate == null
+                && bestRunIds.isEmpty()
+                && worstRunIds.isEmpty()
+                && latestCompletedRunIds.isEmpty()
+                && activeForwardRunIds.isEmpty()
+                && recentRunRows.isEmpty()
+                && entryDriverTotals.isEmpty()
+                && exitDriverTotals.isEmpty()) {
+            return buildBotAnalytics(botId, fallbackRunLoader.get(), scopedRunMode, lookbackDays);
+        }
+
+        LinkedHashSet<UUID> selectedRunIds = new LinkedHashSet<>();
+        selectedRunIds.addAll(bestRunIds.values());
+        selectedRunIds.addAll(worstRunIds.values());
+        selectedRunIds.addAll(latestCompletedRunIds.values());
+        selectedRunIds.addAll(activeForwardRunIds.values());
+        recentRunRows.stream()
+                .map(StrategyBotRunRepository.SelectedRunView::getId)
+                .filter(Objects::nonNull)
+                .forEach(selectedRunIds::add);
+
+        Map<UUID, StrategyBotRun> selectedRunsById = selectedRunIds.isEmpty()
+                ? Map.of()
+                : defaultIfNull(strategyBotRunRepository.findByIdIn(selectedRunIds))
+                .stream()
+                .collect(LinkedHashMap::new,
+                        (map, run) -> map.put(run.getId(), run),
+                        LinkedHashMap::putAll);
+
+        List<StrategyBotRunScorecardResponse> recentScorecards = recentRunRows.stream()
+                .map(StrategyBotRunRepository.SelectedRunView::getId)
+                .map(selectedRunsById::get)
+                .filter(Objects::nonNull)
+                .map(this::toScorecard)
+                .toList();
+
+        return StrategyBotAnalyticsResponse.builder()
+                .strategyBotId(botId)
+                .totalRuns(intValue(aggregate == null ? null : aggregate.getTotalRuns()))
+                .backtestRuns(intValue(aggregate == null ? null : aggregate.getBacktestRuns()))
+                .forwardTestRuns(intValue(aggregate == null ? null : aggregate.getForwardTestRuns()))
+                .completedRuns(intValue(aggregate == null ? null : aggregate.getCompletedRuns()))
+                .runningRuns(intValue(aggregate == null ? null : aggregate.getRunningRuns()))
+                .failedRuns(intValue(aggregate == null ? null : aggregate.getFailedRuns()))
+                .cancelledRuns(intValue(aggregate == null ? null : aggregate.getCancelledRuns()))
+                .compilerReadyRuns(intValue(aggregate == null ? null : aggregate.getCompilerReadyRuns()))
+                .positiveCompletedRuns(intValue(aggregate == null ? null : aggregate.getPositiveCompletedRuns()))
+                .negativeCompletedRuns(intValue(aggregate == null ? null : aggregate.getNegativeCompletedRuns()))
+                .totalSimulatedTrades(intValue(aggregate == null ? null : aggregate.getTotalSimulatedTrades()))
+                .avgReturnPercent(roundNullable(aggregate == null ? null : aggregate.getAvgReturnPercent()))
+                .avgNetPnl(roundNullable(aggregate == null ? null : aggregate.getAvgNetPnl()))
+                .avgMaxDrawdownPercent(roundNullable(aggregate == null ? null : aggregate.getAvgMaxDrawdownPercent()))
+                .avgWinRate(roundNullable(aggregate == null ? null : aggregate.getAvgWinRate()))
+                .avgTradeCount(roundNullable(aggregate == null ? null : aggregate.getAvgTradeCount()))
+                .avgProfitFactor(roundNullable(aggregate == null ? null : aggregate.getAvgProfitFactor()))
+                .avgExpectancyPerTrade(roundNullable(aggregate == null ? null : aggregate.getAvgExpectancyPerTrade()))
+                .bestRun(toScorecard(selectedRunsById.get(bestRunIds.get(botId))))
+                .worstRun(toScorecard(selectedRunsById.get(worstRunIds.get(botId))))
+                .latestCompletedRun(toScorecard(selectedRunsById.get(latestCompletedRunIds.get(botId))))
+                .activeForwardRun(toScorecard(selectedRunsById.get(activeForwardRunIds.get(botId))))
+                .entryDriverTotals(entryDriverTotals)
+                .exitDriverTotals(exitDriverTotals)
+                .recentScorecards(recentScorecards)
+                .build();
     }
 
     private StrategyBotAnalyticsResponse buildBotAnalytics(UUID botId,
@@ -2491,6 +2621,18 @@ public class StrategyBotRunService {
             }
         }
         return indexed;
+    }
+
+    private Map<UUID, Map<String, Integer>> aggregateReasonCountsByBotId(List<StrategyBotRunRepository.ReasonCountView> rows) {
+        Map<UUID, Map<String, Integer>> totals = new LinkedHashMap<>();
+        for (StrategyBotRunRepository.ReasonCountView row : rows) {
+            if (row.getStrategyBotId() == null || row.getReason() == null || row.getReason().isBlank()) {
+                continue;
+            }
+            totals.computeIfAbsent(row.getStrategyBotId(), ignored -> new LinkedHashMap<>())
+                    .merge(row.getReason(), intValue(row.getCount()), Integer::sum);
+        }
+        return totals;
     }
 
     private BoardAnalyticsSnapshot defaultBoardAnalyticsSnapshot() {

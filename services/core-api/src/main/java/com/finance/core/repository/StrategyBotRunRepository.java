@@ -42,6 +42,9 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
                 SUM(CASE WHEN r.status = 'RUNNING' THEN 1 ELSE 0 END) AS runningRuns,
                 SUM(CASE WHEN r.status = 'FAILED' THEN 1 ELSE 0 END) AS failedRuns,
                 SUM(CASE WHEN r.status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelledRuns,
+                SUM(CASE WHEN r.run_mode = 'BACKTEST' THEN 1 ELSE 0 END) AS backtestRuns,
+                SUM(CASE WHEN r.run_mode = 'FORWARD_TEST' THEN 1 ELSE 0 END) AS forwardTestRuns,
+                SUM(CASE WHEN COALESCE((r.summary::jsonb ->> 'executionEngineReady')::boolean, false) = true THEN 1 ELSE 0 END) AS compilerReadyRuns,
                 SUM(CASE WHEN r.status = 'COMPLETED'
                          AND COALESCE(NULLIF(r.summary::jsonb ->> 'returnPercent', '')::double precision, 0) > 0
                          THEN 1 ELSE 0 END) AS positiveCompletedRuns,
@@ -63,6 +66,9 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
                 AVG(CASE WHEN r.status = 'COMPLETED'
                          THEN NULLIF(r.summary::jsonb ->> 'winRate', '')::double precision
                          END) AS avgWinRate,
+                AVG(CASE WHEN r.status = 'COMPLETED'
+                         THEN NULLIF(r.summary::jsonb ->> 'tradeCount', '')::double precision
+                         END) AS avgTradeCount,
                 AVG(CASE WHEN r.status = 'COMPLETED'
                          THEN NULLIF(r.summary::jsonb ->> 'profitFactor', '')::double precision
                          END) AS avgProfitFactor,
@@ -102,6 +108,31 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
             WHERE picked.rn = 1
             """, nativeQuery = true)
     List<SelectedRunView> findBestCompletedRunIdsByStrategyBotIdIn(
+            @Param("strategyBotIds") Collection<UUID> strategyBotIds,
+            @Param("runModeScope") String runModeScope,
+            @Param("lookbackActive") boolean lookbackActive,
+            @Param("lookbackCutoff") LocalDateTime lookbackCutoff);
+
+    @Query(value = """
+            SELECT picked.strategy_bot_id AS strategyBotId, picked.id AS id
+            FROM (
+                SELECT r.strategy_bot_id,
+                       r.id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY r.strategy_bot_id
+                           ORDER BY NULLIF(r.summary::jsonb ->> 'returnPercent', '')::double precision ASC NULLS LAST,
+                                    COALESCE(r.completed_at, r.requested_at) DESC,
+                                    r.id ASC
+                       ) AS rn
+                FROM strategy_bot_runs r
+                WHERE r.strategy_bot_id IN (:strategyBotIds)
+                  AND r.status = 'COMPLETED'
+                  AND (:runModeScope = 'ALL' OR r.run_mode = CAST(:runModeScope AS varchar))
+                  AND (:lookbackActive = false OR COALESCE(r.completed_at, r.requested_at) >= :lookbackCutoff)
+            ) picked
+            WHERE picked.rn = 1
+            """, nativeQuery = true)
+    List<SelectedRunView> findWorstCompletedRunIdsByStrategyBotIdIn(
             @Param("strategyBotIds") Collection<UUID> strategyBotIds,
             @Param("runModeScope") String runModeScope,
             @Param("lookbackActive") boolean lookbackActive,
@@ -156,6 +187,64 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
             @Param("lookbackActive") boolean lookbackActive,
             @Param("lookbackCutoff") LocalDateTime lookbackCutoff);
 
+    @Query(value = """
+            SELECT picked.strategy_bot_id AS strategyBotId, picked.id AS id
+            FROM (
+                SELECT r.strategy_bot_id,
+                       r.id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY r.strategy_bot_id
+                           ORDER BY r.requested_at DESC, r.id ASC
+                       ) AS rn
+                FROM strategy_bot_runs r
+                WHERE r.strategy_bot_id IN (:strategyBotIds)
+                  AND (:runModeScope = 'ALL' OR r.run_mode = CAST(:runModeScope AS varchar))
+                  AND (:lookbackActive = false OR COALESCE(r.completed_at, r.requested_at) >= :lookbackCutoff)
+            ) picked
+            WHERE picked.rn <= :limitPerBot
+            ORDER BY picked.strategy_bot_id, picked.rn
+            """, nativeQuery = true)
+    List<SelectedRunView> findRecentRunIdsByStrategyBotIdIn(
+            @Param("strategyBotIds") Collection<UUID> strategyBotIds,
+            @Param("runModeScope") String runModeScope,
+            @Param("lookbackActive") boolean lookbackActive,
+            @Param("lookbackCutoff") LocalDateTime lookbackCutoff,
+            @Param("limitPerBot") int limitPerBot);
+
+    @Query(value = """
+            SELECT r.strategy_bot_id AS strategyBotId,
+                   rc.reason AS reason,
+                   SUM(COALESCE(NULLIF(rc.countText, '')::bigint, 0)) AS count
+            FROM strategy_bot_runs r
+            CROSS JOIN LATERAL jsonb_each_text(COALESCE(r.summary::jsonb -> 'entryReasonCounts', '{}'::jsonb)) rc(reason, countText)
+            WHERE r.strategy_bot_id IN (:strategyBotIds)
+              AND (:runModeScope = 'ALL' OR r.run_mode = CAST(:runModeScope AS varchar))
+              AND (:lookbackActive = false OR COALESCE(r.completed_at, r.requested_at) >= :lookbackCutoff)
+            GROUP BY r.strategy_bot_id, rc.reason
+            """, nativeQuery = true)
+    List<ReasonCountView> findEntryReasonCountsByStrategyBotIdIn(
+            @Param("strategyBotIds") Collection<UUID> strategyBotIds,
+            @Param("runModeScope") String runModeScope,
+            @Param("lookbackActive") boolean lookbackActive,
+            @Param("lookbackCutoff") LocalDateTime lookbackCutoff);
+
+    @Query(value = """
+            SELECT r.strategy_bot_id AS strategyBotId,
+                   rc.reason AS reason,
+                   SUM(COALESCE(NULLIF(rc.countText, '')::bigint, 0)) AS count
+            FROM strategy_bot_runs r
+            CROSS JOIN LATERAL jsonb_each_text(COALESCE(r.summary::jsonb -> 'exitReasonCounts', '{}'::jsonb)) rc(reason, countText)
+            WHERE r.strategy_bot_id IN (:strategyBotIds)
+              AND (:runModeScope = 'ALL' OR r.run_mode = CAST(:runModeScope AS varchar))
+              AND (:lookbackActive = false OR COALESCE(r.completed_at, r.requested_at) >= :lookbackCutoff)
+            GROUP BY r.strategy_bot_id, rc.reason
+            """, nativeQuery = true)
+    List<ReasonCountView> findExitReasonCountsByStrategyBotIdIn(
+            @Param("strategyBotIds") Collection<UUID> strategyBotIds,
+            @Param("runModeScope") String runModeScope,
+            @Param("lookbackActive") boolean lookbackActive,
+            @Param("lookbackCutoff") LocalDateTime lookbackCutoff);
+
     interface BoardAggregateView {
         UUID getStrategyBotId();
         Long getTotalRuns();
@@ -163,6 +252,9 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
         Long getRunningRuns();
         Long getFailedRuns();
         Long getCancelledRuns();
+        Long getBacktestRuns();
+        Long getForwardTestRuns();
+        Long getCompilerReadyRuns();
         Long getPositiveCompletedRuns();
         Long getNegativeCompletedRuns();
         Long getTotalSimulatedTrades();
@@ -170,6 +262,7 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
         Double getAvgNetPnl();
         Double getAvgMaxDrawdownPercent();
         Double getAvgWinRate();
+        Double getAvgTradeCount();
         Double getAvgProfitFactor();
         Double getAvgExpectancyPerTrade();
         LocalDateTime getLatestRequestedAt();
@@ -178,5 +271,11 @@ public interface StrategyBotRunRepository extends JpaRepository<StrategyBotRun, 
     interface SelectedRunView {
         UUID getStrategyBotId();
         UUID getId();
+    }
+
+    interface ReasonCountView {
+        UUID getStrategyBotId();
+        String getReason();
+        Long getCount();
     }
 }

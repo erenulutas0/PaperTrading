@@ -796,6 +796,16 @@ Last updated: 2026-03-25
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
 ## New Review Findings (2026-03-25)
+- [x] Project strategy-bot analytics cold reads onto aggregate snapshots before raw-run fallback
+  - `StrategyBotRunService` owner analytics and public bot detail reads now assemble from:
+    - aggregate metric projection rows
+    - selected run-id projections
+    - recent run-id projections
+    - aggregated entry/exit reason-count projections
+  - raw run-list loading remains only as a fallback when the projection surfaces return no usable snapshot data.
+  - public detail now shares the same projection-first analytics path as owner analytics instead of always reparsing the full bot run history.
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest" test`
 - [x] Cache strategy-bot board/discover export entry sets and invalidate them on bot/run mutations
   - `StrategyBotRunService` now caches:
     - owner board export entry snapshots

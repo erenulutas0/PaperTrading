@@ -39,6 +39,36 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Strategy-Bot Analytics Cold Reads Now Prefer Aggregate Snapshots Over Full Run Reparse**
+  - **Problem observed**:
+    - Page and export caching had already reduced repeated hot reads, but one colder strategy-bot perf hotspot still remained:
+      - owner analytics assembly
+      - public bot detail assembly
+    - Both paths were still reparsing the full bot run history even when the repo already had enough projected evidence to build the common read model:
+      - aggregate metrics
+      - selected scorecards
+      - recent runs
+      - reason totals
+  - **Implementation**:
+    - Extended `StrategyBotRunRepository.findBoardAggregatesByStrategyBotIdIn(...)` with additional snapshot metrics:
+      - backtest / forward-test counts
+      - compiler-ready count
+      - average trade count
+    - Added repository projections for:
+      - worst completed run id
+      - recent run ids per bot
+      - entry reason totals
+      - exit reason totals
+    - Added a projection-first analytics assembly path in `StrategyBotRunService` that now drives:
+      - owner analytics
+      - public bot detail analytics
+    - Kept the old raw-run assembly as a fallback when tests or older call patterns provide no projection data.
+    - Added targeted service coverage proving:
+      - owner analytics prefers projections without opening the raw owned-run query
+      - public bot detail prefers projections without opening the raw public-run query
+  - **Operational impact**:
+    - colder strategy-bot analytics/detail reads now do materially less full-history work before any future materialized-summary layer exists
+    - the remaining perf backlog is narrower and more clearly concentrated on true precomputed summary/materialization work rather than avoidable run-history reparsing
 - **2026-03-26**: **Strategy-Bot Board And Discover Exports Now Reuse Cached Entry Snapshots**
   - **Problem observed**:
     - After page-level board/discover cache landed, export paths still rebuilt the same heavy entry set for every call.
