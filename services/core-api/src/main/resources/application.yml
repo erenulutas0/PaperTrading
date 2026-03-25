@@ -134,6 +134,7 @@ app:
     summary-refresh-interval: ${APP_STRATEGY_BOTS_SUMMARY_REFRESH_INTERVAL:PT15M}
     summary-refresh-activity-window: ${APP_STRATEGY_BOTS_SUMMARY_REFRESH_ACTIVITY_WINDOW:PT168H}
     summary-refresh-batch-size: ${APP_STRATEGY_BOTS_SUMMARY_REFRESH_BATCH_SIZE:250}
+    summary-refresh-stale-threshold: ${APP_STRATEGY_BOTS_SUMMARY_REFRESH_STALE_THRESHOLD:PT45M}
     synthetic-crypto-candles-enabled: ${APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLES_ENABLED:false}
     synthetic-crypto-candle-count: ${APP_STRATEGY_BOTS_SYNTHETIC_CRYPTO_CANDLE_COUNT:96}
     forward-test-observability:
@@ -193,7 +194,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE:health,info,metrics,shedlock,feedlatency,websocket,websocketcanary,authsessions,idempotency,auditlog,opsalerts,marketprices,strategybotforwardtests}
+        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE:health,info,metrics,shedlock,feedlatency,websocket,websocketcanary,authsessions,idempotency,auditlog,opsalerts,marketprices,strategybotforwardtests,strategybotsummaries}
   metrics:
     distribution:
       percentiles-histogram:

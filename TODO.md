@@ -796,6 +796,25 @@ Last updated: 2026-03-26
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
 ## New Review Findings (2026-03-26)
+- [x] Add observability and actuator health for strategy-bot summary precompute
+  - Added:
+    - `StrategyBotMaterializedSummaryObservabilityService`
+    - `StrategyBotMaterializedSummaryEndpoint`
+    - `StrategyBotMaterializedSummaryHealthIndicator`
+  - New actuator surface:
+    - `GET /actuator/strategybotsummaries`
+  - Summary precompute scheduler now records:
+    - tick count
+    - success/failure count
+    - last refreshed bot count
+    - last refresh timestamps
+    - last error
+  - health component now distinguishes:
+    - startup grace / awaiting first refresh
+    - stale refresh loop
+    - healthy recent refresh
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotMaterializedSummarySchedulerServiceTest,StrategyBotMaterializedSummaryEndpointIntegrationTest,StrategyBotMaterializedSummaryHealthIndicatorTest,ScheduledLockAnnotationTest,StrategyBotControllerIntegrationTest" test`
 - [x] Add scheduled precompute for recently active strategy-bot materialized summaries
   - Added `StrategyBotMaterializedSummarySchedulerService`.
   - The scheduler now refreshes:

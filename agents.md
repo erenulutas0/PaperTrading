@@ -39,6 +39,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Strategy-Bot Summary Precompute Now Exposes A Dedicated Actuator Snapshot And Health Component**
+  - **Problem observed**:
+    - Background summary precompute reduced cold-read ownership, but once that scheduler existed it still lacked first-class runtime evidence.
+    - Without an explicit actuator surface, operators would have to infer summary-refresh health indirectly from slower board/detail behavior or logs.
+  - **Implementation**:
+    - Added:
+      - `StrategyBotMaterializedSummaryObservabilityService`
+      - `StrategyBotMaterializedSummaryEndpoint`
+      - `StrategyBotMaterializedSummaryHealthIndicator`
+    - Added `GET /actuator/strategybotsummaries`.
+    - The scheduler now records:
+      - tick count
+      - success/failure counts
+      - last refreshed bot count
+      - last refresh/success/failure timestamps
+      - last error
+    - Health now distinguishes:
+      - startup grace while awaiting first refresh
+      - stale summary-refresh loop
+      - healthy recent refresh
+  - **Operational impact**:
+    - strategy-bot summary precompute can now be validated directly during rollout and runtime review instead of being inferred from downstream page latency
+    - the summary-refresh scheduler is closer to the same observability standard already used by forward-test scheduling and other rollout-critical background jobs
 - **2026-03-26**: **Recently Active Strategy-Bot Summaries Now Refresh In The Background Instead Of Waiting Only For Cold Reads**
   - **Problem observed**:
     - Mutation-driven summary refresh kept persisted rows fresh after writes, but a colder gap still remained:

@@ -26,6 +26,8 @@ class StrategyBotMaterializedSummarySchedulerServiceTest {
     private StrategyBotRunRepository strategyBotRunRepository;
     @Mock
     private StrategyBotRunService strategyBotRunService;
+    @Mock
+    private com.finance.core.observability.StrategyBotMaterializedSummaryObservabilityService observabilityService;
 
     @InjectMocks
     private StrategyBotMaterializedSummarySchedulerService schedulerService;
@@ -43,6 +45,7 @@ class StrategyBotMaterializedSummarySchedulerServiceTest {
 
         verify(strategyBotRunRepository).findRecentlyActiveStrategyBotIds(any(LocalDateTime.class), eq(25));
         verify(strategyBotRunService).refreshMaterializedSummariesForBots(List.of(firstBotId, secondBotId));
+        verify(observabilityService).recordRefreshSuccess(2);
     }
 
     @Test
@@ -56,5 +59,18 @@ class StrategyBotMaterializedSummarySchedulerServiceTest {
 
         verify(strategyBotRunRepository).findRecentlyActiveStrategyBotIds(any(LocalDateTime.class), eq(1));
         verify(strategyBotRunService, never()).refreshMaterializedSummariesForBots(any());
+        verify(observabilityService).recordRefreshSuccess(0);
+    }
+
+    @Test
+    void refreshRecentBotSummaries_shouldRecordFailureAndRethrow() {
+        ReflectionTestUtils.setField(schedulerService, "activityWindow", Duration.ofDays(2));
+        ReflectionTestUtils.setField(schedulerService, "batchSize", 10);
+        when(strategyBotRunRepository.findRecentlyActiveStrategyBotIds(any(LocalDateTime.class), eq(10)))
+                .thenThrow(new IllegalStateException("projection drift"));
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, schedulerService::refreshRecentBotSummaries);
+
+        verify(observabilityService).recordRefreshFailure("projection drift");
     }
 }

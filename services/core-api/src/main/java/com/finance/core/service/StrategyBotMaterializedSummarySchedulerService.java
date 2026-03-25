@@ -1,5 +1,6 @@
 package com.finance.core.service;
 
+import com.finance.core.observability.StrategyBotMaterializedSummaryObservabilityService;
 import com.finance.core.repository.StrategyBotRunRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ public class StrategyBotMaterializedSummarySchedulerService {
 
     private final StrategyBotRunRepository strategyBotRunRepository;
     private final StrategyBotRunService strategyBotRunService;
+    private final StrategyBotMaterializedSummaryObservabilityService observabilityService;
 
     @Value("${app.strategy-bots.summary-refresh-activity-window:PT168H}")
     private Duration activityWindow;
@@ -30,15 +32,22 @@ public class StrategyBotMaterializedSummarySchedulerService {
     @Scheduled(fixedDelayString = "${app.strategy-bots.summary-refresh-interval:PT15M}")
     @SchedulerLock(name = "StrategyBotSummaryRefresh.refresh", lockAtMostFor = "PT20M", lockAtLeastFor = "PT5S")
     public void refreshRecentBotSummaries() {
-        LocalDateTime activityCutoff = LocalDateTime.now().minus(activityWindow);
-        int effectiveBatchSize = Math.max(batchSize, 1);
-        List<UUID> botIds = strategyBotRunRepository.findRecentlyActiveStrategyBotIds(activityCutoff, effectiveBatchSize);
-        if (botIds.isEmpty()) {
-            log.debug("No recently active strategy bots found for materialized summary refresh");
-            return;
-        }
+        try {
+            LocalDateTime activityCutoff = LocalDateTime.now().minus(activityWindow);
+            int effectiveBatchSize = Math.max(batchSize, 1);
+            List<UUID> botIds = strategyBotRunRepository.findRecentlyActiveStrategyBotIds(activityCutoff, effectiveBatchSize);
+            if (botIds.isEmpty()) {
+                observabilityService.recordRefreshSuccess(0);
+                log.debug("No recently active strategy bots found for materialized summary refresh");
+                return;
+            }
 
-        strategyBotRunService.refreshMaterializedSummariesForBots(botIds);
-        log.info("Refreshed materialized strategy-bot summaries for {} recently active bots", botIds.size());
+            strategyBotRunService.refreshMaterializedSummariesForBots(botIds);
+            observabilityService.recordRefreshSuccess(botIds.size());
+            log.info("Refreshed materialized strategy-bot summaries for {} recently active bots", botIds.size());
+        } catch (Exception ex) {
+            observabilityService.recordRefreshFailure(ex.getMessage());
+            throw ex;
+        }
     }
 }
