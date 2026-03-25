@@ -448,6 +448,10 @@ public class StrategyBotRunService {
         return readCachedStrategyBotJson(raw, CachedBoardPage.class);
     }
 
+    private Optional<CachedBoardEntries> readCachedBoardEntries(String raw) {
+        return readCachedStrategyBotJson(raw, CachedBoardEntries.class);
+    }
+
     private <T> Optional<T> readCachedStrategyBotJson(String raw, Class<T> type) {
         if (raw == null || raw.isBlank()) {
             return Optional.empty();
@@ -472,6 +476,60 @@ public class StrategyBotRunService {
         return new PageImpl<>(content, pageable, cached.totalElements());
     }
 
+    private List<StrategyBotBoardEntryResponse> getCachedOwnedBotBoardEntries(UUID userId,
+                                                                              String normalizedSort,
+                                                                              String normalizedDirection,
+                                                                              StrategyBotRun.RunMode scopedRunMode,
+                                                                              Integer normalizedLookbackDays) {
+        String cacheKey = ownedBotBoardEntriesCacheKey(
+                userId,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays);
+        CachedBoardEntries cached = cacheService.get(cacheKey, String.class)
+                .flatMap(this::readCachedBoardEntries)
+                .orElse(null);
+        if (cached != null && cached.entries() != null) {
+            return cached.entries();
+        }
+        List<StrategyBotBoardEntryResponse> entries = buildBotBoardEntries(
+                userId,
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays);
+        cacheStrategyBotJson(cacheKey, CachedBoardEntries.from(entries), BOT_BOARD_CACHE_TTL);
+        return entries;
+    }
+
+    private List<StrategyBotBoardEntryResponse> getCachedPublicBotBoardEntries(String normalizedSort,
+                                                                               String normalizedDirection,
+                                                                               StrategyBotRun.RunMode scopedRunMode,
+                                                                               Integer normalizedLookbackDays,
+                                                                               String normalizedQuery) {
+        String cacheKey = publicBotBoardEntriesCacheKey(
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays,
+                normalizedQuery);
+        CachedBoardEntries cached = cacheService.get(cacheKey, String.class)
+                .flatMap(this::readCachedBoardEntries)
+                .orElse(null);
+        if (cached != null && cached.entries() != null) {
+            return cached.entries();
+        }
+        List<StrategyBotBoardEntryResponse> entries = buildPublicBotBoardEntries(
+                normalizedSort,
+                normalizedDirection,
+                scopedRunMode,
+                normalizedLookbackDays,
+                normalizedQuery);
+        cacheStrategyBotJson(cacheKey, CachedBoardEntries.from(entries), BOT_BOARD_CACHE_TTL);
+        return entries;
+    }
+
     private String ownedBotBoardCacheKey(UUID userId,
                                          Pageable pageable,
                                          String normalizedSort,
@@ -487,6 +545,18 @@ public class StrategyBotRunService {
                 + ":lookback:" + boardLookbackScopeKey(normalizedLookbackDays);
     }
 
+    private String ownedBotBoardEntriesCacheKey(UUID userId,
+                                                String normalizedSort,
+                                                String normalizedDirection,
+                                                StrategyBotRun.RunMode scopedRunMode,
+                                                Integer normalizedLookbackDays) {
+        return "strategy-bot:board:owned-export:user:" + userId
+                + ":sort:" + normalizedSort
+                + ":direction:" + normalizedDirection
+                + ":run-mode:" + boardRunModeScopeKey(scopedRunMode)
+                + ":lookback:" + boardLookbackScopeKey(normalizedLookbackDays);
+    }
+
     private String publicBotBoardCacheKey(Pageable pageable,
                                           String normalizedSort,
                                           String normalizedDirection,
@@ -495,6 +565,19 @@ public class StrategyBotRunService {
                                           Integer normalizedLookbackDays) {
         return "strategy-bot:discover:page:" + pageable.getPageNumber()
                 + ":size:" + pageable.getPageSize()
+                + ":sort:" + normalizedSort
+                + ":direction:" + normalizedDirection
+                + ":run-mode:" + boardRunModeScopeKey(scopedRunMode)
+                + ":lookback:" + boardLookbackScopeKey(normalizedLookbackDays)
+                + ":q:" + cacheKeySegment(normalizedQuery);
+    }
+
+    private String publicBotBoardEntriesCacheKey(String normalizedSort,
+                                                 String normalizedDirection,
+                                                 StrategyBotRun.RunMode scopedRunMode,
+                                                 Integer normalizedLookbackDays,
+                                                 String normalizedQuery) {
+        return "strategy-bot:discover:export"
                 + ":sort:" + normalizedSort
                 + ":direction:" + normalizedDirection
                 + ":run-mode:" + boardRunModeScopeKey(scopedRunMode)
@@ -748,7 +831,7 @@ public class StrategyBotRunService {
         String normalizedSort = normalizeBoardSort(sortBy);
         String normalizedDirection = normalizeBoardDirection(direction);
         String normalizedQuery = normalizeSearchQuery(query);
-        List<StrategyBotBoardEntryResponse> entries = buildPublicBotBoardEntries(
+        List<StrategyBotBoardEntryResponse> entries = getCachedPublicBotBoardEntries(
                 normalizedSort,
                 normalizedDirection,
                 scopedRunMode,
@@ -777,7 +860,7 @@ public class StrategyBotRunService {
         String normalizedSort = normalizeBoardSort(sortBy);
         String normalizedDirection = normalizeBoardDirection(direction);
         String normalizedQuery = normalizeSearchQuery(query);
-        List<StrategyBotBoardEntryResponse> entries = buildPublicBotBoardEntries(
+        List<StrategyBotBoardEntryResponse> entries = getCachedPublicBotBoardEntries(
                 normalizedSort,
                 normalizedDirection,
                 scopedRunMode,
@@ -932,7 +1015,7 @@ public class StrategyBotRunService {
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
         String normalizedSort = normalizeBoardSort(sortBy);
         String normalizedDirection = normalizeBoardDirection(direction);
-        List<StrategyBotBoardEntryResponse> entries = buildBotBoardEntries(
+        List<StrategyBotBoardEntryResponse> entries = getCachedOwnedBotBoardEntries(
                 userId,
                 normalizedSort,
                 normalizedDirection,
@@ -959,7 +1042,7 @@ public class StrategyBotRunService {
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
         String normalizedSort = normalizeBoardSort(sortBy);
         String normalizedDirection = normalizeBoardDirection(direction);
-        List<StrategyBotBoardEntryResponse> entries = buildBotBoardEntries(
+        List<StrategyBotBoardEntryResponse> entries = getCachedOwnedBotBoardEntries(
                 userId,
                 normalizedSort,
                 normalizedDirection,
@@ -2177,6 +2260,12 @@ public class StrategyBotRunService {
     private record CachedBoardPage(List<StrategyBotBoardEntryResponse> content, long totalElements) {
         private static CachedBoardPage from(Page<StrategyBotBoardEntryResponse> page) {
             return new CachedBoardPage(page.getContent(), page.getTotalElements());
+        }
+    }
+
+    private record CachedBoardEntries(List<StrategyBotBoardEntryResponse> entries) {
+        private static CachedBoardEntries from(List<StrategyBotBoardEntryResponse> entries) {
+            return new CachedBoardEntries(entries == null ? List.of() : entries);
         }
     }
 

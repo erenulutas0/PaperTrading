@@ -39,6 +39,28 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Strategy-Bot Board And Discover Exports Now Reuse Cached Entry Snapshots**
+  - **Problem observed**:
+    - After page-level board/discover cache landed, export paths still rebuilt the same heavy entry set for every call.
+    - The common operator flow of requesting:
+      - JSON export
+      - then CSV export
+    - for the same lens was still paying duplicate list assembly cost.
+  - **Implementation**:
+    - Added cache-aside JSON entry snapshots in `StrategyBotRunService` for:
+      - owner board exports
+      - public discover exports
+    - Scoped cache keys by:
+      - owner id when private
+      - sort / direction
+      - run-mode lens
+      - lookback lens
+      - public search query
+    - Rewired both JSON and CSV export builders to reuse the cached entry list instead of recomputing it per format.
+    - Reused the existing broad strategy-bot board/discover invalidation patterns so write paths clear both interactive page caches and export snapshots together.
+  - **Operational impact**:
+    - repeated export requests for the same board/discover lens are cheaper
+    - the remaining perf backlog is further narrowed toward colder summary/materialization concerns rather than duplicated export assembly work
 - **2026-03-26**: **Strategy-Bot Owner Board And Public Discover Now Reuse Cache-Aside Page Snapshots**
   - **Problem observed**:
     - After the analytics/detail cache slice, repeated board/discover reads still rebuilt the same visible page cards on every request.

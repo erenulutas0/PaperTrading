@@ -796,6 +796,19 @@ Last updated: 2026-03-25
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
 ## New Review Findings (2026-03-25)
+- [x] Cache strategy-bot board/discover export entry sets and invalidate them on bot/run mutations
+  - `StrategyBotRunService` now caches:
+    - owner board export entry snapshots
+    - public discover export entry snapshots
+  - JSON and CSV export for the same board/discover lens now reuse the cached entry set instead of rebuilding the same heavy list twice.
+  - cache keys are scoped by:
+    - owner id when private
+    - sort / direction
+    - run mode / lookback
+    - public search query
+  - existing broad invalidation on bot/run mutations now also covers these export snapshots.
+  - Targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest" test`
 - [x] Cache strategy-bot board/discover page reads and invalidate them on bot/run mutations
   - `StrategyBotRunService` now caches:
     - owner board page snapshots

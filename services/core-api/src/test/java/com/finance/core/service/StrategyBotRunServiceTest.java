@@ -1933,6 +1933,32 @@ class StrategyBotRunServiceTest {
                         """)
                 .build();
 
+        StrategyBotBoardEntryResponse cachedLeader = StrategyBotBoardEntryResponse.builder()
+                .strategyBotId(leader.getId())
+                .name("Leader")
+                .status("READY")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .totalRuns(1)
+                .completedRuns(1)
+                .avgReturnPercent(6.0)
+                .build();
+        StrategyBotBoardEntryResponse cachedIdle = StrategyBotBoardEntryResponse.builder()
+                .strategyBotId(idle.getId())
+                .name("Idle")
+                .status("DRAFT")
+                .market("CRYPTO")
+                .symbol("ETHUSDT")
+                .timeframe("4h")
+                .totalRuns(0)
+                .completedRuns(0)
+                .build();
+        String cachedJson = objectMapper.writeValueAsString(java.util.Map.of(
+                "entries", List.of(cachedLeader, cachedIdle)));
+
+        when(cacheService.get(anyString(), eq(String.class)))
+                .thenReturn(Optional.empty(), Optional.of(cachedJson));
         when(strategyBotRepository.findByUserId(eq(userId), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(idle, leader)));
         when(strategyBotRunRepository.findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId)))
@@ -1959,6 +1985,8 @@ class StrategyBotRunServiceTest {
         assertThat(csv).contains("context,lookbackDays,30");
         assertThat(csv).contains("boardEntry,Leader");
         assertThat(csv).contains("boardEntry,Idle");
+        verify(strategyBotRepository, times(1)).findByUserId(eq(userId), any(Pageable.class));
+        verify(cacheService).set(contains("strategy-bot:board:owned-export:user:" + userId), any(String.class), any(Duration.class));
     }
 
     @Test
