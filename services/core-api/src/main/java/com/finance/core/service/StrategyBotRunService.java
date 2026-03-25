@@ -50,6 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -64,6 +65,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -72,7 +74,8 @@ import java.util.function.Supplier;
 @Service
 @RequiredArgsConstructor
 public class StrategyBotRunService {
-
+    private static final Duration BOT_ANALYTICS_CACHE_TTL = Duration.ofSeconds(30);
+    private static final Duration PUBLIC_BOT_DETAIL_CACHE_TTL = Duration.ofSeconds(30);
     private final StrategyBotRunRepository strategyBotRunRepository;
     private final StrategyBotRepository strategyBotRepository;
     private final StrategyBotService strategyBotService;
@@ -88,6 +91,7 @@ public class StrategyBotRunService {
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
     private final PerformanceAnalyticsService performanceAnalyticsService;
+    private final CacheService cacheService;
 
     @Value("${app.strategy-bots.synthetic-crypto-candles-enabled:false}")
     private boolean syntheticCryptoCandlesEnabled;
@@ -140,7 +144,7 @@ public class StrategyBotRunService {
     @Transactional(readOnly = true)
     public StrategyBotAnalyticsResponse getBotAnalytics(UUID botId, UUID userId, String runMode, Integer lookbackDays) {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
-        return buildBotAnalytics(
+        return getCachedBotAnalytics(
                 bot,
                 userId,
                 normalizeBoardRunMode(runMode),
@@ -226,14 +230,21 @@ public class StrategyBotRunService {
                         Portfolio.Visibility.PUBLIC,
                         StrategyBot.Status.DRAFT)
                 .orElseThrow(() -> ApiRequestException.notFound("strategy_bot_not_found", "Strategy bot not found"));
+        return getCachedPublicBotDetail(
+                bot,
+                normalizeBoardRunMode(runMode),
+                normalizeBoardLookbackDays(lookbackDays));
+    }
+
+    private PublicStrategyBotDetailResponse buildPublicBotDetail(StrategyBot bot,
+                                                                 StrategyBotRun.RunMode scopedRunMode,
+                                                                 Integer normalizedLookbackDays) {
         AppUser owner = userRepository.findById(bot.getUserId()).orElse(null);
         Portfolio linkedPortfolio = bot.getLinkedPortfolioId() == null
                 ? null
                 : portfolioRepository.findById(bot.getLinkedPortfolioId())
                         .filter(portfolio -> portfolio.getVisibility() == Portfolio.Visibility.PUBLIC)
                         .orElse(null);
-        StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
-        Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
         StrategyBotAnalyticsResponse analytics = buildBotAnalytics(
                 bot,
                 strategyBotRunRepository.findByStrategyBotIdOrderByRequestedAtDesc(bot.getId()),
@@ -264,6 +275,98 @@ public class StrategyBotRunService {
                 .exitRules(parseJson(bot.getExitRules()))
                 .analytics(analytics)
                 .build();
+    }
+
+    private StrategyBotAnalyticsResponse getCachedBotAnalytics(StrategyBot bot,
+                                                               UUID userId,
+                                                               StrategyBotRun.RunMode scopedRunMode,
+                                                               Integer lookbackDays) {
+        String cacheKey = botAnalyticsCacheKey(bot.getId(), userId, scopedRunMode, lookbackDays);
+        StrategyBotAnalyticsResponse cached = cacheService.get(cacheKey, String.class)
+                .flatMap(this::readCachedStrategyBotAnalytics)
+                .orElse(null);
+        if (cached != null) {
+            return cached;
+        }
+        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId, scopedRunMode, lookbackDays);
+        cacheStrategyBotJson(cacheKey, analytics, BOT_ANALYTICS_CACHE_TTL);
+        return analytics;
+    }
+
+    private PublicStrategyBotDetailResponse getCachedPublicBotDetail(StrategyBot bot,
+                                                                     StrategyBotRun.RunMode scopedRunMode,
+                                                                     Integer lookbackDays) {
+        String cacheKey = publicBotDetailCacheKey(bot.getId(), scopedRunMode, lookbackDays);
+        PublicStrategyBotDetailResponse cached = cacheService.get(cacheKey, String.class)
+                .flatMap(this::readCachedPublicStrategyBotDetail)
+                .orElse(null);
+        if (cached != null) {
+            return cached;
+        }
+        PublicStrategyBotDetailResponse detail = buildPublicBotDetail(bot, scopedRunMode, lookbackDays);
+        cacheStrategyBotJson(cacheKey, detail, PUBLIC_BOT_DETAIL_CACHE_TTL);
+        return detail;
+    }
+
+    private void invalidateBotReadCaches(UUID botId) {
+        if (botId == null) {
+            return;
+        }
+        cacheService.deletePattern("strategy-bot:analytics:" + botId + ":*");
+        cacheService.deletePattern("strategy-bot:public-detail:" + botId + ":*");
+    }
+
+    private String botAnalyticsCacheKey(UUID botId,
+                                        UUID userId,
+                                        StrategyBotRun.RunMode scopedRunMode,
+                                        Integer lookbackDays) {
+        return "strategy-bot:analytics:" + botId
+                + ":user:" + userId
+                + ":run-mode:" + boardRunModeScopeKey(scopedRunMode)
+                + ":lookback:" + boardLookbackScopeKey(lookbackDays);
+    }
+
+    private String publicBotDetailCacheKey(UUID botId,
+                                           StrategyBotRun.RunMode scopedRunMode,
+                                           Integer lookbackDays) {
+        return "strategy-bot:public-detail:" + botId
+                + ":run-mode:" + boardRunModeScopeKey(scopedRunMode)
+                + ":lookback:" + boardLookbackScopeKey(lookbackDays);
+    }
+
+    private String boardRunModeScopeKey(StrategyBotRun.RunMode scopedRunMode) {
+        return scopedRunMode == null ? "ALL" : scopedRunMode.name();
+    }
+
+    private String boardLookbackScopeKey(Integer lookbackDays) {
+        return lookbackDays == null ? "ALL" : String.valueOf(lookbackDays);
+    }
+
+    private Optional<StrategyBotAnalyticsResponse> readCachedStrategyBotAnalytics(String raw) {
+        return readCachedStrategyBotJson(raw, StrategyBotAnalyticsResponse.class);
+    }
+
+    private Optional<PublicStrategyBotDetailResponse> readCachedPublicStrategyBotDetail(String raw) {
+        return readCachedStrategyBotJson(raw, PublicStrategyBotDetailResponse.class);
+    }
+
+    private <T> Optional<T> readCachedStrategyBotJson(String raw, Class<T> type) {
+        if (raw == null || raw.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(objectMapper.readValue(raw, type));
+        } catch (JsonProcessingException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private void cacheStrategyBotJson(String cacheKey, Object payload, Duration ttl) {
+        try {
+            cacheService.set(cacheKey, objectMapper.writeValueAsString(payload), ttl);
+        } catch (JsonProcessingException ignored) {
+            // Cache write failure should not fail the primary read path.
+        }
     }
 
     @Transactional(readOnly = true)
@@ -734,7 +837,7 @@ public class StrategyBotRunService {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
-        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId, scopedRunMode, normalizedLookbackDays);
+        StrategyBotAnalyticsResponse analytics = getCachedBotAnalytics(bot, userId, scopedRunMode, normalizedLookbackDays);
         LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
         payload.put("strategyBotId", bot.getId());
         payload.put("name", bot.getName());
@@ -763,7 +866,7 @@ public class StrategyBotRunService {
         StrategyBot bot = strategyBotService.getOwnedBotEntity(botId, userId);
         StrategyBotRun.RunMode scopedRunMode = normalizeBoardRunMode(runMode);
         Integer normalizedLookbackDays = normalizeBoardLookbackDays(lookbackDays);
-        StrategyBotAnalyticsResponse analytics = buildBotAnalytics(bot, userId, scopedRunMode, normalizedLookbackDays);
+        StrategyBotAnalyticsResponse analytics = getCachedBotAnalytics(bot, userId, scopedRunMode, normalizedLookbackDays);
 
         List<List<Object>> rows = new ArrayList<>();
         rows.add(List.of(
@@ -2372,6 +2475,7 @@ public class StrategyBotRunService {
                 run.getId(),
                 details);
 
+        invalidateBotReadCaches(bot.getId());
         return buildRunReconciliationState(bot, run).response();
     }
 
@@ -2569,6 +2673,7 @@ public class StrategyBotRunService {
                 .build();
 
         StrategyBotRun saved = strategyBotRunRepository.save(run);
+        invalidateBotReadCaches(saved.getStrategyBotId());
         auditLogService.record(
                 userId,
                 AuditActionType.STRATEGY_BOT_RUN_REQUESTED,
@@ -2619,6 +2724,7 @@ public class StrategyBotRunService {
         StrategyBotRun.Status previousStatus = run.getStatus();
         RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, false);
         StrategyBotRun saved = strategyBotRunRepository.save(run);
+        invalidateBotReadCaches(saved.getStrategyBotId());
         if (previousStatus == StrategyBotRun.Status.RUNNING && saved.getStatus() == StrategyBotRun.Status.COMPLETED) {
             auditLogService.record(
                     userId,
@@ -2649,6 +2755,7 @@ public class StrategyBotRunService {
         run.setSummary(buildCancelledSummary(run, previousStatus, cancelledAt));
 
         StrategyBotRun saved = strategyBotRunRepository.save(run);
+        invalidateBotReadCaches(saved.getStrategyBotId());
         auditLogService.record(
                 userId,
                 AuditActionType.STRATEGY_BOT_RUN_CANCELLED,
@@ -2668,6 +2775,7 @@ public class StrategyBotRunService {
             StrategyBot bot = strategyBotService.getOwnedBotEntity(run.getStrategyBotId(), run.getUserId());
             RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, false);
             StrategyBotRun saved = strategyBotRunRepository.save(run);
+            invalidateBotReadCaches(saved.getStrategyBotId());
             if (saved.getStatus() == StrategyBotRun.Status.COMPLETED) {
                 auditLogService.record(
                         saved.getUserId(),
@@ -2681,7 +2789,9 @@ public class StrategyBotRunService {
             run.setStatus(StrategyBotRun.Status.FAILED);
             run.setCompletedAt(LocalDateTime.now());
             run.setErrorMessage(ex.getMessage());
-            return strategyBotRunRepository.save(run);
+            StrategyBotRun saved = strategyBotRunRepository.save(run);
+            invalidateBotReadCaches(saved.getStrategyBotId());
+            return saved;
         }
     }
 
@@ -2700,6 +2810,7 @@ public class StrategyBotRunService {
         run.setSummary(writeSummary(summary.payload()));
 
         StrategyBotRun saved = strategyBotRunRepository.save(run);
+        invalidateBotReadCaches(saved.getStrategyBotId());
         auditLogService.record(
                 userId,
                 AuditActionType.STRATEGY_BOT_RUN_EXECUTED,
@@ -2712,6 +2823,7 @@ public class StrategyBotRunService {
     private StrategyBotRunResponse startForwardTestRun(StrategyBot bot, StrategyBotRun run, UUID userId) {
         RunSimulationSummary summary = refreshForwardTestRunInternal(bot, run, true);
         StrategyBotRun saved = strategyBotRunRepository.save(run);
+        invalidateBotReadCaches(saved.getStrategyBotId());
         auditLogService.record(
                 userId,
                 saved.getStatus() == StrategyBotRun.Status.COMPLETED

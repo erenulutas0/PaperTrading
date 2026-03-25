@@ -796,6 +796,18 @@ Last updated: 2026-03-25
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
 ## New Review Findings (2026-03-25)
+- [x] Cache strategy-bot analytics/detail reads and invalidate them on bot/run mutations
+  - `StrategyBotRunService` now caches:
+    - owner-scoped bot analytics
+    - public bot detail payloads
+  - cache keys are scoped by:
+    - bot id
+    - run mode lens
+    - lookback lens
+    - owner id for private analytics
+  - run mutations (`request/execute/refresh/cancel/reconcile`) and bot mutations (`update/delete`) now invalidate these read caches explicitly.
+  - Targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest" test`
 - [x] Rework strategy-bot board/discover aggregation so it scales without unpaged + N+1 analytics assembly
   - `StrategyBotRunService` page-visible owner board and public discover fast paths now use:
     - DB aggregate projections for visible bot ids

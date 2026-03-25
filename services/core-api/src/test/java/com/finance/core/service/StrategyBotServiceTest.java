@@ -47,6 +47,8 @@ class StrategyBotServiceTest {
     private ObjectMapper objectMapper = new ObjectMapper();
     @Mock
     private AuditLogService auditLogService;
+    @Mock
+    private CacheService cacheService;
 
     @InjectMocks
     private StrategyBotService strategyBotService;
@@ -172,5 +174,35 @@ class StrategyBotServiceTest {
                 () -> strategyBotService.getUserBots(userId, org.springframework.data.domain.PageRequest.of(0, 10)));
 
         assertEquals("Failed to parse stored strategy rules", exception.getMessage());
+    }
+
+    @Test
+    void updateBot_shouldInvalidateBotReadCaches() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        when(userRepository.existsById(userId)).thenReturn(true);
+        when(strategyBotRepository.findByIdAndUserId(botId, userId)).thenReturn(Optional.of(
+                StrategyBot.builder()
+                        .id(botId)
+                        .userId(userId)
+                        .name("Existing Bot")
+                        .market("CRYPTO")
+                        .symbol("BTCUSDT")
+                        .timeframe("1H")
+                        .entryRules("{}")
+                        .exitRules("{}")
+                        .maxPositionSizePercent(new BigDecimal("25"))
+                        .status(StrategyBot.Status.DRAFT)
+                        .cooldownMinutes(0)
+                        .build()));
+        when(strategyBotRepository.save(any(StrategyBot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        StrategyBotRequest request = new StrategyBotRequest();
+        request.setName("Updated Bot");
+
+        strategyBotService.updateBot(botId, userId, request);
+
+        verify(cacheService).deletePattern("strategy-bot:analytics:" + botId + ":*");
+        verify(cacheService).deletePattern("strategy-bot:public-detail:" + botId + ":*");
     }
 }

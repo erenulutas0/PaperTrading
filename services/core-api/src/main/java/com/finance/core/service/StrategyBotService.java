@@ -36,6 +36,7 @@ public class StrategyBotService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
+    private final CacheService cacheService;
 
     @Transactional(readOnly = true)
     public Page<StrategyBotResponse> getUserBots(UUID userId, Pageable pageable) {
@@ -141,6 +142,7 @@ public class StrategyBotService {
         validateRisk(bot.getMaxPositionSizePercent(), bot.getStopLossPercent(), bot.getTakeProfitPercent(), bot.getCooldownMinutes());
 
         StrategyBot saved = strategyBotRepository.save(bot);
+        invalidateBotReadCaches(saved.getId());
         auditLogService.record(
                 userId,
                 AuditActionType.STRATEGY_BOT_UPDATED,
@@ -155,6 +157,7 @@ public class StrategyBotService {
         StrategyBot bot = getOwnedBot(botId, userId);
         strategyBotRunRepository.deleteByStrategyBotId(bot.getId());
         strategyBotRepository.delete(bot);
+        invalidateBotReadCaches(bot.getId());
         auditLogService.record(
                 userId,
                 AuditActionType.STRATEGY_BOT_DELETED,
@@ -318,5 +321,13 @@ public class StrategyBotService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private void invalidateBotReadCaches(UUID botId) {
+        if (botId == null) {
+            return;
+        }
+        cacheService.deletePattern("strategy-bot:analytics:" + botId + ":*");
+        cacheService.deletePattern("strategy-bot:public-detail:" + botId + ":*");
     }
 }

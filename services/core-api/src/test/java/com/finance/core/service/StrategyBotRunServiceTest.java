@@ -46,6 +46,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -59,6 +60,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -94,6 +97,8 @@ class StrategyBotRunServiceTest {
     private AuditLogService auditLogService;
     @Mock
     private PerformanceAnalyticsService performanceAnalyticsService;
+    @Mock
+    private CacheService cacheService;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
     @Spy
@@ -104,7 +109,93 @@ class StrategyBotRunServiceTest {
 
     @BeforeEach
     void setUp() {
+        objectMapper.findAndRegisterModules();
         lenient().when(userRepository.existsById(any())).thenReturn(true);
+    }
+
+    @Test
+    void getBotAnalytics_shouldReuseCachedPayload() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("Cached Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("25"))
+                .status(StrategyBot.Status.READY)
+                .cooldownMinutes(0)
+                .build();
+        StrategyBotRun run = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(1))
+                .summary("""
+                        {
+                          "returnPercent": 5.0,
+                          "netPnl": 5000.0,
+                          "tradeCount": 2
+                        }
+                        """)
+                .build();
+        StrategyBotAnalyticsResponse cached = StrategyBotAnalyticsResponse.builder()
+                .strategyBotId(botId)
+                .totalRuns(99)
+                .completedRuns(99)
+                .build();
+        String cachedJson = objectMapper.writeValueAsString(cached);
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(cacheService.get(anyString(), eq(String.class)))
+                .thenReturn(Optional.empty(), Optional.of(cachedJson));
+        when(strategyBotRunRepository.findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId))
+                .thenReturn(List.of(run));
+
+        StrategyBotAnalyticsResponse first = strategyBotRunService.getBotAnalytics(botId, userId, "ALL", null);
+        StrategyBotAnalyticsResponse second = strategyBotRunService.getBotAnalytics(botId, userId, "ALL", null);
+
+        assertThat(first.getTotalRuns()).isEqualTo(1);
+        assertThat(second.getTotalRuns()).isEqualTo(99);
+        verify(strategyBotRunRepository).findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId);
+        verify(cacheService).set(contains("strategy-bot:analytics:" + botId), any(String.class), any(Duration.class));
+    }
+
+    @Test
+    void requestRun_shouldInvalidateBotReadCaches() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("Runner")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("25"))
+                .status(StrategyBot.Status.READY)
+                .cooldownMinutes(0)
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(strategyBotRunRepository.save(any(StrategyBotRun.class))).thenAnswer(invocation -> {
+            StrategyBotRun saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+
+        strategyBotRunService.requestRun(botId, userId, new com.finance.core.dto.StrategyBotRunRequest());
+
+        verify(cacheService).deletePattern("strategy-bot:analytics:" + botId + ":*");
+        verify(cacheService).deletePattern("strategy-bot:public-detail:" + botId + ":*");
     }
 
     @Test

@@ -39,6 +39,34 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **Strategy-Bot Analytics And Public Detail Reads Now Use Cache-Aside JSON Snapshots With Explicit Mutation Invalidation**
+  - **Problem observed**:
+    - After board/discover fast paths were cleaned up, repeated reads still rebuilt the same heavier per-bot payloads on every request:
+      - owner analytics
+      - analytics export
+      - public bot detail
+      - public bot detail export
+    - These reads are narrower than board/discover, but they still repeatedly parse the same run history under active dashboard/public inspection.
+  - **Implementation**:
+    - Added cache-aside JSON snapshots in `StrategyBotRunService` for:
+      - owner-scoped bot analytics
+      - public bot detail payloads
+    - Scoped the cache keys by:
+      - bot id
+      - run-mode lens
+      - lookback lens
+      - owner id for private analytics
+    - Chose JSON-string cache payloads plus `@Jacksonized` DTOs instead of raw object caching so Redis reads do not depend on polymorphic type metadata.
+    - Wired explicit invalidation into the main bot/run mutation paths:
+      - bot update/delete
+      - run request
+      - backtest execute
+      - forward-test start/refresh/system refresh
+      - cancel
+      - reconciliation apply
+  - **Operational impact**:
+    - repeated strategy-bot analytics/detail/export reads are cheaper without introducing a new summary table yet
+    - cache correctness is bounded because the main bot/run mutations now evict the cached snapshots proactively
 - **2026-03-25**: **Strategy-Bot Board And Discover Page Cards Now Assemble From Aggregate Snapshots Instead Of Visible-Run Reparse**
   - **Problem observed**:
     - Earlier fast paths moved sort/paging to the query layer, but the page-visible board/discover cards still batch-loaded raw runs for the visible bots and rebuilt analytics in memory.

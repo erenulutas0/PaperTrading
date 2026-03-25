@@ -2,6 +2,7 @@ package com.finance.core.dto;
 
 import lombok.Builder;
 import lombok.Value;
+import lombok.extern.jackson.Jacksonized;
 
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,7 @@ import java.util.UUID;
 
 @Value
 @Builder
+@Jacksonized
 public class StrategyBotAnalyticsResponse {
     UUID strategyBotId;
     int totalRuns;
