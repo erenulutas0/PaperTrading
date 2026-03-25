@@ -39,6 +39,29 @@ Unlike Twitter/X where users post "buy this" then delete when wrong, our platfor
 | BIST30 Support | 🔨 Building | Provider abstraction started; delayed BIST100/Yahoo-style integration in progress |
 
 ### Architecture Decisions Log
+- **2026-03-26**: **All-Time Strategy-Bot Cold Reads Now Prefer Persisted Materialized Summaries Before Projection/Run Fallback**
+  - **Problem observed**:
+    - Query-layer fast paths, snapshot projections, and JSON caches had already reduced repeated hot reads for strategy bots.
+    - One colder bottleneck still remained for all-time reads after cache miss or cache invalidation:
+      - owner analytics
+      - public bot detail analytics
+      - owner board/discover card assembly
+      - owner/public board export assembly
+    - Those paths still had to rebuild their snapshot model from live projections every time there was no warm cache, even though the all-time lens changes only when bot/run state mutates.
+  - **Implementation**:
+    - Added Flyway migration `V29__create_strategy_bot_materialized_summaries_table.sql`.
+    - Added `StrategyBotMaterializedSummary` plus `StrategyBotMaterializedSummaryRepository`.
+    - `StrategyBotRunService` now:
+      - loads persisted summary rows first for unscoped all-time reads
+      - refreshes missing rows on demand from the existing aggregate/selected-run projection queries
+      - refreshes the affected bot summary row on run mutations before cache invalidation
+    - Kept scoped `runMode` / `lookbackDays` reads on the existing projection-first path rather than multiplying summary variants prematurely.
+    - Added targeted service coverage proving:
+      - owner analytics can be served directly from a materialized summary without reopening aggregate queries
+      - owner board export can be served directly from a materialized summary without reopening aggregate queries
+  - **Operational impact**:
+    - all-time strategy-bot cold reads now have a real persisted summary layer instead of depending only on live aggregate projection assembly after cache miss
+    - the remaining strategy-bot perf backlog is narrower and more clearly concentrated on scoped summaries or future asynchronous precompute, not basic all-time cold-read rebuild cost
 - **2026-03-26**: **Strategy-Bot Board And Discover Export Assembly Now Prefer Batch Snapshots Over Full Run Loads**
   - **Problem observed**:
     - Cached export entry sets removed repeated hot work, but the cold export miss path still rebuilt board/discover entries from full run-list loads:

@@ -1,6 +1,6 @@
 # TODO - Core API Reliability & Scalability Sweep
 
-Last updated: 2026-03-25
+Last updated: 2026-03-26
 
 ## In Progress
 - [x] Verify the new local-dev bootstrap path:
@@ -796,6 +796,17 @@ Last updated: 2026-03-25
     - `infra/load-test/reports/feed-observability-rollout-checklist-20260325-174435.md`
 
 ## New Review Findings (2026-03-25)
+- [x] Add DB-backed materialized strategy-bot summary rows for all-time analytics and board/discover cold reads
+  - Added Flyway migration `V29__create_strategy_bot_materialized_summaries_table.sql` plus the `StrategyBotMaterializedSummary` JPA entity/repository.
+  - `StrategyBotRunService` now reads unscoped all-time strategy-bot surfaces from persisted summary rows first for:
+    - owner analytics
+    - public bot detail analytics
+    - owner board/discover card snapshots
+    - owner/public board export cold reads
+  - run mutations now refresh the corresponding bot summary row before cache invalidation so hot JSON caches and colder persisted summaries stay aligned.
+  - scoped `runMode` / `lookbackDays` reads intentionally stay on the existing projection-first path; this materialization slice only targets the all-time cold-read hotspot.
+  - targeted verification passed:
+    - `./mvnw.cmd -q "-Dmaven.repo.local=.m2repo" "-Dtest=StrategyBotRunServiceTest,StrategyBotServiceTest,StrategyBotControllerIntegrationTest" test`
 - [x] Project strategy-bot analytics cold reads onto aggregate snapshots before raw-run fallback
   - `StrategyBotRunService` owner analytics and public bot detail reads now assemble from:
     - aggregate metric projection rows

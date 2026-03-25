@@ -8,6 +8,7 @@ import com.finance.core.domain.AppUser;
 import com.finance.core.domain.Portfolio;
 import com.finance.core.domain.PortfolioItem;
 import com.finance.core.domain.StrategyBot;
+import com.finance.core.domain.StrategyBotMaterializedSummary;
 import com.finance.core.domain.StrategyBotRun;
 import com.finance.core.domain.StrategyBotRunEquityPoint;
 import com.finance.core.domain.StrategyBotRunEvent;
@@ -61,6 +62,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -75,6 +77,8 @@ class StrategyBotRunServiceTest {
 
     @Mock
     private StrategyBotRunRepository strategyBotRunRepository;
+    @Mock
+    private com.finance.core.repository.StrategyBotMaterializedSummaryRepository strategyBotMaterializedSummaryRepository;
     @Mock
     private StrategyBotRepository strategyBotRepository;
     @Mock
@@ -303,6 +307,142 @@ class StrategyBotRunServiceTest {
         assertThat(analytics.getRecentScorecards()).hasSize(1);
         assertThat(analytics.getEntryDriverTotals()).containsEntry("price_above_ma_20", 3);
         assertThat(analytics.getExitDriverTotals()).containsEntry("take_profit_hit", 2);
+        verify(strategyBotRunRepository, never()).findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId);
+    }
+
+    @Test
+    void getBotAnalytics_shouldPreferMaterializedSummaryBeforeAggregateQueries() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("Materialized Analytics Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1H")
+                .entryRules("{}")
+                .exitRules("{}")
+                .maxPositionSizePercent(new BigDecimal("25"))
+                .status(StrategyBot.Status.READY)
+                .cooldownMinutes(0)
+                .build();
+        StrategyBotRun bestRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(4))
+                .completedAt(LocalDateTime.now().minusHours(3))
+                .summary("""
+                        {
+                          "returnPercent": 12.5,
+                          "netPnl": 12500.0,
+                          "tradeCount": 5,
+                          "profitFactor": 2.4
+                        }
+                        """)
+                .build();
+        StrategyBotRun worstRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(8))
+                .completedAt(LocalDateTime.now().minusHours(7))
+                .summary("""
+                        {
+                          "returnPercent": -3.5,
+                          "netPnl": -3500.0,
+                          "tradeCount": 2
+                        }
+                        """)
+                .build();
+        StrategyBotRun latestRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .summary("""
+                        {
+                          "returnPercent": 4.0,
+                          "netPnl": 4000.0,
+                          "tradeCount": 3
+                        }
+                        """)
+                .build();
+        StrategyBotRun activeRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.FORWARD_TEST)
+                .status(StrategyBotRun.Status.RUNNING)
+                .requestedAt(LocalDateTime.now().minusMinutes(30))
+                .summary("""
+                        {
+                          "returnPercent": 1.0,
+                          "netPnl": 1000.0,
+                          "tradeCount": 1
+                        }
+                        """)
+                .build();
+        StrategyBotMaterializedSummary summary = StrategyBotMaterializedSummary.builder()
+                .strategyBotId(botId)
+                .totalRuns(7)
+                .backtestRuns(5)
+                .forwardTestRuns(2)
+                .completedRuns(5)
+                .runningRuns(1)
+                .failedRuns(1)
+                .cancelledRuns(0)
+                .compilerReadyRuns(6)
+                .positiveCompletedRuns(4)
+                .negativeCompletedRuns(1)
+                .totalSimulatedTrades(23)
+                .avgReturnPercent(5.75)
+                .avgNetPnl(5750.0)
+                .avgMaxDrawdownPercent(2.6)
+                .avgWinRate(64.0)
+                .avgTradeCount(4.6)
+                .avgProfitFactor(1.9)
+                .avgExpectancyPerTrade(1250.0)
+                .latestRequestedAt(activeRun.getRequestedAt())
+                .bestRunId(bestRun.getId())
+                .worstRunId(worstRun.getId())
+                .latestCompletedRunId(latestRun.getId())
+                .activeForwardRunId(activeRun.getId())
+                .recentRunIds("[\"" + activeRun.getId() + "\",\"" + latestRun.getId() + "\"]")
+                .entryDriverTotals("{\"price_above_ma_20\":4}")
+                .exitDriverTotals("{\"take_profit_hit\":3}")
+                .build();
+
+        when(strategyBotService.getOwnedBotEntity(botId, userId)).thenReturn(bot);
+        when(cacheService.get(anyString(), eq(String.class))).thenReturn(Optional.empty());
+        when(strategyBotMaterializedSummaryRepository.findByStrategyBotIdIn(List.of(botId)))
+                .thenReturn(List.of(summary));
+        when(strategyBotRunRepository.findByIdIn(any(Collection.class)))
+                .thenReturn(List.of(bestRun, worstRun, latestRun, activeRun));
+
+        StrategyBotAnalyticsResponse analytics = strategyBotRunService.getBotAnalytics(botId, userId, "ALL", null);
+
+        assertThat(analytics.getTotalRuns()).isEqualTo(7);
+        assertThat(analytics.getAvgReturnPercent()).isEqualTo(5.75);
+        assertThat(analytics.getAvgTradeCount()).isEqualTo(4.6);
+        assertThat(analytics.getBestRun().getId()).isEqualTo(bestRun.getId());
+        assertThat(analytics.getWorstRun().getId()).isEqualTo(worstRun.getId());
+        assertThat(analytics.getLatestCompletedRun().getId()).isEqualTo(latestRun.getId());
+        assertThat(analytics.getActiveForwardRun().getId()).isEqualTo(activeRun.getId());
+        assertThat(analytics.getEntryDriverTotals()).containsEntry("price_above_ma_20", 4);
+        assertThat(analytics.getExitDriverTotals()).containsEntry("take_profit_hit", 3);
+        assertThat(analytics.getRecentScorecards()).extracting(scorecard -> scorecard.getId())
+                .containsExactly(activeRun.getId(), latestRun.getId());
+
+        verify(strategyBotRunRepository, never()).findBoardAggregatesByStrategyBotIdIn(any(), anyString(), anyBoolean(), any(LocalDateTime.class));
         verify(strategyBotRunRepository, never()).findByStrategyBotIdAndUserIdOrderByRequestedAtDesc(botId, userId);
     }
 
@@ -2359,6 +2499,96 @@ class StrategyBotRunServiceTest {
         assertThat(payload.get("entries").get(0).get("strategyBotId").asText()).isEqualTo(botId.toString());
         assertThat(payload.get("entries").get(0).get("totalRuns").asInt()).isEqualTo(3);
         assertThat(payload.get("entries").get(0).get("avgReturnPercent").asDouble()).isEqualTo(7.25);
+        verify(strategyBotRunRepository, never()).findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId));
+    }
+
+    @Test
+    void buildBotBoardExport_shouldPreferMaterializedSummaryBeforeAggregateQueries() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+
+        StrategyBot bot = StrategyBot.builder()
+                .id(botId)
+                .userId(userId)
+                .name("Materialized Export Bot")
+                .market("CRYPTO")
+                .symbol("BTCUSDT")
+                .timeframe("1h")
+                .status(StrategyBot.Status.READY)
+                .build();
+        StrategyBotRun bestRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now().minusHours(1))
+                .summary("""
+                        {
+                          "returnPercent": 11.0,
+                          "netPnl": 11000.0,
+                          "tradeCount": 6,
+                          "profitFactor": 2.1
+                        }
+                        """)
+                .build();
+        StrategyBotRun latestCompletedRun = StrategyBotRun.builder()
+                .id(UUID.randomUUID())
+                .strategyBotId(botId)
+                .userId(userId)
+                .runMode(StrategyBotRun.RunMode.BACKTEST)
+                .status(StrategyBotRun.Status.COMPLETED)
+                .requestedAt(LocalDateTime.now().minusMinutes(20))
+                .completedAt(LocalDateTime.now().minusMinutes(10))
+                .summary("""
+                        {
+                          "returnPercent": 3.0,
+                          "netPnl": 3000.0,
+                          "tradeCount": 2
+                        }
+                        """)
+                .build();
+        StrategyBotMaterializedSummary summary = StrategyBotMaterializedSummary.builder()
+                .strategyBotId(botId)
+                .totalRuns(4)
+                .completedRuns(4)
+                .runningRuns(0)
+                .failedRuns(0)
+                .cancelledRuns(0)
+                .totalSimulatedTrades(15)
+                .positiveCompletedRuns(3)
+                .negativeCompletedRuns(1)
+                .avgReturnPercent(8.4)
+                .avgNetPnl(8400.0)
+                .avgMaxDrawdownPercent(2.2)
+                .avgWinRate(66.0)
+                .avgProfitFactor(1.95)
+                .avgExpectancyPerTrade(2100.0)
+                .latestRequestedAt(latestCompletedRun.getRequestedAt())
+                .bestRunId(bestRun.getId())
+                .latestCompletedRunId(latestCompletedRun.getId())
+                .build();
+
+        when(cacheService.get(anyString(), eq(String.class))).thenReturn(Optional.empty());
+        when(strategyBotRepository.findByUserId(eq(userId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(bot)));
+        when(strategyBotMaterializedSummaryRepository.findByStrategyBotIdIn(List.of(botId)))
+                .thenReturn(List.of(summary));
+        when(strategyBotRunRepository.findByIdIn(any(Collection.class)))
+                .thenReturn(List.of(bestRun, latestCompletedRun));
+
+        JsonNode payload = objectMapper.readTree(
+                strategyBotRunService.buildBotBoardExportJson(userId, "AVG_RETURN", "DESC", "ALL", null));
+
+        assertThat(payload.get("entryCount").asInt()).isEqualTo(1);
+        assertThat(payload.get("entries").get(0).get("strategyBotId").asText()).isEqualTo(botId.toString());
+        assertThat(payload.get("entries").get(0).get("totalRuns").asInt()).isEqualTo(4);
+        assertThat(payload.get("entries").get(0).get("avgReturnPercent").asDouble()).isEqualTo(8.4);
+        assertThat(payload.get("entries").get(0).get("bestRun").get("id").asText()).isEqualTo(bestRun.getId().toString());
+        assertThat(payload.get("entries").get(0).get("latestCompletedRun").get("id").asText()).isEqualTo(latestCompletedRun.getId().toString());
+
+        verify(strategyBotRunRepository, never()).findBoardAggregatesByStrategyBotIdIn(any(), anyString(), anyBoolean(), any(LocalDateTime.class));
         verify(strategyBotRunRepository, never()).findByStrategyBotIdInAndUserIdOrderByRequestedAtDesc(any(), eq(userId));
     }
 
