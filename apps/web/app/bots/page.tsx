@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../lib/api-client';
 import { extractContent } from '../../lib/page';
 
@@ -118,7 +118,7 @@ function parsePageIndex(value: string | null): number {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-export default function PublicStrategyBotsPage() {
+function PublicStrategyBotsPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -519,5 +519,23 @@ export default function PublicStrategyBotsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PublicStrategyBotsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black text-white">
+          <div className="mx-auto max-w-6xl px-6 py-10">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-sm text-zinc-400">
+              Loading public strategy bots...
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <PublicStrategyBotsPageContent />
+    </Suspense>
   );
 }

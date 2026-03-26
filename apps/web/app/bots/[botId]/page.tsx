@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../../lib/api-client';
 
 type RunMode = 'ALL' | 'BACKTEST' | 'FORWARD_TEST';
@@ -118,7 +118,7 @@ function pretty(value: unknown): string {
   }
 }
 
-export default function PublicStrategyBotDetailPage() {
+function PublicStrategyBotDetailPageContent() {
   const params = useParams<{ botId: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -443,5 +443,23 @@ export default function PublicStrategyBotDetailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PublicStrategyBotDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black text-white">
+          <div className="mx-auto max-w-6xl px-6 py-10">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-sm text-zinc-400">
+              Loading strategy bot detail...
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <PublicStrategyBotDetailPageContent />
+    </Suspense>
   );
 }

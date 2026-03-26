@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../../../../lib/api-client';
 
 type StrategyBotRunFill = {
@@ -109,7 +109,7 @@ function buildSparkline(points: StrategyBotRunEquityPoint[]): string {
     .join(' ');
 }
 
-export default function PublicStrategyBotRunPage() {
+function PublicStrategyBotRunPageContent() {
   const params = useParams<{ botId: string; runId: string }>();
   const searchParams = useSearchParams();
   const botId = params.botId;
@@ -377,5 +377,23 @@ export default function PublicStrategyBotRunPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PublicStrategyBotRunPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-black text-white">
+          <div className="mx-auto max-w-6xl px-6 py-10">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 text-sm text-zinc-400">
+              Loading strategy bot run...
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <PublicStrategyBotRunPageContent />
+    </Suspense>
   );
 }

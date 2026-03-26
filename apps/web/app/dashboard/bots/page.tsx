@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../../../lib/api-client';
 import { extractContent } from '../../../lib/page';
 
@@ -571,7 +571,7 @@ function RuleBuilderPanel({
     );
 }
 
-export default function StrategyBotsPage() {
+function StrategyBotsPageContent() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -2441,5 +2441,23 @@ export default function StrategyBotsPage() {
                 </section>
             )}
         </div>
+    );
+}
+
+export default function StrategyBotsPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen bg-black text-white">
+                    <div className="mx-auto max-w-7xl px-6 py-10">
+                        <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-6 text-sm text-zinc-400">
+                            Loading strategy bot workspace...
+                        </div>
+                    </div>
+                </div>
+            }
+        >
+            <StrategyBotsPageContent />
+        </Suspense>
     );
 }
